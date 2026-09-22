@@ -8,3 +8,8 @@ dist-ssr
 .idea
 .DS_Store
 *.log
+
+# local review artifacts (screenshots + puppeteer scripts used only during dev review)
+shot-*.png
+preview-*.png
+scripts/

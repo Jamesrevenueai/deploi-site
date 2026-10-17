@@ -15,8 +15,8 @@ export default function NotFound() {
         <p className="page-sub reveal d2">
           The link you followed is broken or the page has moved.
         </p>
-        <div className="audit-primary-row reveal d3">
-          <Link to="/" className="v2-primary">
+        <div className="page-actions reveal d3">
+          <Link to="/" className="btn btn-primary">
             Back to {BRAND}
             <span className="arrow" aria-hidden="true">→</span>
           </Link>

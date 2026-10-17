@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { BRAND } from '../lib/brand'
 
 const NAV_LINKS = [
-  { to: '/plan', label: 'Plan' },
-  { to: '/build', label: 'Build' },
-  { to: '/train', label: 'Train' },
-  { to: '/run', label: 'Run' },
-  { to: '/tools', label: 'Tools' },
+  { to: '/#what', label: 'What we do' },
+  { to: '/#menu', label: 'Services' },
+  { to: '/#how', label: 'How it works' },
+  { to: '/#pricing', label: 'Pricing' },
+  { to: '/#faq', label: 'FAQ' },
 ]
 
 export function Nav() {
@@ -24,11 +24,10 @@ export function Nav() {
 
   useEffect(() => {
     setOpen(false)
-  }, [location.pathname])
+  }, [location.pathname, location.hash])
 
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden'
-    else document.body.style.overflow = ''
+    document.body.style.overflow = open ? 'hidden' : ''
     return () => {
       document.body.style.overflow = ''
     }
@@ -38,24 +37,20 @@ export function Nav() {
     <nav className={`nav ${scrolled || open ? 'scrolled' : ''}`}>
       <div className="nav-inner">
         <Link to="/" className="brand" aria-label={BRAND}>
-          {BRAND}
+          {BRAND.toLowerCase()}
           <span className="dot">.</span>
         </Link>
 
-        <div className="nav-links" role="menubar" aria-label="Primary">
+        <div className="nav-links" aria-label="Primary">
           {NAV_LINKS.map(l => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            >
+            <Link key={l.to} to={l.to} className="nav-link">
               {l.label}
-            </NavLink>
+            </Link>
           ))}
         </div>
 
         <div className="nav-right">
-          <Link to="/audit" className="nav-cta primary">Get an AI Audit</Link>
+          <Link to="/#waitlist" className="btn btn-primary sm">Book a call</Link>
           <button
             type="button"
             className={`nav-hamburger ${open ? 'open' : ''}`}
@@ -73,12 +68,11 @@ export function Nav() {
       <div className={`nav-mobile ${open ? 'open' : ''}`} aria-hidden={!open}>
         <div className="nav-mobile-inner">
           {NAV_LINKS.map(l => (
-            <NavLink key={l.to} to={l.to} className="nav-mobile-link">
+            <Link key={l.to} to={l.to} className="nav-mobile-link">
               {l.label}
-            </NavLink>
+            </Link>
           ))}
-          <Link to="/audit" className="nav-mobile-cta">Get an AI Audit →</Link>
-          <Link to="/course" className="nav-mobile-link">Course</Link>
+          <Link to="/#waitlist" className="nav-mobile-cta">Book a call →</Link>
         </div>
       </div>
     </nav>

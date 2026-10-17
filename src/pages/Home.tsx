@@ -1,28 +1,22 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState, type ReactNode } from 'react'
 import { BRAND } from '../lib/brand'
-import { miniAuditUrl } from '../lib/ctaUrls'
 import { WaitlistSection } from '../components/WaitlistSection'
 import { useSeo } from '../hooks/useSeo'
 
 export default function Home() {
   useSeo({
-    title: `${BRAND} — We deploy your AI and keep it running`,
+    title: `${BRAND} — More clients. More aides. Fewer missed visits.`,
     description:
-      'AI implementation, training, and ongoing management for small businesses. Private, local, and managed for you every month.',
+      'Operations and technology for Medicaid home care and DODD agencies. We build and run the systems that answer your referrals, hire your aides, and protect every visit from an EVV or authorization denial.',
   })
   return (
     <>
       <Hero />
-      <FourWays />
-      <SavingsCalculator />
-      <Problem />
-      <Workers />
-      <HowItWorks />
-      <Founder />
-      <Managed />
-      <Private />
-      <UseCases />
+      <FourVoices />
+      <ThreeDoors />
+      <Menu />
+      <HowWeWork />
+      <WhyDeploi />
       <Pricing />
       <FAQ />
       <WaitlistSection />
@@ -31,218 +25,135 @@ export default function Home() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Hero — unchanged from v2                                                  */
+/*  Hero + live board                                                         */
 /* -------------------------------------------------------------------------- */
 type Task = { ts: string; text: string }
-type Worker = {
+type Lane = {
   id: string
-  name: string
-  role: string
-  led: 'green' | 'blue' | 'amber'
+  label: string
   script: string[]
   completed: Task[]
 }
 
-const INITIAL_WORKERS: Worker[] = [
+const INITIAL_LANES: Lane[] = [
   {
-    id: 'frontdesk',
-    name: 'frontdesk-01',
-    role: 'clinic · front desk',
-    led: 'green',
+    id: 'referrals',
+    label: 'Referrals',
     script: [
-      'drafting appt confirmation → C. Reyes',
-      'answering: does insurance cover ultrasound?',
-      'rescheduling: Kim, S. → Thu 3:15p',
-      'flagging voicemail → billing question',
+      'new referral from Franklin Co. case manager · confirming capacity',
+      'intake packet sent to family · follow-up set for Thu',
+      'private-pay inquiry (web form) · calling back now',
     ],
     completed: [
-      { ts: '09:12', text: 'booked new-patient intake · Tue 10:00a' },
-      { ts: '09:14', text: 'confirmed 3 appts for tomorrow' },
+      { ts: '07:42', text: 'AAA referral answered · capacity confirmed in 6 min' },
+      { ts: '07:15', text: 'start-of-care follow-up sent to case manager' },
     ],
   },
   {
-    id: 'quotes',
-    name: 'quotes-04',
-    role: 'contractor · estimates',
-    led: 'amber',
+    id: 'staffing',
+    label: 'Staffing',
     script: [
-      'reading new lead: kitchen remodel · Bexley',
-      'pulling materials cost from vendor sheet',
-      'drafting quote · $18,400 est.',
-      'scheduling site visit → Fri 8:30a',
+      'applicant texted back · screening 4 questions',
+      'interview booked · Tue 10:00a · reminder scheduled',
+      'STNA renewal due in 21 days · flagged to admin',
     ],
-    completed: [{ ts: '09:08', text: 'sent 2 revised quotes to Hartman & Sons' }],
+    completed: [
+      { ts: '07:38', text: '2 applicants screened + booked · avg 8 min' },
+      { ts: '07:05', text: '60-day check-in sent to 3 aides' },
+    ],
   },
   {
-    id: 'support',
-    name: 'support-02',
-    role: 'e-commerce · support',
-    led: 'blue',
+    id: 'visits',
+    label: 'Visits',
     script: [
-      'reading ticket #4092: where is my order',
-      'checking Shopify: shipped Mon · tracking pulled',
-      'drafting reply w/ tracking + ETA',
-      'closing ticket #4091: refund confirmed',
+      'call-off: Mon 8a shift · offering to 5 qualified aides',
+      'EVV exception: clock-out missing · fixing in window',
+      'auth 82% used · re-auth reminder sent to scheduler',
     ],
-    completed: [{ ts: '09:11', text: 'answered 6 tickets · avg 42s' }],
+    completed: [
+      { ts: '07:31', text: 'open shift filled · family confirmed' },
+      { ts: '06:58', text: '3 EVV exceptions corrected before billing' },
+    ],
   },
 ]
 
 function Hero() {
-  const [workers, setWorkers] = useState<Worker[]>(INITIAL_WORKERS)
+  const [lanes, setLanes] = useState<Lane[]>(INITIAL_LANES)
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     let round = 0
     const timer = window.setInterval(() => {
-      setWorkers(prev => {
+      setLanes(prev => {
         const idx = round % prev.length
         round += 1
-        return prev.map((w, i) => {
-          if (i !== idx) return w
-          const [head, ...rest] = w.script
-          if (!head) return w
+        return prev.map((lane, i) => {
+          if (i !== idx) return lane
+          const [head, ...rest] = lane.script
+          if (!head) return lane
           const now = new Date()
           const hh = String(now.getHours()).padStart(2, '0')
           const mm = String(now.getMinutes()).padStart(2, '0')
-          const done: Task = {
-            ts: `${hh}:${mm}`,
-            text: head.replace(
-              /^drafting |^reading |^scheduling |^pulling |^answering: |^checking .+?: |^rescheduling: |^flagging /,
-              '',
-            ),
-          }
-          const nextScript = rest.length > 0 ? rest : [...INITIAL_WORKERS[i].script]
-          const nextCompleted = [done, ...w.completed].slice(0, 3)
-          return { ...w, script: nextScript, completed: nextCompleted }
+          const done: Task = { ts: `${hh}:${mm}`, text: head }
+          const nextScript = rest.length > 0 ? rest : [...INITIAL_LANES[i].script]
+          return { ...lane, script: nextScript, completed: [done, ...lane.completed].slice(0, 2) }
         })
       })
-    }, 2600)
+    }, 2800)
     return () => window.clearInterval(timer)
   }, [])
 
   return (
-    <section id="top" className="hero-v2">
-      <div className="v2-inner">
-        <div className="v2-copy">
-          <div className="v2-eyebrow reveal">
-            <span className="pulse" aria-hidden="true"></span>
-            Private AI · managed for you
-          </div>
+    <section id="top" className="hero">
+      <div className="container hero-inner">
+        <div className="hero-copy">
+          <span className="tag outline reveal">Operations &amp; technology for Medicaid home care</span>
           <h1 className="reveal d1">
-            We deploy your AI —<br />
-            and <span className="accent">keep it running.</span>
+            More clients.<br />
+            More aides.<br />
+            <span className="accent">Fewer missed visits.</span>
           </h1>
-          <p className="v2-sub reveal d2">
-            A hands-on AI team for small businesses. We stand up AI workers on your own data,
-            wired to the tools you already use — and monitor, retrain, and report on them every
-            month so they keep working long after we go live.
+          <p className="hero-sub reveal d2">
+            {BRAND} builds and runs the systems that answer your referrals, hire your aides, and
+            protect every visit from an EVV or authorization denial. You see it all on your own
+            dashboard, every morning.
           </p>
-          <div className="v2-actions reveal d3">
-            <Link to="/audit" className="v2-primary">
-              Get an AI Audit
+          <div className="hero-actions reveal d3">
+            <a href="#waitlist" className="btn btn-primary">
+              Book a 20-minute call
               <span className="arrow" aria-hidden="true">→</span>
-            </Link>
-            <div className="v2-trust">
-              PRIVATE
-              <span className="sep" aria-hidden="true"></span>
-              LOCAL
-              <span className="sep" aria-hidden="true"></span>
-              MONITORED
+            </a>
+            <a href="#what" className="btn btn-ghost">See what we run</a>
+          </div>
+          <div className="hero-trust reveal d4">
+            <span>HIPAA · BAA signed before any client data</span>
+            <span>Built for PASSPORT, waiver, MyCare and DODD agencies</span>
+            <span>Ohio today, other states as we go</span>
+          </div>
+        </div>
+
+        <div className="board reveal d2" aria-hidden="true">
+          <div className="board-head">
+            <span>Morning report</span>
+            <span className="live">Live</span>
+          </div>
+          {lanes.map(lane => (
+            <div className="board-row" key={lane.id}>
+              <div className="board-label">{lane.label}</div>
+              <div className="board-tasks">
+                <div className="task active" key={lane.script[0]}>
+                  <span className="ts">now</span>
+                  <span>{lane.script[0]}<span className="caret" /></span>
+                </div>
+                {lane.completed.map((t, i) => (
+                  <div className="task" key={`${t.ts}-${i}`}>
+                    <span className="ts">{t.ts}</span>
+                    <span className="check">✓</span>
+                    <span>{t.text}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="v2-workers reveal d2" aria-hidden="true">
-          {workers.map(w => <WorkerCard key={w.id} worker={w} />)}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function WorkerCard({ worker }: { worker: Worker }) {
-  const ledColor =
-    worker.led === 'green' ? 'var(--status-green)' :
-    worker.led === 'amber' ? 'var(--status-amber)' :
-    'var(--status-blue)'
-  const active = worker.script[0]
-  return (
-    <div className="worker-card">
-      <div className="worker-head">
-        <div className="worker-identity">
-          <span
-            className="worker-led"
-            style={{ '--led-color': ledColor, color: ledColor } as CSSProperties}
-          />
-          <span className="worker-name">{worker.name}</span>
-        </div>
-        <span className="worker-role">{worker.role}</span>
-      </div>
-      <div className="worker-tasks">
-        {active && (
-          <div className="task active" key={active}>
-            <span className="ts">now</span>
-            <span>{active}<span className="caret" aria-hidden="true"></span></span>
-          </div>
-        )}
-        {worker.completed.map((t, i) => (
-          <div className="task" key={`${t.ts}-${i}`}>
-            <span className="ts">{t.ts}</span>
-            <span className="check" aria-hidden="true">✓</span>
-            <span>{t.text}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Four ways we help                                                         */
-/* -------------------------------------------------------------------------- */
-function FourWays() {
-  const cards = [
-    {
-      to: '/plan',
-      eyebrow: '01',
-      title: 'Plan it',
-      body: 'Figure out where AI actually pays off in your business — with a written plan you can hand to anyone.',
-    },
-    {
-      to: '/build',
-      eyebrow: '02',
-      title: 'Build it',
-      body: 'We set up the AI workers you need, inside the tools you already use.',
-    },
-    {
-      to: '/train',
-      eyebrow: '03',
-      title: 'Train your team',
-      body: 'Live cohort courses and workshops so your team can run AI themselves.',
-    },
-    {
-      to: '/run',
-      eyebrow: '04',
-      title: 'Run it for me',
-      body: 'Managed AI workers — monitored, retrained, and reported on every month.',
-    },
-  ]
-  return (
-    <section id="ways">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Four ways we help</span>
-          <h2>Pick the door that fits.</h2>
-        </div>
-        <div className="ways-grid">
-          {cards.map((c, i) => (
-            <Link to={c.to} className={`way-card reveal d${(i % 4) + 1}`} key={c.to}>
-              <div className="way-num">{c.eyebrow}</div>
-              <h3>{c.title}</h3>
-              <p>{c.body}</p>
-              <div className="way-arrow" aria-hidden="true">→</div>
-            </Link>
           ))}
         </div>
       </div>
@@ -251,204 +162,181 @@ function FourWays() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Savings calculator                                                        */
+/*  Four voices                                                               */
 /* -------------------------------------------------------------------------- */
-function SavingsCalculator() {
-  const [hours, setHours] = useState(10)
-  const [rate, setRate] = useState(25)
-  const [pct, setPct] = useState(40)
-
-  const { savedHours, savedDollars } = useMemo(() => {
-    const savedHours = hours * (pct / 100)
-    const savedDollars = savedHours * rate * 50
-    return { savedHours, savedDollars }
-  }, [hours, rate, pct])
-
-  const fmt$ = (n: number) =>
-    n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-
+function FourVoices() {
+  const voices = [
+    { who: 'The owner', quote: '“I found out we lost the referral when the case manager stopped calling.”' },
+    { who: 'The scheduler', quote: '“Three call-offs by 7 a.m. and I’m texting aides one at a time.”' },
+    { who: 'The aide', quote: '“I applied Tuesday. Nobody called me back until the following week.”' },
+    { who: 'The biller', quote: '“The visit happened. The EVV didn’t match. The claim still didn’t pay.”' },
+  ]
   return (
-    <section id="calculator" className="calc">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Savings calculator</span>
-          <h2>How much time could AI actually give you back?</h2>
-          <p>Rough numbers. Estimate only. Move the sliders to see your own.</p>
-        </div>
-        <div className="calc-grid reveal d1">
-          <div className="calc-inputs">
-            <div className="calc-row">
-              <label htmlFor="calc-hours">Hours per week on repetitive admin</label>
-              <div className="calc-value">{hours} hrs</div>
-              <input
-                id="calc-hours"
-                type="range"
-                min={0}
-                max={40}
-                value={hours}
-                onChange={e => setHours(Number(e.target.value))}
-              />
-            </div>
-            <div className="calc-row">
-              <label htmlFor="calc-rate">Hourly cost of that work</label>
-              <div className="calc-value">${rate}/hr</div>
-              <input
-                id="calc-rate"
-                type="range"
-                min={15}
-                max={125}
-                step={5}
-                value={rate}
-                onChange={e => setRate(Number(e.target.value))}
-              />
-            </div>
-            <div className="calc-row">
-              <label htmlFor="calc-pct">% AI could reasonably handle</label>
-              <div className="calc-value">{pct}%</div>
-              <input
-                id="calc-pct"
-                type="range"
-                min={0}
-                max={100}
-                value={pct}
-                onChange={e => setPct(Number(e.target.value))}
-              />
-            </div>
-          </div>
-          <div className="calc-output">
-            <div className="calc-out-row">
-              <div className="calc-out-label">Hours saved per week</div>
-              <div className="calc-out-num">{savedHours.toFixed(1)}</div>
-            </div>
-            <div className="calc-out-row">
-              <div className="calc-out-label">Estimated yearly savings</div>
-              <div className="calc-out-num accent">{fmt$(savedDollars)}</div>
-            </div>
-            <div className="calc-disclaimer">Estimate only. Not a guarantee.</div>
-            <a
-              href={miniAuditUrl()}
-              className="v2-primary calc-cta"
-              target={miniAuditUrl().startsWith('#') ? undefined : '_blank'}
-              rel={miniAuditUrl().startsWith('#') ? undefined : 'noopener noreferrer'}
-            >
-              Get your real number — book a free mini-audit
-              <span className="arrow" aria-hidden="true">→</span>
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Problem                                                                   */
-/* -------------------------------------------------------------------------- */
-function Problem() {
-  return (
-    <section>
+    <section id="problem">
       <div className="container">
         <div className="section-head reveal">
           <span className="eyebrow">The problem</span>
-          <h2>AI works. Building it &mdash; and keeping it working &mdash; doesn't.</h2>
-        </div>
-        <p className="problem-body reveal d1">
-          Every small business owner knows they should be using AI. Almost none of them can
-          actually build it. <strong>And even the ones who can, can't babysit it.</strong>{' '}
-          Models drift. Data changes. New releases ship every week. The consultant who set it up
-          is long gone. So the AI sits there, silently getting worse, until it's quietly turned off.
-          <span className="closer">{BRAND} exists to fix both halves.</span>
-        </p>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Workers                                                                   */
-/* -------------------------------------------------------------------------- */
-function Workers() {
-  const roles = [
-    {
-      name: 'Front desk',
-      body: 'Answers calls, texts, and website chats 24/7. Books, reschedules, and confirms appointments. Handles your top questions: hours, location, insurance, pricing. Never miss an after-hours lead again.',
-    },
-    {
-      name: 'Inbox & lead follow-up',
-      body: 'Sorts incoming email, replies to routine questions, and chases every new lead until they book or opt out. Turns "I’ll get to it later" into same-day follow-up.',
-    },
-    {
-      name: 'Quotes & intake',
-      body: 'Collects what a job needs (address, scope, photos), qualifies the request, and books a callback or estimate. Filters the tire-kickers, surfaces the real jobs.',
-    },
-    {
-      name: 'Scheduling & reminders',
-      body: 'Fills your calendar, sends reminders, and cuts no-shows with confirmations and easy rebooking.',
-    },
-  ]
-  return (
-    <section id="workers">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">The workers</span>
-          <h2>What your AI workers actually do.</h2>
-          <p>
-            Not chatbots. Workers that handle real tasks end to end &mdash; answer, book,
-            follow up &mdash; and only hand off to you when a human is actually needed.
+          <h2>Four people. One leak.</h2>
+          <p className="lead">
+            Every missed referral, open shift and voided claim starts the same way: nobody answered
+            fast enough.
           </p>
         </div>
-        <div className="worker-tiles">
-          {roles.map((r, i) => (
-            <div className={`worker-tile reveal d${(i % 4) + 1}`} key={r.name}>
-              <div className="worker-tile-num">{String(i + 1).padStart(2, '0')}</div>
-              <h3>{r.name}</h3>
-              <p>{r.body}</p>
+        <div className="grid4">
+          {voices.map((v, i) => (
+            <div className={`block voice reveal d${(i % 4) + 1}`} key={v.who}>
+              <div className="num">{String(i + 1).padStart(2, '0')}</div>
+              <h3>{v.who}</h3>
+              <p className="body">{v.quote}</p>
             </div>
           ))}
         </div>
-        <p className="workers-closing reveal">
-          Every worker runs on <strong>your data</strong>, monitored and improved by us every month
-          &mdash; so it gets sharper over time, not stale.
-        </p>
       </div>
     </section>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/*  How it works                                                              */
+/*  Three doors                                                               */
 /* -------------------------------------------------------------------------- */
-function HowItWorks() {
+function ThreeDoors() {
+  const doors = [
+    {
+      tag: 'Growth',
+      title: 'Win more referrals',
+      points: [
+        'Case-manager referrals answered in minutes, capacity confirmed',
+        'Follow-up when care starts, so they refer again',
+        'Private-pay inquiries called back before the next agency',
+      ],
+    },
+    {
+      tag: 'Staffing',
+      title: 'Hire and keep more aides',
+      points: [
+        'Applicants screened and interview-booked in under 10 minutes',
+        '30/60/90-day check-ins that catch a quit before it happens',
+        'Credentials tracked, lapses flagged before they void a claim',
+      ],
+    },
+    {
+      tag: 'Operations',
+      title: 'Keep every visit, and get paid for it',
+      points: [
+        'Open shifts offered to qualified aides automatically',
+        'EVV exceptions fixed inside the correction window',
+        'Authorization units watched so care never outruns the auth',
+      ],
+    },
+  ]
+  return (
+    <section id="what" className="alt">
+      <div className="container">
+        <div className="section-head reveal">
+          <span className="eyebrow">What we do</span>
+          <h2>Three doors. One engine behind them.</h2>
+          <p className="lead">
+            We watch your inbox, phone line, scheduler and EVV for the moments that matter, act
+            within minutes, and report back every morning.
+          </p>
+        </div>
+        <div className="grid3">
+          {doors.map((d, i) => (
+            <div className={`block door reveal d${i + 1}`} key={d.tag}>
+              <span className="tag">{d.tag}</span>
+              <h3>{d.title}</h3>
+              <ul className="list">
+                {d.points.map(p => <li key={p}>{p}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Full menu                                                                 */
+/* -------------------------------------------------------------------------- */
+function Menu() {
+  const items: { group: 'Growth' | 'Staffing' | 'Operations' | 'Money · later'; name: string; body: string }[] = [
+    { group: 'Growth', name: 'Referral response', body: 'Minutes, not hours. Capacity confirmed, intake started.' },
+    { group: 'Growth', name: 'Private-pay leads + reviews', body: 'Every inquiry answered. Every happy family asked for a review.' },
+    { group: 'Growth', name: 'Referral-source nurturing', body: 'Monthly touch to the case managers and discharge planners who feed you.' },
+    { group: 'Staffing', name: 'Instant hiring', body: 'Applicants texted, screened and booked while they’re still interested.' },
+    { group: 'Staffing', name: 'Retention', body: 'Shift reminders, 30/60/90 check-ins, early warning before a quit.' },
+    { group: 'Staffing', name: 'Credential tracking', body: 'STNA, CPR, annual training, background rechecks, flagged before they lapse.' },
+    { group: 'Operations', name: 'Open-shift fill', body: 'Call-offs pushed to qualified aides, families confirmed, late alerts sent.' },
+    { group: 'Operations', name: 'Authorization watch', body: 'Units used vs. authorized, expirations, re-auth reminders.' },
+    { group: 'Operations', name: 'After-hours line', body: 'Calls answered and logged. On-call reached. Owner woken only when it matters.' },
+    { group: 'Operations', name: 'EVV exception layer', body: 'Visits checked against EVV and the auth, fixed before they reach billing.' },
+    { group: 'Money · later', name: 'Denial cleanup + managed billing', body: 'Once the operations are clean, we can run the money too.' },
+  ]
+  const tagClass = (g: string) => (g === 'Growth' ? 'tag green' : g.startsWith('Money') ? 'tag gold' : 'tag')
+  return (
+    <section id="menu">
+      <div className="container">
+        <div className="section-head reveal">
+          <span className="eyebrow">The full menu</span>
+          <h2>Start with one leak. Add the rest on the retainer.</h2>
+          <p className="lead">
+            Eleven services, four groups, the same engine. You never buy all eleven; you buy the one
+            losing you the most money this month.
+          </p>
+        </div>
+        <div className="grid4">
+          {items.map((it, i) => (
+            <div className={`block dark menu-item reveal d${(i % 4) + 1}`} key={it.name}>
+              <span className={tagClass(it.group)}>{it.group}</span>
+              <h3>{it.name}</h3>
+              <p className="body">{it.body}</p>
+            </div>
+          ))}
+          <div className="block accent menu-item cta reveal d4">
+            <h3>Not sure which leak is biggest?</h3>
+            <a href="#waitlist">Start with the assessment →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  How we work                                                               */
+/* -------------------------------------------------------------------------- */
+function HowWeWork() {
   const steps = [
     {
-      n: '01',
-      title: 'Assess your workflows',
-      body: 'We sit down with your team and map the work that eats hours. Front-desk, scheduling, quoting, support, intake. We find the pieces that AI can actually handle.',
+      n: '1',
+      title: 'Assessment',
+      body: 'We walk one referral and one visit from first contact to paid claim and show you, in dollars, where it leaks. Fixed fee, credited toward the build.',
     },
     {
-      n: '02',
-      title: 'Implement your AI workers',
-      body: 'We build and deploy AI workers on your own data, wired to the tools you already use — your CRM, inbox, scheduler, PMS. Go-live in weeks, not quarters.',
+      n: '2',
+      title: 'Build',
+      body: 'We build the piece that fixes the biggest leak, connected to the scheduler and EVV you already use. No rip-and-replace. Live in weeks.',
     },
     {
-      n: '03',
-      title: 'We monitor, retrain & report',
-      body: 'The part every other consultant skips. We watch performance, retrain on your latest data, swap in better models as they ship, and send you a report every month.',
+      n: '3',
+      title: 'Run',
+      body: 'We run it monthly, add the next door when you’re ready, and send a morning report: referrals answered, shifts filled, exceptions fixed, units left.',
     },
   ]
   return (
-    <section>
+    <section id="how" className="alt">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">How it works</span>
-          <h2>Set up. Kept up.</h2>
+          <span className="eyebrow">How we work</span>
+          <h2>Assess. Build. Run.</h2>
         </div>
-        <div className="steps">
+        <div className="grid3">
           {steps.map((s, i) => (
-            <div className={`step reveal d${i + 1}`} key={s.n}>
-              <div className="step-num">{s.n}</div>
+            <div className={`block reveal d${i + 1}`} key={s.n}>
+              <div className="num green">{s.n}</div>
               <h3>{s.title}</h3>
-              <p>{s.body}</p>
+              <p className="body">{s.body}</p>
             </div>
           ))}
         </div>
@@ -458,246 +346,91 @@ function HowItWorks() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Founder                                                                   */
+/*  Why Deploi                                                                */
 /* -------------------------------------------------------------------------- */
-function Founder() {
+function WhyDeploi() {
   return (
-    <section id="founder" className="founder">
-      <div className="container">
+    <section id="why">
+      <div className="container why-grid">
         <div className="section-head reveal">
-          <span className="eyebrow">Who's behind {BRAND}</span>
-          <h2>Built by someone who runs a business on AI.</h2>
+          <span className="eyebrow">Why {BRAND}</span>
+          <h2>We know the rules you bill under.</h2>
         </div>
-        <div className="founder-grid reveal d1">
-          <div className="founder-photo">
-            {/* Drop /public/founder.jpg to swap the placeholder for a real photo. */}
-            <div className="founder-photo-fallback" aria-hidden="true">
-              <span>J</span>
-            </div>
-          </div>
-          <div className="founder-copy">
-            <div className="founder-name">James</div>
-            <p>
-              I run my own company, ClaimYours AI, with a team of AI employees handling real work
-              every day. {BRAND} sets up the same thing for your business, and then keeps it running.
-            </p>
-          </div>
-        </div>
+        <ul className="list reveal d1">
+          <li>
+            Medicaid waiver, EVV, authorizations and case-manager workflows are our starting point,
+            not something we learn on your dime. Ohio PASSPORT, Ohio Home Care Waiver, MyCare, DODD
+            and Sandata today; other states as we go.
+          </li>
+          <li>
+            HIPAA from day one. A Business Associate Agreement is signed before we touch a single
+            client record.
+          </li>
+          <li>
+            Your systems stay. We sit on top of the scheduler, EVV and phone line you already pay
+            for.
+          </li>
+          <li>A named founder answers the phone. No account manager, no ticket queue.</li>
+        </ul>
       </div>
     </section>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Managed pillars                                                           */
-/* -------------------------------------------------------------------------- */
-function Managed() {
-  const pillars = [
-    {
-      title: 'Monitoring',
-      body: 'We watch every AI worker in production — accuracy, latency, refusals, weird outputs. If it starts to slip, we know before you do.',
-    },
-    {
-      title: 'Retraining',
-      body: 'Your business changes. So does your data. We retrain on your latest examples so the AI keeps matching how you actually work today, not six months ago.',
-    },
-    {
-      title: 'Model swapping',
-      body: 'New open-source models ship every few weeks. When a better one is a clear upgrade, we swap it in — same behavior, better speed or cost or quality.',
-    },
-    {
-      title: 'Reporting',
-      body: 'A plain-English monthly report. What the AI handled, what it saved you, what we changed, and what we recommend next. No dashboard homework.',
-    },
-  ]
-  return (
-    <section>
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Managed, not delivered</span>
-          <h2>Four things we do every month.</h2>
-          <p>Most consultants set up and vanish. We keep the AI actually working &mdash; for the life of the engagement.</p>
-        </div>
-        <div className="pillars reveal d1">
-          {pillars.map(p => (
-            <div className="pillar" key={p.title}>
-              <h3>{p.title}</h3>
-              <p>{p.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Private by design                                                         */
-/* -------------------------------------------------------------------------- */
-function Private() {
-  return (
-    <section className="private">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Private by design</span>
-          <h2>Your data stays your data.</h2>
-        </div>
-        <div className="private-grid">
-          <div className="private-lede reveal d1">
-            The AI runs <strong>locally, on your own data</strong> &mdash; not on someone else's cloud,
-            not on a shared model, not on customer records piped to a third party.
-            <span className="fine">
-              It plugs into the tools your team already lives in and works from what you already have.
-              If something sensitive doesn't need to leave your business, it doesn't.
-            </span>
-          </div>
-          <ul className="trust-list reveal d2">
-            <li>
-              <IconLock />
-              <div>
-                <div className="label">On your data, not ours</div>
-                <p>Models run locally against your files, your records, your systems. Nothing leaves without you deciding it should.</p>
-              </div>
-            </li>
-            <li>
-              <IconPlug />
-              <div>
-                <div className="label">Wired to what you already use</div>
-                <p>Your inbox, your CRM, your scheduler, your PMS. The AI shows up where the work already happens.</p>
-              </div>
-            </li>
-            <li>
-              <IconShield />
-              <div>
-                <div className="label">No shared brains</div>
-                <p>Your business's patterns train your business's AI &mdash; not someone else's model.</p>
-              </div>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Use cases                                                                 */
-/* -------------------------------------------------------------------------- */
-function UseCases() {
-  const cases = [
-    {
-      role: 'Clinics',
-      title: 'A front-desk AI that never misses a call',
-      body: 'Books appointments, answers routine questions, and hands off cleanly when it matters — on your PMS, in your voice.',
-    },
-    {
-      role: 'Contractors',
-      title: 'Scheduling and quotes without the phone tag',
-      body: 'Reads incoming leads, drafts quotes from your pricing rules, and books site visits against your real calendar.',
-    },
-    {
-      role: 'E-commerce',
-      title: 'A support inbox that clears itself',
-      body: 'Reads every ticket, drafts an answer from your policies and order history, and escalates the ones that need a human.',
-    },
-    {
-      role: 'Law offices',
-      title: 'Intake that qualifies while you sleep',
-      body: 'Runs new-client intake, gathers the facts you actually need, and pre-fills the matter so you start the case, not the paperwork.',
-    },
-  ]
-  return (
-    <section>
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Built for</span>
-          <h2>Small businesses that need real hours back.</h2>
-        </div>
-        <div className="usecases">
-          {cases.map((c, i) => (
-            <div className={`usecase reveal d${(i % 4) + 1}`} key={c.role}>
-              <div className="usecase-role">{c.role}</div>
-              <h3>{c.title}</h3>
-              <p>{c.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Pricing — managed tier is now "Coming soon"                               */
+/*  Pricing                                                                   */
 /* -------------------------------------------------------------------------- */
 function Pricing() {
   const tiers = [
     {
-      name: 'Starter',
-      price: '$400',
-      sub: '1 AI worker',
+      step: 'Step 1',
+      name: 'Operations Assessment',
+      price: '$1,500–2,500',
+      per: '',
+      body: 'One referral and one visit traced end to end. Report with your three biggest leaks priced in dollars. Credited toward the build.',
       featured: false,
-      features: [
-        'Continuous monitoring',
-        'Monthly reporting',
-        'Model swaps as needed',
-        'Email support',
-      ],
     },
     {
-      name: 'Growth',
-      price: '$800',
-      sub: 'Up to 3 AI workers',
+      step: 'Step 2',
+      name: 'Build',
+      price: '$3,000–7,000',
+      per: '',
+      body: 'Per door. One service set up, connected to your systems, with a how-to guide and 30 days of fixes included.',
+      featured: false,
+    },
+    {
+      step: 'Step 3',
+      name: 'Run',
+      price: '$500–1,500',
+      per: '/mo',
+      body: 'We run it, report every morning, and add doors as your problems show up. Three-month minimum, month-to-month after.',
       featured: true,
-      features: [
-        'Everything in Starter',
-        'Active retraining on your data',
-        'Biweekly reporting',
-        'Priority support',
-      ],
-    },
-    {
-      name: 'Scale',
-      price: '$1,200',
-      sub: 'Up to 6 AI workers',
-      featured: false,
-      features: [
-        'Full continuous monitoring',
-        'Ongoing retraining + model swapping',
-        'Weekly reporting',
-        'Monthly strategy check-ins',
-      ],
     },
   ]
   return (
-    <section id="pricing">
+    <section id="pricing" className="alt">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">Managed pricing</span>
-          <h2>Coming soon — join the waitlist.</h2>
-          <p>
-            Managed AI workers launch once liability insurance is in place. Get on the waitlist to
-            be first in line.
-          </p>
+          <span className="eyebrow">Pricing</span>
+          <h2>Fixed assessment. Then setup plus a monthly retainer.</h2>
+          <p className="lead">Published ranges, so you know before the call whether we fit.</p>
         </div>
-        <div className="tiers">
+        <div className="grid3">
           {tiers.map((t, i) => (
-            <div className={`tier reveal d${i + 1} ${t.featured ? 'featured' : ''}`} key={t.name}>
-              <div className="tier-coming">Coming soon</div>
-              {t.featured && <div className="tier-badge">Most chosen</div>}
-              <div className="tier-name">{t.name}</div>
-              <div className="tier-price">{t.price}<span className="per">/mo</span></div>
-              <div className="tier-sub">{t.sub}</div>
-              <ul>
-                {t.features.map(f => <li key={f}>{f}</li>)}
-              </ul>
-              <a href="#waitlist" className="tier-cta">Join the waitlist →</a>
+            <div className={`block reveal d${i + 1} ${t.featured ? 'outlined' : ''}`} key={t.name}>
+              <span className={`tag ${t.featured ? 'green' : ''}`}>{t.step}</span>
+              <h3>{t.name}</h3>
+              <div className="price">
+                {t.price}
+                {t.per && <span className="per"> {t.per}</span>}
+              </div>
+              <p className="body">{t.body}</p>
             </div>
           ))}
         </div>
-        <div className="pricing-footnote reveal">
-          Plus a one-time implementation fee per worker &mdash; <strong>Custom.</strong>
-        </div>
+        <p className="pricing-footnote reveal">
+          Every client starts with the assessment, gets one door built, and adds doors on the retainer.
+        </p>
       </div>
     </section>
   )
@@ -709,44 +442,32 @@ function Pricing() {
 function FAQ() {
   const faqs: { q: string; a: ReactNode }[] = [
     {
-      q: 'Do I need to be technical?',
-      a: <>No &mdash; that&rsquo;s the whole point. We build, connect, and run your AI workers for you. You never touch a model, a prompt, or a line of code.</>,
+      q: 'Do we have to change our scheduler or EVV?',
+      a: <>No. We connect to what you already use. If a system can&rsquo;t connect, we tell you in the assessment, not after.</>,
     },
     {
-      q: 'Do you need access to my systems?',
-      a: <>Not for an audit. Setups are built inside your own accounts, and you own everything.</>,
+      q: 'Is there a contract?',
+      a: <>The assessment is a one-time fee. The retainer has a three-month minimum, then month-to-month.</>,
     },
     {
-      q: 'Is my business data safe?',
-      a: <>Yes. Your workers can run on local, open models so your data stays in your own environment &mdash; it&rsquo;s never shipped off to train some public AI. We treat everything as confidential and never sell it.</>,
+      q: 'How soon can we start?',
+      a: <>Assessment within two weeks of booking. First build live within four to six weeks after that.</>,
     },
     {
-      q: 'What does it cost?',
-      a: <>Fixed-price audit at <strong>$750</strong> (first 5 audits <strong>$375</strong>). Managed plans <strong>$400 / $800 / $1,200 per month</strong> are coming soon. Setup fees and other services are quoted per project.</>,
+      q: 'Who sees our client data?',
+      a: <>Only what the work requires, under a signed BAA, with access logged. Staff-side services (hiring, credentials) touch no client records at all.</>,
     },
     {
-      q: 'How fast is it running?',
-      a: <>Most first workers go live within a few weeks of kickoff. We handle setup, connect it to your tools, and test it before it ever talks to a real customer.</>,
-    },
-    {
-      q: 'What if the AI gets something wrong?',
-      a: <>AI isn&rsquo;t perfect, so we don&rsquo;t set it and forget it. We monitor it, retrain it, and swap in better models as they improve &mdash; and workers hand off to a human whenever they&rsquo;re unsure.</>,
-    },
-    {
-      q: 'What businesses is this for?',
-      a: <>Any small or mid-sized business buried in repetitive admin &mdash; home services (plumbing, HVAC, roofing, electrical), real estate, clinics, agencies, law firms, e-commerce.</>,
-    },
-    {
-      q: 'Can I cancel?',
-      a: <>Yes &mdash; month to month, cancel with 30 days&rsquo; notice. No long contracts.</>,
+      q: 'Are you only in Ohio?',
+      a: <>Ohio is where we started and know deepest. Hiring and referral services work in any state today; operations services expand state by state.</>,
     },
   ]
   return (
     <section id="faq">
-      <div className="container-narrow">
+      <div className="container why-grid">
         <div className="section-head reveal">
-          <span className="eyebrow">FAQ</span>
-          <h2>Common questions.</h2>
+          <span className="eyebrow">Questions</span>
+          <h2>Before you book</h2>
         </div>
         <div className="faq-list reveal d1">
           {faqs.map(f => (
@@ -767,35 +488,5 @@ function FAQ() {
         </div>
       </div>
     </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Icons                                                                     */
-/* -------------------------------------------------------------------------- */
-function IconLock() {
-  return (
-    <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="11" width="16" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  )
-}
-function IconPlug() {
-  return (
-    <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 3v6" />
-      <path d="M15 3v6" />
-      <path d="M6 9h12v3a6 6 0 0 1-12 0z" />
-      <path d="M12 15v6" />
-    </svg>
-  )
-}
-function IconShield() {
-  return (
-    <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3l8 3v6a9 9 0 0 1-8 9 9 9 0 0 1-8-9V6z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
   )
 }

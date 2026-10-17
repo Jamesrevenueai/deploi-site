@@ -4,7 +4,7 @@ import { BRAND } from '../lib/brand'
 const FORMSPREE_ENDPOINT: string | undefined = import.meta.env.VITE_FORMSPREE_ENDPOINT
 
 type Props = {
-  /** Hidden `service` field written into the payload — used by door pages. */
+  /** Optional hidden `service` field written into the payload. */
   service?: string
 }
 
@@ -24,17 +24,17 @@ export function WaitlistForm({ service }: Props) {
       business: String(fd.get('business') ?? '').trim(),
       email: String(fd.get('email') ?? '').trim(),
       wants: String(fd.get('wants') ?? '').trim(),
-      _source: BRAND + ' waitlist',
+      _source: BRAND + ' book-a-call',
     }
     if (service) payload.service = service
 
     if (!payload.name || !payload.business || !payload.email) {
-      setError('Please fill in name, business, and email.')
+      setError('Please fill in name, agency, and email.')
       return
     }
 
     if (!configured) {
-      setError('Waitlist backend is not configured yet. Set VITE_FORMSPREE_ENDPOINT and redeploy.')
+      setError('Form backend is not configured yet. Set VITE_FORMSPREE_ENDPOINT and redeploy.')
       return
     }
 
@@ -67,8 +67,8 @@ export function WaitlistForm({ service }: Props) {
             <polyline points="5 12 10 17 19 8" />
           </svg>
         </div>
-        <h3>You're on the list.</h3>
-        <p>Thanks — we'll be in touch as soon as we've got a slot for you.</p>
+        <h3>Got it.</h3>
+        <p>We'll reach out within one business day to set up your 20-minute call.</p>
       </div>
     )
   }
@@ -81,7 +81,7 @@ export function WaitlistForm({ service }: Props) {
         <input id={`name-${service ?? 'main'}`} name="name" type="text" autoComplete="name" required />
       </div>
       <div className="field">
-        <label htmlFor={`business-${service ?? 'main'}`}>Business</label>
+        <label htmlFor={`business-${service ?? 'main'}`}>Agency</label>
         <input id={`business-${service ?? 'main'}`} name="business" type="text" autoComplete="organization" required />
       </div>
       <div className="field">
@@ -90,18 +90,18 @@ export function WaitlistForm({ service }: Props) {
       </div>
       <div className="field">
         <label htmlFor={`wants-${service ?? 'main'}`}>
-          What would you want AI to handle?
+          What&rsquo;s leaking right now?
           <span className="optional">(optional)</span>
         </label>
-        <textarea id={`wants-${service ?? 'main'}`} name="wants" placeholder="e.g. front-desk phone calls, support inbox, quoting…" />
+        <textarea id={`wants-${service ?? 'main'}`} name="wants" placeholder="e.g. referrals we answer too late, open shifts, EVV denials, hiring…" />
       </div>
       <button type="submit" className="submit" disabled={status === 'submitting'}>
-        {status === 'submitting' ? 'Sending…' : 'Join the waitlist'}
+        {status === 'submitting' ? 'Sending…' : 'Book my call'}
       </button>
       {error && <div className="form-error">{error}</div>}
       {!configured && !error && (
         <div className="form-notice">
-          Preview build — waitlist submissions are not yet delivered. Set{' '}
+          Preview build — form submissions are not yet delivered. Set{' '}
           <code>VITE_FORMSPREE_ENDPOINT</code> to enable.
         </div>
       )}

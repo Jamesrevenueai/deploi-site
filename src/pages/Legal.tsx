@@ -6,7 +6,7 @@ import { useSeo } from '../hooks/useSeo'
 type LegalKind = 'terms' | 'privacy'
 type LegalSection = { title: string; body: ReactNode }
 
-const LEGAL_UPDATED = 'September 22, 2026'
+const LEGAL_UPDATED = 'October 17, 2026'
 
 const TERMS: LegalSection[] = [
   {
@@ -15,7 +15,7 @@ const TERMS: LegalSection[] = [
   },
   {
     title: 'What we do',
-    body: <>We provide AI <strong>consulting, training and implementation</strong>. We do not provide legal, tax or compliance advice. We are a service provider; we are not the maker of the underlying AI models.</>,
+    body: <>We provide <strong>operations consulting, software implementation and managed services</strong> to home care and disability-services agencies. We do not provide legal, tax, billing-compliance or clinical advice. We are a service provider; we are not the maker of the underlying AI models or of your scheduling or EVV systems.</>,
   },
   {
     title: 'No guarantees',
@@ -23,7 +23,7 @@ const TERMS: LegalSection[] = [
   },
   {
     title: 'Refunds',
-    body: <>The AI Audit is <strong>fully refundable before the discovery session</strong>. After the discovery session, the <strong>5-Hour Guarantee</strong> applies: if your written audit report does not find at least 5 hours a week of work AI can take off your plate, you get a full refund. The Founding Cohort Course is fully refundable <strong>before session 2</strong>. Managed subscription plans, when available, are billed monthly in advance and are not refundable except where required by law; you can cancel at any time with 30 days' notice.</>,
+    body: <>The Operations Assessment is <strong>fully refundable before the first working session</strong>; after that it is non-refundable but is credited in full toward a build if you proceed within 60 days. Build projects are quoted as fixed fees and invoiced per the signed statement of work. The monthly retainer has a three-month minimum, is billed monthly in advance, and is not refundable except where required by law; after the minimum you can cancel at any time with 30 days' notice.</>,
   },
   {
     title: 'Fees',
@@ -70,7 +70,7 @@ const PRIVACY: LegalSection[] = [
   },
   {
     title: 'How we use it',
-    body: <>To respond to you, provide and improve the service, deliver the audit / course / setup you signed up for, and send you updates you opted into. <strong>We do not sell personal information.</strong></>,
+    body: <>To respond to you, provide and improve the service, deliver the assessment, build or retainer you signed up for, and send you updates you opted into. <strong>We do not sell personal information.</strong></>,
   },
   {
     title: 'Client business data',

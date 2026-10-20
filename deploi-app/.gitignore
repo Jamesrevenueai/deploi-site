@@ -46,3 +46,4 @@ next-env.d.ts
 .storage/
 playwright-report/
 test-results/
+proof/lighthouse/*.json

@@ -1,0 +1,6 @@
+Lighthouse (lighthouse 13, headless Chromium, --only-categories=performance,accessibility)
+app pages measured against the production build (next build && next start) with a signed dev session:
+  /app/home        mobile perf=99  a11y=100   desktop perf=100 a11y=100
+  /staff/pipeline  mobile perf=98  a11y=100   desktop perf=100 a11y=100
+  /staff/audit     mobile perf=86  a11y=100   desktop perf=100 a11y=100
+JSON reports in this folder are not committed (size); rerun with scripts/lighthouse.sh.

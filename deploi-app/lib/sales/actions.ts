@@ -9,7 +9,17 @@ import { parseCsv, applyMapping, importRows, guessMapping, IMPORT_FIELDS, type M
 export async function setStage(prospectId: string, stage: string) {
   const session = await requireRole('staff')
   if (!isStage(stage)) throw new Error('invalid stage')
-  await withUser(session, db => db.query('update prospects set stage = $2 where id = $1', [prospectId, stage]), { ip: await requestIp() })
+  await withUser(session, async db => {
+    await db.query('update prospects set stage = $2 where id = $1', [prospectId, stage])
+    if (stage === 'build_sold') {
+      // Section 5 credit rule: the assessment fee is credited toward a build sold inside the 60-day window.
+      await db.query(
+        `update agencies set assessment_credit_applied_at = now()
+         where id = (select agency_id from prospects where id = $1)
+           and assessment_credit_cents > 0 and assessment_credit_applied_at is null
+           and (assessment_credit_expires_at is null or assessment_credit_expires_at >= now())`, [prospectId])
+    }
+  }, { ip: await requestIp() })
   revalidatePath('/staff/pipeline')
   revalidatePath(`/staff/pipeline/${prospectId}`)
   return { ok: true }

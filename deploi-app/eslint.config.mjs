@@ -9,7 +9,7 @@ const compat = new FlatCompat({ baseDirectory: __dirname })
 const eslintConfig = [
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
   {
-    ignores: ['node_modules/**', '.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'proof/**', '.storage/**', 'playwright-report/**', 'test-results/**'],
+    ignores: ['node_modules/**', '.next/**', '.next-*/**', 'out/**', 'build/**', 'next-env.d.ts', 'proof/**', '.storage/**', 'playwright-report/**', 'test-results/**'],
   },
   {
     // HIPAA boundary: anything under lib/phi may only talk to the local Ollama lane.

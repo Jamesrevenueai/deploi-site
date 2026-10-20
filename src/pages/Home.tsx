@@ -3,6 +3,7 @@ import { BRAND } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
 import { BookButton } from '../components/Button'
 import { ImageCard } from '../components/ImageCard'
+import { art, type ArtTheme } from '../lib/art'
 import { BookSection } from '../components/BookSection'
 import { Icon } from '../lib/icons'
 
@@ -34,6 +35,7 @@ export default function Home() {
 function Hero() {
   return (
     <section id="top" className="hero">
+      <div className="hero-art" style={{ backgroundImage: art('hero') }} aria-hidden="true" />
       <div className="container hero-inner">
         <span className="eyebrow reveal">Operations &amp; technology for Medicaid home care</span>
         <h1 className="two-tone reveal">
@@ -106,9 +108,9 @@ const DOOR_FACTS: [{ icon: ReactNode; label: string }, { icon: ReactNode; label:
 
 function ThreeDoors() {
   const doors = [
-    { tag: 'Growth', icon: <Icon.Inbox />, title: 'Win more referrals', to: '/#menu' },
-    { tag: 'Staffing', icon: <Icon.Users />, title: 'Hire and keep more aides', to: '/#menu' },
-    { tag: 'Operations', icon: <Icon.Shield />, title: 'Keep every visit, and get paid for it', to: '/evv' },
+    { tag: 'Growth', icon: <Icon.Inbox />, title: 'Win more referrals', to: '/#menu', art: 'growth' as ArtTheme },
+    { tag: 'Staffing', icon: <Icon.Users />, title: 'Hire and keep more aides', to: '/#menu', art: 'staffing' as ArtTheme },
+    { tag: 'Operations', icon: <Icon.Shield />, title: 'Keep every visit, and get paid for it', to: '/evv', art: 'operations' as ArtTheme },
   ]
   return (
     <section id="what">
@@ -127,7 +129,7 @@ function ThreeDoors() {
         <div className="card-grid three">
           {doors.map(d => (
             <div className="reveal" key={d.tag}>
-              <ImageCard tag={d.tag} tagIcon={d.icon} title={d.title} facts={DOOR_FACTS} to={d.to} />
+              <ImageCard tag={d.tag} tagIcon={d.icon} title={d.title} facts={DOOR_FACTS} to={d.to} art={d.art} />
             </div>
           ))}
         </div>
@@ -152,6 +154,8 @@ export const MENU_ITEMS: { group: 'Growth' | 'Staffing' | 'Operations' | 'Money 
   { group: 'Operations', name: 'EVV exception layer', body: 'Visits checked against EVV and the auth, fixed before they reach billing.', to: '/evv' },
   { group: 'Money · later', name: 'Denial cleanup + managed billing', body: 'Once the operations are clean, we can run the money too.' },
 ]
+
+const GROUP_ART: Record<string, ArtTheme> = { Growth: 'growth', Staffing: 'staffing', Operations: 'operations', 'Money · later': 'money' }
 
 const GROUP_ICON: Record<string, ReactNode> = {
   Growth: <Icon.Inbox />,
@@ -182,6 +186,7 @@ function Menu() {
                 tag={it.group}
                 tagIcon={GROUP_ICON[it.group]}
                 tagMuted={it.group === 'Money · later'}
+                art={GROUP_ART[it.group]}
                 title={it.name}
                 body={it.body}
                 to={it.to}
@@ -284,7 +289,7 @@ function MorningReport() {
           </h2>
         </div>
         <div className="card-grid single reveal">
-          <ImageCard tag="Live" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card">
+          <ImageCard tag="Live" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card" art="report">
             <div className="report-inner">
               <div className="icard-title">Your morning report</div>
               <div className="lanes">
@@ -381,9 +386,9 @@ function Pricing() {
           <p className="lead">Published ranges, so you know before the call whether we fit.</p>
         </div>
         <div className="card-grid three">
-          {tiers.map(t => (
+          {tiers.map((t, i) => (
             <div className="reveal" key={t.step}>
-              <ImageCard tag={t.step} tagIcon={<Icon.Tag />} title={t.price} body={t.body} featured={t.featured} />
+              <ImageCard tag={t.step} tagIcon={<Icon.Tag />} title={t.price} body={t.body} featured={t.featured} art={(['assess', 'build', 'run'] as ArtTheme[])[i]} />
             </div>
           ))}
         </div>

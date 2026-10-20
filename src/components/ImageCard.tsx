@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { art, type ArtTheme } from '../lib/art'
 
 type Fact = { icon: ReactNode; label: string }
 
@@ -11,6 +12,8 @@ type Props = {
   body?: ReactNode
   facts?: [Fact, Fact]
   featured?: boolean
+  /** generated artwork theme for the card ground */
+  art?: ArtTheme
   to?: string
   className?: string
   children?: ReactNode
@@ -20,8 +23,9 @@ type Props = {
  * Black Glass image card: 16:9, 20px radius, generated brushed-metal ground,
  * glass tag top-left, white title bottom-left, optional two-fact glass pill row.
  */
-export function ImageCard({ tag, tagIcon, tagMuted, title, body, facts, featured, to, className = '', children }: Props) {
+export function ImageCard({ tag, tagIcon, tagMuted, title, body, facts, featured, art: theme, to, className = '', children }: Props) {
   const cls = `icard ${featured ? 'featured' : ''} ${className}`.trim()
+  const style = theme ? { backgroundImage: art(theme) } : undefined
   const inner = (
     <>
       <div className="icard-top">
@@ -44,10 +48,10 @@ export function ImageCard({ tag, tagIcon, tagMuted, title, body, facts, featured
   )
   if (to) {
     return (
-      <Link to={to} className={cls}>
+      <Link to={to} className={cls} style={style}>
         {inner}
       </Link>
     )
   }
-  return <div className={cls}>{inner}</div>
+  return <div className={cls} style={style}>{inner}</div>
 }

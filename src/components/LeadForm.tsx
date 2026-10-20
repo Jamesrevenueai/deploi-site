@@ -18,7 +18,7 @@ export function LeadForm({
   source,
   cta = 'Book my call',
   messageLabel = 'What’s leaking right now?',
-  messagePlaceholder = 'e.g. referrals we answer too late, open shifts, EVV denials, hiring…',
+  messagePlaceholder = 'e.g. referrals we answer too late, no-shows, schedule gaps, denied claims, hiring…',
   compact = false,
   confirmation = { title: 'Got it.', body: 'We’ll reach out within one business day to set up your 20-minute call.' },
 }: Props) {
@@ -72,7 +72,7 @@ export function LeadForm({
       </div>
       {!compact && (
         <div className="field">
-          <label htmlFor={id('agency')}>Agency</label>
+          <label htmlFor={id('agency')}>Practice</label>
           <input id={id('agency')} name="agency_name" type="text" autoComplete="organization" required />
         </div>
       )}

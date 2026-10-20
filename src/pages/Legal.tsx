@@ -17,7 +17,7 @@ export function termsSections(entity: string): LegalSection[] {
     },
     {
       title: 'What we do',
-      body: <>We provide <strong>operations consulting, software implementation and managed services</strong> to home care and disability-services agencies. We do not provide legal, tax, billing-compliance or clinical advice. We are a service provider; we are not the maker of the underlying AI models or of your scheduling or EVV systems.</>,
+      body: <>We provide <strong>operations consulting, software implementation and managed services</strong> to small healthcare practices, including home care and disability-services agencies. We do not provide legal, tax, billing-compliance or clinical advice. We are a service provider; we are not the maker of the underlying AI models or of your scheduling or EVV systems.</>,
     },
     {
       title: 'No guarantees',

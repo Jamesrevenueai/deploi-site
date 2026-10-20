@@ -9,9 +9,9 @@ import { Icon } from '../lib/icons'
 
 export default function Home() {
   useSeo({
-    title: `${BRAND} — More clients. More aides. Fewer missed visits.`,
+    title: `${BRAND} — More patients. More staff. Fewer missed visits.`,
     description:
-      'Operations and technology for Medicaid home care and DODD agencies. We build and run the systems that answer your referrals, hire your aides, and protect every visit from an EVV or authorization denial.',
+      'Operations and technology for small practices: home care, dental, therapy, primary care and specialty clinics. We build and run the systems that answer your referrals, hire your staff, and protect every visit from a no-show, an authorization gap or a denied claim.',
   })
   return (
     <div className="home">
@@ -37,23 +37,23 @@ function Hero() {
     <section id="top" className="hero">
       <div className="hero-art" style={{ backgroundImage: art('hero') }} aria-hidden="true" />
       <div className="container hero-inner">
-        <span className="eyebrow reveal">Operations &amp; technology for Medicaid home care</span>
+        <span className="eyebrow reveal">Operations &amp; technology for small practices</span>
         <h1 className="two-tone reveal">
-          <span className="grey">More clients.</span><br />
-          <span className="grey">More aides.</span><br />
+          <span className="grey">More patients.</span><br />
+          <span className="grey">More staff.</span><br />
           <span className="white">Fewer missed visits.</span>
         </h1>
         <p className="lead reveal" style={{ maxWidth: 640 }}>
-          {BRAND} builds and runs the systems that answer your referrals, hire your aides, and
-          protect every visit from an EVV or authorization denial. You see it all on your own
-          dashboard, every morning.
+          {BRAND} builds and runs the systems that answer your referrals and new-patient calls,
+          hire your staff, and protect every visit from a no-show, an authorization gap or a
+          denied claim. You see it all on your own dashboard, every morning.
         </p>
         <div className="reveal">
           <BookButton>Book a call</BookButton>
         </div>
         <div className="hero-trust reveal">
-          <span>HIPAA · BAA signed before any client data</span>
-          <span>Built for PASSPORT, waiver, MyCare and DODD agencies</span>
+          <span>HIPAA · BAA signed before any patient data</span>
+          <span>Home care, dental, therapy, primary care and specialty practices</span>
           <span>Ohio today, other states as we go</span>
         </div>
       </div>
@@ -66,10 +66,10 @@ function Hero() {
 /* -------------------------------------------------------------------------- */
 function FourVoices() {
   const voices = [
-    { who: 'The owner', quote: '“I found out we lost the referral when the case manager stopped calling.”' },
-    { who: 'The scheduler', quote: '“Three call-offs by 7 a.m. and I’m texting aides one at a time.”' },
-    { who: 'The aide', quote: '“I applied Tuesday. Nobody called me back until the following week.”' },
-    { who: 'The biller', quote: '“The visit happened. The EVV didn’t match. The claim still didn’t pay.”' },
+    { who: 'The owner', quote: '“I found out we lost the referral when the referring office stopped calling.”' },
+    { who: 'The front desk', quote: '“Three cancellations by 8 a.m. and I’m calling the waitlist one patient at a time.”' },
+    { who: 'The new hire', quote: '“I applied Tuesday. Nobody called me back until the following week.”' },
+    { who: 'The biller', quote: '“The visit happened. The documentation didn’t match. The claim still didn’t pay.”' },
   ]
   return (
     <section id="problem" className="alt">
@@ -108,9 +108,9 @@ const DOOR_FACTS: [{ icon: ReactNode; label: string }, { icon: ReactNode; label:
 
 function ThreeDoors() {
   const doors = [
-    { tag: 'Growth', icon: <Icon.Inbox />, title: 'Win more referrals', to: '/#menu', art: 'growth' as ArtTheme },
-    { tag: 'Staffing', icon: <Icon.Users />, title: 'Hire and keep more aides', to: '/#menu', art: 'staffing' as ArtTheme },
-    { tag: 'Operations', icon: <Icon.Shield />, title: 'Keep every visit, and get paid for it', to: '/evv', art: 'operations' as ArtTheme },
+    { tag: 'Growth', icon: <Icon.Inbox />, title: 'Win more referrals and new patients', to: '/#menu', art: 'growth' as ArtTheme },
+    { tag: 'Staffing', icon: <Icon.Users />, title: 'Hire and keep more staff', to: '/#menu', art: 'staffing' as ArtTheme },
+    { tag: 'Operations', icon: <Icon.Shield />, title: 'Keep every visit, and get paid for it', to: '/#menu', art: 'operations' as ArtTheme },
   ]
   return (
     <section id="what">
@@ -122,7 +122,7 @@ function ThreeDoors() {
             <span className="white">One engine behind them.</span>
           </h2>
           <p className="lead">
-            We watch your inbox, phone line, scheduler and EVV for the moments that matter, act
+            We watch your inbox, phone line, scheduler and billing system for the moments that matter, act
             within minutes, and report back every morning.
           </p>
         </div>
@@ -142,16 +142,16 @@ function ThreeDoors() {
 /*  Full menu                                                                 */
 /* -------------------------------------------------------------------------- */
 export const MENU_ITEMS: { group: 'Growth' | 'Staffing' | 'Operations' | 'Money · later'; name: string; body: string; to?: string }[] = [
-  { group: 'Growth', name: 'Referral response', body: 'Minutes, not hours. Capacity confirmed, intake started.' },
-  { group: 'Growth', name: 'Private-pay leads + reviews', body: 'Every inquiry answered. Every happy family asked for a review.' },
-  { group: 'Growth', name: 'Referral-source nurturing', body: 'Monthly touch to the case managers and discharge planners who feed you.' },
+  { group: 'Growth', name: 'Referral response', body: 'Minutes, not hours. Availability confirmed, intake started.' },
+  { group: 'Growth', name: 'New-patient leads + reviews', body: 'Every inquiry answered. Every happy patient asked for a review.' },
+  { group: 'Growth', name: 'Referral-source nurturing', body: 'Monthly touch to the referring offices, case managers and discharge planners who feed you.' },
   { group: 'Staffing', name: 'Instant hiring', body: 'Applicants texted, screened and booked while they’re still interested.' },
   { group: 'Staffing', name: 'Retention', body: 'Shift reminders, 30/60/90 check-ins, early warning before a quit.' },
-  { group: 'Staffing', name: 'Credential tracking', body: 'STNA, CPR, annual training, background rechecks, flagged before they lapse.' },
-  { group: 'Operations', name: 'Open-shift fill', body: 'Call-offs pushed to qualified aides, families confirmed, late alerts sent.' },
-  { group: 'Operations', name: 'Authorization watch', body: 'Units used vs. authorized, expirations, re-auth reminders.' },
+  { group: 'Staffing', name: 'Credential tracking', body: 'Licenses, CPR, annual training, background rechecks, flagged before they lapse.' },
+  { group: 'Operations', name: 'Schedule gap fill', body: 'Cancellations and call-offs refilled from your waitlist or qualified staff, confirmations sent, late alerts raised.' },
+  { group: 'Operations', name: 'Authorization watch', body: 'Visits and units used vs. authorized, expirations, re-auth reminders.' },
   { group: 'Operations', name: 'After-hours line', body: 'Calls answered and logged. On-call reached. Owner woken only when it matters.' },
-  { group: 'Operations', name: 'EVV exception layer', body: 'Visits checked against EVV and the auth, fixed before they reach billing.', to: '/evv' },
+  { group: 'Operations', name: 'Claim exception layer', body: 'Visits checked against documentation, authorization and payer rules before billing. For home care, that is EVV.', to: '/evv' },
   { group: 'Money · later', name: 'Denial cleanup + managed billing', body: 'Once the operations are clean, we can run the money too.' },
 ]
 
@@ -212,12 +212,12 @@ function HowWeWork() {
     {
       n: '2',
       title: 'Build',
-      body: 'We build the piece that fixes the biggest leak, connected to the scheduler and EVV you already use. No rip-and-replace. Live in weeks.',
+      body: 'We build the piece that fixes the biggest leak, connected to the scheduler, EHR or EVV you already use. No rip-and-replace. Live in weeks.',
     },
     {
       n: '3',
       title: 'Run',
-      body: 'We run it monthly, add the next door when you’re ready, and send a morning report: referrals answered, shifts filled, exceptions fixed, units left.',
+      body: 'We run it monthly, add the next door when you’re ready, and send a morning report: referrals answered, gaps filled, exceptions fixed, units left.',
     },
   ]
   return (
@@ -252,9 +252,9 @@ const LANES = [
     label: 'Referrals',
     icon: <Icon.Inbox />,
     tasks: [
-      { ts: 'now', text: 'new referral from Franklin Co. case manager · confirming capacity', active: true },
-      { ts: '07:42', text: 'AAA referral answered · capacity confirmed in 6 min' },
-      { ts: '07:15', text: 'start-of-care follow-up sent to case manager' },
+      { ts: 'now', text: 'new referral from a referring office · confirming availability', active: true },
+      { ts: '07:42', text: 'hospital discharge referral answered · availability confirmed in 6 min' },
+      { ts: '07:15', text: 'first-visit follow-up sent to the referring office' },
     ],
   },
   {
@@ -263,16 +263,16 @@ const LANES = [
     tasks: [
       { ts: 'now', text: 'applicant texted back · screening 4 questions', active: true },
       { ts: '07:38', text: '2 applicants screened + booked · avg 8 min' },
-      { ts: '07:05', text: '60-day check-in sent to 3 aides' },
+      { ts: '07:05', text: '60-day check-in sent to 3 new hires' },
     ],
   },
   {
     label: 'Visits',
     icon: <Icon.Shield />,
     tasks: [
-      { ts: 'now', text: 'call-off: Mon 8a shift · offering to 5 qualified aides', active: true },
-      { ts: '07:31', text: 'open shift filled · family confirmed' },
-      { ts: '06:58', text: '3 EVV exceptions corrected before billing' },
+      { ts: 'now', text: 'cancellation: Mon 8a · offering the slot to the waitlist', active: true },
+      { ts: '07:31', text: 'gap filled · patient confirmed' },
+      { ts: '06:58', text: '3 claim exceptions corrected before billing' },
     ],
   },
 ]
@@ -329,17 +329,18 @@ function WhyDeploi() {
         </div>
         <ul className="why-list reveal">
           <li>
-            <strong>Medicaid is the starting point, not a lesson on your dime.</strong> Waiver, EVV,
-            authorizations and case-manager workflows: Ohio PASSPORT, Ohio Home Care Waiver, MyCare,
-            DODD and Sandata today; other states as we go.
+            <strong>Payer rules are the starting point, not a lesson on your dime.</strong> Medicaid and
+            Medicare, prior authorizations and referral workflows. In home care that means Ohio
+            PASSPORT, Ohio Home Care Waiver, MyCare, DODD and Sandata EVV today; other specialties
+            and states as we go.
           </li>
           <li>
             <strong>HIPAA from day one.</strong> A Business Associate Agreement is signed before we
-            touch a single client record.
+            touch a single patient record.
           </li>
           <li>
-            <strong>Your systems stay.</strong> We sit on top of the scheduler, EVV and phone line
-            you already pay for.
+            <strong>Your systems stay.</strong> We sit on top of the scheduler, EHR, EVV and phone
+            line you already pay for.
           </li>
           <li>
             <strong>A named founder answers the phone.</strong> No account manager, no ticket queue.
@@ -405,7 +406,7 @@ function Pricing() {
 /* -------------------------------------------------------------------------- */
 export const FAQS: { q: string; a: ReactNode }[] = [
   {
-    q: 'Do we have to change our scheduler or EVV?',
+    q: 'Do we have to change our scheduler, EHR or EVV?',
     a: <>No. We connect to what you already use. If a system can&rsquo;t connect, we tell you in the assessment, not after.</>,
   },
   {
@@ -417,8 +418,8 @@ export const FAQS: { q: string; a: ReactNode }[] = [
     a: <>Assessment within two weeks of booking. First build live within four to six weeks after that.</>,
   },
   {
-    q: 'Who sees our client data?',
-    a: <>Only what the work requires, under a signed BAA, with access logged. Staff-side services (hiring, credentials) touch no client records at all.</>,
+    q: 'Who sees our patient data?',
+    a: <>Only what the work requires, under a signed BAA, with access logged. Staff-side services (hiring, credentials) touch no patient records at all.</>,
   },
   {
     q: 'Are you only in Ohio?',

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { BRAND } from '../lib/brand'
+import { BookButton } from './Button'
+import { Icon } from '../lib/icons'
 
-const NAV_LINKS = [
+export const NAV_LINKS = [
   { to: '/#what', label: 'What we do' },
   { to: '/#menu', label: 'Services' },
   { to: '/#how', label: 'How it works' },
   { to: '/#pricing', label: 'Pricing' },
+  { to: '/evv', label: 'EVV' },
   { to: '/#faq', label: 'FAQ' },
 ]
 
@@ -34,29 +37,28 @@ export function Nav() {
   }, [open])
 
   return (
-    <nav className={`nav ${scrolled || open ? 'scrolled' : ''}`}>
+    <nav className={`nav ${scrolled || open ? 'scrolled' : ''}`} aria-label="Primary">
       <div className="nav-inner">
-        <Link to="/" className="brand" aria-label={BRAND}>
+        <Link to="/" className="brand" aria-label={`${BRAND} home`}>
           {BRAND.toLowerCase()}
-          <span className="dot">.</span>
         </Link>
 
-        <div className="nav-links" aria-label="Primary">
-          {NAV_LINKS.map(l => (
-            <Link key={l.to} to={l.to} className="nav-link">
-              {l.label}
-            </Link>
-          ))}
-        </div>
-
         <div className="nav-right">
-          <Link to="/#waitlist" className="btn btn-primary sm">Book a call</Link>
+          <div className="nav-links">
+            {NAV_LINKS.map(l => (
+              <Link key={l.to} to={l.to} className="nav-link">
+                {l.label}
+              </Link>
+            ))}
+          </div>
+          <BookButton size="sm">Book a call</BookButton>
           <button
             type="button"
-            className={`nav-hamburger ${open ? 'open' : ''}`}
-            aria-label={open ? 'Close menu' : 'Open menu'}
+            className="nav-hamburger"
+            aria-label="Open menu"
             aria-expanded={open}
-            onClick={() => setOpen(o => !o)}
+            aria-controls="mobile-menu"
+            onClick={() => setOpen(true)}
           >
             <span />
             <span />
@@ -65,15 +67,16 @@ export function Nav() {
         </div>
       </div>
 
-      <div className={`nav-mobile ${open ? 'open' : ''}`} aria-hidden={!open}>
-        <div className="nav-mobile-inner">
-          {NAV_LINKS.map(l => (
-            <Link key={l.to} to={l.to} className="nav-mobile-link">
-              {l.label}
-            </Link>
-          ))}
-          <Link to="/#waitlist" className="nav-mobile-cta">Book a call →</Link>
-        </div>
+      <div id="mobile-menu" className={`nav-mobile ${open ? 'open' : ''}`} aria-hidden={!open}>
+        <button type="button" className="nav-mobile-close" aria-label="Close menu" onClick={() => setOpen(false)}>
+          <Icon.Close width={28} height={28} />
+        </button>
+        {NAV_LINKS.map(l => (
+          <Link key={l.to} to={l.to} className="nav-mobile-link" onClick={() => setOpen(false)}>
+            {l.label}
+          </Link>
+        ))}
+        <BookButton>Book a call</BookButton>
       </div>
     </nav>
   )

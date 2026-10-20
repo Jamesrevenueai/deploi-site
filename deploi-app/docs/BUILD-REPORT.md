@@ -37,7 +37,7 @@ The one accessibility flag on the homepage is the © line at #666 on black, whic
 
 ## Grep
 
-`grep -ri -E "claimyours|jamesrevenueai|james revenue"` over the whole deploi-site checkout (site + deploi-app, excluding node_modules/.git/build output): no matches.
+Case-insensitive grep for the three strings forbidden by hard rule 1 over the whole deploi-site checkout (site + deploi-app, excluding node_modules/.git/build output): no matches.
 
 ## Env vars to set in Vercel
 

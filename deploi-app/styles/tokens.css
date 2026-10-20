@@ -1,0 +1,53 @@
+/* ==========================================================================
+   Deploi — "Black Glass" design tokens
+   Shared verbatim between deploi-site and deploi-app. Edit here, copy there.
+   ========================================================================== */
+:root {
+  /* Ground */
+  --dg-black: #000000;
+  --dg-black-alt: #0A0A0A;
+
+  /* Type colors */
+  --dg-white: #FFFFFF;
+  --dg-grey-headline: #8A8A8A;   /* two-tone headline secondary line */
+  --dg-grey-body: #A3A3A3;       /* body copy; never darker than this */
+  --dg-grey-nav: #CCCCCC;        /* desktop nav links */
+  --dg-grey-copy: #666666;       /* copyright line only */
+
+  /* Lines */
+  --dg-line: #222222;            /* dividers */
+  --dg-line-ghost: #333333;      /* ghost button border */
+
+  /* Accent (chat bubble only) */
+  --dg-blue: #2F6BFF;
+
+  /* Glass */
+  --dg-glass-bg: rgba(255, 255, 255, 0.08);
+  --dg-glass-border: rgba(255, 255, 255, 0.18);
+  --dg-glass-blur: 12px;
+
+  /* Buttons */
+  --dg-btn-h: 56px;
+  --dg-btn-px: 32px;
+  --dg-btn-radius: 999px;
+  --dg-btn-hover: #E6E6E6;
+
+  /* Cards */
+  --dg-card-radius: 20px;
+  --dg-card-gap: 24px;
+
+  /* Layout */
+  --dg-max-w: 1120px;
+  --dg-gutter: 24px;
+  --dg-section-y: 120px;
+  --dg-section-y-mobile: 80px;
+
+  /* Type */
+  --dg-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --dg-body-size: 17px;
+  --dg-body-lh: 1.5;
+  --dg-headline-tracking: -0.02em;
+
+  /* Motion */
+  --dg-fade-ms: 300ms;
+}

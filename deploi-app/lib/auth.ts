@@ -1,0 +1,79 @@
+/**
+ * Session resolution for both auth modes.
+ *  - supabase: magic link via @supabase/ssr; profile looked up by auth uid.
+ *  - dev: signed cookie naming a seeded profile (local/preview only).
+ */
+import { cookies, headers } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { env } from './env'
+import { admin } from './db'
+import type { Session, Role } from './session'
+
+const DEV_COOKIE = 'deploi_dev_session'
+
+function sign(payload: string) {
+  return createHmac('sha256', env.appSecret).update(payload).digest('base64url')
+}
+export function encodeDevSession(s: Session) {
+  const p = Buffer.from(JSON.stringify(s)).toString('base64url')
+  return `${p}.${sign(p)}`
+}
+export function decodeDevSession(v: string | undefined): Session | null {
+  if (!v) return null
+  const [p, sig] = v.split('.')
+  if (!p || !sig) return null
+  const want = sign(p)
+  if (want.length !== sig.length || !timingSafeEqual(Buffer.from(want), Buffer.from(sig))) return null
+  try { return JSON.parse(Buffer.from(p, 'base64url').toString()) as Session } catch { return null }
+}
+
+export async function profileFor(uid: string): Promise<Session | null> {
+  return admin(async db => {
+    const p = await db.one<{ id: string; email: string; role: Role; agency_id: string | null; full_name: string | null }>(
+      'select id, email, role, agency_id, full_name from profiles where id = $1', [uid])
+    if (!p) return null
+    return { uid: p.id, email: p.email, role: p.role, agencyId: p.agency_id, fullName: p.full_name }
+  })
+}
+
+export async function getSession(): Promise<Session | null> {
+  const store = await cookies()
+  if (env.authMode === 'dev') {
+    const s = decodeDevSession(store.get(DEV_COOKIE)?.value)
+    if (!s) return null
+    // re-read the profile so role/agency changes take effect immediately
+    return (await profileFor(s.uid)) ?? null
+  }
+  const { supabaseServer } = await import('./supabase/server')
+  const sb = await supabaseServer()
+  const { data } = await sb.auth.getUser()
+  if (!data.user) return null
+  let s = await profileFor(data.user.id)
+  if (!s && data.user.email) {
+    // profile trigger did not run (e.g. user predates migration): create it
+    const role: Role = env.staffEmails.includes(data.user.email.toLowerCase()) ? 'staff' : 'client'
+    await admin(db => db.query('insert into profiles (id, email, role) values ($1,$2,$3) on conflict (id) do nothing', [data.user!.id, data.user!.email, role]))
+    s = await profileFor(data.user.id)
+  }
+  return s
+}
+
+export async function requireSession(): Promise<Session> {
+  const s = await getSession()
+  if (!s) redirect('/login')
+  return s
+}
+
+export async function requireRole(role: Role): Promise<Session> {
+  const s = await requireSession()
+  if (s.role !== role) redirect(s.role === 'staff' ? '/staff/pipeline' : '/app/home')
+  return s
+}
+
+export async function requestIp(): Promise<string | null> {
+  const h = await headers()
+  return h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || null
+}
+
+export const DEV_COOKIE_NAME = DEV_COOKIE

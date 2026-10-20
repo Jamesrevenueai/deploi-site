@@ -1,5 +1,5 @@
 /** Navigation for both areas. Sections 4–8 own the pages; the shell owns the rail. */
-export type NavItem = { href: string; label: string; icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' }
+export type NavItem = { href: string; label: string; icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' }
 
 export const STAFF_NAV: NavItem[] = [
   { href: '/staff/pipeline', label: 'Pipeline', icon: 'pipeline' },
@@ -9,6 +9,7 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/staff/evv', label: 'EVV', icon: 'shield' },
   { href: '/staff/audit', label: 'Audit', icon: 'list' },
   { href: '/staff/emails/preview', label: 'Emails', icon: 'mail' },
+  { href: '/staff/setup', label: 'Setup', icon: 'spark' },
 ]
 
 export const CLIENT_NAV: NavItem[] = [

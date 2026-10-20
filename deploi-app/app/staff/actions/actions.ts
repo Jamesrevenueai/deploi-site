@@ -7,6 +7,7 @@ import { log } from '@/lib/log'
 import '@/workers'
 import { runWorker, sendProposedAction } from '@/lib/workers/runtime'
 import { WORKER_NAMES, type WorkerName } from '@/lib/workers/types'
+import { assertBaaSigned, isBaaError, baaErrorUrl } from '@/lib/baa/gate'
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 
@@ -70,11 +71,20 @@ export async function logReferral(formData: FormData) {
   const session = await requireRole('staff')
   const agencyId = str(formData, 'agency_id')
   const hours = Number(str(formData, 'hours_per_week')) || null
-  const id = await withUser(session, db => db.one<{ id: string }>(
+  let id: { id: string } | null = null
+  try {
+    id = await withUser(session, async db => {
+      await assertBaaSigned(db, agencyId)
+      return db.one<{ id: string }>(
     `insert into referrals (agency_id, source_name, source_org, source_channel, source_email, client_name, county, service, hours_per_week, received_at, status, notes)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),'new',$10) returning id`,
     [agencyId, str(formData, 'source_name') || null, str(formData, 'source_org') || null, str(formData, 'source_channel') || 'manual', str(formData, 'source_email') || null,
-     str(formData, 'client_name') || null, str(formData, 'county') || null, str(formData, 'service') || null, hours, str(formData, 'notes') || null]), { ip: await requestIp() })
+     str(formData, 'client_name') || null, str(formData, 'county') || null, str(formData, 'service') || null, hours, str(formData, 'notes') || null])
+    }, { ip: await requestIp() })
+  } catch (e) {
+    if (isBaaError(e)) redirect(baaErrorUrl(`/staff/actions/referrals/new?agency=${agencyId}`))
+    throw e
+  }
   log.info('referral.logged', { referral_id: id?.id, agency_id: agencyId })
   const s = await runWorker('referral_response', agencyId, { dryRun: true })
   redirect(`/staff/actions?worker=referral_response&ran=${s.inserted}`)
@@ -88,7 +98,9 @@ export async function importApplicants(formData: FormData) {
   const Papa = (await import('papaparse')).default
   const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true })
   let imported = 0, skipped = 0
+  try {
   await withUser(session, async db => {
+    await assertBaaSigned(db, agencyId)
     for (const row of parsed.data) {
       const first = (row.first_name ?? row.First ?? row.first ?? '').trim()
       const last = (row.last_name ?? row.Last ?? row.last ?? '').trim()
@@ -101,6 +113,10 @@ export async function importApplicants(formData: FormData) {
       imported++
     }
   }, { ip: await requestIp() })
+  } catch (e) {
+    if (isBaaError(e)) redirect(baaErrorUrl(`/staff/actions/applicants/import?agency=${agencyId}`))
+    throw e
+  }
   log.info('applicants.imported', { agency_id: agencyId, imported, skipped })
   const s = await runWorker('applicant_screening', agencyId, { dryRun: true })
   redirect(`/staff/actions?worker=applicant_screening&imported=${imported}&skipped=${skipped}&ran=${s.inserted}`)

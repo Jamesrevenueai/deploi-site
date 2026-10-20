@@ -7,21 +7,24 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { TraceForm } from '@/components/assessments/TraceForm'
 import { LeakInputsForm } from '@/components/assessments/LeakInputsForm'
+import { BaaCard } from '@/components/baa/BaaCard'
 
 export const metadata = { title: 'Assessment walkthrough' }
 export const dynamic = 'force-dynamic'
 
-export default async function Walkthrough({ params }: { params: Promise<{ id: string }> }) {
+export default async function Walkthrough({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params
+  const sp = await searchParams
   const session = await requireRole('staff')
   const ip = await requestIp()
   const data = await withUser(session, async db => {
     const a = await getAssessment(db, id)
     if (!a) return null
-    return { a, steps: await getSteps(db, id) }
+    const baa = await db.one<{ baa_signed_at: string | null; baa_document_url: string | null }>('select baa_signed_at, baa_document_url from agencies where id = $1', [a.agency_id])
+    return { a, steps: await getSteps(db, id), baa }
   }, { ip })
   if (!data) notFound()
-  const { a, steps } = data
+  const { a, steps, baa } = data
   return (
     <>
       <PageHeader
@@ -38,6 +41,7 @@ export default async function Walkthrough({ params }: { params: Promise<{ id: st
           <p className="text-grey max-w-[60ch]">Five numbers from the owner plus what the traces showed. The three biggest leaks go on the report with the formula next to the dollars.</p>
           <LeakInputsForm assessmentId={a.id} inputs={a.inputs ?? {}} />
         </section>
+        <BaaCard assessmentId={a.id} agencyId={a.agency_id} signedAt={baa?.baa_signed_at ?? null} documentUrl={baa?.baa_document_url ?? null} error={sp.error} justSigned={sp.baa === 'signed'} />
       </div>
     </>
   )

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { admin } from '@/lib/db'
 import { log } from '@/lib/log'
 import { verifySvix } from '@/lib/workers/webhooks'
+import { assertBaaSigned, baaResponse, isBaaError } from '@/lib/baa/gate'
 
 function parseFrom(from: string) {
   const m = from.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>/)
@@ -26,9 +27,12 @@ export async function POST(req: Request) {
   const text = String(d.text ?? d.html ?? '')
   // Route by the inbound address slug: referrals+<agency-id>@... or the first agency when unset.
   const slug = to.map(t => t.match(/\+([0-9a-f-]{36})@/)?.[1]).find(Boolean)
-  const id = await admin(async db => {
+  let id: string | null = null
+  try {
+  id = await admin(async db => {
     const agency = slug ? await db.one<{ id: string }>('select id from agencies where id = $1', [slug]) : await db.one<{ id: string }>('select id from agencies order by created_at limit 1')
     if (!agency) return null
+    await assertBaaSigned(db, agency.id)
     const r = await db.one<{ id: string }>(
       `insert into referrals (agency_id, source_name, source_org, source_channel, source_email, client_name, county, service, received_at, status, notes)
        values ($1,$2,$3,'email',$4,$5,$6,$7,now(),'new',$8) returning id`,
@@ -37,6 +41,10 @@ export async function POST(req: Request) {
        `Subject: ${subject}\n\n${text.slice(0, 4000)}`])
     return r?.id ?? null
   })
+  } catch (e) {
+    if (isBaaError(e)) return baaResponse(e)
+    throw e
+  }
   log.info('resend.inbound.referral', { referral_id: id })
   return NextResponse.json({ ok: true, id })
 }

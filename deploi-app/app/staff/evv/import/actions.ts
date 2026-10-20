@@ -7,6 +7,7 @@ import { parseCsv, ingestVisits, summarize } from '@/lib/evv/ingest'
 import { detectMapping, normalizeRow, missingRequired, SANDATA_PRESET, FIELDS, type Mapping } from '@/lib/evv/mappers'
 import { log } from '@/lib/log'
 import type { VisitInput } from '@/lib/evv/types'
+import { isBaaSigned } from '@/lib/baa/gate'
 
 const MAX_ROWS = 20000
 
@@ -22,6 +23,8 @@ export async function stageImport(formData: FormData) {
   const { headers, rows } = parseCsv(text)
   if (!headers.length || !rows.length) redirect(`/staff/evv/import?agency=${agencyId}&error=empty-csv`)
   const mapping = detectMapping(headers, source === 'sandata' ? SANDATA_PRESET : undefined)
+  const signed = await withUser(session, db => isBaaSigned(db, agencyId), { ip })
+  if (!signed) redirect(`/staff/evv/import?agency=${agencyId}&error=baa-not-signed`)
   const id = await withUser(session, async db => {
     const r = await db.one<{ id: string }>(
       `insert into evv_imports (agency_id, source, filename, status, headers, mapping, raw, row_count, created_by)
@@ -45,6 +48,7 @@ export async function commitImport(formData: FormData) {
     `select i.agency_id, i.source, i.raw, g.state, g.timezone from evv_imports i join agencies g on g.id = i.agency_id where i.id = $1 and i.status = 'staged'`, [id]), { ip })
   if (!staged) redirect('/staff/evv/import?error=import-not-found')
   if (missing.length) redirect(`/staff/evv/import?agency=${staged.agency_id}&id=${id}&error=map-${missing.join('-')}`)
+  if (!(await withUser(session, db => isBaaSigned(db, staged.agency_id), { ip }))) redirect(`/staff/evv/import?agency=${staged.agency_id}&id=${id}&error=baa-not-signed`)
 
   const inputs: VisitInput[] = []
   let skipped = 0

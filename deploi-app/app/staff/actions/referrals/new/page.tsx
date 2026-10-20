@@ -1,6 +1,7 @@
 import { requireRole, requestIp } from '@/lib/auth'
 import { withUser } from '@/lib/db'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { Banner } from '@/components/ui/Banner'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
 import { logReferral } from '../../actions'
@@ -8,12 +9,14 @@ import { logReferral } from '../../actions'
 export const metadata = { title: 'Log a referral' }
 export const dynamic = 'force-dynamic'
 
-export default async function NewReferral() {
+export default async function NewReferral({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams
   const session = await requireRole('staff')
   const agencies = await withUser(session, db => db.query<{ id: string; name: string }>('select id, name from agencies order by name'), { ip: await requestIp() })
   return (
     <>
       <PageHeader title="Log a referral" sub="For referrals that arrive by phone, fax or in person. The referral-response worker drafts the reply right after." />
+      {sp.error === 'baa-not-signed' && <div className="mb-5"><Banner tone="warn"><strong>BAA not signed for this agency.</strong> Mark the BAA signed on the assessment page before importing client data.</Banner></div>}
       <form action={logReferral} className="grid max-w-2xl gap-4 md:grid-cols-2">
         <Field label="Agency" htmlFor="agency_id"><Select id="agency_id" name="agency_id">{agencies.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</Select></Field>
         <Field label="Channel" htmlFor="source_channel"><Select id="source_channel" name="source_channel" defaultValue="phone">{['phone', 'fax', 'portal', 'email', 'manual'].map(c => <option key={c} value={c}>{c}</option>)}</Select></Field>

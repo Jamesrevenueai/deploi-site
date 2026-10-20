@@ -18,8 +18,11 @@
   --dg-line: #222222;            /* dividers */
   --dg-line-ghost: #333333;      /* ghost button border */
 
-  /* Accent (chat bubble only) */
+  /* Accent: chat bubble, eyebrows, icons, focus. Used sparingly on black. */
   --dg-blue: #2F6BFF;
+  --dg-accent: #4D7CFF;
+  --dg-accent-soft: rgba(77, 124, 255, 0.16);
+  --dg-accent-border: rgba(77, 124, 255, 0.40);
 
   /* Glass */
   --dg-glass-bg: rgba(255, 255, 255, 0.08);

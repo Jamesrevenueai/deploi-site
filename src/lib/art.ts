@@ -9,16 +9,16 @@ const W = 1600
 const H = 900
 
 const TINT: Record<ArtTheme, [string, string]> = {
-  growth: ['#163A33', '#0F2A2A'],
-  staffing: ['#2A2452', '#1A1838'],
-  operations: ['#17304A', '#102238'],
-  money: ['#3A3220', '#262016'],
-  report: ['#12264A', '#0C1A33'],
-  assess: ['#2B2B2B', '#171717'],
-  build: ['#1F2F3F', '#141F2A'],
-  run: ['#1D3A2E', '#122620'],
-  hero: ['#0F1A2E', '#0B1222'],
-  glow: ['#12264A', '#0C1A33'],
+  growth: ['#1B4F42', '#123630'],
+  staffing: ['#372D73', '#221D4E'],
+  operations: ['#1C4169', '#14304F'],
+  money: ['#4C4026', '#2F2819'],
+  report: ['#183566', '#102447'],
+  assess: ['#30323A', '#1B1C22'],
+  build: ['#264460', '#182C3E'],
+  run: ['#234E3B', '#173228'],
+  hero: ['#152A58', '#0E1A3A'],
+  glow: ['#183566', '#102447'],
 }
 
 function motif(theme: ArtTheme): string {
@@ -71,7 +71,7 @@ function motif(theme: ArtTheme): string {
 
 export function artSvg(theme: ArtTheme): string {
   const [a, b] = TINT[theme]
-  const glowA = theme === 'hero' ? 0.9 : 0.75
+  const glowA = theme === 'hero' ? 0.95 : 0.82
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">
 <defs>
   <radialGradient id="g1" cx="22%" cy="8%" r="70%"><stop offset="0" stop-color="${a}" stop-opacity="${glowA}"/><stop offset="1" stop-color="${a}" stop-opacity="0"/></radialGradient>

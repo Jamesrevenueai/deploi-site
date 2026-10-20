@@ -67,7 +67,7 @@ section.alt { background: var(--dg-black-alt); }
   font-weight: 500;
   font-size: 1rem;
   letter-spacing: 0.01em;
-  color: var(--dg-grey-headline);
+  color: var(--dg-accent);
   margin-bottom: 18px;
 }
 .two-tone .grey { color: var(--dg-grey-headline); }
@@ -119,7 +119,7 @@ section.alt { background: var(--dg-black-alt); }
   line-height: 1;
   white-space: nowrap;
 }
-.pill svg { width: 16px; height: 16px; flex: none; }
+.pill svg { width: 16px; height: 16px; flex: none; color: var(--dg-accent); }
 .pill.muted { color: var(--dg-grey-body); }
 .pill-row { display: inline-flex; align-items: center; gap: 0; padding: 0; }
 .pill-row .fact { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; height: 36px; }
@@ -177,7 +177,7 @@ section.alt { background: var(--dg-black-alt); }
   pointer-events: none;
   z-index: 0;
 }
-.icard.featured { border-color: var(--dg-white); }
+.icard.featured { border-color: var(--dg-accent-border); box-shadow: 0 0 0 1px var(--dg-accent-soft), 0 24px 64px rgba(77,124,255,0.10); }
 a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 .icard-top { position: absolute; top: 20px; left: 20px; z-index: 1; }
 .icard-bottom {
@@ -233,7 +233,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
   justify-content: space-between;
   gap: 24px;
 }
-.brand-ai { color: var(--dg-grey-headline); font-weight: 600; }
+.brand-ai { color: var(--dg-accent); font-weight: 600; }
 .brand { font-weight: 700; font-size: 28px; letter-spacing: -0.02em; color: var(--dg-white); line-height: 1; }
 .brand:hover { color: var(--dg-white); }
 .nav-right { display: flex; align-items: center; gap: 28px; }
@@ -354,7 +354,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
    -------------------------------------------------------------------------- */
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px var(--dg-card-gap); }
 .step { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.step .num { font-size: 64px; font-weight: 600; line-height: 1; color: var(--dg-grey-headline); letter-spacing: -0.02em; }
+.step .num { font-size: 64px; font-weight: 600; line-height: 1; color: var(--dg-accent); letter-spacing: -0.02em; }
 .step h3 { font-size: 1.5rem; }
 .step p { max-width: 340px; }
 @media (max-width: 959px) { .steps { grid-template-columns: 1fr; } }
@@ -390,7 +390,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
    -------------------------------------------------------------------------- */
 .why-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--dg-card-gap); max-width: 920px; margin: 0 auto; text-align: left; }
 .why-item { padding: 28px; border-radius: var(--dg-card-radius); border: 1px solid var(--dg-line); background: var(--dg-black-alt); display: flex; flex-direction: column; gap: 12px; }
-.why-item .ico { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; background: var(--dg-glass-bg); border: 1px solid var(--dg-glass-border); color: var(--dg-white); margin-bottom: 4px; }
+.why-item .ico { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; background: var(--dg-accent-soft); border: 1px solid var(--dg-accent-border); color: var(--dg-accent); margin-bottom: 4px; }
 .why-item .ico svg { width: 18px; height: 18px; }
 .why-item h3 { font-size: 1.125rem; }
 .why-item p { color: var(--dg-grey-body); font-size: 1rem; }
@@ -421,7 +421,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 }
 .faq-item summary::-webkit-details-marker { display: none; }
 .faq-chevron { color: var(--dg-grey-headline); flex: none; transition: transform var(--dg-fade-ms) ease; }
-.faq-item[open] .faq-chevron { transform: rotate(180deg); }
+.faq-item[open] .faq-chevron { transform: rotate(180deg); color: var(--dg-accent); }
 .faq-a { padding: 0 0 22px; }
 .faq-a p { color: var(--dg-grey-body); max-width: 680px; }
 
@@ -444,7 +444,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
   font-size: 1rem;
   outline: none;
 }
-.field input:focus, .field textarea:focus { outline: 2px solid var(--dg-white); outline-offset: 2px; }
+.field input:focus, .field textarea:focus { outline: 2px solid var(--dg-accent); outline-offset: 2px; border-color: var(--dg-accent); }
 .field textarea { min-height: 96px; resize: vertical; }
 .form .btn { align-self: center; }
 .form-error { color: #FFB4B4; font-weight: 500; font-size: 0.95rem; }

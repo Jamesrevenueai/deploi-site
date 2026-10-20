@@ -9,7 +9,6 @@ export const NAV_LINKS = [
   { to: '/#menu', label: 'Services' },
   { to: '/#how', label: 'How it works' },
   { to: '/#pricing', label: 'Pricing' },
-  { to: '/evv', label: 'EVV' },
   { to: '/#faq', label: 'FAQ' },
 ]
 

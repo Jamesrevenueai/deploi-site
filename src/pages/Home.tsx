@@ -54,7 +54,7 @@ function Hero() {
         <div className="hero-trust reveal">
           <span>HIPAA · BAA signed before any patient data</span>
           <span>Home care, dental, therapy, primary care and specialty practices</span>
-          <span>Ohio today, other states as we go</span>
+          <span>Any state for hiring and referrals; payer work state by state</span>
         </div>
       </div>
     </section>
@@ -81,7 +81,7 @@ function FourVoices() {
             <span className="white">One leak.</span>
           </h2>
           <p className="lead">
-            Every missed referral, open shift and voided claim starts the same way: nobody answered
+            Every missed referral, empty slot and denied claim starts the same way: nobody answered
             fast enough.
           </p>
         </div>
@@ -146,12 +146,12 @@ export const MENU_ITEMS: { group: 'Growth' | 'Staffing' | 'Operations' | 'Money 
   { group: 'Growth', name: 'New-patient leads + reviews', body: 'Every inquiry answered. Every happy patient asked for a review.' },
   { group: 'Growth', name: 'Referral-source nurturing', body: 'Monthly touch to the referring offices, case managers and discharge planners who feed you.' },
   { group: 'Staffing', name: 'Instant hiring', body: 'Applicants texted, screened and booked while they’re still interested.' },
-  { group: 'Staffing', name: 'Retention', body: 'Shift reminders, 30/60/90 check-ins, early warning before a quit.' },
+  { group: 'Staffing', name: 'Retention', body: 'Schedule reminders, 30/60/90 check-ins, early warning before a quit.' },
   { group: 'Staffing', name: 'Credential tracking', body: 'Licenses, CPR, annual training, background rechecks, flagged before they lapse.' },
   { group: 'Operations', name: 'Schedule gap fill', body: 'Cancellations and call-offs refilled from your waitlist or qualified staff, confirmations sent, late alerts raised.' },
   { group: 'Operations', name: 'Authorization watch', body: 'Visits and units used vs. authorized, expirations, re-auth reminders.' },
   { group: 'Operations', name: 'After-hours line', body: 'Calls answered and logged. On-call reached. Owner woken only when it matters.' },
-  { group: 'Operations', name: 'Claim exception layer', body: 'Visits checked against documentation, authorization and payer rules before billing. For home care, that is EVV.', to: '/evv' },
+  { group: 'Operations', name: 'Claim exception layer', body: 'Every visit checked against documentation, authorization and payer rules before it is billed.' },
   { group: 'Money · later', name: 'Denial cleanup + managed billing', body: 'Once the operations are clean, we can run the money too.' },
 ]
 
@@ -212,7 +212,7 @@ function HowWeWork() {
     {
       n: '2',
       title: 'Build',
-      body: 'We build the piece that fixes the biggest leak, connected to the scheduler, EHR or EVV you already use. No rip-and-replace. Live in weeks.',
+      body: 'We build the piece that fixes the biggest leak, connected to the scheduler, EHR or practice software you already use. No rip-and-replace. Live in weeks.',
     },
     {
       n: '3',
@@ -318,9 +318,9 @@ function MorningReport() {
 /* -------------------------------------------------------------------------- */
 function WhyDeploi() {
   const points = [
-    { icon: <Icon.Shield />, title: 'Payer rules are the starting point', body: 'Medicaid and Medicare, prior authorizations and referral workflows, not a lesson on your dime. In home care that means Ohio PASSPORT, Ohio Home Care Waiver, MyCare, DODD and Sandata EVV today; other specialties and states as we go.' },
+    { icon: <Icon.Shield />, title: 'Payer rules are the starting point', body: 'Medicaid, Medicare and commercial payers, prior authorizations and referral workflows for home care, dental, therapy, primary care and specialty clinics. State programs and verification rules are handled where they apply, not learned on your dime.' },
     { icon: <Icon.Check />, title: 'HIPAA from day one', body: 'A Business Associate Agreement is signed before we touch a single patient record. Access is logged, minimum necessary, no exceptions.' },
-    { icon: <Icon.Link />, title: 'Your systems stay', body: 'We sit on top of the scheduler, EHR, EVV and phone line you already pay for. Nothing to migrate, nothing to retrain.' },
+    { icon: <Icon.Link />, title: 'Your systems stay', body: 'We sit on top of the scheduler, EHR, billing and phone systems you already pay for. Nothing to migrate, nothing to retrain.' },
     { icon: <Icon.Users />, title: 'A named founder answers the phone', body: 'No account manager, no ticket queue. You text the person who built it.' },
   ]
   return (
@@ -402,7 +402,7 @@ function Pricing() {
 /* -------------------------------------------------------------------------- */
 export const FAQS: { q: string; a: ReactNode }[] = [
   {
-    q: 'Do we have to change our scheduler, EHR or EVV?',
+    q: 'Do we have to change our scheduler, EHR or practice software?',
     a: <>No. We connect to what you already use. If a system can&rsquo;t connect, we tell you in the assessment, not after.</>,
   },
   {
@@ -418,8 +418,8 @@ export const FAQS: { q: string; a: ReactNode }[] = [
     a: <>Only what the work requires, under a signed BAA, with access logged. Staff-side services (hiring, credentials) touch no patient records at all.</>,
   },
   {
-    q: 'Are you only in Ohio?',
-    a: <>Ohio is where we started and know deepest. Hiring and referral services work in any state today; operations services expand state by state.</>,
+    q: 'Which practices and states do you work with?',
+    a: <>Any small practice: home care, dental, therapy, primary care and specialty clinics. Hiring, referral and front-desk services work in any state today; payer-specific operations expand state by state, starting with Ohio.</>,
   },
 ]
 

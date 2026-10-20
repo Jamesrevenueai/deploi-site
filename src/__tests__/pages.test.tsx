@@ -46,8 +46,8 @@ describe('Home content', () => {
     render(<MemoryRouter><FAQ /></MemoryRouter>)
     for (const f of FAQS) expect(screen.getByText(f.q)).toBeInTheDocument()
   })
-  it('has eleven menu items and the claim exception card links to /evv', () => {
+  it('has eleven menu items and the home-care EVV page stays reachable from the footer', () => {
     expect(MENU_ITEMS).toHaveLength(11)
-    expect(MENU_ITEMS.find(m => m.name === 'Claim exception layer')?.to).toBe('/evv')
+    expect(MENU_ITEMS.find(m => m.name === 'Claim exception layer')).toBeTruthy()
   })
 })

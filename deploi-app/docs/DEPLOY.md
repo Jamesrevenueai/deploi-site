@@ -14,7 +14,7 @@
 8. Storage: bucket `reports` (private) is created on first PDF upload by the service key.
 
 ## 2. Vercel project "deploi-app" (team james-ai)
-1. Vercel → Add New → Project → import `Jamesrevenueai/deploi-site` → **Root Directory: `deploi-app`** → Framework Next.js → name `deploi-app`.
+1. Vercel → Add New → Project → import the `deploi-site` GitHub repository → **Root Directory: `deploi-app`** → Framework Next.js → name `deploi-app`.
 2. Domains → add `app.getdeploi.com` (CNAME `app` → `cname.vercel-dns.com` at the DNS host for getdeploi.com).
 3. Environment variables: every key in `.env.example`. Minimum for production:
    `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,

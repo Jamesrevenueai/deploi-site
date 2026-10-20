@@ -78,6 +78,8 @@ export async function admin<T>(fn: (db: Db) => Promise<T>, opts: { actorId?: str
     await client.query('begin')
     const claims = JSON.stringify({ sub: opts.actorId ?? null, role: 'service_role' })
     await client.query("select set_config('request.jwt.claims', $1, true), set_config('app.ip', $2, true)", [claims, opts.ip ?? ''])
+    // On managed Postgres the connection role is a plain login role; service_role carries BYPASSRLS.
+    await client.query('set local role service_role').catch(() => {})
     const out = await fn(wrap(client))
     await client.query('commit')
     return out

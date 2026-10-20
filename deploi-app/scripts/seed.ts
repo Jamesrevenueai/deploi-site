@@ -39,9 +39,9 @@ async function upsert(c: Client, table: string, rows: Row[], conflict = 'id') {
   return rows.length
 }
 
-export async function seed(databaseUrl = process.env.DATABASE_URL) {
-  if (!databaseUrl) throw new Error('DATABASE_URL required')
-  const c = new Client({ connectionString: databaseUrl, ssl: databaseUrl.includes('supabase.co') ? { rejectUnauthorized: false } : undefined })
+export async function seed(databaseUrl = process.env.DATABASE_URL, opts: { client?: Client } = {}) {
+  if (!databaseUrl && !opts.client) throw new Error('DATABASE_URL required')
+  const c = opts.client ?? new Client({ connectionString: databaseUrl, ssl: databaseUrl!.includes('supabase.co') ? { rejectUnauthorized: false } : undefined })
   await c.connect()
   const counts: Record<string, number> = {}
 

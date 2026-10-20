@@ -2,8 +2,8 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-const SCRATCH = '/tmp/claude-0/-home-user-Jamesrevenueai/460b7362-9bad-5ba0-9961-686c1522e4dd/scratchpad/node_modules'
-const req = createRequire(path.join(SCRATCH, 'x.js'))
+// Playwright is resolved from PLAYWRIGHT_NODE_MODULES (a directory holding node_modules/playwright) or this package.
+const req = createRequire(path.join(process.env.PLAYWRIGHT_NODE_MODULES ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'node_modules'), 'x.js'))
 let chromium
 try { ({ chromium } = req('playwright')) } catch { ({ chromium } = await import('playwright')) }
 const here = path.dirname(fileURLToPath(import.meta.url))

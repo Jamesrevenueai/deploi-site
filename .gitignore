@@ -12,4 +12,4 @@ dist-ssr
 # local review artifacts (screenshots + puppeteer scripts used only during dev review)
 shot-*.png
 preview-*.png
-scripts/
+/scripts/

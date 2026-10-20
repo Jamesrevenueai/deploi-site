@@ -13,7 +13,8 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
     "db:reset": "tsx scripts/migrate.ts && tsx scripts/seed.ts",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "db:migrate:prod": "tsx scripts/migrate-prod.ts"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",

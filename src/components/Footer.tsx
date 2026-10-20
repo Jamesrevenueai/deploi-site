@@ -23,7 +23,7 @@ export function Footer() {
               <li><Link to="/#menu">Services</Link></li>
               <li><Link to="/#how">How it works</Link></li>
               <li><Link to="/#pricing">Pricing</Link></li>
-              <li><Link to="/evv">EVV exception layer (home care)</Link></li>
+              <li><Link to="/evv">EVV layer (home care)</Link></li>
               <li><Link to="/#faq">FAQ</Link></li>
             </ul>
           </div>

@@ -3,7 +3,7 @@
  * no external files: each theme is a dark mesh glow, a faint line motif and a
  * grain layer, returned as a CSS `url(...)` data URI.
  */
-export type ArtTheme = 'growth' | 'staffing' | 'operations' | 'money' | 'report' | 'assess' | 'build' | 'run' | 'hero'
+export type ArtTheme = 'growth' | 'staffing' | 'operations' | 'money' | 'report' | 'assess' | 'build' | 'run' | 'hero' | 'glow'
 
 const W = 1600
 const H = 900
@@ -18,6 +18,7 @@ const TINT: Record<ArtTheme, [string, string]> = {
   build: ['#1F2F3F', '#141F2A'],
   run: ['#1D3A2E', '#122620'],
   hero: ['#0F1A2E', '#0B1222'],
+  glow: ['#12264A', '#0C1A33'],
 }
 
 function motif(theme: ArtTheme): string {
@@ -61,6 +62,8 @@ function motif(theme: ArtTheme): string {
       return [0, 1, 2, 3, 4, 5].map(i => `<rect x="${260 + (i % 3) * 380}" y="${260 + Math.floor(i / 3) * 220}" width="300" height="160" rx="22" ${sf}/>`).join('') + `<path d="M560 340 H640 M940 340 H1020 M560 560 H640 M940 560 H1020" ${s}/>`
     case 'run':
       return `<circle cx="800" cy="450" r="260" ${sf}/><circle cx="800" cy="450" r="170" ${sf}/><path d="M800 190 A260 260 0 0 1 1060 450" ${s}/><circle cx="1060" cy="450" r="10" fill="rgba(255,255,255,0.3)"/>`
+    case 'glow':
+      return ''
     case 'hero':
       return [[120, 140], [340, 80], [720, 190], [1260, 120], [1480, 260], [980, 70], [1560, 640], [60, 560]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2" fill="rgba(255,255,255,0.35)"/>`).join('')
   }

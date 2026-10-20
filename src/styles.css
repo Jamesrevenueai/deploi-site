@@ -135,17 +135,29 @@ section.alt { background: var(--dg-black-alt); }
   text-align: left;
 }
 @media (min-width: 960px) { .card-grid { grid-template-columns: repeat(2, 1fr); } }
+/* an odd last card spans the row as a low banner instead of sitting alone */
+@media (min-width: 960px) {
+  .card-grid:not(.three):not(.single) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .card-grid:not(.three):not(.single) > :last-child:nth-child(odd) > .icard { min-height: 240px; }
+}
 .card-grid.three { grid-template-columns: 1fr; }
 @media (min-width: 960px) { .card-grid.three { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1120px) { .card-grid.three { grid-template-columns: repeat(3, 1fr); } .card-grid.three .icard-title { font-size: 1.625rem; } }
 .card-grid.single { grid-template-columns: 1fr; max-width: 880px; margin: 0 auto; }
 
+/* each grid cell is a size container so the card's 16:9 floor follows the cell width */
+.card-grid > * { container-type: inline-size; display: flex; flex-direction: column; }
+.card-grid > * > .icard { flex: 1; }
 .icard {
   position: relative;
-  display: block;
-  aspect-ratio: 16 / 9;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  /* 16:9 is a floor, never a ceiling: long copy grows the card */
+  min-height: 200px;
+  min-height: 56.25cqw;
+  padding: 24px;
   border-radius: var(--dg-card-radius);
-  overflow: hidden;
   background:
     repeating-linear-gradient(176deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 3px),
     radial-gradient(120% 90% at 20% 0%, #1C1C1C 0%, #0D0D0D 55%, #050505 100%);
@@ -160,6 +172,7 @@ section.alt { background: var(--dg-black-alt); }
   content: "";
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.55) 100%);
   pointer-events: none;
   z-index: 0;
@@ -168,15 +181,13 @@ section.alt { background: var(--dg-black-alt); }
 a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 .icard-top { position: absolute; top: 20px; left: 20px; z-index: 1; }
 .icard-bottom {
-  position: absolute;
-  left: 24px;
-  right: 24px;
-  bottom: 22px;
+  position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 14px;
+  gap: 12px;
+  padding-top: 64px;
 }
 .icard-title {
   font-size: clamp(1.5rem, 2.3vw, 2rem);
@@ -191,8 +202,8 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
   .icard-title { font-size: clamp(1.625rem, 2vw, 2.125rem); }
 }
 @media (max-width: 480px) {
-  .icard { aspect-ratio: auto; min-height: 240px; }
-  .icard-bottom { position: relative; left: auto; right: auto; bottom: auto; padding: 72px 20px 20px; }
+  .icard { min-height: 220px; padding: 20px; }
+  .icard-bottom { padding-top: 56px; }
   .icard-top { top: 16px; left: 16px; }
   .icard-title { font-size: 1.375rem; max-width: 100%; }
   .icard-body { max-width: 100%; }
@@ -351,9 +362,9 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 /* --------------------------------------------------------------------------
    Morning report card
    -------------------------------------------------------------------------- */
-.report-card { aspect-ratio: auto; min-height: 0; }
+.report-card { min-height: 0; }
 .report-card .icard-top { position: absolute; }
-.report-card .report-inner { position: relative; z-index: 1; padding: 76px 28px 28px; display: flex; flex-direction: column; gap: 22px; text-align: left; }
+.report-card .report-inner { position: relative; z-index: 1; padding: 52px 0 0; display: flex; flex-direction: column; gap: 22px; text-align: left; }
 .report-card .icard-title { max-width: 100%; }
 .lanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .lane {
@@ -372,15 +383,18 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 .task { display: flex; gap: 10px; align-items: baseline; font-size: 0.95rem; line-height: 1.35; color: var(--dg-grey-body); }
 .task .ts { flex: none; width: 42px; font-size: 0.8rem; color: var(--dg-grey-headline); font-variant-numeric: tabular-nums; }
 .task.active { color: var(--dg-white); }
-@media (max-width: 959px) { .lanes { grid-template-columns: 1fr; } .report-card .report-inner { padding: 72px 20px 20px; } }
+@media (max-width: 959px) { .lanes { grid-template-columns: 1fr; } .report-card .report-inner { padding: 48px 0 0; } }
 
 /* --------------------------------------------------------------------------
    Why
    -------------------------------------------------------------------------- */
-.why-list { list-style: none; margin: 0 auto; padding: 0; max-width: 760px; display: flex; flex-direction: column; gap: 0; }
-.why-list li { padding: 22px 0; border-top: 1px solid var(--dg-line); color: var(--dg-grey-body); font-size: 1.0625rem; }
-.why-list li:last-child { border-bottom: 1px solid var(--dg-line); }
-.why-list li strong { color: var(--dg-white); font-weight: 600; }
+.why-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--dg-card-gap); max-width: 920px; margin: 0 auto; text-align: left; }
+.why-item { padding: 28px; border-radius: var(--dg-card-radius); border: 1px solid var(--dg-line); background: var(--dg-black-alt); display: flex; flex-direction: column; gap: 12px; }
+.why-item .ico { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; background: var(--dg-glass-bg); border: 1px solid var(--dg-glass-border); color: var(--dg-white); margin-bottom: 4px; }
+.why-item .ico svg { width: 18px; height: 18px; }
+.why-item h3 { font-size: 1.125rem; }
+.why-item p { color: var(--dg-grey-body); font-size: 1rem; }
+@media (max-width: 640px) { .why-grid { grid-template-columns: 1fr; } .why-item { padding: 24px; } }
 
 /* --------------------------------------------------------------------------
    Pricing

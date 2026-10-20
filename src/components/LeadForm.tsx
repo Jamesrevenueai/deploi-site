@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { submitLead, validateLead, resolveLeadTarget, type LeadSource } from '../lib/leads'
 import { Icon } from '../lib/icons'
+import { CONTACT_EMAIL } from '../lib/brand'
 
 type Props = {
   source: LeadSource
@@ -41,6 +42,13 @@ export function LeadForm({
     const problem = validateLead(payload)
     if (problem) {
       setError(problem)
+      return
+    }
+    if (!configured) {
+      // No backend yet: hand the note to the visitor's mail client instead of failing.
+      const body = `Name: ${payload.name}\nPractice: ${payload.agency_name}\nEmail: ${payload.email}\nPhone: ${payload.phone ?? ''}\n\n${payload.message ?? ''}`
+      window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Book a call (${source})`)}&body=${encodeURIComponent(body)}`
+      setStatus('done')
       return
     }
     setStatus('submitting')
@@ -97,7 +105,7 @@ export function LeadForm({
         {status === 'submitting' ? 'Sending…' : cta}
       </button>
       {error && <div className="form-error" role="alert">{error}</div>}
-      {!configured && !error && (
+      {import.meta.env.DEV && !configured && !error && (
         <div className="form-notice">Preview build: submissions are not delivered until the lead API is configured.</div>
       )}
     </form>

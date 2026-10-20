@@ -226,8 +226,8 @@ function HowWeWork() {
         <div className="section-head reveal">
           <span className="eyebrow">How we work</span>
           <h2 className="two-tone">
-            <span className="grey">Assess. Build.</span><br />
-            <span className="white">Run.</span>
+            <span className="grey">Three steps.</span><br />
+            <span className="white">Assess. Build. Run.</span>
           </h2>
         </div>
         <div className="steps">
@@ -289,7 +289,7 @@ function MorningReport() {
           </h2>
         </div>
         <div className="card-grid single reveal">
-          <ImageCard tag="Live" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card" art="report">
+          <ImageCard tag="Live" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card" art="glow">
             <div className="report-inner">
               <div className="icard-title">Your morning report</div>
               <div className="lanes">
@@ -317,6 +317,12 @@ function MorningReport() {
 /*  Why Deploi                                                                */
 /* -------------------------------------------------------------------------- */
 function WhyDeploi() {
+  const points = [
+    { icon: <Icon.Shield />, title: 'Payer rules are the starting point', body: 'Medicaid and Medicare, prior authorizations and referral workflows, not a lesson on your dime. In home care that means Ohio PASSPORT, Ohio Home Care Waiver, MyCare, DODD and Sandata EVV today; other specialties and states as we go.' },
+    { icon: <Icon.Check />, title: 'HIPAA from day one', body: 'A Business Associate Agreement is signed before we touch a single patient record. Access is logged, minimum necessary, no exceptions.' },
+    { icon: <Icon.Link />, title: 'Your systems stay', body: 'We sit on top of the scheduler, EHR, EVV and phone line you already pay for. Nothing to migrate, nothing to retrain.' },
+    { icon: <Icon.Users />, title: 'A named founder answers the phone', body: 'No account manager, no ticket queue. You text the person who built it.' },
+  ]
   return (
     <section id="why">
       <div className="container">
@@ -327,25 +333,15 @@ function WhyDeploi() {
             <span className="white">you bill under.</span>
           </h2>
         </div>
-        <ul className="why-list reveal">
-          <li>
-            <strong>Payer rules are the starting point, not a lesson on your dime.</strong> Medicaid and
-            Medicare, prior authorizations and referral workflows. In home care that means Ohio
-            PASSPORT, Ohio Home Care Waiver, MyCare, DODD and Sandata EVV today; other specialties
-            and states as we go.
-          </li>
-          <li>
-            <strong>HIPAA from day one.</strong> A Business Associate Agreement is signed before we
-            touch a single patient record.
-          </li>
-          <li>
-            <strong>Your systems stay.</strong> We sit on top of the scheduler, EHR, EVV and phone
-            line you already pay for.
-          </li>
-          <li>
-            <strong>A named founder answers the phone.</strong> No account manager, no ticket queue.
-          </li>
-        </ul>
+        <div className="why-grid">
+          {points.map(p => (
+            <div className="why-item reveal" key={p.title}>
+              <span className="ico" aria-hidden="true">{p.icon}</span>
+              <h3>{p.title}</h3>
+              <p>{p.body}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   )

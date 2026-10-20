@@ -8,11 +8,11 @@ export const env = {
   get supabaseServiceKey() { return e('SUPABASE_SERVICE_ROLE_KEY') },
   get hasSupabase() { return Boolean(this.supabaseUrl && this.supabaseAnonKey) },
   /** dev auth is used when explicitly requested or when Supabase is not configured outside production */
+  /** The dev role picker only exists when ALLOW_DEV_LOGIN=true (default off). */
+  get allowDevLogin() { return e('ALLOW_DEV_LOGIN') === 'true' },
   get authMode(): 'supabase' | 'dev' {
-    const m = e('AUTH_MODE')
-    if (m === 'dev') return 'dev'
-    if (m === 'supabase') return 'supabase'
-    return this.hasSupabase ? 'supabase' : 'dev'
+    if (this.allowDevLogin && (e('AUTH_MODE') === 'dev' || !this.hasSupabase)) return 'dev'
+    return 'supabase'
   },
   get appSecret() { return e('APP_SECRET', 'dev-secret') },
   get staffEmails() { return e('STAFF_EMAILS').split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },

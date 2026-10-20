@@ -7,6 +7,10 @@ export type Prospect = {
   stage: Stage; owner_notes: string | null; email_invalid: boolean; biggest_leak: string | null
   next_step: string | null; follow_up_at: string | null; agency_id: string | null; created_at: string; updated_at: string
   last_touch_at?: string | null
+  assessment_credit_cents?: number | null
+  credit_expires_at?: string | null
+  assessment_credit_applied_at?: string | null
+  credit_expired?: boolean | null
 }
 export type Touch = {
   id: string; prospect_id: string; channel: string; direction: 'inbound' | 'outbound'; subject: string | null
@@ -23,8 +27,9 @@ export async function listProspects(db: Db, f: Filters = {}): Promise<Prospect[]
   if (f.q) { params.push(`%${f.q}%`); where.push(`(p.agency_name ilike $${params.length} or p.owner_name ilike $${params.length})`) }
   const w = where.length ? 'where ' + where.join(' and ') : ''
   return db.query<Prospect>(
-    `select p.*, (select max(t.at) from touches t where t.prospect_id = p.id) as last_touch_at
-     from prospects p ${w} order by p.updated_at desc`, params)
+    `select p.*, (select max(t.at) from touches t where t.prospect_id = p.id) as last_touch_at,
+            g.assessment_credit_cents, g.credit_expires_at, g.assessment_credit_applied_at, g.credit_expired
+     from prospects p left join agencies g on g.id = p.agency_id ${w} order by p.updated_at desc`, params)
 }
 
 export async function getProspect(db: Db, id: string) {

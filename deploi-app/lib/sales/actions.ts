@@ -12,12 +12,14 @@ export async function setStage(prospectId: string, stage: string) {
   await withUser(session, async db => {
     await db.query('update prospects set stage = $2 where id = $1', [prospectId, stage])
     if (stage === 'build_sold') {
-      // Section 5 credit rule: the assessment fee is credited toward a build sold inside the 60-day window.
+      // Item 6: the assessment credit applies only while now() < credit_expires_at; otherwise it is
+      // marked expired. There is no override path.
       await db.query(
-        `update agencies set assessment_credit_applied_at = now()
+        `update agencies set
+           assessment_credit_applied_at = case when now() < credit_expires_at then now() else assessment_credit_applied_at end,
+           credit_expired = case when now() < credit_expires_at then credit_expired else true end
          where id = (select agency_id from prospects where id = $1)
-           and assessment_credit_cents > 0 and assessment_credit_applied_at is null
-           and (assessment_credit_expires_at is null or assessment_credit_expires_at >= now())`, [prospectId])
+           and assessment_credit_cents > 0 and assessment_credit_applied_at is null and credit_expired = false`, [prospectId])
     }
   }, { ip: await requestIp() })
   revalidatePath('/staff/pipeline')

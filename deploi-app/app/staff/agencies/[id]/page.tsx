@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { requireRole, requestIp } from '@/lib/auth'
 import { withUser } from '@/lib/db'
-import { creditStatus } from '@/lib/assessments/credit'
+import { creditState, daysLeft as creditDaysLeft } from '@/lib/credit/label'
 import { leaksTotal } from '@/lib/assessments/queries'
 import { money, type Leak } from '@/lib/leaks'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -13,7 +13,7 @@ import { Empty } from '@/components/ui/Empty'
 export const metadata = { title: 'Agency' }
 export const dynamic = 'force-dynamic'
 
-type Agency = { id: string; name: string; city: string | null; county: string | null; state: string; timezone: string; assessment_credit_cents: number; assessment_credit_expires_at: string | null; assessment_credit_applied_at: string | null; prospect_id: string | null; prospect_stage: string | null; prospect_updated_at: string | null; owner_name: string | null; created_at: string }
+type Agency = { id: string; name: string; city: string | null; county: string | null; state: string; timezone: string; assessment_credit_cents: number; assessment_credit_expires_at: string | null; assessment_credit_applied_at: string | null; credit_expires_at: string | null; credit_expired: boolean; prospect_id: string | null; prospect_stage: string | null; prospect_updated_at: string | null; owner_name: string | null; created_at: string }
 type A = { id: string; status: string; leaks: Leak[]; recommended_door: string | null; report_generated_at: string | null; created_at: string }
 
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')
@@ -33,9 +33,9 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
   }, { ip })
   if (!data) notFound()
   const { g, assessments, users } = data
-  const status = creditStatus(g, g.prospect_stage, g.prospect_updated_at)
+  const status = creditState(g)
   const tone = status === 'available' ? 'ok' : status === 'applied' ? 'ok' : status === 'expired' ? 'danger' : 'muted'
-  const daysLeft = g.assessment_credit_expires_at ? Math.ceil((new Date(g.assessment_credit_expires_at).getTime() - Date.now()) / 86400e3) : null
+  const daysLeft = creditDaysLeft(g)
 
   return (
     <>
@@ -46,7 +46,7 @@ export default async function AgencyPage({ params }: { params: Promise<{ id: str
       <section className="grid gap-4 md:grid-cols-3">
         <Tile label="Assessment credit" value={g.assessment_credit_cents ? money(g.assessment_credit_cents / 100) : '—'} icon="dollar"
           sub={<><Badge tone={tone}>{status}</Badge>{status === 'available' && daysLeft != null ? <span className="ml-2">{daysLeft} days left</span> : null}</>} />
-        <Tile label="Credit expires" value={date(g.assessment_credit_expires_at)} icon="clock" sub={g.assessment_credit_applied_at ? `applied ${date(g.assessment_credit_applied_at)}` : 'build must be sold before this date'} />
+        <Tile label="Credit expires" value={date(g.credit_expires_at ?? g.assessment_credit_expires_at)} icon="clock" sub={g.assessment_credit_applied_at ? `applied ${date(g.assessment_credit_applied_at)}` : g.credit_expired ? 'expired before a build was sold; no override' : 'build must be sold before this date'} />
         <Tile label="Pipeline stage" value={g.prospect_stage ? g.prospect_stage.replace(/_/g, ' ') : '—'} icon="pipeline" sub={users.length ? `${users.length} client user${users.length === 1 ? '' : 's'}` : 'no client users yet'} />
       </section>
 

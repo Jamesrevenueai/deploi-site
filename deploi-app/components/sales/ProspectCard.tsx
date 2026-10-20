@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import type { Prospect } from '@/lib/sales/queries'
+import { creditLabel, creditState } from '@/lib/credit/label'
 
 export function timeAgo(iso: string | null | undefined) {
   if (!iso) return 'no touches'
@@ -12,6 +13,8 @@ export function timeAgo(iso: string | null | undefined) {
 }
 
 export function ProspectCard({ p, compact }: { p: Prospect; compact?: boolean }) {
+  const credit = creditLabel({ assessment_credit_cents: p.assessment_credit_cents ?? 0, credit_expires_at: p.credit_expires_at ?? null, assessment_credit_applied_at: p.assessment_credit_applied_at, credit_expired: p.credit_expired })
+  const cstate = creditState({ assessment_credit_cents: p.assessment_credit_cents ?? 0, credit_expires_at: p.credit_expires_at ?? null, assessment_credit_applied_at: p.assessment_credit_applied_at, credit_expired: p.credit_expired })
   return (
     <Link href={`/staff/pipeline/${p.id}`} className="block rounded-2xl border border-line bg-black p-3 hover:bg-ground-alt" draggable={false}>
       <div className="flex items-start justify-between gap-2">
@@ -21,6 +24,9 @@ export function ProspectCard({ p, compact }: { p: Prospect; compact?: boolean })
         </div>
         {p.email_invalid && <Badge tone="danger">bounced</Badge>}
       </div>
+      {credit && (
+        <div className={`mt-2 text-[12px] ${cstate === 'expired' ? 'text-danger' : cstate === 'applied' ? 'text-ok' : 'text-grey-nav'}`}>{credit}</div>
+      )}
       {!compact && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {p.programs.map(pr => <span key={pr} className="rounded-full border border-line px-2 py-0.5 text-[11px] text-grey-nav">{pr}</span>)}

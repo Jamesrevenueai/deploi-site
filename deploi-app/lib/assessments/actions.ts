@@ -37,10 +37,13 @@ export async function createAssessment(formData: FormData) {
       agencyId = g!.id
       await db.query('update prospects set agency_id = $1 where id = $2', [agencyId, p.id])
     }
+    // Item 6: credit_expires_at = assessment_sold_at + 60 days (assessment_credit_expires_at kept in sync for older readers).
     await db.query(
-      `update agencies set assessment_credit_cents = $1, assessment_credit_expires_at = now() + interval '60 days', assessment_credit_applied_at = null where id = $2`,
+      `update agencies set assessment_credit_cents = $1, credit_expires_at = now() + interval '60 days', assessment_credit_expires_at = now() + interval '60 days',
+         assessment_credit_applied_at = null, credit_expired = false where id = $2`,
       [Math.round(fee * 100), agencyId])
-    await db.query("update prospects set stage = 'assessment_sold' where id = $1 and stage not in ('assessment_sold','build_sold','retainer')", [p.id])
+    await db.query("update prospects set stage = 'assessment_sold', assessment_sold_at = now() where id = $1 and stage not in ('assessment_sold','build_sold','retainer')", [p.id])
+    await db.query('update prospects set assessment_sold_at = coalesce(assessment_sold_at, now()) where id = $1', [p.id])
     await db.query("insert into touches (prospect_id, channel, direction, subject, body, meta) values ($1,'call','outbound','Assessment sold',$2, '{}'::jsonb)", [p.id, `Operations Assessment booked, fee $${fee}`])
     const a = await db.one<{ id: string }>(
       "insert into assessments (prospect_id, agency_id, status, fee_cents) values ($1,$2,'in_progress',$3) returning id",

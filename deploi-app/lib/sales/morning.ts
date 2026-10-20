@@ -1,4 +1,4 @@
-/** "Deploi — morning pipeline": data builder + sender. Runs as service role from the cron. */
+/** "Deploi AI — morning pipeline": data builder + sender. Runs as service role from the cron. */
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz'
 import type { Db } from '../db'
 import { admin } from '../db'
@@ -59,7 +59,7 @@ export async function runMorningPipeline(opts: { force?: boolean; now?: Date } =
     const data = await buildMorningPipeline(db, now)
     const { renderMorningPipeline } = await import('../../emails/morning-pipeline')
     const { html, text } = await renderMorningPipeline(data)
-    const res = await sendEmail({ to: env.staffNotifyEmail, subject: 'Deploi — morning pipeline', html, text })
+    const res = await sendEmail({ to: env.staffNotifyEmail, subject: 'Deploi AI — morning pipeline', html, text })
     await db.query(`insert into worker_runs (worker, dry_run, finished_at, summary) values ('morning_pipeline', false, now(), $1)`,
       [JSON.stringify({ date: todayEt, sent: res.ok, mocked: res.mocked, replies: data.replies.length, calls: data.callsToday.length, followups: data.followUpsDue.length, held: data.conversations.held })])
     log.info('morning_pipeline.sent', { ok: res.ok, mocked: res.mocked })

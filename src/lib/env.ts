@@ -11,6 +11,6 @@ export const env = {
   bookingUrl: read('VITE_BOOKING_URL'),
   /** Formspree endpoint, used only when VITE_APP_API_URL is empty. */
   formspreeEndpoint: read('VITE_FORMSPREE_ENDPOINT'),
-  legalEntity: read('VITE_LEGAL_ENTITY') || 'Deploi',
+  legalEntity: read('VITE_LEGAL_ENTITY') || 'Deploi AI',
   legalReviewed: read('VITE_LEGAL_REVIEWED') === 'true',
 }

@@ -71,7 +71,7 @@ export function ReportDocument({ a, steps }: { a: AssessmentRow; steps: TraceSte
   const pricing = env.pricing
   const generated = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   return (
-    <Document title={`Operations Assessment — ${a.agency_name}`} author="Deploi" creator="Deploi">
+    <Document title={`Operations Assessment — ${a.agency_name}`} author="Deploi AI" creator="Deploi AI">
       {/* 1. cover */}
       <Page size="LETTER" style={s.page}>
         <Text style={s.brand}>deploi</Text>

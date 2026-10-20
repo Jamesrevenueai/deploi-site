@@ -19,7 +19,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
   return (
     <main className="min-h-dvh flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md fade-up">
-        <div className="wordmark mb-10 text-center">deploi</div>
+        <div className="wordmark mb-10 text-center">deploi <span className="text-grey-h">ai</span></div>
         <div className="metal rounded-[20px] p-6 md:p-8">
           <div className="relative flex flex-col gap-5">
             <div>

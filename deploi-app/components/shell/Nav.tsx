@@ -8,7 +8,7 @@ export function Rail({ items, email, role }: { items: NavItem[]; email: string; 
   const path = usePathname()
   return (
     <nav className="rail" aria-label="Primary">
-      <Link href={items[0].href} className="wordmark mb-6 px-3">deploi</Link>
+      <Link href={items[0].href} className="wordmark mb-6 px-3">deploi <span className="text-grey-h">ai</span></Link>
       {items.map(it => {
         const active = path === it.href || path.startsWith(it.href + '/')
         return (

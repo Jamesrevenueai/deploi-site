@@ -9,7 +9,7 @@ describe('adapters mock when env is empty', () => {
     const r = await sendEmail({ to: 'x@example.com', subject: 'hi', text: 'hello' })
     expect(r.ok && r.mocked).toBe(true)
     expect(mockOutbox.length).toBe(1)
-    expect(FROM).toBe('Deploi <hello@getdeploi.com>')
+    expect(FROM).toBe('Deploi AI <hello@getdeploi.com>')
   })
   it('sms goes to the mock outbox', async () => {
     const r = await sendSms({ to: '+16145550100', body: 'hi' })

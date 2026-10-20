@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { BRAND } from '../lib/brand'
+import { BRAND, WORDMARK } from '../lib/brand'
 import { BookButton } from './Button'
 import { Icon } from '../lib/icons'
 
@@ -40,7 +40,7 @@ export function Nav() {
     <nav className={`nav ${scrolled || open ? 'scrolled' : ''}`} aria-label="Primary">
       <div className="nav-inner">
         <Link to="/" className="brand" aria-label={`${BRAND} home`}>
-          {BRAND.toLowerCase()}
+          {WORDMARK[0]} <span className="brand-ai">{WORDMARK[1]}</span>
         </Link>
 
         <div className="nav-right">

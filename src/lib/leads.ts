@@ -39,7 +39,7 @@ export async function submitLead(
   const body =
     target.kind === 'app'
       ? payload
-      : { ...payload, _subject: `Deploi lead (${payload.source})` }
+      : { ...payload, _subject: `Deploi AI lead (${payload.source})` }
   const res = await fetchImpl(target.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

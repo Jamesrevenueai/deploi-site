@@ -18,7 +18,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8">
   .sub{color:#A3A3A3;font-size:26px;font-weight:400}
   .dots{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 1.5px);background-size:72px 72px}
 </style></head><body><div class="wrap"><div class="dots"></div>
-<div class="brand">deploi</div>
+<div class="brand">deploi <span style="color:#8A8A8A">ai</span></div>
 <h1><span class="g">More clients.</span><br><span class="g">More aides.</span><br>Fewer missed visits.</h1>
 <div class="sub">Operations &amp; technology for Medicaid home care and DODD agencies</div>
 </div></body></html>`

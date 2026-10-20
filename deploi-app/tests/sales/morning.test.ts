@@ -33,7 +33,7 @@ describe('morning pipeline email', () => {
     const first = await runMorningPipeline({ force: true })
     expect(first.sent).toBe(true)
     expect(mockOutbox.length).toBe(before + 1)
-    expect(mockOutbox[mockOutbox.length - 1].subject).toBe('Deploi — morning pipeline')
+    expect(mockOutbox[mockOutbox.length - 1].subject).toBe('Deploi AI — morning pipeline')
     const sevenToday = fromZonedTime(`${formatInTimeZone(new Date(), 'America/New_York', 'yyyy-MM-dd')}T07:30:00`, 'America/New_York')
     const skipped = await runMorningPipeline({ now: sevenToday })
     expect(skipped).toEqual({ sent: false, reason: 'already sent today' })

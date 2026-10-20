@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { BRAND, CONTACT_EMAIL } from '../lib/brand'
+import { BRAND, CONTACT_EMAIL, WORDMARK } from '../lib/brand'
 import { Icon } from '../lib/icons'
 
 export function Footer() {
@@ -7,7 +7,7 @@ export function Footer() {
   return (
     <footer>
       <div className="container">
-        <div className="footer-brand">{BRAND.toLowerCase()}</div>
+        <div className="footer-brand">{WORDMARK[0]} <span className="brand-ai">{WORDMARK[1]}</span></div>
         <p className="footer-tag">Operations and technology for Medicaid home care and DODD agencies.</p>
         <div className="footer-social">
           <a href="https://www.linkedin.com/company/getdeploi" aria-label={`${BRAND} on LinkedIn`} rel="noopener noreferrer" target="_blank"><Icon.LinkedIn /></a>

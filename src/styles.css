@@ -222,6 +222,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
   justify-content: space-between;
   gap: 24px;
 }
+.brand-ai { color: var(--dg-grey-headline); font-weight: 600; }
 .brand { font-weight: 700; font-size: 28px; letter-spacing: -0.02em; color: var(--dg-white); line-height: 1; }
 .brand:hover { color: var(--dg-white); }
 .nav-right { display: flex; align-items: center; gap: 28px; }

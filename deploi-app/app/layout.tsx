@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: { default: 'Deploi', template: '%s · Deploi' },
+  title: { default: 'Deploi AI', template: '%s · Deploi AI' },
   description: 'Deploi operating system',
   robots: { index: false, follow: false },
 }

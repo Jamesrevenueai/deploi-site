@@ -10,7 +10,7 @@ import { CONTACT_EMAIL } from '../lib/brand'
 describe('Nav', () => {
   it('renders the wordmark and every link', () => {
     render(<MemoryRouter><Nav /></MemoryRouter>)
-    expect(screen.getByText('deploi')).toBeInTheDocument()
+    expect(screen.getByLabelText('Deploi AI home')).toHaveTextContent('deploi ai')
     for (const l of NAV_LINKS) expect(screen.getAllByText(l.label).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Open menu' })).toBeInTheDocument()
   })
@@ -36,7 +36,7 @@ describe('Legal', () => {
   })
   it('defaults the entity to Deploi and shows the draft badge when unreviewed', () => {
     render(<MemoryRouter><Legal kind="terms" /></MemoryRouter>)
-    expect(screen.getByText('Deploi', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByText('Deploi AI', { selector: 'strong' })).toBeInTheDocument()
     expect(screen.getByText(/pending legal review/)).toBeInTheDocument()
   })
 })

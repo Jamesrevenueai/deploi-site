@@ -10,7 +10,7 @@ export function AppShell({ items, session, children }: { items: NavItem[]; sessi
     <div className="min-h-dvh">
       <Rail items={items} email={session.email} role={session.role} />
       <header className="topbar">
-        <span className="wordmark" style={{ fontSize: 22 }}>deploi</span>
+        <span className="wordmark" style={{ fontSize: 22 }}>deploi <span className="text-grey-h">ai</span></span>
         <form action="/logout" method="post"><button className="btn ghost xs" type="submit" aria-label="Sign out"><Icon name="logout" size={14} /></button></form>
       </header>
       <main className="content">{children}</main>

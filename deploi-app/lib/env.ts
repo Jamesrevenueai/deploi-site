@@ -45,4 +45,4 @@ export const env = {
 }
 
 export const COMPANY_EMAIL = 'hello@getdeploi.com'
-export const COMPANY_NAME = 'Deploi'
+export const COMPANY_NAME = 'Deploi AI'

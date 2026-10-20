@@ -51,7 +51,7 @@ export function MorningPipelineEmail({ data }: { data: MorningData }) {
 export function morningPipelineText(d: MorningData) {
   const l = (items: MorningItem[]) => items.length ? items.map(i => `- ${i.agency_name}${i.owner_name ? ` (${i.owner_name})` : ''} · ${i.stage}${i.when ? ` · ${String(i.when).slice(0, 10)}` : ''}${i.note ? `\n    ${i.note}` : ''}`).join('\n') : '  none'
   return [
-    `Deploi — morning pipeline · ${d.dateLabel}`, '',
+    `Deploi AI — morning pipeline · ${d.dateLabel}`, '',
     `Owner conversations: ${d.conversations.held} / ${d.conversations.goal}`, '',
     `New replies (${d.replies.length})`, l(d.replies), '',
     `Calls today (${d.callsToday.length})`, l(d.callsToday), '',

@@ -51,9 +51,16 @@ export async function getSession(): Promise<Session | null> {
   if (!data.user) return null
   let s = await profileFor(data.user.id)
   if (!s && data.user.email) {
-    // profile trigger did not run (e.g. user predates migration): create it
-    const role: Role = env.staffEmails.includes(data.user.email.toLowerCase()) ? 'staff' : 'client'
-    await admin(db => db.query('insert into profiles (id, email, role) values ($1,$2,$3) on conflict (id) do nothing', [data.user!.id, data.user!.email, role]))
+    // profile trigger did not run (e.g. user predates migration): create it from the
+    // invite metadata (agency_id / role), falling back to staff-by-email or a client with no agency.
+    const meta = (data.user.user_metadata ?? {}) as { agency_id?: string; role?: string }
+    const isStaff = env.staffEmails.includes(data.user.email.toLowerCase())
+    const role: Role = isStaff ? 'staff' : meta.role === 'staff' || meta.role === 'client' ? meta.role : 'client'
+    const agencyId = /^[0-9a-f-]{36}$/i.test(meta.agency_id ?? '') ? meta.agency_id! : null
+    await admin(async db => {
+      await db.query('insert into profiles (id, email, role, agency_id) values ($1,$2,$3,$4) on conflict (id) do nothing', [data.user!.id, data.user!.email, role, agencyId])
+      await db.query("update invites set accepted_at = now(), status = 'accepted', supabase_user_id = $2 where lower(email) = lower($1) and accepted_at is null and status <> 'revoked'", [data.user!.email, data.user!.id])
+    })
     s = await profileFor(data.user.id)
   }
   return s

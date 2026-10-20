@@ -11,6 +11,12 @@ create table if not exists auth.users (
   email text unique,
   created_at timestamptz default now()
 );
+-- Supabase stores sign-up metadata here; the shim mirrors the column (no-op where it exists).
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'auth' and table_name = 'users' and column_name = 'raw_user_meta_data') then
+    alter table auth.users add column raw_user_meta_data jsonb default '{}'::jsonb;
+  end if;
+end $$;
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(coalesce(
     current_setting('request.jwt.claim.sub', true),

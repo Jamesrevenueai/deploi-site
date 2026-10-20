@@ -4,3 +4,5 @@ app pages measured against the production build (next build && next start) with 
   /staff/pipeline  mobile perf=98  a11y=100   desktop perf=100 a11y=100
   /staff/audit     mobile perf=86  a11y=100   desktop perf=100 a11y=100
 JSON reports in this folder are not committed (size); rerun with scripts/lighthouse.sh.
+marketing homepage, live (gotdeploi.com) after commit 2318520:
+  mobile perf=94 a11y=95 (FCP 1.9 s, LCP 2.8 s)   desktop perf=98 a11y=96 (FCP 0.9 s, LCP 0.9 s)

@@ -5,11 +5,12 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { Empty } from '@/components/ui/Empty'
 import { MobileRows } from '@/components/dashboard/MobileRows'
+import { ConsentToggle } from '@/components/actions/ConsentToggle'
 
 export const metadata = { title: 'Credentials' }
 export const dynamic = 'force-dynamic'
 
-type Row = { aide_id: string; first_name: string; last_name: string; type: string; expires_on: string }
+type Row = { aide_id: string; first_name: string; last_name: string; type: string; expires_on: string; sms_consent: boolean }
 
 export default async function Credentials() {
   const session = await requireRole('client')
@@ -17,7 +18,7 @@ export default async function Credentials() {
   const now = new Date()
   const rows = await withUser(session, async db => {
     const rows = await db.query<Row>(
-      `select a.id as aide_id, a.first_name, a.last_name, c->>'type' as type, c->>'expires_on' as expires_on
+      `select a.id as aide_id, a.first_name, a.last_name, a.sms_consent, c->>'type' as type, c->>'expires_on' as expires_on
        from aides a, jsonb_array_elements(a.credentials) c where a.agency_id = $1 and a.active
        order by c->>'expires_on' asc`, [session.agencyId])
     await db.auditRead('aides', session.agencyId, [...new Set(rows.map(r => r.aide_id))])
@@ -35,7 +36,7 @@ export default async function Credentials() {
         <>
           <div className="table-wrap hidden md:block">
             <table className="dg-table">
-              <thead><tr><th>Aide</th><th>Credential</th><th>Expires</th><th>Days left</th></tr></thead>
+              <thead><tr><th>Aide</th><th>Credential</th><th>Expires</th><th>Days left</th><th>SMS</th></tr></thead>
               <tbody>
                 {withDays.map((r, i) => (
                   <tr key={`${r.aide_id}-${r.type}-${i}`}>
@@ -43,6 +44,7 @@ export default async function Credentials() {
                     <td>{r.type}</td>
                     <td>{r.expires_on}</td>
                     <td><Badge tone={tone(r.days)}>{label(r.days)}</Badge></td>
+                    <td><ConsentToggle kind="aide" id={r.aide_id} consent={r.sms_consent} back="/app/credentials" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -50,7 +52,7 @@ export default async function Credentials() {
           </div>
           <MobileRows rows={withDays.map((r, i) => ({
             key: `${r.aide_id}-${r.type}-${i}`, title: `${r.first_name} ${r.last_name} · ${r.type}`, badge: <Badge tone={tone(r.days)}>{label(r.days)}</Badge>,
-            lines: [`Expires ${r.expires_on}`],
+            lines: [`Expires ${r.expires_on}`, <ConsentToggle key="c" kind="aide" id={r.aide_id} consent={r.sms_consent} back="/app/credentials" />],
           }))} />
         </>
       )}

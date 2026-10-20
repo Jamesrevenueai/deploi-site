@@ -7,6 +7,7 @@ import { admin, type Db } from '../db'
 import { log } from '../log'
 import { sendEmail } from '../adapters/email'
 import { sendSms } from '../adapters/sms'
+import { hasSmsConsent, NO_SMS_CONSENT } from '../consent/check'
 import type { AgencyRow, Proposal, WorkerDef, WorkerName } from './types'
 
 const registry = new Map<WorkerName, WorkerDef>()
@@ -17,7 +18,7 @@ export function listWorkers() { return [...registry.values()] }
 export type ProposedActionRow = {
   id: string; agency_id: string; worker: WorkerName; kind: 'email' | 'sms' | 'task'; to_ref: string | null
   subject: string | null; body: string; payload: Record<string, unknown>; status: string; dedupe_key: string | null
-  created_at: string; send_after: string | null
+  created_at: string; send_after: string | null; hold_reason?: string | null
 }
 
 export async function loadAgency(db: Db, agencyId: string): Promise<AgencyRow | null> {
@@ -99,6 +100,12 @@ export async function sendProposedAction(db: Db, id: string, opts: { actorId: st
   if (!a) return false
   const subject = opts.overrides?.subject ?? a.subject
   const body = opts.overrides?.body ?? a.body
+  // Item 7: no SMS leaves without recorded consent. The action stays 'proposed' with a hold reason.
+  if (a.kind === 'sms' && !(await hasSmsConsent(db, a.agency_id, a.to_ref))) {
+    await db.query("update proposed_actions set hold_reason = $2 where id = $1", [id, NO_SMS_CONSENT])
+    log.info('action.held', { id, worker: a.worker, reason: NO_SMS_CONSENT })
+    return false
+  }
   const targets = await resolveRecipient(db, a.agency_id, a.to_ref, a.kind)
   let ok = true
   if (a.kind === 'email') {
@@ -112,7 +119,7 @@ export async function sendProposedAction(db: Db, id: string, opts: { actorId: st
     log.warn('action.send.failed', { id, worker: a.worker, kind: a.kind, targets: targets.length })
     return false
   }
-  await db.query("update proposed_actions set status = 'sent', sent_at = now(), decided_at = coalesce(decided_at, now()), decided_by = coalesce(decided_by, $2), subject = $3, body = $4 where id = $1", [id, opts.actorId, subject, body])
+  await db.query("update proposed_actions set status = 'sent', sent_at = now(), hold_reason = null, decided_at = coalesce(decided_at, now()), decided_by = coalesce(decided_by, $2), subject = $3, body = $4 where id = $1", [id, opts.actorId, subject, body])
   await applyEffect(db, a)
   return true
 }

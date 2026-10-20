@@ -14,6 +14,10 @@ const ready = await prepareDb()
 describe.skipIf(!ready)('worker runtime against the seed', () => {
   beforeAll(async () => {
     await admin(db => db.query("update agencies set auto_send = '{}'::jsonb where id = $1", [AGENCY_A]))
+    // item 7: these tests cover delivery mechanics, so the seed contacts are consented here
+    await admin(db => db.query('update aides set sms_consent = true, sms_consent_at = now() where agency_id = $1', [AGENCY_A]))
+    await admin(db => db.query('update applicants set sms_consent = true, sms_consent_at = now() where agency_id = $1', [AGENCY_A]))
+    await admin(db => db.query('update clients set sms_consent = true, sms_consent_at = now() where agency_id = $1', [AGENCY_A]))
     await admin(db => db.query('delete from proposed_actions where agency_id = $1', [AGENCY_A]))
     await admin(db => db.query('delete from shift_offers where agency_id = $1', [AGENCY_A]))
     await admin(db => db.query('delete from retention_checkins where agency_id = $1', [AGENCY_A]))
@@ -107,6 +111,10 @@ describe.skipIf(!ready)('worker runtime against the seed', () => {
     expect(on.sent).toBe(8)
     expect(mockOutbox.length + mockSmsOutbox.length).toBe(offBefore + 8)
     await admin(db => db.query("update agencies set auto_send = '{}'::jsonb where id = $1", [AGENCY_A]))
+    // item 7: these tests cover delivery mechanics, so the seed contacts are consented here
+    await admin(db => db.query('update aides set sms_consent = true, sms_consent_at = now() where agency_id = $1', [AGENCY_A]))
+    await admin(db => db.query('update applicants set sms_consent = true, sms_consent_at = now() where agency_id = $1', [AGENCY_A]))
+    await admin(db => db.query('update clients set sms_consent = true, sms_consent_at = now() where agency_id = $1', [AGENCY_A]))
   })
 
   it('retention_checkins flags quit risk from declines + a late clock-in', async () => {

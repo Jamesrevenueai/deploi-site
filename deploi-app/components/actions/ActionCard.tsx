@@ -8,7 +8,7 @@ import { WORKER_LABELS, type WorkerName } from '@/lib/workers/types'
 
 export type ActionView = {
   id: string; agency_name: string | null; worker: WorkerName; kind: 'email' | 'sms' | 'task'; to_label: string; about: string | null
-  subject: string | null; body: string; status: string; created_at: string; sent_at: string | null
+  subject: string | null; body: string; status: string; created_at: string; sent_at: string | null; hold_reason?: string | null
 }
 
 type Actions = { approve: (fd: FormData) => void; editApprove: (fd: FormData) => void; skip: (fd: FormData) => void }
@@ -28,6 +28,7 @@ export function ActionCard({ a, actions }: { a: ActionView; actions: Actions }) 
         <span>·</span><span>{a.agency_name ?? 'agency'}</span>
         <span>·</span><span>{when}</span>
         {a.status !== 'proposed' && <Badge tone={a.status === 'sent' ? 'ok' : 'muted'}>{a.status}</Badge>}
+        {a.status === 'proposed' && a.hold_reason && <Badge tone="warn">held: {a.hold_reason}</Badge>}
       </div>
       <div className="mt-2 text-[15px]"><span className="text-grey-h">To </span><span className="text-ink">{a.to_label}</span>{a.about && <span className="text-grey-h"> · about {a.about}</span>}</div>
       {a.subject && <div className="mt-1 text-ink font-medium">{a.subject}</div>}

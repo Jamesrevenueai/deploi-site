@@ -4,11 +4,12 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { Empty } from '@/components/ui/Empty'
 import { MobileRows } from '@/components/dashboard/MobileRows'
+import { ConsentToggle } from '@/components/actions/ConsentToggle'
 
 export const metadata = { title: 'Applicants' }
 export const dynamic = 'force-dynamic'
 
-type Row = { id: string; first_name: string; last_name: string; applied_at: string; source: string; status: string; screen_score: number | null; interview_at: string | null; screen_answers: Record<string, unknown> }
+type Row = { id: string; first_name: string; last_name: string; applied_at: string; source: string; status: string; screen_score: number | null; interview_at: string | null; screen_answers: Record<string, unknown>; sms_consent: boolean }
 const TONE: Record<string, 'ok' | 'warn' | 'danger' | 'muted' | 'none'> = { new: 'warn', screened: 'none', interview_booked: 'ok', hired: 'ok', rejected: 'muted' }
 
 export default async function Applicants() {
@@ -16,7 +17,7 @@ export default async function Applicants() {
   const ip = await requestIp()
   const { rows, tz } = await withUser(session, async db => {
     const rows = await db.query<Row>(
-      `select id, first_name, last_name, applied_at, source, status, screen_score, interview_at, screen_answers
+      `select id, first_name, last_name, applied_at, source, status, screen_score, interview_at, screen_answers, sms_consent
        from applicants where agency_id = $1 order by applied_at desc limit 200`, [session.agencyId])
     await db.auditRead('applicants', session.agencyId, rows.map(r => r.id))
     const g = await db.one<{ timezone: string }>('select timezone from agencies where id = $1', [session.agencyId])
@@ -32,7 +33,7 @@ export default async function Applicants() {
         <>
           <div className="table-wrap hidden md:block">
             <table className="dg-table">
-              <thead><tr><th>Applied</th><th>Name</th><th>Source</th><th>Screen</th><th>Score</th><th>Interview</th><th>Status</th></tr></thead>
+              <thead><tr><th>Applied</th><th>Name</th><th>Source</th><th>Screen</th><th>Score</th><th>Interview</th><th>Status</th><th>SMS</th></tr></thead>
               <tbody>
                 {rows.map(r => (
                   <tr key={r.id}>
@@ -43,6 +44,7 @@ export default async function Applicants() {
                     <td>{r.screen_score ?? '—'}{r.screen_score != null ? '/4' : ''}</td>
                     <td className="whitespace-nowrap">{fmt(r.interview_at)}</td>
                     <td><Badge tone={TONE[r.status] ?? 'none'}>{r.status.replace('_', ' ')}</Badge></td>
+                    <td><ConsentToggle kind="applicant" id={r.id} consent={r.sms_consent} back="/app/applicants" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -50,7 +52,7 @@ export default async function Applicants() {
           </div>
           <MobileRows rows={rows.map(r => ({
             key: r.id, title: `${r.first_name} ${r.last_name}`, badge: <Badge tone={TONE[r.status] ?? 'none'}>{r.status.replace('_', ' ')}</Badge>,
-            lines: [`Applied ${fmt(r.applied_at)} via ${r.source}`, answers(r.screen_answers), r.interview_at ? `Interview ${fmt(r.interview_at)}` : `Score ${r.screen_score ?? '—'}`],
+            lines: [`Applied ${fmt(r.applied_at)} via ${r.source}`, answers(r.screen_answers), r.interview_at ? `Interview ${fmt(r.interview_at)}` : `Score ${r.screen_score ?? '—'}`, <ConsentToggle key="c" kind="applicant" id={r.id} consent={r.sms_consent} back="/app/applicants" />],
           }))} />
         </>
       )}

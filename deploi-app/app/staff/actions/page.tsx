@@ -12,7 +12,7 @@ import { approveAction, editAndApproveAction, skipAction } from './actions'
 export const metadata = { title: 'Proposed actions' }
 export const dynamic = 'force-dynamic'
 
-type Row = { id: string; agency_id: string; agency_name: string | null; worker: WorkerName; kind: 'email' | 'sms' | 'task'; to_ref: string | null; subject: string | null; body: string; payload: Record<string, unknown>; status: string; created_at: string; sent_at: string | null }
+type Row = { id: string; agency_id: string; agency_name: string | null; worker: WorkerName; kind: 'email' | 'sms' | 'task'; to_ref: string | null; subject: string | null; body: string; payload: Record<string, unknown>; status: string; created_at: string; sent_at: string | null; hold_reason: string | null }
 
 export default async function ActionsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
@@ -28,7 +28,7 @@ export default async function ActionsPage({ searchParams }: { searchParams: Prom
     if (worker) { params.push(worker); where.push(`worker = $${params.length}`) }
     if (agency) { params.push(agency); where.push(`agency_id = $${params.length}`) }
     const w = where.length ? 'where ' + where.join(' and ') : ''
-    const rows = await db.query<Row>(`select id, agency_id, agency_name, worker, kind, to_ref, subject, body, payload, status, created_at, sent_at from proposed_actions ${w} order by created_at desc limit 200`, params)
+    const rows = await db.query<Row>(`select id, agency_id, agency_name, worker, kind, to_ref, subject, body, payload, status, created_at, sent_at, hold_reason from proposed_actions ${w} order by created_at desc limit 200`, params)
     await db.auditRead('proposed_actions', agency || null, rows.map(r => r.id))
     const agencies = await db.query<{ id: string; name: string }>('select id, name from agencies order by name')
     const counts = await db.query<{ status: string; n: string }>('select status, count(*)::text as n from proposed_actions group by status')
@@ -36,7 +36,7 @@ export default async function ActionsPage({ searchParams }: { searchParams: Prom
   }, { ip: await requestIp() })
 
   const views: ActionView[] = rows.map(r => ({
-    id: r.id, agency_name: r.agency_name, worker: r.worker, kind: r.kind, subject: r.subject, body: r.body, status: r.status, created_at: r.created_at, sent_at: r.sent_at,
+    id: r.id, agency_name: r.agency_name, worker: r.worker, kind: r.kind, subject: r.subject, body: r.body, status: r.status, created_at: r.created_at, sent_at: r.sent_at, hold_reason: r.hold_reason,
     to_label: String(r.payload?.to_label ?? r.to_ref?.split(':')[0] ?? 'recipient'), about: r.payload?.about ? String(r.payload.about) : null,
   }))
   const n = (s: string) => Number(counts.find(c => c.status === s)?.n ?? 0)
@@ -50,7 +50,7 @@ export default async function ActionsPage({ searchParams }: { searchParams: Prom
         actions={<><Button variant="ghost" size="sm" href="/staff/actions/run">Run a worker</Button><Button variant="ghost" size="sm" href="/staff/actions/settings">Auto-send</Button></>}
       />
       {sp.approved && <div className="mb-4"><Banner icon="check"><strong>Sent.</strong> The action was delivered (or recorded in the mock outbox when no provider is configured).</Banner></div>}
-      {sp.failed && <div className="mb-4"><Banner tone="warn"><strong>Could not send.</strong> No reachable recipient for that action (missing phone or email). Edit the record and try again.</Banner></div>}
+      {sp.failed && <div className="mb-4"><Banner tone="warn"><strong>Not sent.</strong> Either the recipient has no phone or email, or an SMS is held for missing consent (see the badge on the action). Record consent on the contact, then approve again.</Banner></div>}
       {sp.skipped && <div className="mb-4"><Banner icon="skip"><strong>Skipped.</strong></Banner></div>}
       {sp.ran && <div className="mb-4"><Banner icon="bolt"><strong>{sp.ran} new proposal(s)</strong> from the last run{sp.imported ? ` · ${sp.imported} applicants imported, ${sp.skipped ?? 0} skipped` : ''}.</Banner></div>}
 

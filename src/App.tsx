@@ -1,14 +1,15 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { Nav } from './components/Nav'
 import { Footer } from './components/Footer'
-import { ChatBubble } from './components/ChatBubble'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import Home from './pages/Home'
-import Legal from './pages/Legal'
-import Baa from './pages/Baa'
-import Evv from './pages/Evv'
-import NotFound from './pages/NotFound'
+// Secondary routes and the chat bubble load on demand so the homepage bundle stays small.
+const Legal = lazy(() => import('./pages/Legal'))
+const Baa = lazy(() => import('./pages/Baa'))
+const Evv = lazy(() => import('./pages/Evv'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+const ChatBubble = lazy(() => import('./components/ChatBubble').then(m => ({ default: m.ChatBubble })))
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export function Shell() {
     <>
       <Nav />
       <main>
+        <Suspense fallback={null}>
         <Routes>
           <Route path="/" element={<Home />} />
           {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
@@ -49,9 +51,10 @@ export function Shell() {
           <Route path="/evv" element={<Evv />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </main>
       <Footer />
-      <ChatBubble />
+      <Suspense fallback={null}><ChatBubble /></Suspense>
     </>
   )
 }

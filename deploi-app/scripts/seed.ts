@@ -9,6 +9,7 @@
 import 'dotenv/config'
 import { Client } from 'pg'
 import { uuidFrom } from '../lib/ids'
+import { runSeedParts } from './seed-parts'
 
 const FIRST = ['Avery','Jordan','Riley','Morgan','Casey','Taylor','Quinn','Reese','Harper','Rowan','Emerson','Finley','Dakota','Skyler','Hayden','Parker','Sawyer','Blake','Elliot','Marlowe','Tatum','Kendall','Sloane','Arden','Lennox','Monroe','Oakley','Remy','Shiloh','Wren']
 const LAST = ['Okafor','Lindqvist','Baptiste','Marchetti','Nakamura','Delgado','Whitaker','Oyelaran','Castellanos','Petrov','Haddad','Brennan','Kowalski','Mbeki','Sorensen','Vance','Abernathy','Ferreira','Lachance','Thornbury']
@@ -287,6 +288,8 @@ export async function seed(databaseUrl = process.env.DATABASE_URL, opts: { clien
     inputs: JSON.stringify({ avg_monthly_referrals: 9, avg_referral_value_year: 18000, aide_turnover_12mo: 7, open_shift_hours_week: 22, evv_denial_rate: 0.06 }),
     leaks: '[]', recommended_door: null, report_path: null, report_generated_at: null,
   }])
+
+  await runSeedParts({ c, agencyA: A, agencyB: B, counts })
 
   await c.end()
   return counts

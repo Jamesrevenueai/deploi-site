@@ -13,3 +13,4 @@ dist-ssr
 shot-*.png
 preview-*.png
 /scripts/
+deploi-app/.bypass

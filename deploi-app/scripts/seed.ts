@@ -25,6 +25,8 @@ const int = (lo: number, hi: number) => lo + Math.floor(r() * (hi - lo + 1))
 const dayOffset = (days: number, hour = 9, minute = 0) => { const d = new Date(); d.setHours(hour, minute, 0, 0); d.setDate(d.getDate() + days); return d }
 const iso = (d: Date) => d.toISOString()
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
+/** calendar date in the seed agency's timezone, so 'today' agrees with the morning emails near midnight UTC */
+const ymdET = (days: number) => { const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })); et.setDate(et.getDate() + days); return et.toLocaleDateString('en-CA') }
 
 type Row = Record<string, unknown>
 async function upsert(c: Client, table: string, rows: Row[], conflict = 'id') {
@@ -263,7 +265,7 @@ export async function seed(databaseUrl = process.env.DATABASE_URL, opts: { clien
     id: uuidFrom(`prospect:${p.k}`), agency_name: p.agency_name, owner_name: p.owner, email: `${p.owner.split(' ')[0].toLowerCase()}@${p.agency_name.toLowerCase().replace(/[^a-z]/g, '')}.example`,
     phone: `+1614555${3000 + i}`, city: p.city, county: p.county, state: 'OH', programs: p.programs, source: p.source, stage: p.stage, owner_notes: null,
     email_invalid: false, biggest_leak: p.leak ?? null, next_step: p.stage === 'call_booked' ? 'Hold discovery call' : p.stage === 'replied' ? 'Send booking link' : null,
-    follow_up_at: ['replied', 'contacted', 'call_held'].includes(p.stage) ? ymd(dayOffset(i % 3)) : null, agency_id: p.agency_id ?? null,
+    follow_up_at: ['replied', 'contacted', 'call_held'].includes(p.stage) ? ymdET(-(i % 3)) : null, agency_id: p.agency_id ?? null,
   }))
   counts.prospects = await upsert(c, 'prospects', prospects)
   const touches: Row[] = []

@@ -77,7 +77,7 @@ const PRIVACY: LegalSection[] = [
   },
   {
     title: 'Client business data',
-    body: <>Client data is confidential and processed only to deliver the service. Everything we build lives inside your own accounts, so your data stays with you. Protected health information is handled only under a signed <Link to="/baa">Business Associate Agreement</Link>, with access logged.</>,
+    body: <>Client data is confidential and processed only to deliver the service. Everything we build lives inside your own accounts, so your data stays with you. Protected health information is handled only under a signed <Link to="/baa">Business Associate Agreement</Link>. Every change is logged, and reads of client records are logged on the dashboard, report and action pages.</>,
   },
   {
     title: 'Sharing',

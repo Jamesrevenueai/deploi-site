@@ -17,11 +17,11 @@ type Props = {
 
 export function LeadForm({
   source,
-  cta = 'Book my call',
-  messageLabel = 'What’s leaking right now?',
-  messagePlaceholder = 'e.g. referrals we answer too late, no-shows, schedule gaps, denied claims, hiring…',
+  cta = 'Request a discovery conversation',
+  messageLabel = 'Which follow-up is slipping right now?',
+  messagePlaceholder = 'e.g. referrals we answer too late, applicants who go quiet, call-offs, authorizations running out, EVV exceptions…',
   compact = false,
-  confirmation = { title: 'Got it.', body: 'We’ll reach out within one business day to set up your 20-minute call.' },
+  confirmation = { title: 'Got it.', body: 'We will reach out within one business day to set up a short discovery conversation.' },
 }: Props) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'done'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -37,6 +37,7 @@ export function LeadForm({
       agency_name: String(fd.get('agency_name') ?? (compact ? '—' : '')).trim(),
       phone: String(fd.get('phone') ?? '').trim() || undefined,
       message: String(fd.get('message') ?? '').trim() || undefined,
+      website: String(fd.get('website') ?? '') || undefined,
       source,
     }
     const problem = validateLead(payload)
@@ -46,8 +47,8 @@ export function LeadForm({
     }
     if (!configured) {
       // No backend yet: hand the note to the visitor's mail client instead of failing.
-      const body = `Name: ${payload.name}\nPractice: ${payload.agency_name}\nEmail: ${payload.email}\nPhone: ${payload.phone ?? ''}\n\n${payload.message ?? ''}`
-      window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Book a call (${source})`)}&body=${encodeURIComponent(body)}`
+      const body = `Name: ${payload.name}\nAgency: ${payload.agency_name}\nEmail: ${payload.email}\nPhone: ${payload.phone ?? ''}\n\n${payload.message ?? ''}`
+      window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Discovery conversation (${source})`)}&body=${encodeURIComponent(body)}`
       setStatus('done')
       return
     }
@@ -80,7 +81,7 @@ export function LeadForm({
       </div>
       {!compact && (
         <div className="field">
-          <label htmlFor={id('agency')}>Practice</label>
+          <label htmlFor={id('agency')}>Agency or practice</label>
           <input id={id('agency')} name="agency_name" type="text" autoComplete="organization" required />
         </div>
       )}
@@ -101,6 +102,12 @@ export function LeadForm({
         </label>
         <textarea id={id('message')} name="message" placeholder={messagePlaceholder} />
       </div>
+      {/* Honeypot: hidden from people and screen readers; bots that fill it are dropped by the API. */}
+      <div className="hp" aria-hidden="true">
+        <label htmlFor={id('website')}>Leave this field empty</label>
+        <input id={id('website')} name="website" type="text" tabIndex={-1} autoComplete="off" />
+      </div>
+      <p className="form-notice">Please do not include medical information in this form.</p>
       <button type="submit" className="btn btn-ghost" disabled={status === 'submitting'}>
         {status === 'submitting' ? 'Sending…' : cta}
       </button>

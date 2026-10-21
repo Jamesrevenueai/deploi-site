@@ -1,26 +1,29 @@
-import { BookButton } from './Button'
+import { BookButton, bookCtaLabel } from './Button'
 import { LeadForm } from './LeadForm'
 import { env } from '../lib/env'
 
 export function BookSection() {
+  const label = bookCtaLabel()
   return (
     <section id="book">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">Book a call</span>
+          <span className="eyebrow">{env.bookingUrl ? 'Book a call' : 'Request a discovery conversation'}</span>
           <h2 className="two-tone">
-            <span className="grey">Find your biggest leak</span><br />
-            <span className="white">in one 20-minute call.</span>
+            <span className="grey">Tell us which follow-up</span><br />
+            <span className="white">is costing you the most.</span>
           </h2>
           <p className="lead">
-            Bring one referral you lost and one visit that didn&rsquo;t pay. We&rsquo;ll walk both
-            with you and tell you what we&rsquo;d fix first.
+            A discovery conversation is a short call about which problems hurt most and whether we fit.
+            No fee, no obligation. If it makes sense, the next step is the paid assessment.
           </p>
         </div>
         <div className="book-inner reveal">
-          <BookButton>{env.bookingUrl ? 'Book a call' : 'Book a call'}</BookButton>
-          <p className="muted">Or leave your details and we&rsquo;ll reach out within one business day.</p>
-          <LeadForm source="site" />
+          {env.bookingUrl && <BookButton>{label}</BookButton>}
+          <p className="muted">
+            {env.bookingUrl ? 'Or leave your details and we will reach out within one business day.' : 'Leave your details and we will reach out within one business day.'}
+          </p>
+          <LeadForm source="site" cta={label} />
         </div>
       </div>
     </section>

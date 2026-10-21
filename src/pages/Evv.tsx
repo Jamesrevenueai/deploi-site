@@ -4,20 +4,19 @@ import { useSeo } from '../hooks/useSeo'
 import { LeadForm } from '../components/LeadForm'
 import { ImageCard } from '../components/ImageCard'
 import { Icon } from '../lib/icons'
+import { catalog } from '../lib/catalog'
+import { AvailabilityBadge } from '../components/AvailabilityBadge'
+
+const EVV_VENDORS = catalog.integrations.filter(i => i.kind === 'evv')
+const EVV_SERVICE = catalog.services.find(s => s.key === 'evv_exceptions')
 
 const WATCHES = [
   { title: 'Clock-in / clock-out mismatch', body: 'A visit with a missing punch, or a duration outside the scheduled window, is caught the same day instead of at claim time.' },
   { title: 'Missing GPS', body: 'Visits verified without a location, or outside the client geofence, are flagged for correction while the aide still remembers the visit.' },
   { title: 'Unit overage vs. authorization', body: 'Units delivered are compared to the remaining authorization so care never outruns what will be paid.' },
-  { title: 'Unverified visit past the correction window', body: 'Each open exception shows days left in the state correction window and turns red at seven days. Nothing silently expires.' },
+  { title: 'Unverified visit near the correction deadline', body: 'Each open exception shows the days left to the correction deadline configured for your program, payer and state, with its source and effective date. Nothing silently expires.' },
 ]
 
-const VENDORS = [
-  { name: 'Sandata', status: 'First' },
-  { name: 'AlayaCare', status: 'Next' },
-  { name: 'HHAeXchange', status: 'Next' },
-  { name: 'WellSky', status: 'Next' },
-]
 
 export default function Evv() {
   useSeo({
@@ -34,10 +33,12 @@ export default function Evv() {
           <span className="white">Before it reaches billing.</span>
         </h1>
         <p className="page-sub">
-          The EVV exception layer sits on top of the EVV system you already use. It reads the visit
-          export, finds what will not pay, and gives your biller a sorted list with the days left to
-          fix each one.
+          EVV exception management sits beside the EVV system you already use. It reads the visit
+          export (CSV), checks it against seven rules and the authorization, and gives your biller a
+          sorted exception list with the days left to fix each one, plus an advisory billing-hold list.
+          Corrections stay in your vendor system, made by your people.
         </p>
+        {EVV_SERVICE && <div className="website-avail"><AvailabilityBadge availability={EVV_SERVICE.availability} /></div>}
 
         <div className="section-head">
           <h2 className="two-tone">
@@ -57,12 +58,16 @@ export default function Evv() {
           <h2 className="two-tone">
             <span className="grey">Which systems</span> <span className="white">it sits on.</span>
           </h2>
-          <p className="lead">We connect through the vendor export or API. Your EVV stays the system of record.</p>
+          <p className="lead">
+            We read the visit export your EVV vendor already produces. Compatibility means our CSV import
+            works with that export; it is not a partnership, and there is no live vendor connection yet.
+            Your EVV stays the system of record.
+          </p>
         </div>
         <div className="vendors">
-          {VENDORS.map(v => (
-            <span className={`pill ${v.status === 'Next' ? 'muted' : ''}`} key={v.name}>
-              <Icon.Link />{v.name} · {v.status}
+          {EVV_VENDORS.map(v => (
+            <span className="pill muted" key={v.key}>
+              <Icon.Link />{v.name} · {catalog.integrationLevelLabel[v.level]}
             </span>
           ))}
         </div>
@@ -71,8 +76,8 @@ export default function Evv() {
           <ImageCard
             tag="Correction window"
             tagIcon={<Icon.Clock />}
-            title="Sorted by soonest to expire"
-            body="Ohio default 60 days; per-state windows configurable. Red at seven days left. Fixed rows close and count in the morning report."
+            title="Sorted by soonest deadline"
+            body="Correction deadlines are configured per program, payer and state, each with its source and effective date. Rows turn red as the deadline nears; corrected rows close and count on the morning report."
           />
         </div>
 
@@ -80,7 +85,7 @@ export default function Evv() {
           <h2 className="two-tone">
             <span className="grey">Request</span> <span className="white">early access.</span>
           </h2>
-          <p className="lead">Tell us which EVV you run and we will show you the exception list on your own export.</p>
+          <p className="lead">Tell us which EVV you run. The service is at the demonstration stage: we can walk you through the rules on synthetic data and talk about a supervised pilot on your own export.</p>
         </div>
         <div className="book-inner">
           <LeadForm
@@ -88,7 +93,7 @@ export default function Evv() {
             cta="Request early access"
             messageLabel="Which EVV system do you use?"
             messagePlaceholder="e.g. Sandata, and roughly how many visits a month"
-            confirmation={{ title: 'You’re on the list.', body: 'We’ll reach out within one business day.' }}
+            confirmation={{ title: 'Got it.', body: 'We will reach out within one business day.' }}
           />
         </div>
       </div>

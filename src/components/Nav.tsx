@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { BRAND, WORDMARK } from '../lib/brand'
-import { BookButton } from './Button'
+import { BookButton, bookCtaLabel } from './Button'
 import { Icon } from '../lib/icons'
 
 export const NAV_LINKS = [
@@ -9,6 +9,7 @@ export const NAV_LINKS = [
   { to: '/#menu', label: 'Services' },
   { to: '/#how', label: 'How it works' },
   { to: '/#pricing', label: 'Pricing' },
+  { to: '/website', label: 'Website' },
   { to: '/#faq', label: 'FAQ' },
 ]
 
@@ -50,7 +51,7 @@ export function Nav() {
               </Link>
             ))}
           </div>
-          <BookButton size="sm">Book a call</BookButton>
+          <BookButton size="sm">{bookCtaLabel(true)}</BookButton>
           <button
             type="button"
             className="nav-hamburger"
@@ -75,7 +76,7 @@ export function Nav() {
             {l.label}
           </Link>
         ))}
-        <BookButton>Book a call</BookButton>
+        <BookButton>{bookCtaLabel()}</BookButton>
       </div>
     </nav>
   )

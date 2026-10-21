@@ -4,7 +4,7 @@ import { useSeo } from '../hooks/useSeo'
 
 const POINTS = [
   { title: 'Signed before any client data', body: 'No protected health information reaches us until the agreement is signed by both sides. The assessment can start with de-identified examples; the build cannot start without the BAA.' },
-  { title: 'Every access is logged', body: 'Each read and write of client-side records in our systems is written to an audit log with who, what, and when. You can ask for the log at any time.' },
+  { title: 'Changes and record reads are logged', body: 'Every change to client records in our systems is written to an audit log with who, what and when. Reads of client records are logged on the dashboard, report and action pages. You can ask for the log at any time.' },
   { title: 'Minimum necessary', body: 'We use and request only the data the specific service needs. Staffing and hiring services touch no client records at all.' },
   { title: 'Subcontractors bound to the same terms', body: 'Any vendor that could see your data (hosting, database, messaging) signs terms at least as strict as ours before it touches anything.' },
   { title: 'Breach notification within 60 days', body: 'If we discover a breach of unsecured PHI, we notify you without unreasonable delay and in no case later than 60 days after discovery, with what we know and what we are doing.' },

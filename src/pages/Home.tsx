@@ -1,24 +1,28 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { BRAND } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
-import { BookButton } from '../components/Button'
+import { BookButton, bookCtaLabel } from '../components/Button'
 import { ImageCard } from '../components/ImageCard'
 import { art, type ArtTheme } from '../lib/art'
 import { BookSection } from '../components/BookSection'
 import { Icon } from '../lib/icons'
+import { ServiceCard } from '../components/ServiceCard'
+import { AvailabilityBadge } from '../components/AvailabilityBadge'
+import { catalog, money, moneyRange, servicesByDoor, sellableServices, type DoorKey } from '../lib/catalog'
+
+export const HOME_TITLE = `${BRAND} — Done-for-you operations for home care agencies`
+export const HOME_DESCRIPTION =
+  'Deploi AI sets up and runs the follow-up work small home care agencies never have time for: referral replies, applicant texts, aide check-ins, credential reminders, open-shift offers, authorization alerts and EVV exception lists. Built for home care agencies first; other small healthcare practices by conversation.'
 
 export default function Home() {
-  useSeo({
-    title: `${BRAND} — More patients. More staff. Fewer missed visits.`,
-    description:
-      'Operations and technology for small practices: home care, dental, therapy, primary care and specialty clinics. We build and run the systems that answer your referrals, hire your staff, and protect every visit from a no-show, an authorization gap or a denied claim.',
-  })
+  useSeo({ title: HOME_TITLE, description: HOME_DESCRIPTION })
   return (
     <div className="home">
       <Hero />
-      <FourVoices />
+      <Problems />
       <ThreeDoors />
-      <Menu />
+      <Services />
       <HowWeWork />
       <MorningReport />
       <WhyDeploi />
@@ -37,24 +41,25 @@ function Hero() {
     <section id="top" className="hero">
       <div className="hero-art" style={{ backgroundImage: art('hero') }} aria-hidden="true" />
       <div className="container hero-inner">
-        <span className="eyebrow reveal">Operations &amp; technology for small practices</span>
+        <span className="eyebrow reveal">Done-for-you operations for home care agencies</span>
         <h1 className="two-tone reveal">
-          <span className="grey">More patients.</span><br />
-          <span className="grey">More staff.</span><br />
-          <span className="white">Fewer missed visits.</span>
+          <span className="grey">Referrals answered.</span><br />
+          <span className="grey">Shifts covered.</span><br />
+          <span className="white">Every visit checked.</span>
         </h1>
-        <p className="lead reveal" style={{ maxWidth: 640 }}>
-          {BRAND} builds and runs the systems that answer your referrals and new-patient calls,
-          hire your staff, and protect every visit from a no-show, an authorization gap or a
-          denied claim. You see it all on your own dashboard, every morning.
+        <p className="lead reveal" style={{ maxWidth: 660 }}>
+          {BRAND} sets up and runs the follow-up work a small home care agency never has time for:
+          referral replies, applicant texts, aide check-ins, credential reminders, open-shift offers,
+          authorization alerts and EVV exception lists. A person approves every message. You see it
+          all on one morning report.
         </p>
         <div className="reveal">
-          <BookButton>Book a call</BookButton>
+          <BookButton>{bookCtaLabel()}</BookButton>
         </div>
         <div className="hero-trust reveal">
-          <span>HIPAA · BAA signed before any patient data</span>
-          <span>Home care, dental, therapy, primary care and specialty practices</span>
-          <span>Any state for hiring and referrals; payer work state by state</span>
+          <span>Built for home care agencies first; other small healthcare practices by conversation</span>
+          <span>A BAA is signed before any patient data moves</span>
+          <span>Your scheduler, EVV and billing systems stay</span>
         </div>
       </div>
     </section>
@@ -62,15 +67,16 @@ function Hero() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Four voices                                                               */
+/*  The problem (illustrative situations, not customer quotes)                 */
 /* -------------------------------------------------------------------------- */
-function FourVoices() {
-  const voices = [
-    { who: 'The owner', quote: '“I found out we lost the referral when the referring office stopped calling.”' },
-    { who: 'The front desk', quote: '“Three cancellations by 8 a.m. and I’m calling the waitlist one patient at a time.”' },
-    { who: 'The new hire', quote: '“I applied Tuesday. Nobody called me back until the following week.”' },
-    { who: 'The biller', quote: '“The visit happened. The documentation didn’t match. The claim still didn’t pay.”' },
-  ]
+export const PROBLEMS: { who: string; text: string }[] = [
+  { who: 'The owner', text: 'A hospital referral sat in the inbox since Friday. By Monday the discharge planner had placed the client with someone else.' },
+  { who: 'The scheduler', text: 'A 6 a.m. call-off, and the open shift gets offered to aides one text at a time while the family waits.' },
+  { who: 'The applicant', text: 'Applied on Tuesday. Nobody reached out until the following week, and by then she had started somewhere else.' },
+  { who: 'The biller', text: 'The visit happened. The EVV record did not match the schedule, nobody corrected it in time, and the claim is on hold.' },
+]
+
+function Problems() {
   return (
     <section id="problem" className="alt">
       <div className="container">
@@ -78,21 +84,22 @@ function FourVoices() {
           <span className="eyebrow">The problem</span>
           <h2 className="two-tone">
             <span className="grey">Four people.</span><br />
-            <span className="white">One leak.</span>
+            <span className="white">One missed follow-up.</span>
           </h2>
           <p className="lead">
-            Every missed referral, empty slot and denied claim starts the same way: nobody answered
-            fast enough.
+            Lost referrals, unfilled shifts, aides who quit in month two and visits that never get paid
+            usually start the same way: nobody followed up fast enough.
           </p>
         </div>
         <div className="voices">
-          {voices.map(v => (
+          {PROBLEMS.map(v => (
             <div className="voice reveal" key={v.who}>
               <div className="who">{v.who}</div>
-              <p className="quote">{v.quote}</p>
+              <p className="quote">{v.text}</p>
             </div>
           ))}
         </div>
+        <p className="illustrative reveal">Illustrative situations, not customer quotes.</p>
       </div>
     </section>
   )
@@ -102,15 +109,23 @@ function FourVoices() {
 /*  Three doors                                                               */
 /* -------------------------------------------------------------------------- */
 const DOOR_FACTS: [{ icon: ReactNode; label: string }, { icon: ReactNode; label: string }] = [
-  { icon: <Icon.Clock />, label: 'Live in weeks' },
+  { icon: <Icon.Check />, label: 'Human-reviewed' },
   { icon: <Icon.Link />, label: 'Your systems stay' },
 ]
 
+const DOOR_ICON: Record<DoorKey, ReactNode> = {
+  growth: <Icon.Inbox />,
+  staffing: <Icon.Users />,
+  operations: <Icon.Shield />,
+}
+
+const DOOR_ART: Record<DoorKey, ArtTheme> = { growth: 'growth', staffing: 'staffing', operations: 'operations' }
+
 function ThreeDoors() {
-  const doors = [
-    { tag: 'Growth', icon: <Icon.Inbox />, title: 'Win more referrals and new patients', to: '/#menu', art: 'growth' as ArtTheme },
-    { tag: 'Staffing', icon: <Icon.Users />, title: 'Hire and keep more staff', to: '/#menu', art: 'staffing' as ArtTheme },
-    { tag: 'Operations', icon: <Icon.Shield />, title: 'Keep every visit, and get paid for it', to: '/#menu', art: 'operations' as ArtTheme },
+  const doors: { door: DoorKey; title: string; to: string }[] = [
+    { door: 'growth', title: 'Answer referrals and get found', to: '/#menu' },
+    { door: 'staffing', title: 'Hire and keep aides', to: '/#menu' },
+    { door: 'operations', title: 'Cover shifts, watch authorizations, catch EVV exceptions', to: '/#menu' },
   ]
   return (
     <section id="what">
@@ -119,17 +134,18 @@ function ThreeDoors() {
           <span className="eyebrow">What we do</span>
           <h2 className="two-tone">
             <span className="grey">Three doors.</span><br />
-            <span className="white">One engine behind them.</span>
+            <span className="white">One supervised engine behind them.</span>
           </h2>
           <p className="lead">
-            We watch your inbox, phone line, scheduler and billing system for the moments that matter, act
-            within minutes, and report back every morning.
+            We watch your referral inbox, applicant list, roster, credential dates, open shifts,
+            authorizations and EVV exports for the moments that need a follow-up, draft the next step,
+            and wait for a person to approve it. Then we report back every morning.
           </p>
         </div>
         <div className="card-grid three">
           {doors.map(d => (
-            <div className="reveal" key={d.tag}>
-              <ImageCard tag={d.tag} tagIcon={d.icon} title={d.title} facts={DOOR_FACTS} to={d.to} art={d.art} />
+            <div className="reveal" key={d.door}>
+              <ImageCard tag={catalog.doors[d.door]} tagIcon={DOOR_ICON[d.door]} title={d.title} facts={DOOR_FACTS} to={d.to} art={DOOR_ART[d.door]} />
             </div>
           ))}
         </div>
@@ -139,60 +155,67 @@ function ThreeDoors() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Full menu                                                                 */
+/*  Services, rendered from the catalog                                       */
 /* -------------------------------------------------------------------------- */
-export const MENU_ITEMS: { group: 'Growth' | 'Staffing' | 'Operations' | 'Money · later'; name: string; body: string; to?: string }[] = [
-  { group: 'Growth', name: 'Referral response', body: 'Minutes, not hours. Availability confirmed, intake started.' },
-  { group: 'Growth', name: 'New-patient leads + reviews', body: 'Every inquiry answered. Every happy patient asked for a review.' },
-  { group: 'Growth', name: 'Referral-source nurturing', body: 'Monthly touch to the referring offices, case managers and discharge planners who feed you.' },
-  { group: 'Staffing', name: 'Instant hiring', body: 'Applicants texted, screened and booked while they’re still interested.' },
-  { group: 'Staffing', name: 'Retention', body: 'Schedule reminders, 30/60/90 check-ins, early warning before a quit.' },
-  { group: 'Staffing', name: 'Credential tracking', body: 'Licenses, CPR, annual training, background rechecks, flagged before they lapse.' },
-  { group: 'Operations', name: 'Schedule gap fill', body: 'Cancellations and call-offs refilled from your waitlist or qualified staff, confirmations sent, late alerts raised.' },
-  { group: 'Operations', name: 'Authorization watch', body: 'Visits and units used vs. authorized, expirations, re-auth reminders.' },
-  { group: 'Operations', name: 'After-hours line', body: 'Calls answered and logged. On-call reached. Owner woken only when it matters.' },
-  { group: 'Operations', name: 'Claim exception layer', body: 'Every visit checked against documentation, authorization and payer rules before it is billed.' },
-  { group: 'Money · later', name: 'Denial cleanup + managed billing', body: 'Once the operations are clean, we can run the money too.' },
-]
+/** Integrations shown on the public site: the systems an agency touches, not our own infrastructure. */
+const PUBLIC_INTEGRATION_KINDS = ['evv', 'email', 'sms', 'payments']
+export const publicIntegrations = catalog.integrations.filter(i => PUBLIC_INTEGRATION_KINDS.includes(i.kind))
 
-const GROUP_ART: Record<string, ArtTheme> = { Growth: 'growth', Staffing: 'staffing', Operations: 'operations', 'Money · later': 'money' }
-
-const GROUP_ICON: Record<string, ReactNode> = {
-  Growth: <Icon.Inbox />,
-  Staffing: <Icon.Users />,
-  Operations: <Icon.Shield />,
-  'Money · later': <Icon.Dollar />,
-}
-
-function Menu() {
+export function Services() {
+  const groups = servicesByDoor()
   return (
     <section id="menu" className="alt">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">The full menu</span>
+          <span className="eyebrow">Services</span>
           <h2 className="two-tone">
-            <span className="grey">Start with one leak.</span><br />
-            <span className="white">Add the rest on the retainer.</span>
+            <span className="grey">Start with the problem</span><br />
+            <span className="white">costing you the most this month.</span>
           </h2>
           <p className="lead">
-            Eleven services, four groups, the same engine. You never buy all eleven; you buy the one
-            losing you the most money this month.
+            {sellableServices.length} services in three groups. You never buy all of them; the assessment
+            shows which one to build first and the proposal scopes exactly that.
+          </p>
+          <p className="availability-key">
+            Each service carries an availability status.{' '}
+            {(['demonstration', 'supervised_pilot', 'production_verified'] as const).map((k, i) => (
+              <span key={k}>
+                {i > 0 && ' '}
+                <AvailabilityBadge availability={k} compact />
+              </span>
+            ))}
           </p>
         </div>
-        <div className="card-grid">
-          {MENU_ITEMS.map(it => (
-            <div className="reveal" key={it.name}>
-              <ImageCard
-                tag={it.group}
-                tagIcon={GROUP_ICON[it.group]}
-                tagMuted={it.group === 'Money · later'}
-                art={GROUP_ART[it.group]}
-                title={it.name}
-                body={it.body}
-                to={it.to}
-              />
+        {groups.map(g => (
+          <div className="service-group" key={g.door}>
+            <h3 className="service-group-title reveal">
+              <span className="ico" aria-hidden="true">{DOOR_ICON[g.door]}</span>
+              {g.label}
+            </h3>
+            <div className="card-grid">
+              {g.services.map(s => (
+                <div className="reveal" key={s.key}>
+                  <ServiceCard service={s} art={DOOR_ART[g.door]} icon={DOOR_ICON[g.door]} />
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+        ))}
+        <div className="integrations reveal" id="integrations">
+          <h3>Works with your systems</h3>
+          <p className="muted">
+            We read what your current systems already export, so nothing migrates. Compatibility means our
+            import works with that system&rsquo;s export or API; it is not a partnership or an endorsement, and
+            we do not show vendor logos.
+          </p>
+          <ul className="integration-list">
+            {publicIntegrations.map(i => (
+              <li key={i.key}>
+                <span className="integration-name">{i.name}</span>
+                <span className="integration-level">{catalog.integrationLevelLabel[i.level]}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>
@@ -200,44 +223,66 @@ function Menu() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  How we work                                                               */
+/*  How we work: the six-stage journey                                        */
 /* -------------------------------------------------------------------------- */
-function HowWeWork() {
-  const steps = [
-    {
-      n: '1',
-      title: 'Assessment',
-      body: 'We walk one referral and one visit from first contact to paid claim and show you, in dollars, where it leaks. Fixed fee, credited toward the build.',
-    },
-    {
-      n: '2',
-      title: 'Build',
-      body: 'We build the piece that fixes the biggest leak, connected to the scheduler, EHR or practice software you already use. No rip-and-replace. Live in weeks.',
-    },
-    {
-      n: '3',
-      title: 'Run',
-      body: 'We run it monthly, add the next door when you’re ready, and send a morning report: referrals answered, gaps filled, exceptions fixed, units left.',
-    },
-  ]
+export const JOURNEY: { title: string; body: string }[] = [
+  { title: 'Discovery', body: 'A conversation about which problems cost you the most and whether we fit. No fee.' },
+  { title: 'Paid assessment', body: `A fixed-fee diagnostic: one referral and one visit traced end to end, a written report and a review meeting. Credited toward a build within ${catalog.pricing.assessment.creditTermDays} days.` },
+  { title: 'Scoped proposal', body: 'One defined service, with the volume, support hours and responsibilities written down. The exact scope sets the final quote.' },
+  { title: 'Build', body: `Configuration, supported connections, testing, training and documentation, with in-scope fixes for ${catalog.pricing.build.fixPeriodDays} days.` },
+  { title: 'Supervised pilot', body: 'The service runs on your real work with every action reviewed by a person and results measured against the baseline.' },
+  { title: 'Monthly management', body: `Defined workers, defined volume, defined support coverage and defined responsibilities, with an initial term of ${catalog.pricing.management.initialTermMonths} months.` },
+]
+
+export const YOU_KEEP: string[] = [
+  'Approving, editing or skipping every proposed message',
+  'Clinical, hiring, pay and billing decisions',
+  'Corrections inside your own scheduler, EVV and billing systems',
+  'Collecting SMS consent from aides and applicants',
+]
+
+export const WE_KEEP: string[] = [
+  'Keeping the imports, rules and templates running',
+  'Reviewing proposals during the support hours in your engagement',
+  'Measuring the agreed success measures and reporting them',
+  'Telling you before anything changes',
+]
+
+export function HowWeWork() {
   return (
     <section id="how">
       <div className="container">
         <div className="section-head reveal">
           <span className="eyebrow">How we work</span>
           <h2 className="two-tone">
-            <span className="grey">Three steps.</span><br />
-            <span className="white">Assess. Build. Run.</span>
+            <span className="grey">Six stages.</span><br />
+            <span className="white">Nothing runs unsupervised.</span>
           </h2>
         </div>
-        <div className="steps">
-          {steps.map(s => (
-            <div className="step reveal" key={s.n}>
-              <div className="num" aria-hidden="true">{s.n}</div>
-              <h3>{s.title}</h3>
-              <p className="body">{s.body}</p>
-            </div>
+        <ol className="timeline">
+          {JOURNEY.map((s, i) => (
+            <li className="timeline-step reveal" key={s.title}>
+              <div className="num" aria-hidden="true">{i + 1}</div>
+              <div className="timeline-body">
+                <h3>{s.title}</h3>
+                <p className="body">{s.body}</p>
+              </div>
+            </li>
           ))}
+        </ol>
+        <div className="keep-grid reveal">
+          <div className="keep-col">
+            <h3>What stays with you</h3>
+            <ul className="check-list">
+              {YOU_KEEP.map(k => <li key={k}><Icon.Check />{k}</li>)}
+            </ul>
+          </div>
+          <div className="keep-col">
+            <h3>What we take care of</h3>
+            <ul className="check-list">
+              {WE_KEEP.map(k => <li key={k}><Icon.Check />{k}</li>)}
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -245,34 +290,34 @@ function HowWeWork() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Morning report card                                                       */
+/*  Morning report card (illustration with synthetic data)                     */
 /* -------------------------------------------------------------------------- */
 const LANES = [
   {
     label: 'Referrals',
     icon: <Icon.Inbox />,
     tasks: [
-      { ts: 'now', text: 'new referral from a referring office · confirming availability', active: true },
-      { ts: '07:42', text: 'hospital discharge referral answered · availability confirmed in 6 min' },
-      { ts: '07:15', text: 'first-visit follow-up sent to the referring office' },
+      { ts: 'now', text: 'new referral in the inbox · reply drafted, waiting for approval', active: true },
+      { ts: '07:42', text: 'hospital discharge referral · capacity confirmed to the case manager' },
+      { ts: '07:15', text: '7-day follow-up proposed to a referring office' },
     ],
   },
   {
     label: 'Staffing',
     icon: <Icon.Users />,
     tasks: [
-      { ts: 'now', text: 'applicant texted back · screening 4 questions', active: true },
-      { ts: '07:38', text: '2 applicants screened + booked · avg 8 min' },
-      { ts: '07:05', text: '60-day check-in sent to 3 new hires' },
+      { ts: 'now', text: 'applicant replied · screening questions proposed', active: true },
+      { ts: '07:38', text: '2 interview slots booked after approval' },
+      { ts: '07:05', text: '60-day check-ins proposed for 3 new aides · 1 reply flagged' },
     ],
   },
   {
     label: 'Visits',
     icon: <Icon.Shield />,
     tasks: [
-      { ts: 'now', text: 'cancellation: Mon 8a · offering the slot to the waitlist', active: true },
-      { ts: '07:31', text: 'gap filled · patient confirmed' },
-      { ts: '06:58', text: '3 claim exceptions corrected before billing' },
+      { ts: 'now', text: 'call-off for Mon 8a · offers proposed to 4 qualified aides', active: true },
+      { ts: '07:31', text: 'authorization at 12% remaining · alert proposed to the office' },
+      { ts: '06:58', text: 'EVV import: 3 exceptions listed, 9 days to the correction deadline' },
     ],
   },
 ]
@@ -287,9 +332,13 @@ function MorningReport() {
             <span className="grey">One page.</span><br />
             <span className="white">Everything that moved overnight.</span>
           </h2>
+          <p className="lead">
+            What was proposed, what was approved, what is waiting on you, and the measures you agreed to
+            track. The card below shows the layout with made-up entries.
+          </p>
         </div>
         <div className="card-grid single reveal">
-          <ImageCard tag="Live" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card" art="glow">
+          <ImageCard tag="Illustration with synthetic data" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card" art="glow">
             <div className="report-inner">
               <div className="icard-title">Your morning report</div>
               <div className="lanes">
@@ -305,6 +354,7 @@ function MorningReport() {
                   </div>
                 ))}
               </div>
+              <div className="report-note">Illustration with synthetic data. Not a customer report.</div>
             </div>
           </ImageCard>
         </div>
@@ -318,10 +368,10 @@ function MorningReport() {
 /* -------------------------------------------------------------------------- */
 function WhyDeploi() {
   const points = [
-    { icon: <Icon.Shield />, title: 'Payer rules are the starting point', body: 'Medicaid, Medicare and commercial payers, prior authorizations and referral workflows for home care, dental, therapy, primary care and specialty clinics. State programs and verification rules are handled where they apply, not learned on your dime.' },
-    { icon: <Icon.Check />, title: 'HIPAA from day one', body: 'A Business Associate Agreement is signed before we touch a single patient record. Access is logged, minimum necessary, no exceptions.' },
-    { icon: <Icon.Link />, title: 'Your systems stay', body: 'We sit on top of the scheduler, EHR, billing and phone systems you already pay for. Nothing to migrate, nothing to retrain.' },
-    { icon: <Icon.Users />, title: 'A named founder answers the phone', body: 'No account manager, no ticket queue. You text the person who built it.' },
+    { icon: <Icon.Shield />, title: 'Home care first', body: 'Built for small home care agencies on Medicaid waiver and private pay: referral inboxes, aide rosters, open shifts, authorizations and EVV exports. Other small healthcare practices by conversation, when the work genuinely fits.' },
+    { icon: <Icon.Check />, title: 'A BAA before any data', body: 'A Business Associate Agreement is signed before any patient data moves. We use only what the service needs. Every change is logged, and reads of client records are logged on the dashboard, report and action pages. Staffing services touch no client records at all.' },
+    { icon: <Icon.Link />, title: 'Your systems stay', body: 'We work from the exports your scheduler, EVV and billing systems already produce. Nothing to migrate, nothing to retrain. Corrections are made in your own systems, by your people.' },
+    { icon: <Icon.Users />, title: 'A named person answers', body: 'No account manager, no ticket queue. You reach the person who set it up, during the support hours written into your engagement.' },
   ]
   return (
     <section id="why">
@@ -329,8 +379,8 @@ function WhyDeploi() {
         <div className="section-head reveal">
           <span className="eyebrow">Why {BRAND}</span>
           <h2 className="two-tone">
-            <span className="grey">We know the rules</span><br />
-            <span className="white">you bill under.</span>
+            <span className="grey">We know the work</span><br />
+            <span className="white">a home care office does.</span>
           </h2>
         </div>
         <div className="why-grid">
@@ -348,27 +398,44 @@ function WhyDeploi() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Pricing                                                                   */
+/*  Pricing, from the catalog                                                 */
 /* -------------------------------------------------------------------------- */
-function Pricing() {
-  const tiers = [
+export function Pricing() {
+  const p = catalog.pricing
+  const tiers: { step: string; price: string; title: string; lines: string[]; note: string; art: ArtTheme; featured?: boolean; to?: string }[] = [
     {
       step: 'Step 1',
-      price: '$1,500–2,500',
-      body: 'Operations Assessment. One referral and one visit traced end to end. Report with your three biggest leaks priced in dollars. Credited toward the build.',
-      featured: false,
+      price: moneyRange(p.assessment.min, p.assessment.max),
+      title: 'Operations assessment',
+      lines: p.assessment.includes,
+      note: `Fixed fee, credited toward a build within ${p.assessment.creditTermDays} days.`,
+      art: 'assess',
     },
     {
       step: 'Step 2',
-      price: '$3,000–7,000',
-      body: 'Build, per door. One service set up, connected to your systems, with a how-to guide and 30 days of fixes included.',
-      featured: false,
+      price: moneyRange(p.build.min, p.build.max),
+      title: 'Build, per defined service scope',
+      lines: p.build.includes,
+      note: `In-scope fixes for ${p.build.fixPeriodDays} days after go-live.`,
+      art: 'build',
     },
     {
       step: 'Step 3',
-      price: '$500–1,500 /mo',
-      body: 'Run. We run it, report every morning, and add doors as your problems show up. Three-month minimum, month-to-month after.',
+      price: `${moneyRange(p.management.min, p.management.max)} /mo`,
+      title: 'Monthly management',
+      lines: p.management.includes,
+      note: `Initial term of ${p.management.initialTermMonths} months, then month to month. Defined workers, volume, support coverage and responsibilities.`,
+      art: 'run',
       featured: true,
+    },
+    {
+      step: 'Standalone',
+      price: `${money(p.website.price)} one-time`,
+      title: 'Website Improvement',
+      lines: ['Up to three existing pages improved', 'One revision round', `Target: ${p.website.targetBusinessDays} business days after payment, access and content`],
+      note: 'No assessment and no retainer required. Does not credit toward other services.',
+      art: 'growth',
+      to: '/website',
     },
   ]
   return (
@@ -377,24 +444,54 @@ function Pricing() {
         <div className="section-head reveal">
           <span className="eyebrow">Pricing</span>
           <h2 className="two-tone">
-            <span className="grey">Fixed assessment.</span><br />
-            <span className="white">Then setup plus a monthly retainer.</span>
+            <span className="grey">Published ranges.</span><br />
+            <span className="white">The scope sets the quote.</span>
           </h2>
-          <p className="lead">Published ranges, so you know before the call whether we fit.</p>
+          <p className="lead">
+            Three steps for operations work, plus one standalone website service. Ranges are published so you
+            know before the conversation whether we fit.
+          </p>
         </div>
-        <div className="card-grid three">
-          {tiers.map((t, i) => (
+        <div className="card-grid">
+          {tiers.map(t => (
             <div className="reveal" key={t.step}>
-              <ImageCard tag={t.step} tagIcon={<Icon.Tag />} title={t.price} body={t.body} featured={t.featured} art={(['assess', 'build', 'run'] as ArtTheme[])[i]} />
+              <ImageCard tag={t.step} tagIcon={<Icon.Tag />} title={t.price} featured={t.featured} art={t.art} to={t.to}>
+                <div className="icard-bottom price-card">
+                  <div className="icard-title">{t.price}</div>
+                  <div className="price-title">{t.title}</div>
+                  <ul className="price-lines">
+                    {t.lines.map(l => <li key={l}>{l}</li>)}
+                  </ul>
+                  <div className="price-note">{t.note}</div>
+                  {t.to && <span className="price-link">See what is included →</span>}
+                </div>
+              </ImageCard>
             </div>
           ))}
         </div>
-        <p className="pricing-footnote reveal">
-          Every client starts with the assessment, gets one door built, and adds doors on the retainer.
-        </p>
+        <div className="price-notes reveal">
+          <p>
+            <strong>The exact scope determines the final quote.</strong> The lowest price in each range does not
+            include {joinList(catalog.notIncludedInLowestPrice)}.
+          </p>
+          <p>Five things we price separately, so a proposal is never a surprise:</p>
+          <ul className="scope-list">
+            {catalog.scopeConsiderations.map(c => (
+              <li key={c.key}>
+                <strong>{c.label}.</strong> {c.note}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   )
+}
+
+/** "a, b, c or d" */
+export function joinList(items: string[], conj = 'or'): string {
+  if (items.length <= 1) return items.join('')
+  return `${items.slice(0, -1).join(', ')} ${conj} ${items[items.length - 1]}`
 }
 
 /* -------------------------------------------------------------------------- */
@@ -402,24 +499,28 @@ function Pricing() {
 /* -------------------------------------------------------------------------- */
 export const FAQS: { q: string; a: ReactNode }[] = [
   {
-    q: 'Do we have to change our scheduler, EHR or practice software?',
-    a: <>No. We connect to what you already use. If a system can&rsquo;t connect, we tell you in the assessment, not after.</>,
+    q: 'Do we have to change our scheduler, EVV or billing system?',
+    a: <>No. We work from the exports and inboxes you already have. If a system cannot give us what a service needs, we tell you in the assessment, not after.</>,
+  },
+  {
+    q: 'Does anything get sent automatically?',
+    a: <>No. Every message a worker proposes waits for a named person at your agency or at {BRAND} to approve, edit or skip it. Auto-send is off unless your engagement turns it on for a specific worker, in writing.</>,
+  },
+  {
+    q: 'What is a supervised pilot?',
+    a: <>The service runs on your real referrals, applicants, shifts or visit exports with every action reviewed by a person, for a set period, with results measured against the baseline from the assessment. The pilot ends with a decision to continue, change or stop.</>,
   },
   {
     q: 'Is there a contract?',
-    a: <>The assessment is a one-time fee. The retainer has a three-month minimum, then month-to-month.</>,
+    a: <>The assessment is a one-time fee. Monthly management has an initial term of {catalog.pricing.management.initialTermMonths} months, then month to month. Website Improvement is a one-time {money(catalog.pricing.website.price)} with no retainer.</>,
   },
   {
-    q: 'How soon can we start?',
-    a: <>Assessment within two weeks of booking. First build live within four to six weeks after that.</>,
+    q: 'Who sees our client data?',
+    a: <>Only what the specific service requires, under a signed <Link to="/baa">Business Associate Agreement</Link>. Every change is logged, and reads of client records are logged on the dashboard, report and action pages. Staffing services (applicants, check-ins, credentials) touch no client records at all.</>,
   },
   {
-    q: 'Who sees our patient data?',
-    a: <>Only what the work requires, under a signed BAA, with access logged. Staff-side services (hiring, credentials) touch no patient records at all.</>,
-  },
-  {
-    q: 'Which practices and states do you work with?',
-    a: <>Any small practice: home care, dental, therapy, primary care and specialty clinics. Hiring, referral and front-desk services work in any state today; payer-specific operations expand state by state, starting with Ohio.</>,
+    q: 'Which agencies and states do you work with?',
+    a: <>Home care agencies first: Medicaid waiver and private pay, keeping their current systems. Other small healthcare practices by conversation. Correction deadlines and payer rules are configured per program, payer and state, and recorded with their source.</>,
   },
 ]
 
@@ -431,7 +532,7 @@ export function FAQ() {
           <span className="eyebrow">Questions</span>
           <h2 className="two-tone">
             <span className="grey">Before</span><br />
-            <span className="white">you book.</span>
+            <span className="white">you reach out.</span>
           </h2>
         </div>
         <div className="faq-list reveal">

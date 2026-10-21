@@ -8,6 +8,7 @@ import Home from './pages/Home'
 const Legal = lazy(() => import('./pages/Legal'))
 const Baa = lazy(() => import('./pages/Baa'))
 const Evv = lazy(() => import('./pages/Evv'))
+const Website = lazy(() => import('./pages/Website'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const ChatBubble = lazy(() => import('./components/ChatBubble').then(m => ({ default: m.ChatBubble })))
 
@@ -49,6 +50,7 @@ export function Shell() {
           <Route path="/privacy" element={<Legal kind="privacy" />} />
           <Route path="/baa" element={<Baa />} />
           <Route path="/evv" element={<Evv />} />
+          <Route path="/website" element={<Website />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>

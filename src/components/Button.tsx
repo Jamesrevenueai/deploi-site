@@ -9,8 +9,14 @@ type Props = {
   className?: string
 }
 
+/** The CTA wording: a calendar link reads "Book a call"; the on-page form is a discovery request. */
+export function bookCtaLabel(short = false): string {
+  if (env.bookingUrl) return 'Book a call'
+  return short ? 'Request a conversation' : 'Request a discovery conversation'
+}
+
 /**
- * The "Book a call" CTA. Links straight to VITE_BOOKING_URL (new tab) when it
+ * The primary CTA. Links straight to VITE_BOOKING_URL (new tab) when it
  * is set, otherwise scrolls to the on-page form at #book.
  */
 export function BookButton({ children, variant = 'primary', size, className = '' }: Props) {

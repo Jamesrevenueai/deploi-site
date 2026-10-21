@@ -6,7 +6,7 @@ is the Next.js 15 App Router application (TypeScript strict, Tailwind v4, Postgr
 
 ## Hard rules (every stream)
 
-- Never reference, import, link or mention ClaimYours, claimyoursai.com or James Revenue AI. Grep before you finish.
+- Never reference, import, link or mention the previous companies or repositories named in the master brief's hard rules (the integrator greps for them before every commit with `scripts/forbidden-grep.sh`; run it before you finish).
 - Never send real communications, charge anyone, contact anyone, deploy, or touch production data. Adapters stay mocked.
   Never enable auto-send by default. Every "send" in tests must land in `mockOutbox` / `mockSmsOutbox` with `mocked: true`.
 - Synthetic data only, in seeds, fixtures, tests and screenshots. Never store a password in a form, note, log or table.

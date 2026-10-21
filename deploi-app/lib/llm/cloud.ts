@@ -6,12 +6,14 @@ import { env } from '../env'
 import { log } from '../log'
 import { LlmUnavailable, type CompleteInput, type CompleteOutput } from './types'
 import { mock } from './local'
+import { assertApprovedHost } from '../net/outbound'
 
 export async function completeCloud(input: CompleteInput): Promise<CompleteOutput> {
   const { provider, apiKey, model } = env.cloud
   if (env.llmMock || !provider) return { text: mock(input), provider: provider || 'none', model: model || 'mock', mocked: true }
   try {
     if (provider === 'openai') {
+      assertApprovedHost('https://api.openai.com', 'cloud_llm')
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
@@ -28,6 +30,7 @@ export async function completeCloud(input: CompleteInput): Promise<CompleteOutpu
       return { text: d.choices?.[0]?.message?.content ?? '', provider, model: model || 'gpt-4o-mini', mocked: false }
     }
     if (provider === 'anthropic') {
+      assertApprovedHost('https://api.anthropic.com', 'cloud_llm')
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },

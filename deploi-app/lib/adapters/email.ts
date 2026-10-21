@@ -1,6 +1,7 @@
 /** Transactional email. Resend when RESEND_API_KEY is set, otherwise a mock that records sends. */
 import { env, COMPANY_EMAIL, COMPANY_NAME } from '../env'
 import { log } from '../log'
+import { assertApprovedHost } from '../net/outbound'
 
 export type EmailMessage = { to: string | string[]; subject: string; html?: string; text?: string; replyTo?: string }
 export type SendResult = { ok: boolean; id?: string; mocked: boolean; error?: string }
@@ -16,6 +17,7 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
     return { ok: true, id: `mock_${Date.now()}`, mocked: true }
   }
   try {
+    assertApprovedHost('https://api.resend.com', 'email')
     const { Resend } = await import('resend')
     const resend = new Resend(env.resendKey)
     const r = await resend.emails.send({ from: FROM, to, subject: msg.subject, html: msg.html, text: msg.text ?? ' ', replyTo: msg.replyTo })

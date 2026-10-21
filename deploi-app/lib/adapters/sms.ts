@@ -1,6 +1,7 @@
 /** SMS. Twilio REST when configured, otherwise a mock that records sends. */
 import { env } from '../env'
 import { log } from '../log'
+import { assertApprovedHost } from '../net/outbound'
 
 export type SmsMessage = { to: string; body: string }
 export type SmsResult = { ok: boolean; sid?: string; mocked: boolean; error?: string }
@@ -14,6 +15,7 @@ export async function sendSms(msg: SmsMessage): Promise<SmsResult> {
     return { ok: true, sid: `mock_${Date.now()}`, mocked: true }
   }
   try {
+    assertApprovedHost('https://api.twilio.com', 'sms')
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: 'POST',
       headers: {

@@ -5,6 +5,7 @@
 import { env } from '../env'
 import { sendEmail } from '../adapters/email'
 import { parseTwilioCampaignStatus, parseSupabasePlan, supabaseRef } from './readiness'
+import { assertApprovedHost } from '../net/outbound'
 
 const e = (k: string) => (process.env[k] ?? '').trim()
 
@@ -22,6 +23,7 @@ export async function twilioCampaignStatus(): Promise<{ status: string | null; e
   const service = e('TWILIO_MESSAGING_SERVICE_SID')
   if (!sid || !token || !service) return { status: null, error: null }
   try {
+    assertApprovedHost('https://messaging.twilio.com', 'sms')
     const res = await fetch(`https://messaging.twilio.com/v1/Services/${encodeURIComponent(service)}/Compliance/Usa2p`, {
       headers: { authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64') },
       signal: AbortSignal.timeout(8000),
@@ -40,6 +42,7 @@ export async function supabasePlan(): Promise<{ plan: string | null; error: stri
   if (!ref) return { plan: null, error: 'NEXT_PUBLIC_SUPABASE_URL is not a supabase.co URL' }
   const headers = { authorization: `Bearer ${token}` }
   try {
+    assertApprovedHost('https://api.supabase.com', 'supabase_mgmt')
     const proj = await fetch(`https://api.supabase.com/v1/projects/${ref}`, { headers, signal: AbortSignal.timeout(8000) })
     if (!proj.ok) return { plan: null, error: `projects lookup HTTP ${proj.status}` }
     const p = (await proj.json()) as { organization_id?: string; plan?: unknown }

@@ -5,9 +5,12 @@
 import { env } from '../env'
 import { log } from '../log'
 import { LlmUnavailable, type CompleteInput, type CompleteOutput } from './types'
+import { assertLocalLlmHost } from '../net/outbound'
 
 export async function completeLocal(input: CompleteInput): Promise<CompleteOutput> {
   if (env.llmMock) return { text: mock(input), provider: 'ollama', model: env.ollamaModel, mocked: true }
+  // Runtime boundary (not just lint): the PHI lane can only reach a private or explicitly allowed host.
+  assertLocalLlmHost(env.ollamaUrl)
   let res: Response
   try {
     res = await fetch(`${env.ollamaUrl}/api/generate`, {

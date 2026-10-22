@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { BRAND, WORDMARK } from '../lib/brand'
 import { BookButton, bookCtaLabel } from './Button'
+import { GetStartedButton, SignInButton } from './AppButtons'
 import { Icon } from '../lib/icons'
 
 export const NAV_LINKS = [
@@ -51,7 +52,10 @@ export function Nav() {
               </Link>
             ))}
           </div>
-          <BookButton size="sm">{bookCtaLabel(true)}</BookButton>
+          <div className="nav-cta">
+            <SignInButton size="sm" />
+            <GetStartedButton size="sm" />
+          </div>
           <button
             type="button"
             className="nav-hamburger"
@@ -76,7 +80,9 @@ export function Nav() {
             {l.label}
           </Link>
         ))}
-        <BookButton>{bookCtaLabel()}</BookButton>
+        <GetStartedButton />
+        <SignInButton />
+        <BookButton variant="ghost">{bookCtaLabel()}</BookButton>
       </div>
     </nav>
   )

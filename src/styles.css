@@ -238,6 +238,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 .brand:hover { color: var(--dg-white); }
 .nav-right { display: flex; align-items: center; gap: 28px; }
 .nav-links { display: flex; gap: 28px; }
+.nav-cta { display: flex; align-items: center; gap: 12px; }
 .nav-link { font-size: 16px; font-weight: 400; color: var(--dg-grey-nav); }
 .nav-link:hover { color: var(--dg-white); }
 
@@ -285,7 +286,7 @@ a.icard:hover { transform: scale(1.01); color: var(--dg-white); }
 .nav-mobile .btn { margin-top: 16px; }
 
 @media (max-width: 959px) {
-  .nav-links, .nav-right .btn { display: none; }
+  .nav-links, .nav-cta, .nav-right .btn { display: none; }
   .nav-hamburger { display: flex; }
 }
 

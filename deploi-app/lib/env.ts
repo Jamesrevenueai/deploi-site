@@ -7,13 +7,25 @@ export const env = {
   get supabaseAnonKey() { return e('NEXT_PUBLIC_SUPABASE_ANON_KEY') },
   get supabaseServiceKey() { return e('SUPABASE_SERVICE_ROLE_KEY') },
   get hasSupabase() { return Boolean(this.supabaseUrl && this.supabaseAnonKey) },
-  /** dev auth is used when explicitly requested or when Supabase is not configured outside production */
-  /** The dev role picker only exists when ALLOW_DEV_LOGIN=true (default off). */
-  get allowDevLogin() { return e('ALLOW_DEV_LOGIN') === 'true' },
+  /** Vercel sets VERCEL_ENV to production | preview | development. Empty off Vercel. */
+  get vercelEnv() { return e('VERCEL_ENV') },
+  get isVercelProduction() { return this.vercelEnv === 'production' },
+  /**
+   * The dev role picker only exists when ALLOW_DEV_LOGIN=true (default off), and never
+   * on a Vercel production deployment, whatever the env says.
+   */
+  get allowDevLogin() { return e('ALLOW_DEV_LOGIN') === 'true' && !this.isVercelProduction },
+  /**
+   * dev: the role picker. Only when allowed AND (Supabase is not configured OR AUTH_MODE=dev).
+   * supabase: real magic-link auth. If Supabase is not configured either, sign-in is closed
+   * (authReady false) rather than falling open.
+   */
   get authMode(): 'supabase' | 'dev' {
     if (this.allowDevLogin && (e('AUTH_MODE') === 'dev' || !this.hasSupabase)) return 'dev'
     return 'supabase'
   },
+  /** False when supabase mode is selected but the Supabase URL/anon key are missing. */
+  get authReady() { return this.authMode === 'dev' || this.hasSupabase },
   get appSecret() { return e('APP_SECRET', 'dev-secret') },
   get staffEmails() { return e('STAFF_EMAILS').split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },
   get appUrl() { return e('NEXT_PUBLIC_APP_URL', 'http://localhost:3000') },

@@ -5,7 +5,7 @@ import { env } from '@/lib/env'
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
-  if (code && env.authMode === 'supabase') {
+  if (code && env.authMode === 'supabase' && env.authReady) {
     const { supabaseServer } = await import('@/lib/supabase/server')
     const sb = await supabaseServer()
     const { error } = await sb.auth.exchangeCodeForSession(code)

@@ -6,7 +6,7 @@ import { DEV_COOKIE_NAME } from '@/lib/auth'
 export async function POST(req: Request) {
   const store = await cookies()
   store.delete(DEV_COOKIE_NAME)
-  if (env.authMode === 'supabase') {
+  if (env.authMode === 'supabase' && env.authReady) {
     const { supabaseServer } = await import('@/lib/supabase/server')
     const sb = await supabaseServer()
     await sb.auth.signOut()

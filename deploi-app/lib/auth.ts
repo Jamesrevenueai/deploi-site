@@ -45,6 +45,7 @@ export async function getSession(): Promise<Session | null> {
     // re-read the profile so role/agency changes take effect immediately
     return (await profileFor(s.uid)) ?? null
   }
+  if (!env.authReady) return null
   const { supabaseServer } = await import('./supabase/server')
   const sb = await supabaseServer()
   const { data } = await sb.auth.getUser()

@@ -21,12 +21,21 @@ export async function devSignIn(formData: FormData) {
   redirect(p.role === 'staff' ? '/staff/pipeline' : '/app/home')
 }
 
+/**
+ * Invite-only magic link. Only people who already have a Supabase user (invited from
+ * /staff/agencies/[id]/users) or who are listed in STAFF_EMAILS can get a link; everyone
+ * else is pointed at /signup. The response does not reveal whether an email has access.
+ */
 export async function magicLink(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
   if (!email) redirect('/login?error=email-required')
+  if (env.authMode !== 'supabase' || !env.authReady) redirect('/login?error=sign-in-not-configured')
   const { supabaseServer } = await import('@/lib/supabase/server')
   const sb = await supabaseServer()
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: `${env.appUrl}/auth/callback` } })
-  if (error) { log.warn('auth.magiclink.failed', { code: error.code }); redirect('/login?error=send-failed') }
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: `${env.appUrl}/auth/callback`, shouldCreateUser: env.staffEmails.includes(email) },
+  })
+  if (error) log.warn('auth.magiclink.failed', { code: error.code })
   redirect('/login?sent=1')
 }

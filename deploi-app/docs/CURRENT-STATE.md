@@ -71,4 +71,4 @@ Both inconsistencies are fixed in this build (service catalog, phase 4; site, ph
 
 ## What this build changes
 
-See `docs/BUILD-REPORT-2.md` (written at the end of the build) for the acceptance table per phase.
+See `docs/BUILD-REPORT-2.md` for the acceptance table per phase, schema changes, tests and remaining risks.

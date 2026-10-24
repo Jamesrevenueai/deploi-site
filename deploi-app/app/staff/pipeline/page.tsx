@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic'
 export default async function PipelinePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
   const session = await requireRole('staff')
-  const filters = { program: sp.program ?? '', county: sp.county ?? '', stage: sp.stage ?? '', q: sp.q ?? '' }
-  const filtered = Boolean(filters.program || filters.county || filters.stage || filters.q)
+  const filters = { program: sp.program ?? '', county: sp.county ?? '', stage: sp.stage ?? '', q: sp.q ?? '', interest: sp.interest ?? '' }
+  const filtered = Boolean(filters.program || filters.county || filters.stage || filters.q || filters.interest)
   const listView = sp.view === 'list' || filtered
   const { prospects, counts, counties } = await withUser(session, async db => ({
     prospects: await listProspects(db, filters), counts: await stageCounts(db), counties: await distinctCounties(db),
@@ -32,8 +32,13 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
           <Button size="sm" href="/staff/pipeline/import">Import CSV</Button>
         </>}
       />
-      <form method="get" className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-[1fr_1fr_1fr_1.4fr_auto]">
+      <form method="get" className="mb-5 grid grid-cols-2 gap-2 md:grid-cols-[1fr_1fr_1fr_1fr_1.4fr_auto]">
         <input type="hidden" name="view" value="list" />
+        <Select name="interest" defaultValue={filters.interest} aria-label="Service interest">
+          <option value="">All interests</option>
+          <option value="website_improvement">Website Improvement</option>
+          <option value="operations">Operations</option>
+        </Select>
         <Select name="program" defaultValue={filters.program} aria-label="Program">
           <option value="">All programs</option>
           {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}

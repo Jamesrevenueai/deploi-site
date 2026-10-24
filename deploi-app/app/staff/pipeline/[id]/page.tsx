@@ -13,6 +13,8 @@ import { Banner } from '@/components/ui/Banner'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Icon } from '@/components/ui/Icon'
 import { StageSheet } from '@/components/sales/StageSheet'
+import { WebsiteTag } from '@/components/sales/ProspectCard'
+import { isWebsiteLead } from '@/lib/sales/queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,13 +37,23 @@ export default async function ProspectPage({ params, searchParams }: { params: P
         sub={<>{p.owner_name ?? 'No owner name'}{p.email ? ` · ${p.email}` : ''}{p.phone ? ` · ${p.phone}` : ''}<br />{[p.city, p.county, p.state].filter(Boolean).join(', ')}{p.programs.length ? ` · ${p.programs.join(', ')}` : ''} · source {p.source}</>}
         actions={<>
           <StageSheet id={p.id} stage={p.stage} label={STAGE_LABEL[p.stage]} />
+          <WebsiteTag p={p} />
           {p.email_invalid && <Badge tone="danger">email bounced</Badge>}
+          {p.website_engagement_id && <Button variant="ghost" size="sm" href={`/staff/website/${p.website_engagement_id}`}>Website engagement</Button>}
           {booking ? <Button variant="ghost" size="sm" href={booking} external>Book call</Button> : <span title="Set BOOKING_URL"><Button variant="ghost" size="sm" disabled>Book call</Button></span>}
           <Button variant="ghost" size="sm" href={`/staff/assessments/new?prospect=${p.id}`}>Create assessment</Button>
         </>}
       />
       {sp.logged && <div className="mb-5"><Banner icon="check"><strong>Call logged.</strong></Banner></div>}
       {!booking && <div className="mb-5"><Banner>Set <strong>BOOKING_URL</strong> in the environment to enable the Book call button.</Banner></div>}
+      {isWebsiteLead(p) && (
+        <div className="mb-5"><Banner icon="spark">
+          <strong>Website Improvement lead.</strong> {p.website_url ? <>Site: <a className="text-ink underline" href={p.website_url} target="_blank" rel="noopener noreferrer">{p.website_url}</a>. </> : 'No site URL given. '}
+          {p.website_goal ? <>Goal: {p.website_goal}. </> : null}
+          {p.website_engagement_id ? <Link className="text-ink underline" href={`/staff/website/${p.website_engagement_id}`}>Open the website engagement</Link> : 'No engagement row yet'}
+          {'. '}Standalone $500 one-time service; no assessment and no credit involved.
+        </Banner></div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <section aria-labelledby="timeline">

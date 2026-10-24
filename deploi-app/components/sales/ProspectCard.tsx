@@ -1,7 +1,13 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
-import type { Prospect } from '@/lib/sales/queries'
+import { isWebsiteLead, type Prospect } from '@/lib/sales/queries'
 import { creditLabel, creditState } from '@/lib/credit/label'
+
+/** Tag shown on cards, lists and the prospect page for Website Improvement leads. */
+export function WebsiteTag({ p }: { p: Pick<Prospect, 'service_interest' | 'tags'> }) {
+  if (!isWebsiteLead(p)) return null
+  return <Badge tone="ok">Website Improvement</Badge>
+}
 
 export function timeAgo(iso: string | null | undefined) {
   if (!iso) return 'no touches'
@@ -24,6 +30,7 @@ export function ProspectCard({ p, compact }: { p: Prospect; compact?: boolean })
         </div>
         {p.email_invalid && <Badge tone="danger">bounced</Badge>}
       </div>
+      {isWebsiteLead(p) && <div className="mt-2 flex flex-wrap items-center gap-1.5"><WebsiteTag p={p} />{p.website_engagement_status && <span className="text-[12px] text-grey-h">{p.website_engagement_status.replace(/_/g, ' ')}</span>}</div>}
       {credit && (
         <div className={`mt-2 text-[12px] ${cstate === 'expired' ? 'text-danger' : cstate === 'applied' ? 'text-ok' : 'text-grey-nav'}`}>{credit}</div>
       )}

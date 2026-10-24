@@ -1,10 +1,12 @@
 import { requireRole, requestIp } from '@/lib/auth'
 import { withUser } from '@/lib/db'
 import { getMetrics } from '@/lib/dashboard/metrics'
+import { getClientSections } from '@/lib/dashboard/sections'
 import { Tile } from '@/components/ui/Tile'
 import { ImageCard } from '@/components/ui/Card'
 import { Empty } from '@/components/ui/Empty'
 import { NeedsHuman } from '@/components/dashboard/NeedsHuman'
+import { ActiveServices, FreshnessSection, ActivitySection, OutcomesSection, PilotSection, LimitationsSection } from '@/components/dashboard/Sections'
 
 export const metadata = { title: 'Morning report' }
 export const dynamic = 'force-dynamic'
@@ -14,11 +16,12 @@ export default async function Home() {
   const ip = await requestIp()
   if (!session.agencyId) return <Empty title="No agency on this account">Ask Deploi (hello@getdeploi.com) to link your login to your agency.</Empty>
   const now = new Date()
-  const { m, report } = await withUser(session, async db => {
+  const { m, report, sections } = await withUser(session, async db => {
     const m = await getMetrics(db, session.agencyId!, now)
     const report = await db.one<{ id: string; report_generated_at: string | null }>(
       'select id, report_generated_at from assessments where agency_id = $1 and report_path is not null order by report_generated_at desc nulls last limit 1', [session.agencyId])
-    return { m, report }
+    const sections = await getClientSections(db, session.agencyId!, m, now)
+    return { m, report, sections }
   }, { ip })
   const tz = m.agency.timezone || 'America/New_York'
   const dateLabel = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' })
@@ -58,6 +61,17 @@ export default async function Home() {
       </div>
 
       <NeedsHuman items={m.needsHuman} />
+
+      <NeedsHuman id="action-items" title="Agency action items" items={sections.actionItems.items}
+        intro="Everything above plus proposed actions waiting for your approval owner, ranked by urgency. A person at your agency decides each one."
+        empty="No action items right now." />
+
+      <ActiveServices s={sections.services} />
+      <FreshnessSection f={sections.freshness} tz={tz} />
+      <ActivitySection a={sections.activity} />
+      <OutcomesSection o={sections.outcomes} />
+      <PilotSection p={sections.pilot} tz={tz} />
+      <LimitationsSection l={sections.limitations} />
 
       {report && (
         <section className="mt-8 fade-up">

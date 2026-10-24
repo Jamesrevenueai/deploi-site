@@ -1,3 +1,4 @@
+import './env'
 import { describe, it, expect } from 'vitest'
 import { shouldSendNow } from '../../lib/dashboard/schedule'
 import { localDayStart } from '../../lib/dashboard/time'

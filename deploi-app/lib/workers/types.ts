@@ -30,6 +30,8 @@ export type Proposal = {
   dedupe_key: string
   /** do not materialize before this time (follow-ups) */
   send_after?: Date | null
+  /** time-sensitive actions: executeAction refuses the row after this (undefined = derive from payload / defaults) */
+  expires_at?: Date | null
 }
 
 export type AgencyRow = {

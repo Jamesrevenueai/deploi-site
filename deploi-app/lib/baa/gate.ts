@@ -32,6 +32,7 @@ export function isBaaError(e: unknown): e is BaaNotSignedError {
 }
 
 /** Route-handler response for a gated request. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function baaResponse(_err?: unknown) {
   return NextResponse.json({ ok: false, error: BAA_MESSAGE }, { status: 403 })
 }

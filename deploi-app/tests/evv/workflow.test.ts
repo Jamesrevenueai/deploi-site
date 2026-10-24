@@ -1,3 +1,4 @@
+import './env'
 import { describe, it, expect } from 'vitest'
 import { prepareDb, SESSIONS, AGENCY_A } from '../db/helpers'
 import { withUser, admin } from '../../lib/db'

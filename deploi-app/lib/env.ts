@@ -36,10 +36,6 @@ export const env = {
       retainer: e('RETAINER_RANGE', '$500–1,500 / mo'),
     }
   },
-  get evvWindows(): Record<string, number> {
-    try { return { OH: 60, ...JSON.parse(e('EVV_CORRECTION_WINDOWS', '{}')) } } catch { return { OH: 60 } }
-  },
-  get evvToleranceMin() { return Number(e('EVV_DURATION_TOLERANCE_MIN', '15')) || 15 },
   get storageBucket() { return e('STORAGE_BUCKET', 'reports') },
   get isProd() { return process.env.NODE_ENV === 'production' },
 }

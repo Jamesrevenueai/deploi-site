@@ -12,7 +12,7 @@ const base: RuleVisit = {
 }
 const ctx: RuleContext = {
   authorizations: [{ client_id: 'c1', service_code: 'T1019', units_authorized: 100, units_used: 90, starts_on: d('2026-10-01T00:00:00Z'), ends_on: d('2026-12-31T00:00:00Z') }],
-  toleranceMin: 15, windowDays: 60, now,
+  toleranceMin: 15, windowDays: 60, unitMinutes: 15, unitRounding: 'nearest', now,
 }
 
 describe('EVV rules', () => {

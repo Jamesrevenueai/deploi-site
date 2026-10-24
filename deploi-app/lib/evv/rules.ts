@@ -3,6 +3,7 @@
  * Each rule has a test in lib/evv/rules.test.ts.
  */
 import type { RuleVisit, RuleContext, ExceptionResult, AuthSlice } from './types'
+import { toUnits } from './mappers'
 
 const MIN = 60_000
 const GRACE_MIN = 60
@@ -49,6 +50,7 @@ export function gpsOutsideGeofence(v: RuleVisit): ExceptionResult | null {
 
 export function unverifiedPastWindow(v: RuleVisit, ctx: RuleContext): ExceptionResult | null {
   if (v.verification_status !== 'unverified') return null
+  if (ctx.windowDays == null) return null // no configured window: nothing to be past
   const at = v.scheduled_start ?? v.actual_start
   if (!at) return null
   const ageDays = (ctx.now.getTime() - at.getTime()) / 86_400_000
@@ -64,13 +66,22 @@ export function serviceAuthMismatch(v: RuleVisit, ctx: RuleContext): ExceptionRe
   return { rule: 'service_auth_mismatch', detail: `Visit billed ${v.service_code}; active authorization covers ${auths.map(a => a.service_code).join(', ')}`, severity: 'high' }
 }
 
+/** Units for the authorization check: the file's units, else derived from recorded clock times with the rule set. */
+export function visitUnits(v: RuleVisit, ctx: RuleContext): number | null {
+  if (v.units != null) return v.units
+  if (!v.actual_start || !v.actual_end) return null
+  return toUnits(minutes(v.actual_start, v.actual_end), ctx.unitMinutes, ctx.unitRounding)
+}
+
 export function unitsExceedAuth(v: RuleVisit, ctx: RuleContext): ExceptionResult | null {
-  if (!v.client_id || v.units == null) return null
+  if (!v.client_id) return null
+  const units = visitUnits(v, ctx)
+  if (units == null) return null
   const auth = activeAuths(v, ctx).find(a => a.service_code === v.service_code)
   if (!auth) return null
   const remaining = auth.units_authorized - auth.units_used
-  if (v.units <= remaining) return null
-  return { rule: 'units_exceed_auth', detail: `Visit needs ${v.units} units; only ${Math.max(0, remaining)} remain on the ${auth.service_code} authorization`, severity: 'high' }
+  if (units <= remaining) return null
+  return { rule: 'units_exceed_auth', detail: `Visit needs ${units} units (${ctx.unitMinutes}-min units, rounded ${ctx.unitRounding}); only ${Math.max(0, remaining)} remain on the ${auth.service_code} authorization`, severity: 'high' }
 }
 
 export const RULES = [missingClockIn, missingClockOut, durationOutOfTolerance, gpsOutsideGeofence, unverifiedPastWindow, serviceAuthMismatch, unitsExceedAuth] as const

@@ -16,11 +16,31 @@ before quoting a client.
 | `scheduled_start/end`, `actual_start/end` | Wall-clock in the agency timezone unless the export carries an offset. |
 | `verification_status` | Verified / Unverified / Exception. |
 | `gps_in_flag`, `gps_out_flag` | true = inside geofence, false = outside, null = missing. |
-| `units` | If absent: actual duration ÷ 15 min, else scheduled. |
+| `units` | From the file. If absent: derived from a recorded clock-in **and** clock-out with the rule set's `unit_minutes` / `unit_rounding`; never from the schedule. |
+
+Blank cells stay null. The importer never fabricates a clock-in, clock-out, GPS flag, signature,
+verification or delivered units. Re-importing a visit that changed writes the previous row to
+`visit_revisions` first (flagged `reviewed` when its exceptions had been corrected or dismissed);
+identical file content is refused as "already imported". Row-level errors carry the data row number.
+The documented fields and the downloadable template live in `lib/imports/specs.ts`
+(`GET /api/imports/template/evv_visits`).
 
 Rules (`lib/evv/rules.ts`): missing clock-in, missing clock-out, duration outside ± tolerance,
-GPS outside geofence, unverified past the state's correction window, service vs. authorization
-mismatch, units exceeding remaining authorization. Correction windows: `EVV_CORRECTION_WINDOWS` (Ohio 60).
+GPS outside geofence, unverified past the correction window, service vs. authorization
+mismatch, units exceeding remaining authorization (units via the rule set's unit conversion).
+
+## Rule sets and "deadline not configured"
+
+Correction windows, unit length, rounding and tolerance come only from `evv_rule_sets`
+(`/staff/evv/rules`): one row per jurisdiction (state), program, payer, agency (null = global) and
+effective period, with `source_name`, `source_url`, `source_version`, `verified` and notes.
+`lib/evv/window.ts#pickRuleSet` resolves the most specific match for (agency state, client program,
+payer, visit date) and returns **null when nothing matches**. Then `window_closes_at` is null, the
+exception shows "deadline not configured", the billing-hold export says the same in `rule_source`, and
+the "unverified past window" rule does not fire. There is no 60-day fallback anywhere; `EVV_CORRECTION_WINDOWS`
+is no longer read. `correction_window_days` itself is nullable so a rule can state units and tolerance
+while the window is still being confirmed. The seed adds one Ohio PASSPORT rule for the demo agency marked
+`verified = false`, source "Working assumption, confirm with ODM"; the control agency has none.
 
 ## Ohio context
 
@@ -28,8 +48,9 @@ Ohio Medicaid's EVV aggregator is operated by Sandata. Agencies either use Sanda
 ("state-provided") or an alternate EVV vendor that exports to the aggregator via the Alt-EVV
 interface. For aggregator-side status (visit accepted / rejected / exception), the agency's
 Sandata aggregator portal is the source of truth; most vendors expose only their own visit state.
-The 60-day figure is a working default for the visit-correction window; confirm the current ODM
-policy and the specific program (ODA PASSPORT, ODM waivers, DODD) before relying on it.
+The seeded 60-day figure is a working assumption only (rule set marked unverified); confirm the current
+ODM policy and the specific program (ODA PASSPORT, ODM waivers, DODD) and record the source before
+marking the rule verified.
 
 ## Sandata (first)
 
@@ -69,6 +90,12 @@ policy and the specific program (ODA PASSPORT, ODM waivers, DODD) before relying
 - **Live connector needs:** WellSky Personal Care API access through the WellSky partner program
   (agency authorizes the integration; API key per agency), endpoints for shifts/visits, clients,
   caregivers and telephony/GPS clock events. Expect a vetting process before credentials are issued.
+
+## Status in the app
+
+`/staff/evv` lists every EVV entry of `lib/catalog/integrations.ts` with its level label
+("CSV / file compatible") and the connector stub state ("stub, blocked" until the discovery-call gate
+in `lib/sales/conversations.ts` reaches its goal). The stubs still throw `NotImplemented`.
 
 ## Adding a live connector
 

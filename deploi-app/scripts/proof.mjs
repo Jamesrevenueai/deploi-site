@@ -18,7 +18,8 @@ for (const [w, h, tag] of [[1440, 900, '1440'], [390, 844, '390']]) {
     await Promise.all([page.waitForURL(u => !u.pathname.startsWith('/login')), page.click('button[type=submit]')])
   }
   for (const pair of pairs) {
-    const [name, path] = pair.split('=')
+    const i = pair.indexOf('=')
+    const name = pair.slice(0, i), path = pair.slice(i + 1)
     await page.goto(`${base}${path}`, { waitUntil: 'networkidle' })
     await page.waitForTimeout(400)
     await page.screenshot({ path: `proof/${name}-${tag}.png`, fullPage: true })

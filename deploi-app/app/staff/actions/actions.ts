@@ -5,37 +5,74 @@ import { requireRole, requestIp } from '@/lib/auth'
 import { admin, withUser } from '@/lib/db'
 import { log } from '@/lib/log'
 import '@/workers'
-import { runWorker, sendProposedAction } from '@/lib/workers/runtime'
+import { runWorker, approveAction as approveRow, executeAction, type ExecuteResult } from '@/lib/workers/runtime'
 import { WORKER_NAMES, type WorkerName } from '@/lib/workers/types'
 import { assertBaaSigned, isBaaError, baaErrorUrl } from '@/lib/baa/gate'
+import { runApplicantImport } from '@/lib/imports/applicants'
+import type { Session } from '@/lib/session'
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? '').trim()
 
-export async function approveAction(formData: FormData) {
-  const session = await requireRole('staff')
-  const id = str(formData, 'id')
-  const ok = await admin(db => sendProposedAction(db, id, { actorId: session.uid }), { actorId: session.uid, ip: await requestIp() })
-  log.info('action.approve', { id, ok })
-  revalidatePath('/staff/actions')
-  redirect(`/staff/actions?${new URLSearchParams({ ...(formData.get('return') ? JSON.parse(String(formData.get('return'))) : {}), ...(ok ? { approved: id } : { failed: id }) })}`)
+/**
+ * Tenant/role check before any approve/execute: the row must be visible to the signed-in staff user
+ * under RLS (staff may act on every agency; a client session never reaches these actions).
+ */
+async function visibleAction(session: Session, id: string, ip: string | null): Promise<{ id: string; agency_id: string; status: string } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null
+  return withUser(session, db => db.one<{ id: string; agency_id: string; status: string }>('select id, agency_id, status from proposed_actions where id = $1', [id]), { ip })
 }
 
-export async function editAndApproveAction(formData: FormData) {
+function flag(r: ExecuteResult): Record<string, string> {
+  if (r.deferred) return { deferred: '1' }
+  if (r.ok && !r.noop) return r.simulated ? { approved: '1', simulated: '1' } : { approved: '1', accepted: '1' }
+  if (r.noop) return { noop: '1' }
+  if (r.status === 'expired') return { expired: '1' }
+  return { failed: '1', reason: r.reason ?? '' }
+}
+
+/** Approve, then execute right away. Approval is recorded even when execution is held, deferred or fails. */
+async function approveThenExecute(formData: FormData, overrides?: { subject: string | null; body: string }) {
   const session = await requireRole('staff')
+  const ip = await requestIp()
   const id = str(formData, 'id')
+  const row = await visibleAction(session, id, ip)
+  if (!row) redirect('/staff/actions?error=not-found')
+  const ret = formData.get('return') ? (JSON.parse(String(formData.get('return'))) as Record<string, string>) : {}
+  const result = await admin(async db => {
+    if (row.status === 'proposed') { const a = await approveRow(db, id, { actorId: session.uid, overrides }); if (!a) return null }
+    return executeAction(db, id, { actorId: session.uid })
+  }, { actorId: session.uid, ip })
+  log.info('action.approve', { id, status: result?.status, ok: result?.ok })
+  revalidatePath('/staff/actions')
+  redirect(`/staff/actions?${new URLSearchParams({ ...ret, ...(result ? flag(result) : { failed: '1' }), id })}`)
+}
+
+export async function approveAction(formData: FormData) { await approveThenExecute(formData) }
+
+export async function editAndApproveAction(formData: FormData) {
   const subject = str(formData, 'subject') || null
   const body = str(formData, 'body')
   if (!body) redirect('/staff/actions?error=empty-body')
-  const ok = await admin(db => sendProposedAction(db, id, { actorId: session.uid, overrides: { subject, body } }), { actorId: session.uid, ip: await requestIp() })
-  log.info('action.edit-approve', { id, ok })
+  await approveThenExecute(formData, { subject, body })
+}
+
+/** Retry a failed / unknown action under a new attempt scope (idempotent: an attempted/delivered row is a no-op). */
+export async function retryAction(formData: FormData) {
+  const session = await requireRole('staff')
+  const ip = await requestIp()
+  const id = str(formData, 'id')
+  const row = await visibleAction(session, id, ip)
+  if (!row) redirect('/staff/actions?error=not-found')
+  const result = await admin(db => executeAction(db, id, { actorId: session.uid }), { actorId: session.uid, ip })
+  log.info('action.retry', { id, status: result.status, ok: result.ok, noop: result.noop })
   revalidatePath('/staff/actions')
-  redirect(`/staff/actions?${ok ? 'approved' : 'failed'}=${id}`)
+  redirect(`/staff/actions?${new URLSearchParams({ status: row.status, ...flag(result), id })}`)
 }
 
 export async function skipAction(formData: FormData) {
   const session = await requireRole('staff')
   const id = str(formData, 'id')
-  await withUser(session, db => db.query("update proposed_actions set status = 'skipped', decided_at = now(), decided_by = $2 where id = $1 and status = 'proposed'", [id, session.uid]), { ip: await requestIp() })
+  await withUser(session, db => db.query("update proposed_actions set status = 'skipped', decided_at = now(), decided_by = $2 where id = $1 and status in ('proposed','approved','queued')", [id, session.uid]), { ip: await requestIp() })
   revalidatePath('/staff/actions')
   redirect(`/staff/actions?skipped=${id}`)
 }
@@ -61,7 +98,7 @@ export async function runWorkerNow(formData: FormData) {
   for (const n of names) {
     if (!WORKER_NAMES.includes(n)) continue
     const s = await runWorker(n, agencyId, { dryRun: !send })
-    out.push(`${n}: ${s.inserted} new of ${s.proposed} proposed${s.sent ? `, ${s.sent} sent` : ''}`)
+    out.push(`${n}: ${s.inserted} new of ${s.proposed} proposed${s.sent ? `, ${s.sent} sent` : ''}${s.deferred ? `, ${s.deferred} queued for the contact window` : ''}`)
   }
   revalidatePath('/staff/actions')
   redirect(`/staff/actions/run?agency=${agencyId}&result=${encodeURIComponent(out.join(' · '))}`)
@@ -90,34 +127,26 @@ export async function logReferral(formData: FormData) {
   redirect(`/staff/actions?worker=referral_response&ran=${s.inserted}`)
 }
 
+/** Applicant CSV through the shared import toolkit (lib/imports): validation, duplicates, provenance, row errors. */
 export async function importApplicants(formData: FormData) {
   const session = await requireRole('staff')
+  const ip = await requestIp()
   const agencyId = str(formData, 'agency_id')
   const file = formData.get('file')
-  const text = file instanceof File ? await file.text() : str(formData, 'csv')
-  const Papa = (await import('papaparse')).default
-  const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true })
-  let imported = 0, skipped = 0
+  const text = file instanceof File && file.size > 0 ? await file.text() : str(formData, 'csv')
+  const filename = file instanceof File && file.size > 0 ? file.name : 'pasted.csv'
+  if (!text.trim()) redirect(`/staff/actions/applicants/import?agency=${agencyId}&error=file-required`)
+  let importId: string
   try {
-  await withUser(session, async db => {
-    await assertBaaSigned(db, agencyId)
-    for (const row of parsed.data) {
-      const first = (row.first_name ?? row.First ?? row.first ?? '').trim()
-      const last = (row.last_name ?? row.Last ?? row.last ?? '').trim()
-      const phone = (row.phone ?? row.Phone ?? '').trim() || null
-      const email = (row.email ?? row.Email ?? '').trim() || null
-      if (!first || !last) { skipped++; continue }
-      const dup = phone ? await db.one('select id from applicants where agency_id = $1 and phone = $2', [agencyId, phone]) : null
-      if (dup) { skipped++; continue }
-      await db.query("insert into applicants (agency_id, first_name, last_name, phone, email, source, status) values ($1,$2,$3,$4,$5,'csv','new')", [agencyId, first, last, phone, email])
-      imported++
-    }
-  }, { ip: await requestIp() })
+    importId = await withUser(session, async db => {
+      await assertBaaSigned(db, agencyId)
+      const r = await runApplicantImport(db, { agencyId, text, filename, createdBy: session.uid })
+      return r.importId
+    }, { ip })
   } catch (e) {
     if (isBaaError(e)) redirect(baaErrorUrl(`/staff/actions/applicants/import?agency=${agencyId}`))
     throw e
   }
-  log.info('applicants.imported', { agency_id: agencyId, imported, skipped })
   const s = await runWorker('applicant_screening', agencyId, { dryRun: true })
-  redirect(`/staff/actions?worker=applicant_screening&imported=${imported}&skipped=${skipped}&ran=${s.inserted}`)
+  redirect(`/staff/actions/applicants/import?agency=${agencyId}&import=${importId}&ran=${s.inserted}`)
 }

@@ -9,7 +9,7 @@
 import { Body, Container, Head, Heading, Hr, Html, Link, Preview, Section, Text, render } from '@react-email/components'
 import type { Metrics, NeedsHuman } from '@/lib/dashboard/metrics'
 
-export type MorningReportProps = { metrics: Metrics; dateLabel: string; appUrl: string }
+export type MorningReportProps = { metrics: Metrics; dateLabel: string; appUrl: string; simulatedLine?: string | null }
 
 const ink = { color: '#111111', fontFamily: 'Inter, Helvetica, Arial, sans-serif' }
 const grey = { ...ink, color: '#555555', fontSize: '14px', lineHeight: '20px', margin: '0' }
@@ -39,7 +39,7 @@ export function humanItems(m: Metrics): { title: string; href: string }[] {
   return m.needsHuman.map(h => ({ title: HUMAN_LINE[h.kind], href: h.href }))
 }
 
-export function MorningReportEmail({ metrics, dateLabel, appUrl }: MorningReportProps) {
+export function MorningReportEmail({ metrics, dateLabel, appUrl, simulatedLine }: MorningReportProps) {
   const rows = lines(metrics)
   const items = humanItems(metrics)
   return (
@@ -64,6 +64,7 @@ export function MorningReportEmail({ metrics, dateLabel, appUrl }: MorningReport
             <Text key={i} style={rowStyle}>{i + 1}. {h.title} (<Link href={`${appUrl}${h.href}`} style={blue}>open</Link>)</Text>
           ))}
           <Text style={grey}>Details are shown only after you sign in. This email carries counts and links, never names.</Text>
+          {simulatedLine && <Text style={grey}>Simulation note: {simulatedLine}</Text>}
           <Hr style={{ borderColor: '#e5e5e5', margin: '20px 0' }} />
           <Text style={grey}>Full dashboard: <Link href={`${appUrl}/app/home`} style={blue}>{appUrl.replace(/^https?:\/\//, '')}/app/home</Link></Text>
           <Text style={grey}>Sent by Deploi · hello@getdeploi.com · Reply to this email to reach a person.</Text>
@@ -73,9 +74,9 @@ export function MorningReportEmail({ metrics, dateLabel, appUrl }: MorningReport
   )
 }
 
-export async function buildMorningReport(metrics: Metrics, appUrl: string, now = new Date()) {
+export async function buildMorningReport(metrics: Metrics, appUrl: string, now = new Date(), opts: { simulatedLine?: string | null } = {}) {
   const dateLabel = now.toLocaleDateString('en-US', { timeZone: metrics.agency.timezone || 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-  const el = <MorningReportEmail metrics={metrics} dateLabel={dateLabel} appUrl={appUrl} />
+  const el = <MorningReportEmail metrics={metrics} dateLabel={dateLabel} appUrl={appUrl} simulatedLine={opts.simulatedLine ?? null} />
   const [html, text] = await Promise.all([render(el), render(el, { plainText: true })])
   return { subject: `${metrics.agency.name} — morning report, ${dateLabel}`, html, text }
 }

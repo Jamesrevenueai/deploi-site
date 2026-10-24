@@ -1,3 +1,4 @@
+import './env'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { prepareDb, SESSIONS } from '../db/helpers'
@@ -17,6 +18,9 @@ describe.skipIf(!ready)('Sandata CSV ingest', () => {
   beforeAll(async () => {
     await admin(async db => {
       await db.query(`insert into agencies (id, name, state) values ($1, 'EVV Test Agency', 'OH') on conflict (id) do nothing`, [AG])
+      // deadlines exist only through a rule set: an agency-specific Ohio rule (any program) for this test agency
+      await db.query(`insert into evv_rule_sets (id, agency_id, jurisdiction, correction_window_days, unit_minutes, unit_rounding, duration_tolerance_min, source_name, verified)
+                      values ($1, $2, 'OH', 60, 15, 'nearest', 15, 'test rule', false) on conflict (id) do nothing`, [uuidFrom('evv-test:rule'), AG])
       const names = [['Avery','Okafor'],['Jordan','Lindqvist'],['Riley','Baptiste'],['Morgan','Marchetti'],['Casey','Nakamura'],['Taylor','Delgado'],['Quinn','Whitaker'],['Reese','Oyelaran'],['Harper','Castellanos'],['Rowan','Petrov'],['Emerson','Haddad'],['Finley','Brennan']]
       for (let i = 0; i < names.length; i++) {
         await db.query(`insert into clients (id, agency_id, first_name, last_name, service_codes) values ($1,$2,$3,$4,'{T1019}') on conflict (id) do nothing`, [CL(i), AG, names[i][0], names[i][1]])
@@ -65,7 +69,9 @@ describe.skipIf(!ready)('Sandata CSV ingest', () => {
 
     const second = await withUser(SESSIONS.staff, db => ingestCsv(db, AG, csv, mapping, { source: 'sandata', state: 'OH', now: NOW }))
     expect(second.imported).toBe(0)
-    expect(second.updated).toBe(13)
+    expect(second.updated).toBe(0) // identical evidence: nothing rewritten, no revision
+    expect(second.unchanged).toBe(13)
+    expect(second.revisions).toBe(0)
     expect(second.exceptionsOpened).toBe(0)
     const total = await admin(db => db.one<{ n: string }>('select count(*)::text as n from visits where agency_id = $1', [AG]))
     expect(Number(total?.n)).toBe(13)
@@ -76,6 +82,8 @@ describe.skipIf(!ready)('Sandata CSV ingest', () => {
     const mapping = detectMapping(parseCsv(fixed).headers, SANDATA_PRESET)
     const c = await withUser(SESSIONS.staff, db => ingestCsv(db, AG, fixed, mapping, { source: 'sandata', state: 'OH', now: NOW }))
     expect(c.exceptionsClosed).toBe(1)
+    expect(c.updated).toBe(1)
+    expect(c.revisions).toBe(1)
     const rows = await admin(db => db.query<{ status: string; correction_note: string }>(`select e.status, e.correction_note from evv_exceptions e join visits v on v.id = e.visit_id where v.vendor_visit_key = 'SND-900003' and v.agency_id = $1`, [AG]))
     expect(rows.every(r => r.status === 'corrected' && /re-import/.test(r.correction_note))).toBe(true)
   })

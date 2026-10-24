@@ -4,6 +4,7 @@
  */
 import type { Db } from '@/lib/db'
 import { haversineMiles } from '@/lib/workers/geo'
+import { suppressShiftOffers } from '@/lib/workers/suppress'
 import { initials, type AgencyRow, type Proposal, type WorkerDef } from '@/lib/workers/types'
 
 export type ShiftRow = { id: string; client_id: string; service_code: string; starts_at: string; ends_at: string; status: string; open_since: string | null }
@@ -41,8 +42,10 @@ export function buildOfferProposal(shift: ShiftRow, client: ClientRow, r: Ranked
   return {
     kind: 'sms', to_ref: `aide:${r.aide.id}`,
     body: `Open shift: ${fmt(shift.starts_at, tz)} to ${new Date(shift.ends_at).toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' })} (${shift.service_code}), client ${initials(client.first_name, client.last_name)} in your area${r.distanceMiles != null ? ` (~${r.distanceMiles.toFixed(0)} mi)` : ''}. Reply YES to take it, NO to pass.`,
-    payload: { effect: 'shift_offer_sent', shift_id: shift.id, aide_id: r.aide.id, client_id: client.id, to_label: who, about: `Client ${initials(client.first_name, client.last_name)}` },
+    payload: { effect: 'shift_offer_sent', shift_id: shift.id, aide_id: r.aide.id, client_id: client.id, shift_starts_at: new Date(shift.starts_at).toISOString(), to_label: who, about: `Client ${initials(client.first_name, client.last_name)}` },
     dedupe_key: `shift:${shift.id}:offer:${r.aide.id}`,
+    // an offer is worthless once the shift has started
+    expires_at: new Date(shift.starts_at),
   }
 }
 
@@ -125,7 +128,9 @@ export async function handleAideReply(db: Db, aide: { id: string; agency_id: str
   await db.query("update shifts set status = 'filled', aide_id = $2, filled_at = now() where id = $1", [shift.id, aide.id])
   await db.query("update shift_offers set status = 'accepted', response = 'yes', responded_at = now() where id = $1", [offer.id])
   await db.query("update shift_offers set status = 'superseded' where shift_id = $1 and id <> $2 and status in ('pending','sent')", [shift.id, offer.id])
-  await db.query("update proposed_actions set status = 'skipped', decided_at = now() where status = 'proposed' and payload->>'shift_id' = $1 and payload->>'effect' = 'shift_offer_sent' and payload->>'aide_id' <> $2", [shift.id, aide.id])
+  // Filled: every other pending offer (proposed / approved / queued) is suppressed, not sent later. The shifts
+  // trigger in migration 0023 does the same for fills made from any other code path.
+  await suppressShiftOffers(db, aide.agency_id, shift.id, aide.id)
   const client = await db.one<ClientRow>('select id, first_name, last_name, lat, lng from clients where id = $1', [shift.client_id])
   const proposals: Proposal[] = client ? [buildFamilyConfirmation(shift, client, aide, tz)] : []
   proposals.push({ kind: 'sms', to_ref: `aide:${aide.id}`, body: `You're confirmed for ${fmt(shift.starts_at, tz)}. Thank you!`, payload: { shift_id: shift.id, to_label: `Aide ${initials(aide.first_name, aide.last_name)}` }, dedupe_key: `shift:${shift.id}:aide-confirm:${aide.id}` })

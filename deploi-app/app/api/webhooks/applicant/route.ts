@@ -1,9 +1,11 @@
-/** Inbound applicant (job board / form webhook). Bearer APPLICANT_WEBHOOK_SECRET when set. */
+/** Inbound applicant (job board / form webhook). Bearer APPLICANT_WEBHOOK_SECRET: required in production (503 when missing), verified whenever set. */
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { admin } from '@/lib/db'
 import { log } from '@/lib/log'
 import { assertBaaSigned, baaResponse, isBaaError } from '@/lib/baa/gate'
+import { webhookSecretGuard, guardResponse } from '@/lib/workers/webhook-guard'
+import { opsConfig } from '@/lib/workers/config'
 
 const Applicant = z.object({
   agency_id: z.string().uuid(),
@@ -16,6 +18,8 @@ const Applicant = z.object({
 
 export async function POST(req: Request) {
   const secret = process.env.APPLICANT_WEBHOOK_SECRET?.trim()
+  const refused = guardResponse('applicant', webhookSecretGuard('applicant', secret, opsConfig.isProd))
+  if (refused) return refused
   if (secret && req.headers.get('authorization') !== `Bearer ${secret}`) return NextResponse.json({ ok: false }, { status: 401 })
   const parsed = Applicant.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid applicant' }, { status: 400 })

@@ -4,7 +4,7 @@ import { withUser } from '@/lib/db'
 import { requestIp } from '@/lib/auth'
 import { listExceptions, billingHold, exceptionCounts } from '@/lib/evv/queries'
 import { RULE_LABELS, type ExceptionRule } from '@/lib/evv/types'
-import { daysLeft, windowTone, windowLabel } from '@/lib/evv/window'
+import { windowTone, windowLabel } from '@/lib/evv/window'
 import { Empty } from '@/components/ui/Empty'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -14,6 +14,8 @@ import { correctAction, dismissAction, reopenAction } from '@/app/staff/evv/acti
 
 export type Tab = 'open' | 'corrected' | 'hold'
 const TABS: { key: Tab; label: string }[] = [{ key: 'open', label: 'Open' }, { key: 'corrected', label: 'Corrected' }, { key: 'hold', label: 'Billing hold' }]
+
+export const BILLING_HOLD_ADVISORY = 'Advisory. Review with your biller before holding or billing any visit.'
 
 /** Shared body for /staff/evv and /app/evv: tabs, counts, the sorted list, billing hold export. */
 export async function EvvView({ session, agencyId, tab, basePath, extraQuery = '' }: { session: Session; agencyId: string; tab: Tab; basePath: string; extraQuery?: string }) {
@@ -27,6 +29,7 @@ export async function EvvView({ session, agencyId, tab, basePath, extraQuery = '
   }, { ip })
   const q = (t: Tab) => `${basePath}?tab=${t}${extraQuery}`
   const redCount = tab === 'open' ? data.rows.filter(r => r.days_left != null && r.days_left <= 7).length : 0
+  const noDeadline = tab === 'open' ? data.rows.filter(r => r.days_left == null).length : 0
 
   return (
     <>
@@ -40,12 +43,15 @@ export async function EvvView({ session, agencyId, tab, basePath, extraQuery = '
           )
         })}
         {tab === 'hold' && data.hold.length > 0 && (
-          <a className="btn ghost xs ml-auto" href={`/api/evv/billing-hold.csv?agency=${agencyId}`}><Icon name="download" size={14} />Export CSV</a>
+          <a className="btn ghost xs ml-auto" href={`/api/evv/billing-hold.csv?agency=${agencyId}`}><Icon name="download" size={14} />Export CSV (advisory)</a>
         )}
       </div>
 
       {tab === 'open' && redCount > 0 && (
         <p className="mb-4 text-[15px]"><span className="text-danger font-medium">{redCount} {redCount === 1 ? 'exception closes' : 'exceptions close'} within 7 days.</span> Fix those first; after the window closes the visit cannot be corrected and will not pay.</p>
+      )}
+      {tab === 'open' && noDeadline > 0 && (
+        <p className="mb-4 text-[14px] text-grey"><Badge tone="muted">deadline not configured</Badge> on {noDeadline} {noDeadline === 1 ? 'exception' : 'exceptions'}: no EVV rule set matches this agency, program and visit date, so no deadline is shown. Add one under <Link href="/staff/evv/rules" className="underline text-ink">EVV rules</Link>; nothing is assumed in the meantime.</p>
       )}
 
       {tab !== 'hold' && (data.rows.length === 0
@@ -53,34 +59,37 @@ export async function EvvView({ session, agencyId, tab, basePath, extraQuery = '
         : <ExceptionTable rows={data.rows} status={tab === 'open' ? 'open' : data.rows[0].status as 'corrected' | 'dismissed'} actions={{ correct: correctAction, dismiss: dismissAction, reopen: reopenAction }} />)}
 
       {tab === 'hold' && (data.hold.length === 0
-        ? <Empty title="Nothing on hold">No unbilled visit has an open exception. Safe to bill.</Empty>
+        ? <Empty title="Nothing on hold">No unbilled visit has an open exception.</Empty>
         : (
           <>
-            <p className="mb-4 text-[15px]"><span className="text-ink font-medium">Do not bill yet.</span> These visits have at least one open exception. Clear the exception or the claim will deny.</p>
+            <p className="mb-2 text-[15px]"><span className="text-ink font-medium">{BILLING_HOLD_ADVISORY}</span> These visits have at least one open exception; the list is a review aid, not a billing decision.</p>
+            <p className="mb-4 text-[13px] text-grey-h">The export carries an <code>advisory</code> column (always yes) and the deadline&apos;s rule source per visit.</p>
             <div className="table-wrap hidden md:block">
               <table className="dg-table">
-                <thead><tr><th>Visit key</th><th>Visit date</th><th>Service</th><th>Units</th><th>Aide</th><th>Client</th><th>Open rules</th><th>Window closes</th></tr></thead>
+                <thead><tr><th>Visit key</th><th>Visit date</th><th>Service</th><th>Units</th><th>Aide</th><th>Client</th><th>Open rules</th><th>Window closes</th><th>Rule source</th></tr></thead>
                 <tbody>
-                  {data.hold.map(h => { const dl = h.window_closes_at ? daysLeft(new Date(h.window_closes_at)) : null; return (
+                  {data.hold.map(h => (
                     <tr key={h.visit_id}>
                       <td className="ink">{h.vendor_visit_key ?? h.visit_id.slice(0, 8)}</td>
                       <td className="whitespace-nowrap">{h.scheduled_start ? new Date(h.scheduled_start).toLocaleDateString('en-US', { timeZone: h.timezone, month: 'short', day: 'numeric' }) : '—'}</td>
                       <td>{h.service_code}</td><td>{h.units ?? '—'}</td><td>{h.aide_initials ?? '—'}</td><td>{h.client_initials ?? '—'}</td>
                       <td>{h.open_rules.map(r => RULE_LABELS[r as ExceptionRule] ?? r).join(', ')}</td>
-                      <td>{dl == null ? '—' : <Badge tone={windowTone(dl) === 'none' ? 'none' : windowTone(dl)}>{windowLabel(dl)}</Badge>}</td>
-                    </tr>) })}
+                      <td><Badge tone={windowTone(h.days_left) === 'none' ? 'none' : windowTone(h.days_left)}>{windowLabel(h.days_left)}</Badge></td>
+                      <td className="text-[12px] text-grey-h">{h.rule_source}</td>
+                    </tr>))}
                 </tbody>
               </table>
             </div>
             <ul className="flex flex-col gap-3 md:hidden">
-              {data.hold.map(h => { const dl = h.window_closes_at ? daysLeft(new Date(h.window_closes_at)) : null; return (
+              {data.hold.map(h => (
                 <li key={h.visit_id} className="rounded-2xl border border-line p-4">
-                  <div className="flex items-center justify-between gap-2"><span className="text-ink font-medium">{h.vendor_visit_key ?? h.visit_id.slice(0, 8)}</span>{dl != null && <Badge tone={windowTone(dl) === 'none' ? 'none' : windowTone(dl)}>{windowLabel(dl)}</Badge>}</div>
+                  <div className="flex items-center justify-between gap-2"><span className="text-ink font-medium">{h.vendor_visit_key ?? h.visit_id.slice(0, 8)}</span><Badge tone={windowTone(h.days_left) === 'none' ? 'none' : windowTone(h.days_left)}>{windowLabel(h.days_left)}</Badge></div>
                   <div className="mt-1 text-[14px]">{h.open_rules.map(r => RULE_LABELS[r as ExceptionRule] ?? r).join(', ')}</div>
                   <div className="mt-1 text-[13px] text-grey-h">{h.scheduled_start ? new Date(h.scheduled_start).toLocaleDateString('en-US', { timeZone: h.timezone, month: 'short', day: 'numeric' }) : '—'} · {h.service_code} · {h.units ?? '—'} units · aide {h.aide_initials ?? '—'} · client {h.client_initials ?? '—'}</div>
-                </li>) })}
+                  <div className="mt-1 text-[12px] text-grey-h">{h.rule_source}</div>
+                </li>))}
             </ul>
-            <div className="mt-4 md:hidden"><Button variant="ghost" size="sm" href={`/api/evv/billing-hold.csv?agency=${agencyId}`}><Icon name="download" size={14} />Export CSV</Button></div>
+            <div className="mt-4 md:hidden"><Button variant="ghost" size="sm" href={`/api/evv/billing-hold.csv?agency=${agencyId}`}><Icon name="download" size={14} />Export CSV (advisory)</Button></div>
           </>
         ))}
     </>

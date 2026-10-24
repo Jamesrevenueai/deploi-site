@@ -10,6 +10,8 @@ import { runWorker, sendProposedAction } from '../../lib/workers/runtime'
 import { handleAideReply } from '../../workers/open_shift_fill'
 
 const ready = await prepareDb()
+/** inside the seed agency's contact window (07:00–20:00 America/New_York): 15:00 UTC = 11:00 EDT / 10:00 EST */
+const IN_WINDOW = new Date(new Date().toISOString().slice(0, 10) + 'T15:00:00Z')
 
 describe.skipIf(!ready)('worker runtime against the seed', () => {
   beforeAll(async () => {
@@ -69,6 +71,10 @@ describe.skipIf(!ready)('worker runtime against the seed', () => {
     expect(still?.aide_id).toBe(aideId)
     const superseded = await admin(db => db.query("select id from shift_offers where shift_id = $1 and status = 'superseded'", [shiftId]))
     expect(superseded.length).toBe(4)
+    // the other four pending offers for the filled shift are suppressed, not skipped and never sent later
+    const offerActions = await admin(db => db.query<{ status: string; suppressed_reason: string | null; aide_id: string }>("select status, suppressed_reason, payload->>'aide_id' as aide_id from proposed_actions where payload->>'shift_id' = $1 and payload->>'effect' = 'shift_offer_sent'", [shiftId]))
+    expect(offerActions.filter(o => o.aide_id !== aideId).length).toBe(4)
+    expect(offerActions.filter(o => o.aide_id !== aideId).every(o => o.status === 'suppressed' && o.suppressed_reason === 'shift_filled')).toBe(true)
   })
 
   it('referral_response proposes a reply for the one unanswered seeded referral with a capacity decision', async () => {
@@ -90,13 +96,13 @@ describe.skipIf(!ready)('worker runtime against the seed', () => {
   it('approval sends through the adapters and applies the side effect', async () => {
     const before = mockSmsOutbox.length
     const row = await admin(db => db.one<{ id: string; payload: Record<string, unknown> }>("select id, payload from proposed_actions where worker = 'applicant_screening' and payload->>'effect' = 'applicant_screen_sent' and status = 'proposed' limit 1"))
-    const ok = await admin(db => sendProposedAction(db, row!.id, { actorId: uuidFrom('user:hello') }))
+    const ok = await admin(db => sendProposedAction(db, row!.id, { actorId: uuidFrom('user:hello'), now: IN_WINDOW }))
     expect(ok).toBe(true)
     expect(mockSmsOutbox.length).toBe(before + 1)
     const a = await admin(db => db.one<{ screen_state: string }>('select screen_state from applicants where id = $1', [row!.payload.applicant_id]))
     expect(a?.screen_state).toBe('q1')
-    const st = await admin(db => db.one<{ status: string }>('select status from proposed_actions where id = $1', [row!.id]))
-    expect(st?.status).toBe('sent')
+    const st = await admin(db => db.one<{ status: string; simulated: boolean; delivery_status: string }>('select status, simulated, delivery_status from proposed_actions where id = $1', [row!.id]))
+    expect(st).toEqual({ status: 'delivered', simulated: true, delivery_status: 'delivered' }) // mock adapter: delivered + simulated, never a real outcome
   })
 
   it('auto-send ON sends immediately; OFF never does', async () => {
@@ -107,7 +113,7 @@ describe.skipIf(!ready)('worker runtime against the seed', () => {
     expect(mockOutbox.length + mockSmsOutbox.length).toBe(offBefore)
     await admin(db => db.query("delete from proposed_actions where worker = 'credential_tracking' and agency_id = $1", [AGENCY_A]))
     await admin(db => db.query("update agencies set auto_send = '{\"credential_tracking\": true}'::jsonb where id = $1", [AGENCY_A]))
-    const on = await runWorker('credential_tracking', AGENCY_A, { dryRun: false })
+    const on = await runWorker('credential_tracking', AGENCY_A, { dryRun: false, now: IN_WINDOW })
     expect(on.sent).toBe(8)
     expect(mockOutbox.length + mockSmsOutbox.length).toBe(offBefore + 8)
     await admin(db => db.query("update agencies set auto_send = '{}'::jsonb where id = $1", [AGENCY_A]))

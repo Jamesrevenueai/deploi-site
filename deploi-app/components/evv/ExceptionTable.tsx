@@ -33,7 +33,7 @@ export function ExceptionTable({ rows, status, actions, showAgency }: { rows: Ex
           <tbody>
             {rows.map(r => (
               <tr key={r.id}>
-                <td><WindowClock days={r.days_left} status={status} /></td>
+                <td><WindowClock days={r.days_left} status={status} source={r.rule_source} /></td>
                 <td className="ink">{RULE_LABELS[r.rule as ExceptionRule] ?? r.rule}</td>
                 <td className="max-w-[34ch]">{r.detail}</td>
                 <td className="whitespace-nowrap">{fmt(r.scheduled_start ?? r.actual_start, r.timezone)}<div className="text-[12px] text-grey-h">{r.vendor_visit_key ?? '—'} · {r.service_code}</div></td>
@@ -64,7 +64,7 @@ export function ExceptionTable({ rows, status, actions, showAgency }: { rows: Ex
           <li key={r.id} className="rounded-2xl border border-line p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="text-ink font-medium leading-tight">{RULE_LABELS[r.rule as ExceptionRule] ?? r.rule}</div>
-              <WindowClock days={r.days_left} status={status} />
+              <WindowClock days={r.days_left} status={status} source={r.rule_source} />
             </div>
             <p className="mt-1 text-[14px]">{r.detail}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-grey-h">
@@ -93,11 +93,11 @@ export function ExceptionTable({ rows, status, actions, showAgency }: { rows: Ex
   )
 }
 
-function WindowClock({ days, status }: { days: number | null; status: string }) {
+/** Deadline chip. `days` null means no rule set matched: the label says "deadline not configured", never a number. */
+function WindowClock({ days, status, source }: { days: number | null; status: string; source?: string }) {
   if (status !== 'open') return <Badge tone="muted">{status}</Badge>
-  if (days == null) return <Badge tone="muted">no window</Badge>
   const tone = windowTone(days)
-  return <Badge tone={tone === 'none' ? 'none' : tone}><Icon name="clock" size={13} />{windowLabel(days)}</Badge>
+  return <span title={source}><Badge tone={tone === 'none' ? 'none' : tone}><Icon name="clock" size={13} />{windowLabel(days)}</Badge></span>
 }
 
 function FixSheet({ row, mode, action, onClose }: { row: ExceptionRow; mode: 'correct' | 'dismiss'; action: Actions['correct']; onClose: () => void }) {
@@ -108,7 +108,7 @@ function FixSheet({ row, mode, action, onClose }: { row: ExceptionRow; mode: 'co
       <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="id" value={row.id} />
         <div className="text-[15px]"><span className="text-ink font-medium">{RULE_LABELS[row.rule as ExceptionRule] ?? row.rule}</span><br />{row.detail}</div>
-        <Field label={mode === 'correct' ? 'What was corrected, and where' : 'Why this is not an exception'} htmlFor="note" hint="Required. Shows in the audit trail and the morning report.">
+        <Field label={mode === 'correct' ? 'What was corrected, and where' : 'Why this is not an exception'} htmlFor="note" hint="Required. Shows in the audit trail and the morning report. The original visit evidence is kept in the revision history.">
           <Textarea id="note" name="note" required minLength={3} placeholder={mode === 'correct' ? 'e.g. Added clock-out 2:05 PM in Sandata visit maintenance' : 'e.g. Duplicate of vendor ticket 4411'} />
         </Field>
         {state && !state.ok && <div className="text-danger text-[14px]">{state.error}</div>}

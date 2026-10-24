@@ -37,6 +37,23 @@ const MSG: Record<30 | 60 | 90, (n: string) => string> = {
   90: n => `Hi ${n}, 90 days! Thank you. If you would like more hours or different clients, reply and tell us; we will make it work.`,
 }
 
+/**
+ * An aide who answers a sent check-in (any text that is not a shift YES/NO) closes it: the check-in is
+ * marked answered, its remaining follow-ups are suppressed (trigger), and the office gets a task with the reply.
+ */
+export async function handleCheckinReply(db: Db, aide: { id: string; agency_id: string; first_name: string; last_name: string }, text: string): Promise<{ handled: boolean; proposals: Proposal[] }> {
+  const c = await db.one<{ id: string; day: number }>(
+    "select id, day from retention_checkins where aide_id = $1 and agency_id = $2 and status = 'sent' and answered_at is null order by due_on desc limit 1 for update", [aide.id, aide.agency_id])
+  if (!c) return { handled: false, proposals: [] }
+  await db.query("update retention_checkins set status = 'answered', answered_at = now() where id = $1", [c.id])
+  const who = `Aide ${initials(aide.first_name, aide.last_name)}`
+  return {
+    handled: true,
+    proposals: [{ kind: 'task', to_ref: 'admin', subject: `${c.day}-day check-in reply from ${who}`, body: `${who} replied to the ${c.day}-day check-in: "${text.trim().slice(0, 300)}". Please follow up this week.`,
+      payload: { aide_id: aide.id, checkin_id: c.id, day: c.day, to_label: 'Admin', about: who }, dedupe_key: `retention:${aide.id}:${c.day}:reply` }],
+  }
+}
+
 export const retentionCheckins: WorkerDef = {
   name: 'retention_checkins', nightly: true,
   async propose(db: Db, agency: AgencyRow, now: Date) {

@@ -31,6 +31,10 @@ export type RuleVisit = {
   gps_in_flag: boolean | null
   gps_out_flag: boolean | null
   units: number | null
+  /** true when units were not in the file and were derived from clock-in/clock-out (never from the schedule) */
+  units_derived?: boolean
+  /** 1-based data row in the source file, for row-level errors */
+  row?: number
 }
 
 export type AuthSlice = {
@@ -46,7 +50,11 @@ export type RuleContext = {
   /** active authorizations for this client (any service) */
   authorizations: AuthSlice[]
   toleranceMin: number
-  windowDays: number
+  /** correction window from the resolved rule set; null = not configured (the window rule never fires) */
+  windowDays: number | null
+  /** unit conversion from the rule set, used when a visit carries no units of its own */
+  unitMinutes: number
+  unitRounding: 'nearest' | 'down' | 'up'
   now: Date
 }
 
@@ -67,4 +75,8 @@ export type VisitInput = {
   gps_in_flag: boolean | null
   gps_out_flag: boolean | null
   units: number | null
+  /** true when units were not in the file and were derived from clock-in/clock-out (never from the schedule) */
+  units_derived?: boolean
+  /** 1-based data row in the source file, for row-level errors */
+  row?: number
 }

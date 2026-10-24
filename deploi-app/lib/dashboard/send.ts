@@ -11,6 +11,7 @@ import { sendEmail, type SendResult } from '../adapters/email'
 import { getMetrics, getAgency } from './metrics'
 import { localDayStart } from './time'
 import { buildMorningReport } from '@/emails/morning-report'
+import { simulatedSummary, simulatedReportLine } from '../workers/outcomes'
 
 export type MorningReportResult =
   | { skipped: true; reason: 'already_sent_today'; recipients: 0; results: SendResult[]; subject: null }
@@ -31,7 +32,9 @@ export async function sendMorningReport(db: Db, agencyId: string, now = new Date
     }
   }
   const metrics = await getMetrics(db, agencyId, now)
-  const mail = await buildMorningReport(metrics, env.appUrl, now)
+  // Simulated (mock-adapter) sends in the last day are named as such in every report.
+  const sim = await simulatedSummary(db, agencyId, new Date(now.getTime() - 86400e3))
+  const mail = await buildMorningReport(metrics, env.appUrl, now, { simulatedLine: sim && sim.simulated ? simulatedReportLine(sim) : null })
   const recipients = opts.to ?? (await db.query<{ email: string }>("select email from profiles where role = 'client' and agency_id = $1", [agencyId])).map(r => r.email)
   const results: SendResult[] = []
   for (const to of recipients) results.push(await sendEmail({ to, subject: mail.subject, html: mail.html, text: mail.text }))

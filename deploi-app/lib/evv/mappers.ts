@@ -114,7 +114,19 @@ export function parseStatus(v: string | null | undefined): VisitInput['verificat
   return 'unverified'
 }
 
-export function normalizeRow(row: Record<string, string>, m: Mapping, tz: string): VisitInput | null {
+export type UnitRule = { unitMinutes: number; rounding: 'nearest' | 'down' | 'up' }
+export const DEFAULT_UNIT_RULE: UnitRule = { unitMinutes: 15, rounding: 'nearest' }
+
+/** Minutes -> billable units with the rule set's unit length and rounding mode. Non-positive durations give 0. */
+export function toUnits(minutes: number, unitMinutes = 15, rounding: UnitRule['rounding'] = 'nearest'): number {
+  if (!(minutes > 0) || !(unitMinutes > 0)) return 0
+  const raw = minutes / unitMinutes
+  if (rounding === 'down') return Math.floor(raw + 1e-9)
+  if (rounding === 'up') return Math.ceil(raw - 1e-9)
+  return Math.round(raw)
+}
+
+export function normalizeRow(row: Record<string, string>, m: Mapping, tz: string, unitRule: UnitRule = DEFAULT_UNIT_RULE): VisitInput | null {
   const get = (f: Field) => { const h = m[f]; return h ? (row[h] ?? '').toString().trim() : '' }
   const key = get('vendor_visit_key')
   const service = get('service_code').toUpperCase()
@@ -125,9 +137,12 @@ export function normalizeRow(row: Record<string, string>, m: Mapping, tz: string
   const actual_end = parseDateTime(get('actual_end'), tz)
   const unitsRaw = get('units')
   let units: number | null = unitsRaw ? Number(unitsRaw) : null
+  let units_derived = false
   if (units == null || Number.isNaN(units)) {
-    const a = actual_start && actual_end ? actual_end.getTime() - actual_start.getTime() : scheduled_start && scheduled_end ? scheduled_end.getTime() - scheduled_start.getTime() : null
-    units = a != null && a > 0 ? Math.round(a / 900_000) : null
+    // Never fabricate delivered service: units come from the file, else from a recorded clock-in AND clock-out. Not from the schedule.
+    const a = actual_start && actual_end ? (actual_end.getTime() - actual_start.getTime()) / 60_000 : null
+    units = a != null && a > 0 ? toUnits(a, unitRule.unitMinutes, unitRule.rounding) : null
+    units_derived = units != null
   }
   return {
     vendor_visit_key: key,
@@ -140,5 +155,6 @@ export function normalizeRow(row: Record<string, string>, m: Mapping, tz: string
     gps_in_flag: parseFlag(get('gps_in_flag')),
     gps_out_flag: parseFlag(get('gps_out_flag')),
     units,
+    units_derived,
   }
 }

@@ -65,7 +65,7 @@ Project `deploi-app` (create it: import the deploi-site repo, Root Directory `de
 - `OLLAMA_URL`, `OLLAMA_MODEL` — a reachable Ollama host (default llama3.1:8b); `LLM_MOCK=1` until one exists. Vercel cannot run Ollama; the PHI lane needs a private host.
 - `LLM_CLOUD_PROVIDER`, `LLM_CLOUD_API_KEY`, `LLM_CLOUD_MODEL` — optional; sales-data-only lane (openai | anthropic | ollama).
 - `ASSESSMENT_PRICE`, `BUILD_PRICE_RANGE`, `RETAINER_RANGE` — pricing strings on the report (defaults match the site).
-- `EVV_CORRECTION_WINDOWS` — JSON per state, e.g. `{"OH":60}`; `EVV_DURATION_TOLERANCE_MIN` — minutes (15).
+- EVV correction windows and unit rules are configured per program/payer/state in `evv_rule_sets` (/staff/evv/rules), not in the environment.
 - `STORAGE_BUCKET` — `reports` (private Supabase Storage bucket for assessment PDFs).
 
 ## Decisions made without asking

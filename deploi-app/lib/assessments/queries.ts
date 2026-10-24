@@ -1,14 +1,16 @@
 import type { Db } from '../db'
-import type { Leak } from '../leaks'
+import type { Leak, LeakInputs } from '../leaks'
 import type { TraceStepRow } from './steps'
+import type { Evidence } from './evidence'
 
 export type AssessmentRow = {
   id: string
   prospect_id: string | null
   agency_id: string
   status: string
-  inputs: Record<string, number>
+  inputs: Partial<LeakInputs> & Record<string, number | null | undefined>
   leaks: Leak[]
+  evidence: Partial<Evidence> | null
   recommended_door: 'growth' | 'staffing' | 'operations' | null
   report_path: string | null
   report_generated_at: string | null
@@ -45,6 +47,7 @@ export async function getSteps(db: Db, assessmentId: string) {
   return db.query<TraceStepRow>('select id, trace, step_key, step_order, occurred_at, who, what_went_wrong, outcome, note from trace_steps where assessment_id = $1 order by trace, step_order', [assessmentId])
 }
 
+/** Sum of the bases of the stored leaks. Categories differ; the report shows per-category totals, this is for list columns. */
 export function leaksTotal(leaks: Leak[] | null | undefined) {
   return (leaks ?? []).reduce((s, l) => s + (Number(l.dollars_per_year) || 0), 0)
 }

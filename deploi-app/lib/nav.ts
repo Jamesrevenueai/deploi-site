@@ -1,5 +1,5 @@
 /** Navigation for both areas. Sections 4–8 own the pages; the shell owns the rail. */
-export type NavItem = { href: string; label: string; icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' | 'dollar' | 'file' }
+export type NavItem = { href: string; label: string; /** highlight only on this exact path (for an area's home link) */ exact?: boolean; icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' | 'dollar' | 'file' }
 
 export const STAFF_NAV: NavItem[] = [
   { href: '/staff/pipeline', label: 'Pipeline', icon: 'pipeline' },

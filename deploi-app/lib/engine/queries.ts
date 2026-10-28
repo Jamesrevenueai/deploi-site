@@ -6,7 +6,7 @@ import { withActor, type Actor } from './actor'
 import { getCheck } from './registry'
 import { executionOutcome, proposalOutcome, type Outcome } from './outcomes'
 
-export type ConnectionView = { id: string; platform: string; external_id: string; display_name: string | null; status: string; scopes: string[]; is_synthetic: boolean; installed_at: string | null; last_scan_at: string | null }
+export type ConnectionView = { id: string; platform: string; external_id: string; display_name: string | null; status: string; scopes: string[]; api_version: string | null; timezone: string | null; is_synthetic: boolean; installed_at: string | null; last_scan_at: string | null }
 export type IssueView = {
   id: string; connection_id: string; platform: string; check_key: string; check_title: string; kind: 'correctable' | 'needs_person'
   resource_type: string; resource_id: string; resource_label: string | null; severity: 'high' | 'medium' | 'low'
@@ -35,7 +35,7 @@ function toProposal(r: Omit<ProposalView, 'outcome'>): ProposalView { return { .
 
 export async function listConnections(actor: Actor): Promise<ConnectionView[]> {
   return withActor(actor, db => db.query<ConnectionView>(
-    `select id, platform, external_id, display_name, status, scopes, is_synthetic, installed_at, last_scan_at from store_connections ${actor.kind === 'staff' ? '' : 'where org_id = current_org_id()'} order by created_at`))
+    `select id, platform, external_id, display_name, status, scopes, api_version, timezone, is_synthetic, installed_at, last_scan_at from store_connections ${actor.kind === 'staff' ? '' : 'where org_id = current_org_id()'} order by created_at`))
 }
 
 export async function overview(actor: Actor) {

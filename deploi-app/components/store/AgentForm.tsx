@@ -86,8 +86,8 @@ export type AgentFormState = {
   emailRead: boolean
 }
 
-/** the read-only oversold check (lib/connectors/index.ts registers it as a Shopify watch) */
-export const OVERSOLD_WATCH = 'shopify.oversold_stop_selling'
+import { OVERSOLD_WATCH } from '@/lib/agents/watch'
+export { OVERSOLD_WATCH }
 const DEFAULT_EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', 'made to order']
 const noTypes = (): Record<AgentCorrectionType, boolean> => ({ oversell_policy: false, publication: false, price: false, sku: false })
 const pad2 = (n: number) => String(n).padStart(2, '0')

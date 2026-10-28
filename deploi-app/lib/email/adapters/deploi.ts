@@ -80,6 +80,21 @@ export const deploiMailAdapter: EmailAdapter = {
   revoke: async () => 'not_supported',
 }
 
+/**
+ * Plain send from a Deploi system address (weekly summary), through the same fakeable HTTP path and with
+ * an idempotency key, so a repeated call can never send the same summary twice.
+ */
+export async function resendSystemEmail(input: { from: string; to: string[]; subject: string; text: string; idempotencyKey: string }): Promise<SendResult> {
+  if (!emailConfig.resendKey) return { outcome: 'rejected', code: 'not_configured', message: 'no email provider is configured in this environment; nothing was sent' }
+  return sendOutcome(
+    () => emailFetch(`${RESEND_API}/emails`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${emailConfig.resendKey}`, 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey },
+      body: JSON.stringify({ from: input.from, to: input.to, subject: input.subject, text: input.text }),
+    }),
+    async res => { const j = (await res.json().catch(() => ({}))) as { id?: string }; return { outcome: 'accepted', providerMessageId: j.id ?? null, providerThreadId: null, evidence: 'Resend accepted the message' } })
+}
+
 /** Fetch a received email's text and headers (the webhook carries metadata only). */
 export type ReceivedEmail = {
   id: string; from: string; to: string[]; cc: string[]; subject: string; text: string

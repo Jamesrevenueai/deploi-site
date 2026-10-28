@@ -14,6 +14,7 @@ import type { AgentRow, PolicyRow } from './plan'
 import { randomUUID } from 'node:crypto'
 import { cancelAgentEmail } from '../email/engine'
 import { closeAgentMailbox, provisionMailbox } from '../email/mailbox'
+import { recheckTasks } from './tasks'
 
 async function visibleConnection(actor: Actor, connectionId: string) {
   const c = await withActor(actor, db => db.one<{ id: string; org_id: string; display_name: string | null; external_id: string; status: string }>('select id, org_id, display_name, external_id, status from store_connections where id = $1', [connectionId]))
@@ -166,8 +167,10 @@ export async function grantPolicy(actor: Actor, agentId: string, policyId: strin
     const next = nextRunAt(policy.schedule, new Date())
     await db.query(`update agents set status = 'active', active_policy_id = $2, schedule = $3, next_run_at = $4 where id = $1`, [agentId, pr.id, JSON.stringify(policy.schedule), next?.toISOString() ?? null])
     if (agent.active_policy_id) await retireAgentProposals(db, agentId, 'stale', 'the agent\'s authorization changed; changes will be recomputed', actor.label)
-    await audit(db, { orgId: a0.org_id, entityType: 'policy', entityId: pr.id, event: 'policy.granted', actor: actor.label, detail: { agent_id: agentId, version: pr.version, policy_hash: pr.policy_hash, approval_mode: policy.approvalMode, warnings } })
-    return { version: pr.version, warnings, nextRunAt: next?.toISOString() ?? null }
+    // plain-language tasks that waited for wider rules run once the new grant covers them
+    const tasksQueued = await recheckTasks(db, agentId, actor.label)
+    await audit(db, { orgId: a0.org_id, entityType: 'policy', entityId: pr.id, event: 'policy.granted', actor: actor.label, detail: { agent_id: agentId, version: pr.version, policy_hash: pr.policy_hash, approval_mode: policy.approvalMode, warnings, tasks_queued: tasksQueued } })
+    return { version: pr.version, warnings, nextRunAt: next?.toISOString() ?? null, tasksQueued }
   })
 }
 

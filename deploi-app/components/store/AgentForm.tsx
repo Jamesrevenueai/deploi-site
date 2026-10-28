@@ -5,16 +5,22 @@
  * version that the merchant still has to grant after reading its summary.
  */
 import { useId, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { Banner } from '@/components/ui/Banner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Icon } from '@/components/ui/Icon'
-import { Input, Select } from '@/components/ui/Field'
+import { Input, Select, Textarea } from '@/components/ui/Field'
 import { storeFetch, asApiError, type StoreApiError } from './api'
 import { useLoad } from './useLoad'
-import { Panel } from './bits'
-import { AGENT_CORRECTION_HELP, AGENT_CORRECTION_LABEL, AGENT_CORRECTION_TYPES, referenceKindLabel, type AgentCorrectionType } from './format'
-import type { AgentPolicy, Connection, PublicationsResponse, ReferenceKindName, ReferenceSourceView, ReferencesResponse, TaskDraft, UploadReferenceResponse } from './types'
+import { Panel, useStore } from './bits'
+import {
+  AGENT_CORRECTION_HELP, AGENT_CORRECTION_LABEL, AGENT_CORRECTION_TYPES, AGENT_EMAIL_PERMISSIONS, AGENT_EMAIL_PERMISSION_HELP, AGENT_EMAIL_PERMISSION_LABEL,
+  AGENT_EMAIL_TASKS, AGENT_EMAIL_TASK_HELP, AGENT_EMAIL_TASK_LABEL, emailAccountWords, referenceKindLabel, type AgentCorrectionType, type AgentEmailPermission, type AgentEmailTask,
+} from './format'
+import type {
+  AgentPolicy, Connection, EmailAccountsResponse, EmailAccountView, PublicationsResponse, ReferenceKindName, ReferenceSourceView, ReferencesResponse, TaskDraft, UploadReferenceResponse,
+} from './types'
 
 // ---------------------------------------------------------------- form state
 
@@ -48,6 +54,28 @@ export type AgentFormState = {
   maxPerRun: string
   maxPerDay: string
   approvalMode: '' | 'review' | 'autonomous'
+  // email (optional; an email-only agent needs no correction types)
+  emailOn: boolean
+  emailAccountId: string
+  emailPermission: '' | AgentEmailPermission
+  emailPurpose: string
+  emailTasks: Record<AgentEmailTask, boolean>
+  emailAddresses: string
+  emailDomains: string
+  /** addresses found in the plain-English task: placed in the allowed list but not accepted until confirmed */
+  emailSuggested: string[]
+  emailSuggestedConfirmed: boolean
+  emailNotify: string
+  supplierAddress: string
+  supplierThreshold: string
+  supplierCooldown: string
+  emailPerRun: string
+  emailPerDay: string
+  emailMaxRecipients: string
+  /** YYYY-MM-DD, last day of the authorization */
+  emailValidUntil: string
+  emailAttachments: boolean
+  emailRead: boolean
 }
 
 const DEFAULT_EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', 'made to order']
@@ -67,6 +95,33 @@ function productIds(s: string): { ids: string[]; bad: string[] } {
   return { ids: [...new Set(ids)], bad }
 }
 const showIds = (ids: string[]) => ids.map(id => id.replace(/^gid:\/\/shopify\/Product\//, '')).join(', ')
+const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false })
+
+// same formats the server accepts (lib/agents/policy.ts)
+const EMAIL_RE = /^[^\s@<>(),;:"\[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/
+export const isEmailAddress = (a: string) => a.length <= 254 && EMAIL_RE.test(a)
+export const isEmailDomain = (d: string) => DOMAIN_RE.test(d)
+
+/** Recipient rules as typed: valid entries, invalid ones, and which notify / supplier addresses fall outside the rules. */
+export function emailRules(f: Pick<AgentFormState, 'emailAddresses' | 'emailDomains' | 'emailNotify' | 'supplierAddress' | 'emailTasks'>) {
+  const addrIn = list(f.emailAddresses).map(a => a.toLowerCase())
+  const domIn = list(f.emailDomains).map(d => d.toLowerCase().replace(/^@/, ''))
+  const notifyIn = list(f.emailNotify).map(a => a.toLowerCase())
+  const addresses = addrIn.filter(isEmailAddress), domains = domIn.filter(isEmailDomain), notify = notifyIn.filter(isEmailAddress)
+  const allowed = (a: string) => addresses.includes(a) || domains.includes(a.split('@')[1] ?? '')
+  const supplier = f.supplierAddress.trim().toLowerCase()
+  const outside = [...notify.filter(a => !allowed(a)), ...(f.emailTasks.supplier_reorder && isEmailAddress(supplier) && !allowed(supplier) ? [supplier] : [])]
+  return {
+    addresses, domains, notify, supplier,
+    badAddresses: addrIn.filter(a => !isEmailAddress(a)), badDomains: domIn.filter(d => !isEmailDomain(d)), badNotify: notifyIn.filter(a => !isEmailAddress(a)),
+    outside: [...new Set(outside)],
+  }
+}
+
+const isoDay = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+/** end of the chosen day, local time */
+const endOfDay = (day: string) => new Date(`${day}T23:59:59`)
 
 export function emptyForm(connectionId: string): AgentFormState {
   return {
@@ -76,6 +131,9 @@ export function emptyForm(connectionId: string): AgentFormState {
     priceSourceId: '', priceField: true, compareAtField: false, maxChangePct: '20', noPriceLimit: false, skipSale: true,
     skuSourceId: '', skuOverwrite: false,
     scheduleKind: 'manual', everyHours: '6', dailyTime: '06:00', maxPerRun: '25', maxPerDay: '100', approvalMode: '',
+    emailOn: false, emailAccountId: '', emailPermission: '', emailPurpose: '', emailTasks: noEmailTasks(), emailAddresses: '', emailDomains: '',
+    emailSuggested: [], emailSuggestedConfirmed: false, emailNotify: '', supplierAddress: '', supplierThreshold: '0', supplierCooldown: '7',
+    emailPerRun: '10', emailPerDay: '25', emailMaxRecipients: '5', emailValidUntil: '', emailAttachments: false, emailRead: false,
   }
 }
 
@@ -93,6 +151,14 @@ export function formFromDraft(d: TaskDraft, connectionId: string): AgentFormStat
   if (d.publicationName) f.pubName = d.publicationName
   f.allowUnpublish = d.allowUnpublish
   f.skuOverwrite = d.allowSkuOverwrite
+  if (d.email) {
+    f.emailOn = true
+    for (const t of d.email.tasks) f.emailTasks[t] = true
+    if (d.email.permission) f.emailPermission = d.email.permission
+    // suggestions only: they go into the allowed list, and the merchant must confirm them
+    f.emailSuggested = d.email.addresses
+    f.emailAddresses = d.email.addresses.join(', ')
+  }
   return f
 }
 
@@ -122,8 +188,31 @@ export function formFromPolicy(p: AgentPolicy): AgentFormState {
   f.maxPerRun = String(p.limits.maxChangesPerRun)
   f.maxPerDay = String(p.limits.maxChangesPerDay)
   f.approvalMode = p.approvalMode
+  if (p.email) {
+    const e = p.email
+    f.emailOn = true
+    f.emailAccountId = e.accountId
+    f.emailPermission = e.permission
+    f.emailPurpose = e.purpose
+    for (const t of e.tasks) f.emailTasks[t] = true
+    f.emailAddresses = (e.recipients?.addresses ?? []).join(', ')
+    f.emailDomains = (e.recipients?.domains ?? []).join(', ')
+    f.emailNotify = (e.notify ?? []).join(', ')
+    if (e.supplierReorder) { f.supplierAddress = e.supplierReorder.supplierAddress; f.supplierThreshold = String(e.supplierReorder.thresholdAvailable); f.supplierCooldown = String(e.supplierReorder.cooldownDays) }
+    f.emailPerRun = String(e.limits?.perRun ?? 10)
+    f.emailPerDay = String(e.limits?.perDay ?? 25)
+    f.emailMaxRecipients = String(e.maxRecipientsPerMessage ?? 5)
+    f.emailValidUntil = e.validUntil ? isoDay(e.validUntil) : ''
+    f.emailAttachments = Boolean(e.allowAttachments)
+    f.emailRead = Boolean(e.read?.enabled)
+  }
   return f
 }
+
+/** Products only matter to an email-only agent when it asks a supplier about low stock. */
+export const needsProducts = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || !f.emailOn || f.emailTasks.supplier_reorder
+/** Store-change approval only matters when the agent corrects something. */
+export const needsApprovalMode = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || !f.emailOn
 
 const int = (s: string) => (/^\d+$/.test(s.trim()) ? Number(s.trim()) : NaN)
 
@@ -136,8 +225,9 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
   const problems: string[] = []
   const types = AGENT_CORRECTION_TYPES.filter(t => f.types[t])
   if (!f.connectionId) problems.push('Choose the store.')
-  if (!types.length) problems.push('Choose at least one correction type.')
-  if (!f.scopeMode) problems.push('Choose which products the agent may work on.')
+  if (!types.length && !f.emailOn) problems.push('Choose at least one correction type, or turn on email.')
+  const products = needsProducts(f), approval = needsApprovalMode(f)
+  if (products && !f.scopeMode) problems.push('Choose which products the agent may work on.')
   const scopeIds = productIds(f.scopeProductIds), exceptIds = productIds(f.exceptProductIds)
   if (f.scopeMode === 'products' && !scopeIds.ids.length) problems.push('List at least one product ID for the product scope.')
   if (f.scopeMode === 'products' && scopeIds.bad.length) problems.push(`These are not Shopify product IDs: ${scopeIds.bad.join(', ')}.`)
@@ -162,7 +252,8 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
   const perRun = int(f.maxPerRun), perDay = int(f.maxPerDay)
   if (!(perRun >= 1 && perRun <= 500)) problems.push('Limits: changes per run must be 1 to 500.')
   if (!(perDay >= 1 && perDay <= 5000)) problems.push('Limits: changes per day must be 1 to 5000.')
-  if (!f.approvalMode) problems.push('Choose how changes are approved: review each change, or act within limits.')
+  if (approval && !f.approvalMode) problems.push('Choose how changes are approved: review each change, or act within limits.')
+  const email = f.emailOn ? emailFromForm(f, problems) : undefined
   if (problems.length) return { policy: null, problems }
 
   const rules: AgentPolicy['rules'] = {}
@@ -173,14 +264,70 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
   const policy: AgentPolicy = {
     connectionId: f.connectionId,
     correctionTypes: types,
-    productScope: { mode: f.scopeMode as 'all' | 'products' | 'tags', productIds: f.scopeMode === 'products' ? scopeIds.ids : [], tags: f.scopeMode === 'tags' ? tagList(f.scopeTags) : [] },
+    // an email-only agent without supplier requests reads no products for corrections; its scope is recorded as all products
+    productScope: products ? { mode: f.scopeMode as 'all' | 'products' | 'tags', productIds: f.scopeMode === 'products' ? scopeIds.ids : [], tags: f.scopeMode === 'tags' ? tagList(f.scopeTags) : [] } : { mode: 'all', productIds: [], tags: [] },
     exceptions: { productIds: exceptIds.ids, tags: tagList(f.exceptTags) },
     rules,
     limits: { maxChangesPerRun: perRun, maxChangesPerDay: perDay },
-    approvalMode: f.approvalMode as 'review' | 'autonomous',
+    approvalMode: approval ? f.approvalMode as 'review' | 'autonomous' : 'review',
     schedule: f.scheduleKind === 'manual' ? { kind: 'manual' } : f.scheduleKind === 'interval' ? { kind: 'interval', everyHours } : { kind: 'daily', hour: Number(tm![1]), minute: Number(tm![2]), timezone },
+    ...(email ? { email } : {}),
   }
   return { policy, problems: [] }
+}
+
+/** The email part of the policy, or problems in words. */
+function emailFromForm(f: AgentFormState, problems: string[]): NonNullable<AgentPolicy['email']> | undefined {
+  const before = problems.length
+  const tasks = AGENT_EMAIL_TASKS.filter(t => f.emailTasks[t])
+  const r = emailRules(f)
+  if (!f.emailAccountId) problems.push('Email: choose the account it sends from.')
+  if (!f.emailPermission) problems.push('Email: choose whether it only drafts, sends messages you approve, or sends without asking.')
+  const purpose = f.emailPurpose.trim()
+  if (purpose.length < 3 || purpose.length > 300) problems.push('Email: describe its purpose (3 to 300 characters).')
+  if (!tasks.length) problems.push('Email: choose at least one email task.')
+  if (r.badAddresses.length) problems.push(`Email: these are not valid email addresses: ${r.badAddresses.join(', ')}.`)
+  if (r.badDomains.length) problems.push(`Email: these are not valid domains: ${r.badDomains.join(', ')}.`)
+  if (!r.addresses.length && !r.domains.length) problems.push('Email: name at least one address or domain it may write to.')
+  const unconfirmed = f.emailSuggested.filter(a => r.addresses.includes(a.toLowerCase()))
+  if (unconfirmed.length && !f.emailSuggestedConfirmed) problems.push(`Email: confirm the addresses found in your text (${unconfirmed.join(', ')}), or remove them.`)
+  if (r.badNotify.length) problems.push(`Email: these notify entries are not valid email addresses: ${r.badNotify.join(', ')}.`)
+  if ((f.emailTasks.run_report || f.emailTasks.needs_person_alert) && !r.notify.length) problems.push('Email: choose who receives summaries and alerts.')
+  const threshold = int(f.supplierThreshold), cooldown = int(f.supplierCooldown)
+  if (f.emailTasks.supplier_reorder) {
+    if (!r.supplier) problems.push('Email: enter the supplier address.')
+    else if (!isEmailAddress(r.supplier)) problems.push(`Email: the supplier address ${r.supplier} is not a valid email address.`)
+    if (!(threshold >= 0 && threshold <= 10000)) problems.push('Email: the low-stock threshold must be a whole number from 0 to 10000.')
+    if (!(cooldown >= 1 && cooldown <= 60)) problems.push('Email: days between requests for the same product must be 1 to 60.')
+  }
+  if (r.outside.length) problems.push(`Email: outside the recipient rules: ${r.outside.join(', ')}. Add them (or their domain) to the allowed recipients.`)
+  const perRun = int(f.emailPerRun), perDay = int(f.emailPerDay), maxRcpt = int(f.emailMaxRecipients)
+  if (!(perRun >= 1 && perRun <= 100)) problems.push('Email: messages per run must be 1 to 100.')
+  if (!(perDay >= 1 && perDay <= 500)) problems.push('Email: messages per day must be 1 to 500.')
+  if (!(maxRcpt >= 1 && maxRcpt <= 20)) problems.push('Email: recipients per message must be 1 to 20.')
+  let validUntil: string | null = null
+  if (f.emailValidUntil) {
+    const end = endOfDay(f.emailValidUntil)
+    if (Number.isNaN(end.getTime())) problems.push('Email: the end date is not a date.')
+    else if (end.getTime() <= Date.now()) problems.push('Email: the end date must be in the future.')
+    else if (end.getTime() - Date.now() > 365 * 864e5) problems.push('Email: the end date can be at most one year from today.')
+    else validUntil = end.toISOString()
+  } else if (f.emailPermission === 'send_autonomous') problems.push('Email: sending without asking needs an end date (at most one year from today).')
+  if (problems.length > before) return undefined
+  return {
+    accountId: f.emailAccountId,
+    permission: f.emailPermission as AgentEmailPermission,
+    purpose,
+    tasks,
+    recipients: { addresses: r.addresses, domains: r.domains },
+    notify: f.emailTasks.run_report || f.emailTasks.needs_person_alert ? r.notify : [],
+    maxRecipientsPerMessage: maxRcpt,
+    limits: { perRun, perDay },
+    validUntil,
+    allowAttachments: f.emailAttachments,
+    ...(f.emailTasks.supplier_reorder ? { supplierReorder: { supplierAddress: r.supplier, thresholdAvailable: threshold, cooldownDays: cooldown } } : {}),
+    read: { enabled: f.emailRead && f.emailTasks.supplier_reorder, scope: 'replies_to_agent_messages' },
+  }
 }
 
 // ---------------------------------------------------------------- form

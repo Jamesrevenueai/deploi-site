@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { resolveAuthMode } from './lib/auth-guard'
 
 /** Keeps Supabase auth cookies fresh. Authorization itself happens in the layouts (requireRole). */
 const SHOP = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/
@@ -27,7 +28,7 @@ export async function middleware(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const csp = frameAncestors(req.nextUrl.pathname, null)
-  if (!url || !key || process.env.AUTH_MODE === 'dev') { const r = NextResponse.next(); r.headers.set('Content-Security-Policy', csp); return r }
+  if (!url || !key || resolveAuthMode(process.env) === 'dev') { const r = NextResponse.next(); r.headers.set('Content-Security-Policy', csp); return r }
   let res = NextResponse.next({ request: req })
   const sb = createServerClient(url, key, {
     cookies: {

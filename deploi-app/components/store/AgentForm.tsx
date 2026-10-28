@@ -367,9 +367,11 @@ type Props = {
   /** connection can only be chosen on create */
   lockConnection?: boolean
   showProblems: boolean
+  /** editing an existing agent: its own mailbox is offered as a sender */
+  agentId?: string | null
 }
 
-export function AgentPolicyForm({ value: f, onChange, connections, timezone, lockConnection, showProblems }: Props) {
+export function AgentPolicyForm({ value: f, onChange, connections, timezone, lockConnection, showProblems, agentId = null }: Props) {
   const set = (patch: Partial<AgentFormState>) => onChange({ ...f, ...patch })
   const uid = useId()
   const id = (s: string) => `${uid}-${s}`
@@ -411,7 +413,7 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
         </fieldset>
       </FormBlock>
 
-      <EmailBlock f={f} set={set} n={num()} />
+      <EmailBlock f={f} set={set} n={num()} agentId={agentId} />
 
       {products && <FormBlock title="Which products" n={num()} sub="The agent never reads past or changes products outside this scope. Exceptions always win.">
         <fieldset className="flex flex-col gap-2">
@@ -543,11 +545,11 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
 
 // ---------------------------------------------------------------- email
 
-function EmailBlock({ f, set, n }: { f: AgentFormState; set: (patch: Partial<AgentFormState>) => void; n: number }) {
+function EmailBlock({ f, set, n, agentId }: { f: AgentFormState; set: (patch: Partial<AgentFormState>) => void; n: number; agentId: string | null }) {
   const { base } = useStore()
   const uid = useId()
   const id = (s: string) => `${uid}-${s}`
-  const accounts = useLoad(() => f.emailOn ? storeFetch<EmailAccountsResponse>('/api/store/email/accounts') : Promise.resolve(null), `email-accounts:${f.emailOn}`)
+  const accounts = useLoad(() => f.emailOn ? storeFetch<EmailAccountsResponse>(`/api/store/email/accounts${agentId ? `?agent=${encodeURIComponent(agentId)}` : ''}`) : Promise.resolve(null), `email-accounts:${f.emailOn}:${agentId}`)
   const list: EmailAccountView[] = accounts.data?.accounts ?? []
   const chosen = list.find(a => a.id === f.emailAccountId) ?? null
   const r = emailRules(f)
@@ -578,6 +580,7 @@ function EmailBlock({ f, set, n }: { f: AgentFormState; set: (patch: Partial<Age
 
           <fieldset className="flex flex-col gap-3">
             <legend className="text-[14px] text-grey">What it may do with email</legend>
+            {f.suggestedEmailPermission && f.suggestedEmailPermission !== f.emailPermission && <p className="text-[13px] text-grey-h">Your task asked for: {AGENT_EMAIL_PERMISSION_LABEL[f.suggestedEmailPermission].toLowerCase()}. New agents start at drafts only; choose it here if you want it.</p>}
             {AGENT_EMAIL_PERMISSIONS.map(p => (
               <label key={p} className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
                 <input type="radio" name={id('perm')} className="mt-1 h-5 w-5 accent-white" checked={f.emailPermission === p} onChange={() => set({ emailPermission: p })} />

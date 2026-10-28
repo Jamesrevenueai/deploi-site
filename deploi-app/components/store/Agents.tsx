@@ -12,7 +12,7 @@ import { storeFetch } from './api'
 import { useLoad } from './useLoad'
 import { ErrorState, Loading, NoStore, Panel, useStore } from './bits'
 import { AGENT_CORRECTION_LABEL, APPROVAL_MODE_LABEL, agentWords, fmtAgo, runWords, scheduleLabel, type StatusWords } from './format'
-import type { AgentListItem, AgentRunCounts, AgentsResponse, AuthorizationSummary, OverviewResponse } from './types'
+import type { AgentListItem, AgentRunCounts, AgentsResponse, AgentTemplateView, AuthorizationSummary, OverviewResponse, WeeklyResponse } from './types'
 
 export function StatusBadge({ w }: { w: StatusWords }) {
   return <Badge tone={w.tone}>{w.label}</Badge>
@@ -84,7 +84,7 @@ export function AgentsScreen() {
   const header = (
     <PageHeader
       title="Agents"
-      sub="Each agent watches your store for the problems you name and corrects only what its authorization covers. You decide whether it asks before each change or acts within limits."
+      sub="Each agent does one job you describe. It uses only the tools you connect, at the permission level you grant: drafts only (the default), after your approval, or without asking within limits for up to a year."
       actions={<Button size="sm" href={`${base}/agents/new`}><Icon name="plus" size={15} />Create agent</Button>}
     />
   )
@@ -95,6 +95,7 @@ export function AgentsScreen() {
     <>
       {header}
       {error && <div className="mb-4"><ErrorState error={error} onRetry={reload} /></div>}
+      {(data?.templates?.length ?? 0) > 0 && <Templates templates={data!.templates!} />}
       {agents.length === 0 ? (
         <Empty title="No agents yet">Create an agent, describe its task in plain English, review exactly what it may change, then grant it. <Link href={`${base}/agents/new`}><span className="text-ink underline">Create agent</span></Link></Empty>
       ) : (
@@ -102,6 +103,7 @@ export function AgentsScreen() {
           {agents.map(a => <AgentCard key={a.id} a={a} />)}
         </ul>
       )}
+      <WeeklyPreview />
       <div className="mt-6"><Banner icon="shield">Agents only change what their authorization covers, re-read every record just before writing, and count a change as done only when a fresh read shows it (Verified). Store content and uploaded files are treated as data, never as instructions.</Banner></div>
     </>
   )
@@ -138,5 +140,62 @@ function AgentCard({ a }: { a: AgentListItem }) {
         {a.status === 'draft' && <p className="pt-3 text-[13px] text-grey-h">{w.hint}</p>}
       </Panel>
     </li>
+  )
+}
+
+/** Start from a template: pre-filled job, tools and the most restrictive permission level (drafts only). */
+function Templates({ templates }: { templates: AgentTemplateView[] }) {
+  const { base } = useStore()
+  return (
+    <section aria-labelledby="templates-h" className="mb-6">
+      <h2 id="templates-h" className="mb-1 text-[1.1rem]">Start from a template</h2>
+      <p className="mb-3 text-[14px] text-grey-h">Every template starts at drafts only for every tool and gets its own email address. You still read and grant its authorization before it does anything.</p>
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {templates.map(t => (
+          <li key={t.key}>
+            <Panel className="h-full">
+              <div className="flex h-full flex-col gap-2">
+                <h3 className="text-[1.05rem]">{t.name}</h3>
+                <p className="text-[14px] text-grey">{t.job}</p>
+                <div className="flex flex-wrap gap-2">
+                  {t.tools.map(x => <Badge key={x} tone="muted">{x === 'shopify' ? 'Shopify' : 'Email'}: drafts only</Badge>)}
+                </div>
+                <p className="text-[13px] text-grey-h">You add: {t.needs.join('; ')}.</p>
+                <div className="mt-auto pt-1"><Button size="sm" variant="ghost" href={`${base}/agents/new?template=${t.key}`}>Use this template<Icon name="arrow-right" size={14} /></Button></div>
+              </div>
+            </Panel>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** This week's summary as it stands, and the status of the last one sent (never "sent" unless it was). */
+function WeeklyPreview() {
+  const { data } = useLoad(() => storeFetch<WeeklyResponse>('/api/store/weekly'), 'weekly')
+  if (!data) return null
+  const f = data.facts
+  const lastStatus = data.last ? (data.last.status === 'accepted' ? `Last summary (week of ${data.last.week_start}) was accepted by the email provider.` : `Last summary (week of ${data.last.week_start}) was not sent: ${data.last.status_reason ?? data.last.status}.`) : 'No summary has been prepared yet.'
+  return (
+    <section aria-labelledby="weekly-h" className="mt-6">
+      <Panel>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="weekly-h" className="text-[1.05rem]">Weekly summary</h2>
+          <Badge tone="muted">week of {f.weekStart}</Badge>
+          <Badge tone="muted">emailed Mondays</Badge>
+        </div>
+        <ul className="mt-3 flex flex-col gap-1 text-[14px] text-grey">
+          {f.agents.length === 0 ? <li>No agents yet.</li> : f.agents.map(a => <li key={a.agentId}><span className="text-ink">{a.name}</span>: {a.runs} run(s), {a.verified} verified, {a.drafted} drafted, {a.emailsAccepted} email(s) sent, {a.emailsDrafted} email draft(s), {a.tasksDone} task(s) done</li>)}
+        </ul>
+        <div className="mt-3 text-[14px]">
+          <span className="text-grey-h">Needs your attention: </span>
+          <span className="text-ink">{f.attention.length ? f.attention.map(a => `${a.count} ${a.label}`).join(' · ') : 'nothing'}</span>
+        </div>
+        <p className="mt-3 text-[14px] text-ink">Estimated time saved this week: about {f.estimate.minutes} minutes <Badge tone="warn">Estimate</Badge></p>
+        <p className="pt-1 text-[13px] text-grey-h">An estimate, not a measurement: {f.estimate.formula}.</p>
+        <p className="pt-2 text-[13px] text-grey-h">{lastStatus}{data.liveSends === 'off' ? ' Email sending is off in this environment, so summaries are prepared but not sent.' : ''}</p>
+      </Panel>
+    </section>
   )
 }

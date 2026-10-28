@@ -6,11 +6,11 @@ import type { EmailProvider } from '@/lib/email/types'
 
 export const dynamic = 'force-dynamic'
 
-/** Connected email accounts (sender, health, granted permissions, usage) and which providers are available here. */
+/** Connected email accounts (sender, health, granted permissions, usage) and which providers are available here. ?agent=<id> also lists that agent's own mailbox. */
 export async function GET(req: Request) {
   try {
     const actor = await resolveActor(req)
-    return NextResponse.json({ ok: true, accounts: await listAccounts(actor), providers: providers() })
+    return NextResponse.json({ ok: true, accounts: await listAccounts(actor, { agentId: new URL(req.url).searchParams.get('agent') }), providers: providers() })
   } catch (e) { return errorResponse(e) }
 }
 

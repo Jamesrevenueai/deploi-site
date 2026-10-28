@@ -62,9 +62,18 @@ export type { AgentListItem, TaskDraft, AgentPolicy, AgentRunCounts }
 
 export type AuthorizationSummary = { grants: string[]; limits: string[]; never: string[] }
 
-export type AgentsResponse = { ok: true; agents: AgentListItem[] }
+export type AgentTemplateView = { key: string; name: string; job: string; tools: ('shopify' | 'email')[]; mailbox: boolean; needs: string[]; minutesPerItem: number }
+export type AgentsResponse = { ok: true; agents: AgentListItem[]; templates?: AgentTemplateView[] }
+export type WeeklyResponse = {
+  ok: true
+  facts: { orgName: string; weekStart: string; weekEnd: string; agents: { agentId: string; name: string; status: string; runs: number; verified: number; drafted: number; failed: number; emailsAccepted: number; emailsDrafted: number; tasksDone: number }[]
+    attention: { kind: string; count: number; label: string }[]; estimate: { minutes: number; formula: string; label: 'Estimate' } }
+  rendered: { subject: string; text: string }
+  last: { week_start: string; status: string; status_reason: string | null; sent_at: string | null } | null
+  liveSends: 'off' | 'allowlist' | 'all'
+}
 export type ParseResponse = { ok: true; draft: TaskDraft }
-export type CreateAgentResponse = { ok: true; agentId: string; policyId: string; policyHash: string; summary: AuthorizationSummary }
+export type CreateAgentResponse = { ok: true; agentId: string; policyId: string; policyHash: string; summary: AuthorizationSummary; mailbox?: { id: string; address: string } | null }
 export type EditAgentResponse = { ok: true; policyId: string; version: number; requiresGrant: boolean; expansion: string[]; policyHash: string; summary: AuthorizationSummary }
 export type GrantResponse = { ok: true; version: number; warnings: string[]; nextRunAt: string | null }
 export type AgentRunResponse = { ok: true; runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts }

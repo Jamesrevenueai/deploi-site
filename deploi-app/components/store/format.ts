@@ -190,7 +190,7 @@ export const AGENT_CORRECTION_HELP: Record<AgentCorrectionType, string> = {
   sku: 'Fills in (and, if you allow it, corrects) SKUs from your mapping when the match is unambiguous. Never generates a SKU.',
 }
 
-export const APPROVAL_MODE_LABEL: Record<string, string> = { review: 'Review each change', autonomous: 'Authorized to act within limits' }
+export const APPROVAL_MODE_LABEL: Record<string, string> = { draft: 'Drafts only', review: 'After my approval', autonomous: 'Without asking, within limits' }
 
 export const TRIGGER_LABEL: Record<string, string> = { manual: 'Run now', schedule: 'Schedule', webhook: 'Store update', test: 'Test' }
 
@@ -275,3 +275,17 @@ export const EMAIL_PROVIDER_STATUS_WORDS: Record<string, StatusWords> = {
   not_configured: { label: 'Not available yet', tone: 'muted', hint: 'Not available yet (needs setup)' },
   test_only: { label: 'Test only', tone: 'warn', hint: 'Synthetic mailbox: test only, nothing is ever emailed' },
 }
+
+/** Plain-language task statuses: honest, and "Done" only with a finished run as proof */
+export const TASK_STATUS_WORDS: Record<string, StatusWords> = {
+  queued: { label: 'Queued', tone: 'muted', hint: 'Within the rules; it runs when the agent is active.' },
+  running: { label: 'Running', tone: 'muted', hint: 'Running now.' },
+  done: { label: 'Done', tone: 'ok', hint: 'Finished, with the run as proof.' },
+  waiting_on_you: { label: 'Waiting on you', tone: 'warn', hint: 'The run finished, and items wait for you.' },
+  needs_approval: { label: 'Needs your approval', tone: 'warn', hint: "Outside the agent's rules: widening them needs a new grant." },
+  refused: { label: 'Refused', tone: 'danger', hint: 'Nothing will run.' },
+  failed: { label: 'Failed', tone: 'danger', hint: 'The run did not finish cleanly.' },
+  cancelled: { label: 'Cancelled', tone: 'muted', hint: 'Cancelled before it ran.' },
+}
+export const taskWords = (s: string): StatusWords => TASK_STATUS_WORDS[s] ?? unknownWords(s)
+export const INBOUND_CLASS_LABEL: Record<string, string> = { reply: 'Reply', merchant_forward: 'Forwarded by you', merchant_cc: 'Copied by you', other: 'Other sender' }

@@ -19,7 +19,7 @@ export async function listAgents(actor: Actor, connectionId?: string | null): Pr
        ap.version as active_version, ap.policy->>'approvalMode' as approval_mode,
        coalesce((select array_agg(x) from jsonb_array_elements_text(ap.policy->'correctionTypes') x), '{}') as correction_types, ap.summary,
        (select max(version) from agent_policies pp where pp.agent_id = a.id and pp.status = 'pending_grant') as pending_version,
-       (select count(*)::int from proposals p where p.agent_id = a.id and p.status = 'pending_approval') as awaiting_approval,
+       (select count(*)::int from proposals p where p.agent_id = a.id and p.status = 'pending_approval' and coalesce(p.status_reason, '') not like 'draft:%') as awaiting_approval,
        (select count(*)::int from issues i where i.agent_id = a.id and i.kind = 'needs_person' and i.status in ('open','needs_review')) as needs_person,
        (select json_build_object('status', r.status, 'counts', r.counts, 'finished_at', r.finished_at, 'status_reason', r.status_reason) from agent_runs r where r.agent_id = a.id order by r.started_at desc limit 1) as last_run
      from agents a join store_connections c on c.id = a.connection_id

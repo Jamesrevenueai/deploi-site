@@ -42,7 +42,7 @@ export async function overview(actor: Actor) {
   return withActor(actor, async db => {
     const scope = actor.kind === 'staff' ? 'true' : 'org_id = current_org_id()'
     const issues = await db.query<{ status: string; kind: string; severity: string; n: string }>(`select status, kind, severity, count(*)::text as n from issues where ${scope} and status in ('open','needs_review') group by 1,2,3`)
-    const proposals = await db.query<{ status: string; n: string }>(`select status, count(*)::text as n from proposals where ${scope} group by 1`)
+    const proposals = await db.query<{ status: string; n: string }>(`select case when status = 'pending_approval' and coalesce(status_reason, '') like 'draft:%' then 'draft' else status end as status, count(*)::text as n from proposals where ${scope} group by 1`)
     const execs = await db.query<{ status: string; n: string }>(`select status, count(*)::text as n from executions where ${scope} and started_at > now() - interval '30 days' group by 1`)
     const lastScan = await db.one<{ id: string; status: string; started_at: string; finished_at: string | null; resources_scanned: number; issues_opened: number; issues_resolved: number; error: string | null }>(
       `select id, status, started_at, finished_at, resources_scanned, issues_opened, issues_resolved, error from scans where ${scope} order by started_at desc limit 1`)

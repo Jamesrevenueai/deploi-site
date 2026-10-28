@@ -362,7 +362,7 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
     grants.push(`Email recipients allowed: ${who}.${e.notify.length ? ` Summaries and alerts go to ${e.notify.join(', ')}.` : ''}${e.supplierReorder ? ` Supplier requests go to ${e.supplierReorder.supplierAddress} for variants with ${e.supplierReorder.thresholdAvailable} or fewer available, at most once every ${e.supplierReorder.cooldownDays} days per variant.` : ''}${e.supplierReorder && e.tasks.includes('supplier_followup') ? ` If the supplier has not replied after ${e.supplierReorder.followupDays} days, one follow-up in the same thread.` : ''}`)
     if (e.read.enabled) grants.push('Mailbox reading: only to notice replies to messages this agent sent. Reply content is never acted on.')
     if (e.permission !== 'draft') limits.push(`Email: at most ${e.limits.perRun} messages per run, ${e.limits.perDay} per day and ${e.maxRecipientsPerMessage} recipients per message${e.allowAttachments ? '' : ', no attachments'}. Anything outside these limits waits for your approval.`)
-    never.push('Never sends email to anyone outside the allowed recipients without your approval of that exact message.')
+    never.push(ctx.emailAccount?.provider === 'deploi' ? 'Never sends email to anyone outside the allowed recipients, even with your approval: adding a recipient needs a new grant.' : 'Never sends email to anyone outside the allowed recipients without your approval of that exact message.')
     never.push('Never lets an incoming email or attachment change what it is allowed to do.')
     if (!e.read.enabled) never.push('Never reads your mailbox.')
   } else never.push('Never sends email.')

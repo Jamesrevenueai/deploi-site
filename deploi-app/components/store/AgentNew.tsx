@@ -12,17 +12,20 @@ import { Icon } from '@/components/ui/Icon'
 import { Input, Textarea } from '@/components/ui/Field'
 import { storeFetch, asApiError, type StoreApiError } from './api'
 import { ErrorState, Loading, NoStore, Panel, Section, useStore } from './bits'
-import { AgentPolicyForm, formFromDraft, policyFromForm, type AgentFormState } from './AgentForm'
+import { AgentPolicyForm, formFromDraft, isEmailAddress, policyFromForm, type AgentFormState } from './AgentForm'
+import { useLoad } from './useLoad'
 import { AuthorizationSummaryView, BackToAgents, useStoreBasics } from './Agents'
 import { AGENT_CORRECTION_LABEL, AGENT_EMAIL_PERMISSION_LABEL, AGENT_EMAIL_TASK_LABEL } from './format'
-import type { CreateAgentResponse, EditAgentResponse, GrantResponse, ParseResponse, TaskDraft } from './types'
+import type { AgentsResponse, AgentTemplateView, CreateAgentResponse, EditAgentResponse, GrantResponse, ParseResponse, TaskDraft } from './types'
 
 type Created = { agentId: string; policyId: string; policyHash: string; summary: CreateAgentResponse['summary'] }
 type Step = 'describe' | 'review' | 'authorize' | 'granted'
 
-export function AgentNewScreen() {
+export function AgentNewScreen({ template = null }: { template?: string | null } = {}) {
   const { base } = useStore()
   const basics = useStoreBasics()
+  const templates = useLoad(() => template ? storeFetch<AgentsResponse>('/api/store/agents') : Promise.resolve(null), `templates:${template}`)
+  const tpl = templates.data?.templates?.find(t => t.key === template) ?? null
   const [name, setName] = useState('')
   const [task, setTask] = useState('')
   const [draft, setDraft] = useState<TaskDraft | null>(null)
@@ -33,6 +36,7 @@ export function AgentNewScreen() {
   const [showProblems, setShowProblems] = useState(false)
   const [created, setCreated] = useState<Created | null>(null)
   const [granted, setGranted] = useState<GrantResponse | null>(null)
+  const [mailbox, setMailbox] = useState<string | null>(null)
 
   if (basics.loading && !basics.data) return <><BackToAgents /><PageHeader title="Create agent" /><Loading label="Loading" /></>
   if (basics.error && !basics.data) return <><BackToAgents /><PageHeader title="Create agent" /><ErrorState error={basics.error} onRetry={basics.reload} /></>
@@ -73,6 +77,17 @@ export function AgentNewScreen() {
     } catch (e) { setErr(asApiError(e)) } finally { setBusy(null) }
   }
 
+  async function createFromTemplate(t: AgentTemplateView, input: { name: string; notify: string; supplierAddress: string; connectionId: string }) {
+    setBusy('submit'); setErr(null)
+    try {
+      const r = await storeFetch<CreateAgentResponse>('/api/store/agents', { method: 'POST', body: { template: t.key, ...input } })
+      setName(input.name); setTask(t.job)
+      setCreated({ agentId: r.agentId, policyId: r.policyId, policyHash: r.policyHash, summary: r.summary })
+      setMailbox(r.mailbox?.address ?? null)
+      setStep('authorize')
+    } catch (e) { setErr(asApiError(e)) } finally { setBusy(null) }
+  }
+
   async function grant() {
     if (!created) return
     setBusy('grant'); setErr(null)
@@ -90,7 +105,10 @@ export function AgentNewScreen() {
       <Steps step={step} />
       <div aria-live="polite">{err && <div className="mb-4"><ErrorState error={err} /></div>}</div>
 
-      {(step === 'describe' || step === 'review') && (
+      {tpl && step === 'describe' && <TemplateStart template={tpl} connectionId={connectionId} busy={busy !== null} onCreate={input => void createFromTemplate(tpl, input)} />}
+      {template && !tpl && templates.data && step === 'describe' && <div className="mb-4"><Banner tone="warn">That template does not exist. Describe the task below instead.</Banner></div>}
+
+      {((step === 'describe' && !tpl) || step === 'review') && (
         <Panel>
           <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); if (task.trim()) void parse() }}>
             <div className="flex flex-col gap-1">
@@ -126,12 +144,13 @@ export function AgentNewScreen() {
       {step === 'authorize' && created && (
         <Section id="authorize" title="Review the authorization" sub={`Read exactly what "${name.trim()}" will be allowed to do. Nothing has been granted yet.`}>
           <Panel>
+            {mailbox && <p className="mb-6 flex flex-wrap items-center gap-2 text-[15px] text-grey"><Icon name="mail" size={15} />Its own address: <span className="break-all text-ink">{mailbox}</span></p>}
             <AuthorizationSummaryView summary={created.summary} />
             <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5">
               <p className="text-[14px] text-grey">Granting activates this exact version. Changing it later in a way that allows more (new corrections, fields, products, email recipients or permissions, higher limits or acting without asking) needs a new grant. You can pause or revoke it at any time; both stop all writes, including queued ones.</p>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={grant} disabled={busy !== null}><Icon name="check" size={16} />{busy === 'grant' ? 'Granting…' : 'Grant this authorization'}</Button>
-                <Button variant="ghost" onClick={() => { setStep('review'); setErr(null) }} disabled={busy !== null}>Back to edit</Button>
+                {!tpl && <Button variant="ghost" onClick={() => { setStep('review'); setErr(null) }} disabled={busy !== null}>Back to edit</Button>}
               </div>
               <p className="text-[13px] text-grey-h">Not ready? The agent is saved as a draft and does nothing until you grant it.</p>
             </div>
@@ -224,4 +243,39 @@ function meaning(m: string): string {
   const e = /^email tasks?: (.+)$/.exec(m)
   if (e) return `email: ${e[1].split(/,\s*/).map(t => (AGENT_EMAIL_TASK_LABEL as Record<string, string>)[t]?.toLowerCase() ?? t).join('; ')}`
   return m
+}
+
+/** Create from a template: everything is pre-filled at drafts only; the merchant adds only what the template cannot know. */
+function TemplateStart({ template, connectionId, busy, onCreate }: { template: AgentTemplateView; connectionId: string; busy: boolean; onCreate: (input: { name: string; notify: string; supplierAddress: string; connectionId: string }) => void }) {
+  const [name, setName] = useState(template.name)
+  const [notify, setNotify] = useState('')
+  const [supplier, setSupplier] = useState('')
+  const needsSupplier = template.key === 'supplier_chaser'
+  const ready = name.trim() && (needsSupplier ? isEmailAddress(supplier.trim().toLowerCase()) : isEmailAddress(notify.trim().toLowerCase()))
+  return (
+    <Panel>
+      <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); if (ready) onCreate({ name: name.trim(), notify: notify.trim(), supplierAddress: supplier.trim(), connectionId }) }}>
+        <div className="flex flex-wrap items-center gap-2"><Badge tone="muted">Template</Badge><h2 className="text-[1.1rem]">{template.name}</h2></div>
+        <p className="text-[15px] text-grey">&ldquo;{template.job}&rdquo;</p>
+        <div className="flex flex-wrap gap-2">{template.tools.map(x => <Badge key={x} tone="muted">{x === 'shopify' ? 'Shopify' : 'Email'}: drafts only</Badge>)}<Badge tone="muted">Own email address</Badge></div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="tpl-name" className="text-[14px] text-grey">Agent name</label>
+          <Input id="tpl-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} />
+        </div>
+        {needsSupplier ? (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="tpl-supplier" className="text-[14px] text-grey">Supplier email address (the only address this agent may write to)</label>
+            <Input id="tpl-supplier" type="email" value={supplier} placeholder="orders@your-supplier.com" onChange={e => setSupplier(e.target.value)} />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="tpl-notify" className="text-[14px] text-grey">Your email address (alerts and reports are drafted to you)</label>
+            <Input id="tpl-notify" type="email" value={notify} placeholder="you@your-store.com" onChange={e => setNotify(e.target.value)} />
+          </div>
+        )}
+        <p className="text-[13px] text-grey-h">Nothing is granted yet. Next you read exactly what this agent may do, then grant it. Every tool stays at drafts only until you widen it, and widening needs a new grant.</p>
+        <div><Button type="submit" disabled={!ready || busy}><Icon name="shield" size={16} />{busy ? 'Preparing…' : 'Review authorization'}</Button></div>
+      </form>
+    </Panel>
+  )
 }

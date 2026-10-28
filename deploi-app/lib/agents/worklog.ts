@@ -24,6 +24,10 @@ const WHAT: Record<string, string> = {
   'email.accepted': 'Email accepted by the provider (not proof of delivery)', 'email.failed': 'Email failed: nothing was sent', 'email.delivery_unknown': 'Email outcome unknown: not resent automatically',
   'email.cancelled': 'Email cancelled: not sent', 'email.approved': 'You approved an email', 'email.edited': 'Email edited (approval cleared)', 'email.declined': 'You declined an email',
   'email.reply_seen': 'Reply noticed (content not acted on)', 'email.inbound.accepted': 'Email received from an allowed sender', 'email.inbound.quarantined': 'Email received and quarantined',
+  'scan.completed': 'Store read and checked', 'scan.failed': 'Store could not be read', 'proposal.created': 'Exact change recorded',
+  'proposal.expired': 'Recorded change expired', 'proposal.stale': 'Recorded change went stale (the record changed)', 'proposal.blocked': 'Recorded change blocked',
+  'issue.detected': 'Problem found', 'issue.resolved': 'Problem resolved', 'issue.dismissed': 'Problem dismissed by you', 'issue.exempted': 'Problem exempted',
+  'issue.loop_guard': 'Stopped repeating the same change (loop guard)', 'issue.conflicting_agent': 'Skipped: another agent covers this record', 'execution.routed_for_approval': 'Change sent for your approval',
   'mailbox.created': 'Agent mailbox created', 'mailbox.closed': 'Agent mailbox closed',
   'task.queued': 'Task accepted: within the rules', 'task.needs_approval': 'Task outside the rules: needs your approval', 'task.refused': 'Task refused: nothing will run',
   'task.running': 'Task running', 'task.done': 'Task done (with proof)', 'task.waiting_on_you': 'Task run finished: waiting on you', 'task.failed': 'Task failed', 'task.cancelled': 'Task cancelled',
@@ -45,7 +49,8 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
       'select id, policy_version, approval_kind, approved_by, task_key, to_addresses from email_messages where agent_id = $1', [agentId])
     const mailMap = new Map(mails.map(m => [m.id, m]))
     const inbound = await db.query<{ id: string }>('select id from email_inbound where agent_id = $1', [agentId])
-    const props = await db.query<{ id: string; approval_id: string | null }>('select p.id, a.id as approval_id from proposals p left join approvals a on a.proposal_id = p.id where p.agent_id = $1', [agentId])
+    const props = await db.query<{ id: string; approval_id: string | null; policy_version: number | null }>('select p.id, a.id as approval_id, p.policy_version from proposals p left join approvals a on a.proposal_id = p.id where p.agent_id = $1', [agentId])
+    const propVersion = new Map(props.map(p => [p.id, p.policy_version]))
     const ids = [...execs.map(e => e.id), ...mails.map(m => m.id), ...inbound.map(i => i.id), ...props.map(p => p.id), ...props.map(p => p.approval_id).filter((x): x is string => Boolean(x))]
     const rows = await db.query<AuditRow>(
       `select id::text, entity_type, entity_id, event, actor, detail, at from engine_audit
@@ -77,6 +82,8 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
       else if (r.event.startsWith('agent.') || r.event.startsWith('policy.') || r.event === 'task.cancelled' || r.event.startsWith('mailbox.')) permission = `you (${r.actor})`
       else if (ex) permission = ex.approver_kind === 'standing_authorization' ? `standing ${versionWords(ex.policy_version) ?? 'authorization'}` : ex.approved_by ? `your approval (${ex.approved_by})` : (versionWords(ex.policy_version) ?? 'unknown')
       else if (em) permission = em.approval_kind === 'standing' ? `standing ${versionWords(em.policy_version, 'email') ?? 'authorization'}` : em.approval_kind === 'individual' ? `your approval (${em.approved_by ?? 'you'})` : (versionWords(em.policy_version, 'email') ?? 'drafts only')
+      else if (r.entity_id && propVersion.has(r.entity_id)) permission = `${versionWords(propVersion.get(r.entity_id)) ?? 'the agent\'s grant'} (recorded only; nothing changed)`
+      else if (/^(scan|issue)\./.test(r.event)) permission = 'read access under the agent\'s grant (nothing changed)'
       else permission = versionWords(typeof d.policy_version === 'number' ? d.policy_version : typeof d.version === 'number' ? d.version : null) ?? 'none recorded'
       return { at: r.at, what, why, permission, event: r.event, actor: r.actor, ref: { type: r.entity_type, id: r.entity_id } }
     })

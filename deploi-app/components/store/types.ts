@@ -68,7 +68,8 @@ export type WeeklyResponse = {
   ok: true
   facts: { orgName: string; weekStart: string; weekEnd: string; agents: { agentId: string; name: string; status: string; runs: number; verified: number; drafted: number; failed: number; emailsAccepted: number; emailsDrafted: number; tasksDone: number }[]
     attention: { kind: string; count: number; label: string }[]; estimate: { minutes: number; formula: string; label: 'Estimate' } }
-  rendered: { subject: string; text: string }
+  rendered: { subject: string; text: string; html?: string }
+  from?: string
   last: { week_start: string; status: string; status_reason: string | null; sent_at: string | null } | null
   liveSends: 'off' | 'allowlist' | 'all'
 }

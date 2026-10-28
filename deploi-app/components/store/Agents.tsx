@@ -172,7 +172,8 @@ function Templates({ templates }: { templates: AgentTemplateView[] }) {
 }
 
 /** This week's summary as it stands, and the status of the last one sent (never "sent" unless it was). */
-function WeeklyPreview() {
+export function WeeklyPreview() {
+  const { base } = useStore()
   const { data } = useLoad(() => storeFetch<WeeklyResponse>('/api/store/weekly'), 'weekly')
   if (!data) return null
   const f = data.facts
@@ -184,6 +185,7 @@ function WeeklyPreview() {
           <h2 id="weekly-h" className="text-[1.05rem]">Weekly summary</h2>
           <Badge tone="muted">week of {f.weekStart}</Badge>
           <Badge tone="muted">emailed Mondays</Badge>
+          <Link href={`${base}/weekly`} className="ml-auto text-[13px] text-ink underline">See the email</Link>
         </div>
         <ul className="mt-3 flex flex-col gap-1 text-[14px] text-grey">
           {f.agents.length === 0 ? <li>No agents yet.</li> : f.agents.map(a => <li key={a.agentId}><span className="text-ink">{a.name}</span>: {a.runs} run(s), {a.verified} verified, {a.drafted} drafted, {a.emailsAccepted} email(s) sent, {a.emailsDrafted} email draft(s), {a.tasksDone} task(s) done</li>)}

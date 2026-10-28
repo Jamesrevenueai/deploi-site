@@ -21,9 +21,18 @@ type Task = { id: string; text: string; status: string; status_reason: string | 
 type LogEntry = { at: string; what: string; why: string | null; permission: string; event: string; actor: string }
 type Inbound = { id: string; from_address: string; classification: string; status: string; status_reason: string | null; received_at: string }
 type WorkResponse = { ok: true; log: LogEntry[]; tasks: Task[]; mailbox: { id: string; address: string; status: string } | null; inbound: Inbound[]; mailDomain: string | null }
+type InboundFull = Inbound & { thread_message_id: string | null; subject: string | null; text: string | null }
+type Thread = { id: string; status: string; status_reason: string | null; task_key: string; to_addresses: string[]; created_at: string; accepted_at: string | null; reply_count: number; subject: string | null; body: string | null; replies: InboundFull[] }
+type MailResponse = { ok: true; mailbox: { address: string } | null; threads: Thread[]; other: InboundFull[] }
 
 export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged }: { agentId: string; agentActive: boolean; refreshKey: string; onChanged: () => void }) {
-  const { data, error, loading, reload } = useLoad(() => storeFetch<WorkResponse>(`/api/store/agents/${encodeURIComponent(agentId)}/worklog`), `work:${agentId}:${refreshKey}`)
+  const { data, error, loading, reload } = useLoad(async () => {
+    const [work, mail] = await Promise.all([
+      storeFetch<WorkResponse>(`/api/store/agents/${encodeURIComponent(agentId)}/worklog`),
+      storeFetch<MailResponse>(`/api/store/agents/${encodeURIComponent(agentId)}/mail`).catch(() => null),
+    ])
+    return { ...work, mail }
+  }, `work:${agentId}:${refreshKey}`)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<StoreApiError | null>(null)
@@ -96,24 +105,7 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
             </div>
           )}
         </Panel>
-        {d.inbound.length > 0 && (
-          <div className="table-wrap mt-3">
-            <table className="dg-table">
-              <caption className="sr-only">Mail received at the agent mailbox</caption>
-              <thead><tr><th scope="col">Received</th><th scope="col">From</th><th scope="col">Kind</th><th scope="col">Status</th></tr></thead>
-              <tbody>
-                {d.inbound.map(i => (
-                  <tr key={i.id}>
-                    <td className="whitespace-nowrap">{fmtTime(i.received_at)}</td>
-                    <td className="break-all">{i.from_address}</td>
-                    <td>{INBOUND_CLASS_LABEL[i.classification] ?? i.classification}</td>
-                    <td>{i.status === 'accepted' ? <Badge tone="ok">Accepted</Badge> : <Badge tone="warn">Quarantined</Badge>}{i.status_reason && <span className="block text-[13px] text-grey-h">{i.status_reason}</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {d.mail && (d.mail.threads.length > 0 || d.mail.other.length > 0) && <MailThreads mail={d.mail} />}
       </Section>
 
       <Section id="worklog" title="Work log" sub="Every action this agent took or was refused: what happened, when, why, and which permission allowed it.">
@@ -137,5 +129,50 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
         )}
       </Section>
     </>
+  )
+}
+
+const MSG_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'muted' | 'danger' }> = {
+  draft: { label: 'Draft: not sent', tone: 'muted' }, awaiting_approval: { label: 'Waiting for your approval', tone: 'warn' }, queued: { label: 'Queued', tone: 'muted' },
+  sending: { label: 'Sending', tone: 'muted' }, accepted: { label: 'Accepted by provider', tone: 'ok' }, failed: { label: 'Failed', tone: 'danger' },
+  delivery_unknown: { label: 'Delivery unknown', tone: 'warn' }, cancelled: { label: 'Cancelled', tone: 'muted' },
+}
+
+/** Conversations in the agent mailbox: what the agent wrote, the replies matched to it, and everything else received. */
+function MailThreads({ mail }: { mail: MailResponse }) {
+  return (
+    <div className="mt-4 flex flex-col gap-3" aria-label="Agent mailbox conversations">
+      <h3 className="text-[1rem]">Conversations</h3>
+      {mail.threads.map(t => {
+        const st = MSG_STATUS[t.status] ?? { label: t.status, tone: 'muted' as const }
+        return (
+          <article key={t.id} className="rounded-[16px] border border-line p-3">
+            <div className="flex flex-wrap items-center gap-2"><Badge tone={st.tone}>{st.label}</Badge><span className="min-w-0 break-words font-medium text-ink">{t.subject ?? '(content hidden)'}</span></div>
+            <p className="pt-1 text-[13px] text-grey-h">From the agent to {t.to_addresses.join(', ')} · {fmtTime(t.accepted_at ?? t.created_at)}{t.reply_count ? ` · ${t.reply_count} repl${t.reply_count === 1 ? 'y' : 'ies'}` : ''}</p>
+            {t.body && <pre className="mt-2 whitespace-pre-wrap break-words rounded-[12px] bg-[#0A0A0A] p-3 font-sans text-[14px] text-grey">{t.body}</pre>}
+            {t.replies.map(r => <InboundView key={r.id} i={r} nested />)}
+          </article>
+        )
+      })}
+      {mail.other.length > 0 && <h3 className="pt-2 text-[1rem]">Other mail received</h3>}
+      {mail.other.map(i => <InboundView key={i.id} i={i} />)}
+    </div>
+  )
+}
+
+function InboundView({ i, nested = false }: { i: InboundFull; nested?: boolean }) {
+  const quarantined = i.status !== 'accepted'
+  return (
+    <div className={`${nested ? 'ml-4 mt-3 border-l-2 border-line pl-3' : 'rounded-[16px] border border-line p-3'}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        {quarantined ? <Badge tone="warn">Quarantined</Badge> : <Badge tone="ok">{INBOUND_CLASS_LABEL[i.classification] ?? i.classification}</Badge>}
+        <span className="break-all text-[14px] text-ink">{i.from_address}</span>
+        <span className="text-[13px] text-grey-h">{fmtTime(i.received_at)}</span>
+      </div>
+      {quarantined && i.status_reason && <p className="pt-1 text-[13px] text-warn">{i.status_reason}. The agent will not see it.</p>}
+      {i.subject && <p className="pt-1 text-[14px] text-ink">{i.subject}</p>}
+      {i.text && <pre className="mt-1 whitespace-pre-wrap break-words rounded-[12px] bg-[#0A0A0A] p-3 font-sans text-[14px] text-grey">{i.text}</pre>}
+      <p className="pt-1 text-[12px] text-grey-h">Received mail is shown to you only. It never changes what the agent may do.</p>
+    </div>
   )
 }

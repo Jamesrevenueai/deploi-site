@@ -81,6 +81,33 @@ export function renderWeekly(f: WeeklyFacts, appUrl: string): { subject: string;
   return { subject: `Deploi weekly summary: ${f.agents.reduce((s, a) => s + a.verified, 0)} verified, ${f.attention.reduce((s, a) => s + a.count, 0)} waiting for you`, text: lines.join('\n') }
 }
 
+const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/** The same summary as an HTML email (inline styles only; every value escaped). The plain-text part is always sent too. */
+export function renderWeeklyHtml(f: WeeklyFacts, appUrl: string): string {
+  const td = 'padding:8px 10px;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222'
+  const th = 'padding:8px 10px;border-bottom:2px solid #d0d0d0;font-size:12px;color:#666;text-align:left;font-weight:600'
+  const rows = f.agents.map(a => `<tr><td style="${td}"><strong>${esc(a.name)}</strong><br><span style="color:#777;font-size:12px">${esc(a.status)}</span></td><td style="${td}">${a.runs}</td><td style="${td}">${a.verified}</td><td style="${td}">${a.drafted}</td><td style="${td}">${a.emailsAccepted} / ${a.emailsDrafted}</td><td style="${td}">${a.tasksDone}</td></tr>`).join('')
+  const attention = f.attention.length ? `<ul style="margin:8px 0 0;padding-left:20px;color:#222;font-size:14px;line-height:1.6">${f.attention.map(a => `<li><strong>${a.count}</strong> ${esc(a.label)}</li>`).join('')}</ul>` : '<p style="margin:8px 0 0;font-size:14px;color:#222">Nothing is waiting for you.</p>'
+  const link = `${esc(appUrl.replace(/\/$/, ''))}/store/agents`
+  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;padding:24px">
+<tr><td style="font-size:20px;font-weight:700;color:#000">deploi <span style="color:#888">ai</span></td></tr>
+<tr><td style="padding-top:16px;font-size:18px;font-weight:600;color:#111">Your agents, week of ${esc(f.weekStart)} to ${esc(f.weekEnd)}</td></tr>
+<tr><td style="padding-top:4px;font-size:13px;color:#666">${esc(f.orgName)}</td></tr>
+<tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">What each agent did</td></tr>
+<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;border-collapse:collapse">
+<tr><th style="${th}">Agent</th><th style="${th}">Runs</th><th style="${th}">Verified</th><th style="${th}">Drafted</th><th style="${th}">Emails sent / drafted</th><th style="${th}">Tasks done</th></tr>
+${rows || `<tr><td colspan="6" style="${td}">No agents yet.</td></tr>`}</table></td></tr>
+<tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">Needs your attention</td></tr>
+<tr><td>${attention}</td></tr>
+<tr><td style="padding-top:20px"><div style="background:#fff8e6;border:1px solid #f0d58a;border-radius:8px;padding:12px;font-size:14px;color:#222"><strong>Estimated time saved: about ${f.estimate.minutes} minutes.</strong> <span style="display:inline-block;background:#f0d58a;border-radius:4px;padding:1px 6px;font-size:12px">Estimate</span><br><span style="font-size:12px;color:#555">This is an estimate, not a measurement: ${esc(f.estimate.formula)}.</span></div></td></tr>
+<tr><td style="padding-top:20px"><a href="${link}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;border-radius:999px;padding:10px 18px;font-size:14px">Open Deploi</a></td></tr>
+<tr><td style="padding-top:20px;font-size:12px;color:#888">You receive this because you use Deploi agents. Agents only act within the permissions you granted.</td></tr>
+</table></td></tr></table></body></html>`
+}
+
 /** Prepare (and, when allowed, send) one organization's summary for the week. Idempotent per week. */
 export async function sendWeeklySummary(orgId: string, opts: { now?: Date; actor?: string } = {}) {
   const now = opts.now ?? new Date()
@@ -106,7 +133,7 @@ export async function sendWeeklySummary(orgId: string, opts: { now?: Date; actor
   if (!live.ok) return finish('prepared', `not sent: ${live.reason}`)
   await admin(db => db.query(`update weekly_summaries set status = 'sending' where id = $1`, [claim.id]))
   const { subject, text } = renderWeekly(claim.facts, env.appUrl)
-  const r = await resendSystemEmail({ from: `${COMPANY_NAME} <${COMPANY_EMAIL}>`, to: claim.recipients, subject, text, idempotencyKey: `weekly-${claim.id}` })
+  const r = await resendSystemEmail({ from: `${COMPANY_NAME} <${COMPANY_EMAIL}>`, to: claim.recipients, subject, text, html: renderWeeklyHtml(claim.facts, env.appUrl), idempotencyKey: `weekly-${claim.id}` })
   if (r.outcome === 'accepted') return finish('accepted', null, r.providerMessageId)
   if (r.outcome === 'uncertain') return finish('failed', `delivery unknown: ${r.message}; not resent automatically`)
   return finish('failed', r.outcome === 'rejected' ? r.message : 'the provider asked to wait; not sent this week')
@@ -125,5 +152,5 @@ export async function weeklyPreview(actor: Actor, orgId: string, now = new Date(
   const facts = await withActor(actor, db => weeklyFacts(db, orgId, weekStartOf(now)))
   const last = await withActor(actor, db => db.one<{ week_start: string; status: string; status_reason: string | null; sent_at: string | null }>(
     'select week_start::text, status, status_reason, sent_at from weekly_summaries where org_id = $1 order by week_start desc limit 1', [orgId]))
-  return { facts, rendered: renderWeekly(facts, env.appUrl), last, liveSends: emailConfig.liveSends }
+  return { facts, rendered: { ...renderWeekly(facts, env.appUrl), html: renderWeeklyHtml(facts, env.appUrl) }, last, liveSends: emailConfig.liveSends, from: `${COMPANY_NAME} <${COMPANY_EMAIL}>` }
 }

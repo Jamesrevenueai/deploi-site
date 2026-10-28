@@ -1,6 +1,6 @@
 /**
  * Demo controls for SYNTHETIC stores only (never a real merchant): reset the catalogue (and, with
- * clearHistory, the store's engine history), make an
+ * clearHistory, the store's engine history; with clearEmail, the organization's email accounts and messages), make an
  * outside change (as the merchant or another app would), or inject a platform fault. Disabled in
  * production unless DEMO_CONTROLS=true.
  */
@@ -39,6 +39,15 @@ export async function POST(req: Request) {
           await db.query('update agents set last_run_at = null where connection_id = $1', [conn.id])
         })
       }
+      // optional: also remove this synthetic store's organization's email state (messages, pending OAuth
+      // attempts, connected accounts with their tokens and synthetic mailboxes, by cascade)
+      if (body.clearEmail === true) {
+        await admin(async db => {
+          await db.query('delete from email_messages where org_id = $1', [conn.org_id])
+          await db.query('delete from email_oauth_states where org_id = $1', [conn.org_id])
+          await db.query('delete from email_accounts where org_id = $1', [conn.org_id])
+        })
+      }
     } else if (action === 'external_change') {
       const variantId = String(body.variantId ?? '')
       await mutateSynthetic(conn.id, s => {
@@ -57,7 +66,7 @@ export async function POST(req: Request) {
       if (!mode) throw new HttpError(400, 'invalid_input', 'unknown fault mode')
       await injectFault(conn.id, { op: String(body.op ?? 'DeploiSetInventoryPolicy'), mode })
     } else throw new HttpError(400, 'invalid_input', 'unknown action')
-    await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: `demo.${action}`, actor: actor.label, detail: { synthetic: true, ...(action === 'reset' && body.clearHistory === true ? { clear_history: true } : {}) } }))
+    await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: `demo.${action}`, actor: actor.label, detail: { synthetic: true, ...(action === 'reset' && body.clearHistory === true ? { clear_history: true } : {}), ...(action === 'reset' && body.clearEmail === true ? { clear_email: true } : {}) } }))
     return NextResponse.json({ ok: true })
   } catch (e) { return errorResponse(e) }
 }

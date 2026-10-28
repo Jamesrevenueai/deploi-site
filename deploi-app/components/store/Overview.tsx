@@ -120,7 +120,7 @@ export function OverviewScreen() {
 
           {email && <div className={agents ? 'mt-3' : ''}><EmailCard accounts={email} /></div>}
 
-          <div className={agents ? 'mt-3' : ''}><ConnectionCard conn={conn} lastScan={ov.lastScan} /></div>
+          <div className={agents || email ? 'mt-3' : ''}><ConnectionCard conn={conn} lastScan={ov.lastScan} /></div>
 
           {conn.status !== 'active' && <div className="mt-4"><Banner tone="warn"><strong>Blocked.</strong> The store connection is {CONNECTION_STATUS_LABEL[conn.status]?.toLowerCase() ?? conn.status}. Scans and changes are paused until the app is installed again.</Banner></div>}
 

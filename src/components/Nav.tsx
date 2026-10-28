@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { BRAND, WORDMARK } from '../lib/brand'
-import { BookButton, bookCtaLabel } from './Button'
+import { CtaButton } from './Button'
 import { Icon } from '../lib/icons'
 
 export const NAV_LINKS = [
-  { to: '/#what', label: 'What we do' },
-  { to: '/#menu', label: 'Services' },
   { to: '/#how', label: 'How it works' },
-  { to: '/#pricing', label: 'Pricing' },
-  { to: '/website', label: 'Website' },
+  { to: '/#shopify', label: 'Shopify' },
+  { to: '/#controls', label: 'Controls' },
+  { to: '/#platforms', label: 'Platforms' },
   { to: '/#faq', label: 'FAQ' },
 ]
 
@@ -51,7 +50,7 @@ export function Nav() {
               </Link>
             ))}
           </div>
-          <BookButton size="sm">{bookCtaLabel(true)}</BookButton>
+          <CtaButton size="sm" />
           <button
             type="button"
             className="nav-hamburger"
@@ -76,7 +75,7 @@ export function Nav() {
             {l.label}
           </Link>
         ))}
-        <BookButton>{bookCtaLabel()}</BookButton>
+        <CtaButton />
       </div>
     </nav>
   )

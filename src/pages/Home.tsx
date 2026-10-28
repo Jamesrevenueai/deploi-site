@@ -2,33 +2,30 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { BRAND } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
-import { BookButton, bookCtaLabel } from '../components/Button'
+import { CtaButton } from '../components/Button'
 import { ImageCard } from '../components/ImageCard'
+import { StatusBadge, type ProductStatus } from '../components/StatusBadge'
+import { EarlyAccessForm } from '../components/EarlyAccessForm'
 import { art, type ArtTheme } from '../lib/art'
-import { BookSection } from '../components/BookSection'
 import { Icon } from '../lib/icons'
-import { ServiceCard } from '../components/ServiceCard'
-import { AvailabilityBadge } from '../components/AvailabilityBadge'
-import { catalog, money, moneyRange, servicesByDoor, sellableServices, type DoorKey } from '../lib/catalog'
 
-export const HOME_TITLE = `${BRAND} — Done-for-you operations for home care agencies`
+export const HOME_TITLE = `${BRAND} — Find stock and listing problems. Approve the fix. See it verified.`
 export const HOME_DESCRIPTION =
-  'Deploi AI sets up and runs the follow-up work small home care agencies never have time for: referral replies, applicant texts, aide check-ins, credential reminders, open-shift offers, authorization alerts and EVV exception lists. Built for home care agencies first; other small healthcare practices by conversation.'
+  'Deploi AI is subscription software that finds stock and listing problems in an online store, shows the evidence, proposes a fix, makes the change you approve through the platform’s official API, and re-reads the store to confirm it took effect. Shopify first, in early access.'
+
+export const SHOPIFY_STATUS_LINE = 'Early access. Tested on a synthetic store; not yet in the Shopify App Store.'
 
 export default function Home() {
   useSeo({ title: HOME_TITLE, description: HOME_DESCRIPTION })
   return (
     <div className="home">
       <Hero />
-      <Problems />
-      <ThreeDoors />
-      <Services />
-      <HowWeWork />
-      <MorningReport />
-      <WhyDeploi />
-      <Pricing />
+      <HowItWorks />
+      <ShopifyToday />
+      <Controls />
+      <Platforms />
       <FAQ />
-      <BookSection />
+      <EarlyAccess />
     </div>
   )
 }
@@ -41,25 +38,25 @@ function Hero() {
     <section id="top" className="hero">
       <div className="hero-art" style={{ backgroundImage: art('hero') }} aria-hidden="true" />
       <div className="container hero-inner">
-        <span className="eyebrow reveal">Done-for-you operations for home care agencies</span>
+        <span className="eyebrow reveal">Stock and listing checks for online stores</span>
         <h1 className="two-tone reveal">
-          <span className="grey">Referrals answered.</span><br />
-          <span className="grey">Shifts covered.</span><br />
-          <span className="white">Every visit checked.</span>
+          <span className="grey">Find stock and listing problems.</span><br />
+          <span className="grey">Approve the fix.</span><br />
+          <span className="white">See it verified.</span>
         </h1>
-        <p className="lead reveal" style={{ maxWidth: 660 }}>
-          {BRAND} sets up and runs the follow-up work a small home care agency never has time for:
-          referral replies, applicant texts, aide check-ins, credential reminders, open-shift offers,
-          authorization alerts and EVV exception lists. A person approves every message. You see it
-          all on one morning report.
+        <p className="lead reveal" style={{ maxWidth: 680 }}>
+          {BRAND} is subscription software for online stores. It finds stock and listing problems, shows you the
+          evidence and proposes a fix. You approve that exact change. Deploi makes it through your platform&rsquo;s
+          official API, then re-reads your store to confirm it took effect.
         </p>
-        <div className="reveal">
-          <BookButton>{bookCtaLabel()}</BookButton>
+        <div className="hero-ctas reveal">
+          <CtaButton />
+          <Link to="/#how" className="btn btn-ghost">How it works</Link>
         </div>
         <div className="hero-trust reveal">
-          <span>Built for home care agencies first; other small healthcare practices by conversation</span>
-          <span>A BAA is signed before any patient data moves</span>
-          <span>Your scheduler, EVV and billing systems stay</span>
+          <span>Shopify first, in early access</span>
+          <span>Nothing changes without your approval</span>
+          <span>No customer or order data read</span>
         </div>
       </div>
     </section>
@@ -67,200 +64,30 @@ function Hero() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  The problem (illustrative situations, not customer quotes)                 */
+/*  How it works                                                              */
 /* -------------------------------------------------------------------------- */
-export const PROBLEMS: { who: string; text: string }[] = [
-  { who: 'The owner', text: 'A hospital referral sat in the inbox since Friday. By Monday the discharge planner had placed the client with someone else.' },
-  { who: 'The scheduler', text: 'A 6 a.m. call-off, and the open shift gets offered to aides one text at a time while the family waits.' },
-  { who: 'The applicant', text: 'Applied on Tuesday. Nobody reached out until the following week, and by then she had started somewhere else.' },
-  { who: 'The biller', text: 'The visit happened. The EVV record did not match the schedule, nobody corrected it in time, and the claim is on hold.' },
+export const FLOW: { title: string; body: string; icon: ReactNode }[] = [
+  { title: 'Detect', icon: <Icon.Search />, body: 'Deploi checks your store against a rule you set, using your platform’s own records.' },
+  { title: 'Evidence', icon: <Icon.Doc />, body: 'Each problem comes with what was found: the setting, the stock at each location, the tags.' },
+  { title: 'Proposed fix', icon: <Icon.Pencil />, body: 'Where a safe fix exists, Deploi proposes one specific change. Where it does not, it tells you what to check.' },
+  { title: 'Your approval', icon: <Icon.UserCheck />, body: 'You approve that exact change. Nothing changes without it.' },
+  { title: 'Change made', icon: <Icon.Refresh />, body: 'Deploi re-reads the record just before writing, refuses if anything changed, then makes the change through the official API.' },
+  { title: 'Verified', icon: <Icon.Check />, body: 'A fresh read confirms the change took effect. The fix is marked Verified, or Failed or Blocked with the reason.' },
 ]
 
-function Problems() {
+export function HowItWorks() {
   return (
-    <section id="problem" className="alt">
+    <section id="how" className="alt">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">The problem</span>
+          <span className="eyebrow">How it works</span>
           <h2 className="two-tone">
-            <span className="grey">Four people.</span><br />
-            <span className="white">One missed follow-up.</span>
-          </h2>
-          <p className="lead">
-            Lost referrals, unfilled shifts, aides who quit in month two and visits that never get paid
-            usually start the same way: nobody followed up fast enough.
-          </p>
-        </div>
-        <div className="voices">
-          {PROBLEMS.map(v => (
-            <div className="voice reveal" key={v.who}>
-              <div className="who">{v.who}</div>
-              <p className="quote">{v.text}</p>
-            </div>
-          ))}
-        </div>
-        <p className="illustrative reveal">Illustrative situations, not customer quotes.</p>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Three doors                                                               */
-/* -------------------------------------------------------------------------- */
-const DOOR_FACTS: [{ icon: ReactNode; label: string }, { icon: ReactNode; label: string }] = [
-  { icon: <Icon.Check />, label: 'Human-reviewed' },
-  { icon: <Icon.Link />, label: 'Your systems stay' },
-]
-
-const DOOR_ICON: Record<DoorKey, ReactNode> = {
-  growth: <Icon.Inbox />,
-  staffing: <Icon.Users />,
-  operations: <Icon.Shield />,
-}
-
-const DOOR_ART: Record<DoorKey, ArtTheme> = { growth: 'growth', staffing: 'staffing', operations: 'operations' }
-
-function ThreeDoors() {
-  const doors: { door: DoorKey; title: string; to: string }[] = [
-    { door: 'growth', title: 'Answer referrals and get found', to: '/#menu' },
-    { door: 'staffing', title: 'Hire and keep aides', to: '/#menu' },
-    { door: 'operations', title: 'Cover shifts, watch authorizations, catch EVV exceptions', to: '/#menu' },
-  ]
-  return (
-    <section id="what">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">What we do</span>
-          <h2 className="two-tone">
-            <span className="grey">Three doors.</span><br />
-            <span className="white">One supervised engine behind them.</span>
-          </h2>
-          <p className="lead">
-            We watch your referral inbox, applicant list, roster, credential dates, open shifts,
-            authorizations and EVV exports for the moments that need a follow-up, draft the next step,
-            and wait for a person to approve it. Then we report back every morning.
-          </p>
-        </div>
-        <div className="card-grid three">
-          {doors.map(d => (
-            <div className="reveal" key={d.door}>
-              <ImageCard tag={catalog.doors[d.door]} tagIcon={DOOR_ICON[d.door]} title={d.title} facts={DOOR_FACTS} to={d.to} art={DOOR_ART[d.door]} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Services, rendered from the catalog                                       */
-/* -------------------------------------------------------------------------- */
-/** Integrations shown on the public site: the systems an agency touches, not our own infrastructure. */
-const PUBLIC_INTEGRATION_KINDS = ['evv', 'email', 'sms', 'payments']
-export const publicIntegrations = catalog.integrations.filter(i => PUBLIC_INTEGRATION_KINDS.includes(i.kind))
-
-export function Services() {
-  const groups = servicesByDoor()
-  return (
-    <section id="menu" className="alt">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Services</span>
-          <h2 className="two-tone">
-            <span className="grey">Start with the problem</span><br />
-            <span className="white">costing you the most this month.</span>
-          </h2>
-          <p className="lead">
-            {sellableServices.length} services in three groups. You never buy all of them; the assessment
-            shows which one to build first and the proposal scopes exactly that.
-          </p>
-          <p className="availability-key">
-            Each service carries an availability status.{' '}
-            {(['demonstration', 'supervised_pilot', 'production_verified'] as const).map((k, i) => (
-              <span key={k}>
-                {i > 0 && ' '}
-                <AvailabilityBadge availability={k} compact />
-              </span>
-            ))}
-          </p>
-        </div>
-        {groups.map(g => (
-          <div className="service-group" key={g.door}>
-            <h3 className="service-group-title reveal">
-              <span className="ico" aria-hidden="true">{DOOR_ICON[g.door]}</span>
-              {g.label}
-            </h3>
-            <div className="card-grid">
-              {g.services.map(s => (
-                <div className="reveal" key={s.key}>
-                  <ServiceCard service={s} art={DOOR_ART[g.door]} icon={DOOR_ICON[g.door]} />
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-        <div className="integrations reveal" id="integrations">
-          <h3>Works with your systems</h3>
-          <p className="muted">
-            We read what your current systems already export, so nothing migrates. Compatibility means our
-            import works with that system&rsquo;s export or API; it is not a partnership or an endorsement, and
-            we do not show vendor logos.
-          </p>
-          <ul className="integration-list">
-            {publicIntegrations.map(i => (
-              <li key={i.key}>
-                <span className="integration-name">{i.name}</span>
-                <span className="integration-level">{catalog.integrationLevelLabel[i.level]}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  How we work: the six-stage journey                                        */
-/* -------------------------------------------------------------------------- */
-export const JOURNEY: { title: string; body: string }[] = [
-  { title: 'Discovery', body: 'A conversation about which problems cost you the most and whether we fit. No fee.' },
-  { title: 'Paid assessment', body: `A fixed-fee diagnostic: one referral and one visit traced end to end, a written report and a review meeting. Credited toward a build within ${catalog.pricing.assessment.creditTermDays} days.` },
-  { title: 'Scoped proposal', body: 'One defined service, with the volume, support hours and responsibilities written down. The exact scope sets the final quote.' },
-  { title: 'Build', body: `Configuration, supported connections, testing, training and documentation, with in-scope fixes for ${catalog.pricing.build.fixPeriodDays} days.` },
-  { title: 'Supervised pilot', body: 'The service runs on your real work with every action reviewed by a person and results measured against the baseline.' },
-  { title: 'Monthly management', body: `Defined workers, defined volume, defined support coverage and defined responsibilities, with an initial term of ${catalog.pricing.management.initialTermMonths} months.` },
-]
-
-export const YOU_KEEP: string[] = [
-  'Approving, editing or skipping every proposed message',
-  'Clinical, hiring, pay and billing decisions',
-  'Corrections inside your own scheduler, EVV and billing systems',
-  'Collecting SMS consent from aides and applicants',
-]
-
-export const WE_KEEP: string[] = [
-  'Keeping the imports, rules and templates running',
-  'Reviewing proposals during the support hours in your engagement',
-  'Measuring the agreed success measures and reporting them',
-  'Telling you before anything changes',
-]
-
-export function HowWeWork() {
-  return (
-    <section id="how">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">How we work</span>
-          <h2 className="two-tone">
-            <span className="grey">Six stages.</span><br />
-            <span className="white">Nothing runs unsupervised.</span>
+            <span className="grey">Six steps.</span><br />
+            <span className="white">You approve before anything changes.</span>
           </h2>
         </div>
         <ol className="timeline">
-          {JOURNEY.map((s, i) => (
+          {FLOW.map((s, i) => (
             <li className="timeline-step reveal" key={s.title}>
               <div className="num" aria-hidden="true">{i + 1}</div>
               <div className="timeline-body">
@@ -270,93 +97,113 @@ export function HowWeWork() {
             </li>
           ))}
         </ol>
-        <div className="keep-grid reveal">
-          <div className="keep-col">
-            <h3>What stays with you</h3>
-            <ul className="check-list">
-              {YOU_KEEP.map(k => <li key={k}><Icon.Check />{k}</li>)}
-            </ul>
-          </div>
-          <div className="keep-col">
-            <h3>What we take care of</h3>
-            <ul className="check-list">
-              {WE_KEEP.map(k => <li key={k}><Icon.Check />{k}</li>)}
-            </ul>
-          </div>
-        </div>
       </div>
     </section>
   )
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Morning report card (illustration with synthetic data)                     */
+/*  What the Shopify version does today                                       */
 /* -------------------------------------------------------------------------- */
-const LANES = [
+type Check = {
+  tag: string
+  title: string
+  summary: string
+  art: ArtTheme
+  icon: ReactNode
+  cols: { label: string; items: string[]; minus?: boolean }[]
+  footnote: string
+}
+
+export const SETUP_QUESTION = 'Should products stop selling when they run out, except the ones you mark as pre-order or backorder?'
+
+export const CHECKS: Check[] = [
   {
-    label: 'Referrals',
-    icon: <Icon.Inbox />,
-    tasks: [
-      { ts: 'now', text: 'new referral in the inbox · reply drafted, waiting for approval', active: true },
-      { ts: '07:42', text: 'hospital discharge referral · capacity confirmed to the case manager' },
-      { ts: '07:15', text: '7-day follow-up proposed to a referring office' },
+    tag: 'Check 1 · Fix with your approval',
+    title: 'Selling with no stock against your rule',
+    summary:
+      'Finds active, inventory-tracked variants that still have “Continue selling when out of stock” turned on, and proposes switching that variant to “Stop selling when out of stock”.',
+    art: 'glow',
+    icon: <Icon.Pencil />,
+    cols: [
+      {
+        label: 'Evidence shown',
+        items: ['The variant’s out-of-stock setting', 'Available quantity at each location', 'The product’s tags'],
+      },
+      {
+        label: 'Skipped',
+        minus: true,
+        items: [
+          'Products tagged pre-order, backorder or made-to-order (you can edit the tags)',
+          'Products sold through selling plans, which is how pre-order and subscription apps work',
+          'Gift cards, untracked inventory, drafts and products you exempt',
+        ],
+      },
     ],
+    footnote:
+      'No stock left: high priority. Still in stock: a lower-priority rule mismatch. Deploi re-reads the variant just before writing, refuses if anything changed, then confirms the change with a fresh read.',
   },
   {
-    label: 'Staffing',
-    icon: <Icon.Users />,
-    tasks: [
-      { ts: 'now', text: 'applicant replied · screening questions proposed', active: true },
-      { ts: '07:38', text: '2 interview slots booked after approval' },
-      { ts: '07:05', text: '60-day check-ins proposed for 3 new aides · 1 reply flagged' },
+    tag: 'Check 2 · Evidence and next steps',
+    title: 'Oversold while set to stop selling',
+    summary:
+      'Finds variants set to stop selling whose available quantity is below zero at a location. Deploi shows the evidence and tells you what to check.',
+    art: 'peaks',
+    icon: <Icon.Alert />,
+    cols: [
+      {
+        label: 'Evidence shown',
+        items: ['The variant’s out-of-stock setting', 'Available quantity at each location'],
+      },
+      {
+        label: 'Not changed',
+        minus: true,
+        items: ['Stock counts. Only a physical count or a receiving record can say what is on the shelf.'],
+      },
     ],
-  },
-  {
-    label: 'Visits',
-    icon: <Icon.Shield />,
-    tasks: [
-      { ts: 'now', text: 'call-off for Mon 8a · offers proposed to 4 qualified aides', active: true },
-      { ts: '07:31', text: 'authorization at 12% remaining · alert proposed to the office' },
-      { ts: '06:58', text: 'EVV import: 3 exceptions listed, 9 days to the correction deadline' },
-    ],
+    footnote: 'This check flags the problem and explains it. It does not write anything to your store.',
   },
 ]
 
-function MorningReport() {
+export function ShopifyToday() {
   return (
-    <section id="report" className="alt">
+    <section id="shopify">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">Every morning</span>
+          <span className="eyebrow">The Shopify version today</span>
           <h2 className="two-tone">
-            <span className="grey">One page.</span><br />
-            <span className="white">Everything that moved overnight.</span>
+            <span className="grey">Two checks.</span><br />
+            <span className="white">One setup question.</span>
           </h2>
-          <p className="lead">
-            What was proposed, what was approved, what is waiting on you, and the measures you agreed to
-            track. The card below shows the layout with made-up entries.
-          </p>
+          <p className="status-line"><StatusBadge status="early_access" /> <span>{SHOPIFY_STATUS_LINE}</span></p>
         </div>
-        <div className="card-grid single reveal">
-          <ImageCard tag="Illustration with synthetic data" tagIcon={<Icon.Clock />} title="Your morning report" className="report-card" art="glow">
-            <div className="report-inner">
-              <div className="icard-title">Your morning report</div>
-              <div className="lanes">
-                {LANES.map(lane => (
-                  <div className="lane" key={lane.label}>
-                    <div className="lane-label">{lane.icon}{lane.label}</div>
-                    {lane.tasks.map(t => (
-                      <div className={`task ${t.active ? 'active' : ''}`} key={t.text}>
-                        <span className="ts">{t.ts}</span>
-                        <span>{t.text}</span>
+        <div className="setup-question reveal">
+          <div className="setup-label">The setup question</div>
+          <p>&ldquo;{SETUP_QUESTION}&rdquo;</p>
+          <p className="muted">Your answer becomes the rule the first check compares your store against.</p>
+        </div>
+        <div className="card-grid">
+          {CHECKS.map(c => (
+            <div className="reveal" key={c.title}>
+              <ImageCard tag={c.tag} tagIcon={c.icon} title={c.title} art={c.art} className="check-card">
+                <div className="icard-bottom svc">
+                  <div className="icard-title">{c.title}</div>
+                  <p className="svc-desc">{c.summary}</p>
+                  <div className="svc-cols">
+                    {c.cols.map(col => (
+                      <div key={col.label}>
+                        <div className="svc-label">{col.label}</div>
+                        <ul className={`svc-list ${col.minus ? 'svc-list-x' : ''}`}>
+                          {col.items.map(i => <li key={i}>{i}</li>)}
+                        </ul>
                       </div>
                     ))}
                   </div>
-                ))}
-              </div>
-              <div className="report-note">Illustration with synthetic data. Not a customer report.</div>
+                  <p className="check-foot">{c.footnote}</p>
+                </div>
+              </ImageCard>
             </div>
-          </ImageCard>
+          ))}
         </div>
       </div>
     </section>
@@ -364,27 +211,54 @@ function MorningReport() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Why Deploi                                                                */
+/*  Controls                                                                  */
 /* -------------------------------------------------------------------------- */
-function WhyDeploi() {
-  const points = [
-    { icon: <Icon.Shield />, title: 'Home care first', body: 'Built for small home care agencies on Medicaid waiver and private pay: referral inboxes, aide rosters, open shifts, authorizations and EVV exports. Other small healthcare practices by conversation, when the work genuinely fits.' },
-    { icon: <Icon.Check />, title: 'A BAA before any data', body: 'A Business Associate Agreement is signed before any patient data moves. We use only what the service needs. Every change is logged, and reads of client records are logged on the dashboard, report and action pages. Staffing services touch no client records at all.' },
-    { icon: <Icon.Link />, title: 'Your systems stay', body: 'We work from the exports your scheduler, EVV and billing systems already produce. Nothing to migrate, nothing to retrain. Corrections are made in your own systems, by your people.' },
-    { icon: <Icon.Users />, title: 'A named person answers', body: 'No account manager, no ticket queue. You reach the person who set it up, during the support hours written into your engagement.' },
-  ]
+export const CONTROLS: { icon: ReactNode; title: string; body: string }[] = [
+  {
+    icon: <Icon.UserCheck />,
+    title: 'Your approval, for that exact change',
+    body: 'Nothing changes without your approval of that exact change. Approvals expire, and they are cancelled if the store changes before the fix runs.',
+  },
+  {
+    icon: <Icon.Refresh />,
+    title: 'Checked before, verified after',
+    body: 'Every change is re-checked just before it is made and verified with a fresh read afterwards.',
+  },
+  {
+    icon: <Icon.Check />,
+    title: 'A clear status for every fix',
+    body: 'Each fix shows as Pending, Verified, Failed or Blocked, with the reason.',
+  },
+  {
+    icon: <Icon.History />,
+    title: 'A full activity history',
+    body: 'What was found, what was approved, what changed and what the verification read back are all kept.',
+  },
+  {
+    icon: <Icon.Shield />,
+    title: 'No back-and-forth with your team',
+    body: 'If someone changes a setting back, Deploi will not keep flipping it. It asks you instead.',
+  },
+  {
+    icon: <Icon.Lock />,
+    title: 'Limited access, encrypted tokens',
+    body: 'Deploi reads products, inventory and locations only. It does not read customer or order data. Access tokens are encrypted.',
+  },
+]
+
+export function Controls() {
   return (
-    <section id="why">
+    <section id="controls" className="alt">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">Why {BRAND}</span>
+          <span className="eyebrow">Controls</span>
           <h2 className="two-tone">
-            <span className="grey">We know the work</span><br />
-            <span className="white">a home care office does.</span>
+            <span className="grey">You stay in charge</span><br />
+            <span className="white">of every change.</span>
           </h2>
         </div>
-        <div className="why-grid">
-          {points.map(p => (
+        <div className="why-grid controls-grid">
+          {CONTROLS.map(p => (
             <div className="why-item reveal" key={p.title}>
               <span className="ico" aria-hidden="true">{p.icon}</span>
               <h3>{p.title}</h3>
@@ -398,100 +272,67 @@ function WhyDeploi() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Pricing, from the catalog                                                 */
+/*  Platforms                                                                 */
 /* -------------------------------------------------------------------------- */
-export function Pricing() {
-  const p = catalog.pricing
-  const tiers: { step: string; price: string; title: string; lines: string[]; note: string; art: ArtTheme; featured?: boolean; to?: string }[] = [
-    {
-      step: 'Step 1',
-      price: moneyRange(p.assessment.min, p.assessment.max),
-      title: 'Operations assessment',
-      lines: p.assessment.includes,
-      note: `Fixed fee, credited toward a build within ${p.assessment.creditTermDays} days.`,
-      art: 'assess',
-    },
-    {
-      step: 'Step 2',
-      price: moneyRange(p.build.min, p.build.max),
-      title: 'Build, per defined service scope',
-      lines: p.build.includes,
-      note: `In-scope fixes for ${p.build.fixPeriodDays} days after go-live.`,
-      art: 'build',
-    },
-    {
-      step: 'Step 3',
-      price: `${moneyRange(p.management.min, p.management.max)} /mo`,
-      title: 'Monthly management',
-      lines: p.management.includes,
-      note: `Initial term of ${p.management.initialTermMonths} months, then month to month. Defined workers, volume, support coverage and responsibilities.`,
-      art: 'run',
-      featured: true,
-    },
-    {
-      step: 'Standalone',
-      price: `${money(p.website.price)} one-time`,
-      title: 'Website Improvement',
-      lines: ['Up to three existing pages improved', 'One revision round', `Target: ${p.website.targetBusinessDays} business days after payment, access and content`],
-      note: 'No assessment and no retainer required. Does not credit toward other services.',
-      art: 'growth',
-      to: '/website',
-    },
-  ]
+export const PLATFORM_CARDS: { name: string; status: ProductStatus; order: string; body: string; art: ArtTheme }[] = [
+  {
+    name: 'Shopify',
+    status: 'early_access',
+    order: 'First',
+    body: 'The two checks above. Built and tested against a synthetic test store; not yet run on a real merchant’s store and not yet listed in the Shopify App Store.',
+    art: 'rings',
+  },
+  {
+    name: 'WooCommerce',
+    status: 'planned',
+    order: 'Next',
+    body: 'A similar check for products with managed stock at or below zero that still allow backorders, with the fix written through the WooCommerce REST API.',
+    art: 'blocks',
+  },
+  {
+    name: 'Amazon Seller Central',
+    status: 'planned',
+    order: 'After WooCommerce',
+    body: 'Listing issues Amazon itself reports, and listings that are not buyable. Seller-fulfilled quantities only from a stock source you configure, never guessed.',
+    art: 'grid',
+  },
+]
+
+export function Platforms() {
   return (
-    <section id="pricing" className="alt">
+    <section id="platforms">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">Pricing</span>
+          <span className="eyebrow">Platforms</span>
           <h2 className="two-tone">
-            <span className="grey">Published ranges.</span><br />
-            <span className="white">The scope sets the quote.</span>
+            <span className="grey">Shopify first.</span><br />
+            <span className="white">One platform is all you need.</span>
           </h2>
           <p className="lead">
-            Three steps for operations work, plus one standalone website service. Ranges are published so you
-            know before the conversation whether we fit.
+            Each platform works on its own. Nothing requires selling on several. Comparing stock across channels is a
+            possible later add-on and is not part of the product today.
           </p>
         </div>
-        <div className="card-grid">
-          {tiers.map(t => (
-            <div className="reveal" key={t.step}>
-              <ImageCard tag={t.step} tagIcon={<Icon.Tag />} title={t.price} featured={t.featured} art={t.art} to={t.to}>
-                <div className="icard-bottom price-card">
-                  <div className="icard-title">{t.price}</div>
-                  <div className="price-title">{t.title}</div>
-                  <ul className="price-lines">
-                    {t.lines.map(l => <li key={l}>{l}</li>)}
-                  </ul>
-                  <div className="price-note">{t.note}</div>
-                  {t.to && <span className="price-link">See what is included →</span>}
+        <div className="card-grid three">
+          {PLATFORM_CARDS.map(p => (
+            <div className="reveal" key={p.name}>
+              <ImageCard tag={p.order} tagIcon={<Icon.Store />} title={p.name} art={p.art} className="platform-card">
+                <div className="icard-bottom svc">
+                  <div className="icard-title">{p.name}</div>
+                  <StatusBadge status={p.status} />
+                  <p className="svc-desc">{p.body}</p>
                 </div>
               </ImageCard>
             </div>
           ))}
         </div>
-        <div className="price-notes reveal">
-          <p>
-            <strong>The exact scope determines the final quote.</strong> The lowest price in each range does not
-            include {joinList(catalog.notIncludedInLowestPrice)}.
-          </p>
-          <p>Five things we price separately, so a proposal is never a surprise:</p>
-          <ul className="scope-list">
-            {catalog.scopeConsiderations.map(c => (
-              <li key={c.key}>
-                <strong>{c.label}.</strong> {c.note}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <p className="platform-note reveal">
+          These are integrations through each platform&rsquo;s official API, not partnerships. {BRAND} is not affiliated
+          with or endorsed by Shopify, WooCommerce or Amazon.
+        </p>
       </div>
     </section>
   )
-}
-
-/** "a, b, c or d" */
-export function joinList(items: string[], conj = 'or'): string {
-  if (items.length <= 1) return items.join('')
-  return `${items.slice(0, -1).join(', ')} ${conj} ${items[items.length - 1]}`
 }
 
 /* -------------------------------------------------------------------------- */
@@ -499,40 +340,40 @@ export function joinList(items: string[], conj = 'or'): string {
 /* -------------------------------------------------------------------------- */
 export const FAQS: { q: string; a: ReactNode }[] = [
   {
-    q: 'Do we have to change our scheduler, EVV or billing system?',
-    a: <>No. We work from the exports and inboxes you already have. If a system cannot give us what a service needs, we tell you in the assessment, not after.</>,
+    q: 'Do I need more than one platform?',
+    a: <>No. One platform is enough. A Shopify store needs only Shopify, and the same will apply to WooCommerce and Amazon Seller Central once they are available. Comparing stock across channels is a possible later add-on, not part of the product today.</>,
   },
   {
-    q: 'Does anything get sent automatically?',
-    a: <>No. Every message a worker proposes waits for a named person at your agency or at {BRAND} to approve, edit or skip it. Auto-send is off unless your engagement turns it on for a specific worker, in writing.</>,
+    q: 'Will it change my stock counts?',
+    a: <>No. The only change the Shopify version makes is the variant&rsquo;s out-of-stock setting, and only after you approve it. When a variant is oversold, Deploi shows the evidence and tells you what to check, because only a physical count or a receiving record can say what is on the shelf.</>,
   },
   {
-    q: 'What is a supervised pilot?',
-    a: <>The service runs on your real referrals, applicants, shifts or visit exports with every action reviewed by a person, for a set period, with results measured against the baseline from the assessment. The pilot ends with a decision to continue, change or stop.</>,
+    q: 'What does it read?',
+    a: <>Products, inventory and locations, plus your shop&rsquo;s name, domain and timezone. It does not read customer or order data. The <Link to="/privacy">privacy policy</Link> has the details.</>,
   },
   {
-    q: 'Is there a contract?',
-    a: <>The assessment is a one-time fee. Monthly management has an initial term of {catalog.pricing.management.initialTermMonths} months, then month to month. Website Improvement is a one-time {money(catalog.pricing.website.price)} with no retainer.</>,
+    q: 'What happens if my store changes after I approve a fix?',
+    a: <>The fix does not run. Approvals are cancelled if the store changes before the fix runs, and Deploi re-reads the record just before writing and refuses if anything changed. You see the reason next to the fix.</>,
   },
   {
-    q: 'Who sees our client data?',
-    a: <>Only what the specific service requires, under a signed <Link to="/baa">Business Associate Agreement</Link>. Every change is logged, and reads of client records are logged on the dashboard, report and action pages. Staffing services (applicants, check-ins, credentials) touch no client records at all.</>,
+    q: 'What does it cost?',
+    a: <>{BRAND} is a subscription. Pricing will be published before general availability.</>,
   },
   {
-    q: 'Which agencies and states do you work with?',
-    a: <>Home care agencies first: Medicaid waiver and private pay, keeping their current systems. Other small healthcare practices by conversation. Correction deadlines and payer rules are configured per program, payer and state, and recorded with their source.</>,
+    q: 'Is it in the Shopify App Store?',
+    a: <>Not yet. The Shopify version is in early access. It has been built and tested against a synthetic test store and has not yet been run on a real merchant&rsquo;s store.</>,
   },
 ]
 
 export function FAQ() {
   return (
-    <section id="faq">
+    <section id="faq" className="alt">
       <div className="container">
         <div className="section-head reveal">
           <span className="eyebrow">Questions</span>
           <h2 className="two-tone">
-            <span className="grey">Before</span><br />
-            <span className="white">you reach out.</span>
+            <span className="grey">Straight answers</span><br />
+            <span className="white">before you apply.</span>
           </h2>
         </div>
         <div className="faq-list reveal">
@@ -547,6 +388,32 @@ export function FAQ() {
               </div>
             </details>
           ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Early access                                                              */
+/* -------------------------------------------------------------------------- */
+export function EarlyAccess() {
+  return (
+    <section id="early-access">
+      <div className="container">
+        <div className="section-head reveal">
+          <span className="eyebrow">Apply for Early Access</span>
+          <h2 className="two-tone">
+            <span className="grey">Access is limited.</span><br />
+            <span className="white">Tell us about your store.</span>
+          </h2>
+          <p className="lead">
+            Shopify stores come first. WooCommerce and Amazon Seller Central stores can apply now, and we will be in
+            touch when those integrations are ready.
+          </p>
+        </div>
+        <div className="book-inner reveal">
+          <EarlyAccessForm />
         </div>
       </div>
     </section>

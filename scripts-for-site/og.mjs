@@ -13,14 +13,14 @@ const html = `<!doctype html><html><head><meta charset="utf-8">
   html,body{margin:0;width:1200px;height:630px;background:#000;font-family:Inter,sans-serif;color:#fff}
   .wrap{position:relative;width:1200px;height:630px;display:flex;flex-direction:column;justify-content:space-between;padding:72px 80px;box-sizing:border-box}
   .brand{font-weight:700;font-size:40px;letter-spacing:-0.02em}
-  h1{margin:0;font-weight:600;font-size:76px;line-height:1.05;letter-spacing:-0.02em}
+  h1{margin:0;font-weight:600;font-size:58px;line-height:1.05;letter-spacing:-0.02em}
   h1 .g{color:#8A8A8A}
   .sub{color:#A3A3A3;font-size:26px;font-weight:400}
   .dots{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 1.5px);background-size:72px 72px}
 </style></head><body><div class="wrap"><div class="dots"></div>
 <div class="brand">deploi <span style="color:#4D7CFF">ai</span></div>
-<h1><span class="g">More patients.</span><br><span class="g">More staff.</span><br>Fewer missed visits.</h1>
-<div class="sub">Operations &amp; technology for small practices</div>
+<h1><span class="g">Find stock and listing problems.</span><br><span class="g">Approve the fix.</span><br>See it verified.</h1>
+<div class="sub">Shopify first, in early access</div>
 </div></body></html>`
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1200, height: 630 } })

@@ -1,5 +1,24 @@
 import { describe, expect, it, vi } from 'vitest'
-import { cleanPages, isHttpUrl, resolveLeadTarget, submitLead, validateLead, type LeadPayload } from '../lib/leads'
+import {
+  earlyAccessPayload,
+  isHttpUrl,
+  leadMailBody,
+  resolveLeadTarget,
+  submitLead,
+  validateLead,
+  type LeadPayload,
+} from '../lib/leads'
+
+const valid: LeadPayload = {
+  name: 'Pat Example',
+  email: 'pat@example-store.test',
+  agency_name: 'Example Store',
+  source: 'site',
+  service_interest: 'early_access',
+  store_url: 'https://example-store.test',
+  platforms: ['shopify'],
+  website: '',
+}
 
 describe('resolveLeadTarget', () => {
   it('prefers the app API when VITE_APP_API_URL is set', () => {
@@ -16,51 +35,32 @@ describe('resolveLeadTarget', () => {
 })
 
 describe('validateLead', () => {
-  it('requires name, valid email and agency', () => {
-    expect(validateLead({ name: '', email: 'a@b.co', agency_name: 'X', source: 'site' })).toMatch(/name/)
-    expect(validateLead({ name: 'A', email: 'nope', agency_name: 'X', source: 'site' })).toMatch(/email/)
-    expect(validateLead({ name: 'A', email: 'a@b.co', agency_name: '', source: 'site' })).toMatch(/agency/)
-    expect(validateLead({ name: 'A', email: 'a@b.co', agency_name: 'X', source: 'site' })).toBeNull()
+  it('accepts a complete early access application', () => {
+    expect(validateLead(valid)).toBeNull()
+    expect(validateLead({ ...valid, platforms: ['shopify', 'woocommerce', 'amazon'], catalog_size: 'over_10000', message: 'x' })).toBeNull()
   })
-
-  const website: LeadPayload = {
-    name: 'A', email: 'a@b.co', agency_name: 'X', source: 'site',
-    service_interest: 'website_improvement',
-    website_url: 'https://example-agency.test/',
-    website_platform: 'Squarespace',
-    website_goal: 'More families calling',
-    website_pages: ['Home', 'Contact'],
-    website_changes: 'Clearer services page',
-    access_status: 'have_login',
-  }
-  it('accepts a complete website-improvement payload', () => {
-    expect(validateLead(website)).toBeNull()
+  it('requires name, a valid email and the store or company name', () => {
+    expect(validateLead({ ...valid, name: ' ' })).toMatch(/name/)
+    expect(validateLead({ ...valid, email: 'nope' })).toMatch(/email/)
+    expect(validateLead({ ...valid, agency_name: '' })).toMatch(/store or company name/)
   })
-  it('requires an http(s) website URL for a website inquiry', () => {
-    expect(validateLead({ ...website, website_url: '' })).toMatch(/website address/)
-    expect(validateLead({ ...website, website_url: 'example-agency.test' })).toMatch(/http/)
-    expect(validateLead({ ...website, website_url: 'ftp://example-agency.test' })).toMatch(/http/)
-    expect(validateLead({ ...website, website_url: 'javascript:alert(1)' })).toMatch(/http/)
-    expect(validateLead({ ...website, website_url: 'http://example-agency.test/services' })).toBeNull()
+  it('requires an http(s) store URL', () => {
+    expect(validateLead({ ...valid, store_url: '' })).toMatch(/store URL/)
+    expect(validateLead({ ...valid, store_url: 'example-store.test' })).toMatch(/http/)
+    expect(validateLead({ ...valid, store_url: 'ftp://example-store.test' })).toMatch(/http/)
+    expect(validateLead({ ...valid, store_url: 'javascript:alert(1)' })).toMatch(/http/)
+    expect(validateLead({ ...valid, store_url: 'http://example-store.test/collections' })).toBeNull()
   })
-  it('requires platform, goal, changes and access status', () => {
-    expect(validateLead({ ...website, website_platform: undefined })).toMatch(/platform/)
-    expect(validateLead({ ...website, website_platform: 'Shopify' as never })).toMatch(/platform/)
-    expect(validateLead({ ...website, website_goal: ' ' })).toMatch(/goal/)
-    expect(validateLead({ ...website, website_changes: '' })).toMatch(/changes/)
-    expect(validateLead({ ...website, access_status: undefined })).toMatch(/access/)
-    expect(validateLead({ ...website, access_status: 'password' as never })).toMatch(/access/)
+  it('requires at least one known platform', () => {
+    expect(validateLead({ ...valid, platforms: [] })).toMatch(/at least one platform/)
+    expect(validateLead({ ...valid, platforms: ['ebay' as never] })).toMatch(/platform/)
   })
-  it('caps the page list at three', () => {
-    expect(validateLead({ ...website, website_pages: ['a', 'b', 'c', 'd'] })).toMatch(/at most 3/)
-    expect(validateLead({ ...website, website_pages: ['a', 'b', 'c'] })).toBeNull()
-  })
-  it('does not require website fields for an ordinary lead', () => {
-    expect(validateLead({ name: 'A', email: 'a@b.co', agency_name: 'X', source: 'chat' })).toBeNull()
+  it('accepts only the listed catalog sizes', () => {
+    expect(validateLead({ ...valid, catalog_size: 'huge' as never })).toMatch(/product count/)
   })
 })
 
-describe('isHttpUrl and cleanPages', () => {
+describe('isHttpUrl', () => {
   it('accepts only absolute http(s) URLs with a host', () => {
     expect(isHttpUrl('https://x.test')).toBe(true)
     expect(isHttpUrl('http://x.test/path?q=1')).toBe(true)
@@ -68,42 +68,63 @@ describe('isHttpUrl and cleanPages', () => {
     expect(isHttpUrl('mailto:a@b.co')).toBe(false)
     expect(isHttpUrl('https://localhost')).toBe(false)
   })
-  it('drops empty strings, trims, and keeps at most three pages', () => {
-    expect(cleanPages(['', ' Home ', undefined, 'Services', 'Contact', 'About'])).toEqual(['Home', 'Services', 'Contact'])
-    expect(cleanPages(['', '', ''])).toEqual([])
+})
+
+describe('earlyAccessPayload', () => {
+  it('maps the form to the exact contract, in platform order, dropping empty optionals', () => {
+    const fd = new FormData()
+    fd.set('name', ' Pat ')
+    fd.set('email', 'pat@x.test')
+    fd.set('agency_name', 'X Store')
+    fd.set('store_url', 'https://x.test')
+    fd.append('platforms', 'amazon')
+    fd.append('platforms', 'shopify')
+    fd.append('platforms', 'not-a-platform')
+    fd.set('catalog_size', '')
+    fd.set('message', '  ')
+    fd.set('website', '')
+    expect(earlyAccessPayload(fd)).toEqual({
+      name: 'Pat',
+      email: 'pat@x.test',
+      agency_name: 'X Store',
+      source: 'site',
+      service_interest: 'early_access',
+      store_url: 'https://x.test',
+      platforms: ['shopify', 'amazon'],
+      catalog_size: undefined,
+      message: undefined,
+      website: '',
+    })
+  })
+  it('summarises the application for the mail fallback with readable labels', () => {
+    const body = leadMailBody({ ...valid, platforms: ['shopify', 'amazon'], catalog_size: '100_1000', message: 'Oversold variants' })
+    expect(body).toContain('Platforms: Shopify, Amazon Seller Central')
+    expect(body).toContain('Approximate number of products: 100–1,000')
+    expect(body).toContain('Store URL: https://example-store.test')
+    expect(body).not.toMatch(/password/i)
   })
 })
 
 describe('submitLead', () => {
-  const payload = { name: 'A', email: 'a@b.co', agency_name: 'X', source: 'chat' as const }
-  it('posts JSON to the app API and returns the id', async () => {
+  it('posts the payload as-is to the app API and returns the id', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ ok: true, id: 'lead_1' }), { status: 200 }))
-    const res = await submitLead(payload, { fetchImpl: fetchImpl as unknown as typeof fetch, target: { kind: 'app', url: 'https://x/api/public/lead' } })
+    const res = await submitLead(valid, { fetchImpl: fetchImpl as unknown as typeof fetch, target: { kind: 'app', url: 'https://x/api/public/lead' } })
     expect(res).toEqual({ ok: true, id: 'lead_1' })
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toBe('https://x/api/public/lead')
-    expect(JSON.parse(String(init.body))).toMatchObject({ source: 'chat', email: 'a@b.co' })
+    expect(JSON.parse(String(init.body))).toEqual(valid)
   })
-  it('posts the website-improvement fields as-is, with no password field', async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ ok: true, id: 'lead_2' }), { status: 200 }))
-    const website: LeadPayload = {
-      ...payload, source: 'site', service_interest: 'website_improvement', website_url: 'https://x.test',
-      website_platform: 'Wix', website_goal: 'g', website_pages: ['Home'], website_changes: 'c',
-      website_issues: 'i', access_status: 'agency_managed', approval_contact: 'Pat <pat@x.test>',
-    }
-    await submitLead(website, { fetchImpl: fetchImpl as unknown as typeof fetch, target: { kind: 'app', url: 'https://x/api/public/lead' } })
+  it('adds a subject for Formspree', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+    await submitLead(valid, { fetchImpl: fetchImpl as unknown as typeof fetch, target: { kind: 'formspree', url: 'https://f' } })
     const body = JSON.parse(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body))
-    expect(body).toMatchObject({
-      source: 'site', service_interest: 'website_improvement', website_url: 'https://x.test', website_platform: 'Wix',
-      website_pages: ['Home'], access_status: 'agency_managed', approval_contact: 'Pat <pat@x.test>',
-    })
-    expect(Object.keys(body).some(k => /password/i.test(k))).toBe(false)
+    expect(body._subject).toMatch(/early access/)
   })
   it('throws on a non-2xx response', async () => {
     const fetchImpl = vi.fn(async () => new Response('nope', { status: 500 }))
-    await expect(submitLead(payload, { fetchImpl: fetchImpl as unknown as typeof fetch, target: { kind: 'formspree', url: 'https://f' } })).rejects.toThrow(/nope/)
+    await expect(submitLead(valid, { fetchImpl: fetchImpl as unknown as typeof fetch, target: { kind: 'formspree', url: 'https://f' } })).rejects.toThrow(/nope/)
   })
   it('throws a configuration error when no target exists', async () => {
-    await expect(submitLead(payload, { target: { kind: 'none' } })).rejects.toThrow(/not configured/)
+    await expect(submitLead(valid, { target: { kind: 'none' } })).rejects.toThrow(/not configured/)
   })
 })

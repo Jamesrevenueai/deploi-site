@@ -29,11 +29,17 @@ async function shot(name, url, width, { fullPage = true, before } = {}) {
   await page.close()
   console.log('wrote', `${name}-${width}.png`)
 }
+async function fillEarlyAccess(page, storeUrl) {
+  const form = page.locator('#early-access form')
+  await form.getByLabel('Name', { exact: true }).fill('Pat Example')
+  await form.getByLabel('Work email').fill('pat@example-store.test')
+  await form.getByLabel('Store or company name').fill('Example Store')
+  await form.getByLabel('Store URL').fill(storeUrl)
+  return form
+}
 for (const w of [1440, 390]) {
   await shot('site-home', '/', w)
-  await shot('site-website', '/website', w)
-  await shot('site-baa', '/baa', w)
-  await shot('site-evv', '/evv', w)
+  await shot('site-privacy', '/privacy', w)
   await shot('site-404', '/this-page-does-not-exist', w, { fullPage: false })
   await shot('site-menu-open', '/', w, {
     fullPage: false,
@@ -41,47 +47,24 @@ for (const w of [1440, 390]) {
       if (w < 960) await page.getByRole('button', { name: 'Open menu' }).click()
     },
   })
-  // Website form: validation error, then (against the stubbed API) the success state.
-  await shot('site-website-form-error', '/website', w, {
-    fullPage: false,
-    before: async page => {
-      await page.getByLabel('Name', { exact: true }).fill('Pat Example')
-      await page.getByLabel('Work email', { exact: true }).fill('pat@example-agency.test')
-      await page.getByLabel('Practice or agency name').fill('Example Home Care')
-      await page.getByLabel('Website URL').fill('example-agency.test')
-      await page.getByRole('button', { name: 'Request website improvements' }).click()
-      await page.getByRole('alert').waitFor()
-      await page.getByRole('alert').scrollIntoViewIfNeeded()
-    },
-  })
-  await shot('site-website-form-success', '/website', w, {
-    fullPage: false,
-    before: async page => {
-      await page.getByLabel('Name', { exact: true }).fill('Pat Example')
-      await page.getByLabel('Work email', { exact: true }).fill('pat@example-agency.test')
-      await page.getByLabel('Practice or agency name').fill('Example Home Care')
-      await page.getByLabel('Website URL').fill('https://example-agency.test')
-      await page.getByLabel('Website platform').selectOption('WordPress')
-      await page.getByLabel('Main business goal').fill('More private-pay inquiries')
-      await page.getByLabel('Page 1 to improve').fill('Home')
-      await page.getByLabel('Requested changes').fill('Clearer services page')
-      await page.getByLabel('Access status').selectOption('have_login')
-      await page.getByRole('button', { name: 'Request website improvements' }).click()
-      await page.locator('.confirmation').waitFor()
-      await page.locator('.confirmation').scrollIntoViewIfNeeded()
-    },
-  })
-  // Home form: validation error state.
+  // Early access form: validation error (URL without http/https), then the success state against the stubbed API.
   await shot('site-home-form-error', '/', w, {
     fullPage: false,
     before: async page => {
-      const form = page.locator('#book form')
-      await form.getByLabel('Name', { exact: true }).fill('Pat Example')
-      await form.getByLabel('Work email').fill('not-an-email')
-      await form.getByLabel('Agency or practice').fill('Example Home Care')
-      await form.getByRole('button', { name: 'Request a discovery conversation' }).click()
+      const form = await fillEarlyAccess(page, 'example-store.test')
+      await form.getByRole('button', { name: 'Apply for Early Access' }).click()
       await form.getByRole('alert').waitFor()
-      await form.getByRole('alert').scrollIntoViewIfNeeded()
+      await form.getByRole('alert').evaluate(el => el.scrollIntoView({ block: 'center' }))
+    },
+  })
+  await shot('site-home-form-success', '/', w, {
+    fullPage: false,
+    before: async page => {
+      const form = await fillEarlyAccess(page, 'https://example-store.test')
+      await form.getByLabel(/Approximate number of products/).selectOption('100_1000')
+      await form.getByRole('button', { name: 'Apply for Early Access' }).click()
+      await page.locator('#early-access .confirmation').waitFor()
+      await page.locator('#early-access .confirmation').evaluate(el => el.scrollIntoView({ block: 'center' }))
     },
   })
 }

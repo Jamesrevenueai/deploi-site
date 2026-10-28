@@ -4,13 +4,9 @@ import { Nav } from './components/Nav'
 import { Footer } from './components/Footer'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import Home from './pages/Home'
-// Secondary routes and the chat bubble load on demand so the homepage bundle stays small.
+// Secondary routes load on demand so the homepage bundle stays small.
 const Legal = lazy(() => import('./pages/Legal'))
-const Baa = lazy(() => import('./pages/Baa'))
-const Evv = lazy(() => import('./pages/Evv'))
-const Website = lazy(() => import('./pages/Website'))
 const NotFound = lazy(() => import('./pages/NotFound'))
-const ChatBubble = lazy(() => import('./components/ChatBubble').then(m => ({ default: m.ChatBubble })))
 
 export default function App() {
   return (
@@ -20,16 +16,38 @@ export default function App() {
   )
 }
 
-/** Old routes from earlier versions of the site: send them to the matching homepage section. */
-const LEGACY_REDIRECTS: Record<string, string> = {
-  '/plan': '/#how',
-  '/build': '/#how',
-  '/train': '/#menu',
-  '/run': '/#pricing',
-  '/tools': '/#menu',
-  '/audit': '/#pricing',
-  '/audit/sample': '/#pricing',
-  '/course': '/#menu',
+/**
+ * Routes from earlier versions of the site. They all go to the homepage so old links never 404.
+ * /website, /evv and /baa belonged to the retired consulting offer.
+ */
+export const LEGACY_REDIRECTS: Record<string, string> = {
+  '/website': '/',
+  '/evv': '/',
+  '/baa': '/',
+  '/plan': '/',
+  '/build': '/',
+  '/train': '/',
+  '/run': '/',
+  '/tools': '/',
+  '/audit': '/',
+  '/audit/sample': '/',
+  '/course': '/',
+}
+
+export function AppRoutes() {
+  return (
+    <Suspense fallback={null}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
+          <Route key={from} path={from} element={<Navigate to={to} replace />} />
+        ))}
+        <Route path="/terms" element={<Legal kind="terms" />} />
+        <Route path="/privacy" element={<Legal kind="privacy" />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  )
 }
 
 export function Shell() {
@@ -40,36 +58,23 @@ export function Shell() {
     <>
       <Nav />
       <main>
-        <Suspense fallback={null}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
-            <Route key={from} path={from} element={<Navigate to={to} replace />} />
-          ))}
-          <Route path="/terms" element={<Legal kind="terms" />} />
-          <Route path="/privacy" element={<Legal kind="privacy" />} />
-          <Route path="/baa" element={<Baa />} />
-          <Route path="/evv" element={<Evv />} />
-          <Route path="/website" element={<Website />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        </Suspense>
+        <AppRoutes />
       </main>
       <Footer />
-      <Suspense fallback={null}><ChatBubble /></Suspense>
     </>
   )
 }
 
-/**
- * When a route lands with a hash like `/#pricing`, scroll to it on next paint.
- * Legacy `#waitlist` links map to the book-a-call form.
- */
+/** Hashes from earlier versions of the site that now mean the early access form. */
+const HASH_ALIASES: Record<string, string> = { waitlist: 'early-access', book: 'early-access' }
+
+/** When a route lands with a hash like `/#faq`, scroll to it on next paint. */
 function useHashScroll() {
   const location = useLocation()
   useEffect(() => {
     if (!location.hash) return
-    const id = location.hash.slice(1) === 'waitlist' ? 'book' : location.hash.slice(1)
+    const raw = location.hash.slice(1)
+    const id = HASH_ALIASES[raw] ?? raw
     const t = window.setTimeout(() => {
       const el = document.getElementById(id)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })

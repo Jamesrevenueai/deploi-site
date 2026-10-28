@@ -1,43 +1,44 @@
 import { env } from './env'
 
-export type LeadSource = 'site' | 'evv-page' | 'chat'
+export type LeadSource = 'site'
 
-export type ServiceInterest = 'operations' | 'website_improvement'
+export type ServiceInterest = 'early_access'
 
-export type AccessStatus = 'have_login' | 'need_to_find' | 'agency_managed' | 'unknown'
+export type Platform = 'shopify' | 'woocommerce' | 'amazon'
 
-export const ACCESS_STATUSES: { value: AccessStatus; label: string }[] = [
-  { value: 'have_login', label: 'I have the login' },
-  { value: 'need_to_find', label: 'I need to find it' },
-  { value: 'agency_managed', label: 'An agency manages it' },
-  { value: 'unknown', label: 'Not sure' },
+export const PLATFORMS: { value: Platform; label: string; planned: boolean }[] = [
+  { value: 'shopify', label: 'Shopify', planned: false },
+  { value: 'woocommerce', label: 'WooCommerce', planned: true },
+  { value: 'amazon', label: 'Amazon Seller Central', planned: true },
 ]
 
-export const WEBSITE_PLATFORMS = ['Squarespace', 'Wix', 'WordPress', 'GoDaddy', 'Weebly', 'Other/unknown'] as const
-export type WebsitePlatform = (typeof WEBSITE_PLATFORMS)[number]
+export type CatalogSize = 'under_100' | '100_1000' | '1000_10000' | 'over_10000'
 
-export const MAX_WEBSITE_PAGES = 3
+export const CATALOG_SIZES: { value: CatalogSize; label: string }[] = [
+  { value: 'under_100', label: 'Under 100' },
+  { value: '100_1000', label: '100–1,000' },
+  { value: '1000_10000', label: '1,000–10,000' },
+  { value: 'over_10000', label: 'More than 10,000' },
+]
 
+/**
+ * The early access application, exactly as the app lead API receives it.
+ * No password or API key field exists, by design.
+ */
 export type LeadPayload = {
   name: string
   email: string
+  /** The store or company name. The API keeps the historical field name. */
   agency_name: string
-  phone?: string
-  message?: string
   source: LeadSource
+  service_interest: ServiceInterest
+  store_url: string
+  platforms: Platform[]
+  catalog_size?: CatalogSize
+  /** The stock or listing problem the merchant most wants solved. */
+  message?: string
   /** Honeypot. Humans never see the field; a filled value marks the lead as a bot. */
-  website?: string
-  /** Optional fields accepted by the lead API for a website-improvement inquiry. */
-  service_interest?: ServiceInterest
-  website_url?: string
-  website_platform?: WebsitePlatform
-  website_goal?: string
-  website_pages?: string[]
-  website_changes?: string
-  website_issues?: string
-  access_status?: AccessStatus
-  /** Name and email of the person who approves the preview. Not yet stored by the API; sent anyway. */
-  approval_contact?: string
+  website: string
 }
 
 export type LeadTarget = { kind: 'app'; url: string } | { kind: 'formspree'; url: string } | { kind: 'none' }
@@ -62,30 +63,64 @@ export function isHttpUrl(value: string): boolean {
   return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.')
 }
 
-/** Drops empty strings, trims, and keeps at most MAX_WEBSITE_PAGES entries. */
-export function cleanPages(pages: readonly (string | null | undefined)[]): string[] {
-  return pages
-    .map(p => (p ?? '').trim())
-    .filter(p => p.length > 0)
-    .slice(0, MAX_WEBSITE_PAGES)
+const PLATFORM_VALUES = PLATFORMS.map(p => p.value)
+const CATALOG_SIZE_VALUES = CATALOG_SIZES.map(s => s.value)
+
+export function isPlatform(v: string): v is Platform {
+  return (PLATFORM_VALUES as string[]).includes(v)
+}
+
+export function isCatalogSize(v: string): v is CatalogSize {
+  return (CATALOG_SIZE_VALUES as string[]).includes(v)
 }
 
 export function validateLead(p: LeadPayload): string | null {
   if (!p.name.trim()) return 'Please enter your name.'
-  if (!EMAIL_RE.test(p.email.trim())) return 'Please enter a valid email.'
-  if (!p.agency_name.trim()) return 'Please enter your agency name.'
-  if (p.service_interest === 'website_improvement') {
-    if (!p.website_url || !p.website_url.trim()) return 'Please enter your website address.'
-    if (!isHttpUrl(p.website_url)) return 'Please enter a full website address starting with http:// or https://.'
-    if (!p.website_platform || !WEBSITE_PLATFORMS.includes(p.website_platform)) return 'Please choose the platform your website runs on.'
-    if (!p.website_goal || !p.website_goal.trim()) return 'Please tell us your main business goal for the website.'
-    if (!p.website_changes || !p.website_changes.trim()) return 'Please describe the changes you would like.'
-    if (!p.access_status || !ACCESS_STATUSES.some(a => a.value === p.access_status)) return 'Please tell us whether you have access to the website.'
-    if (p.website_pages && p.website_pages.length > MAX_WEBSITE_PAGES) return `Please list at most ${MAX_WEBSITE_PAGES} pages.`
-  } else if (p.website_url && !isHttpUrl(p.website_url)) {
-    return 'Please enter a full website address starting with http:// or https://.'
-  }
+  if (!EMAIL_RE.test(p.email.trim())) return 'Please enter a valid work email.'
+  if (!p.agency_name.trim()) return 'Please enter your store or company name.'
+  if (!p.store_url.trim()) return 'Please enter your store URL.'
+  if (!isHttpUrl(p.store_url)) return 'Please enter a full store URL starting with http:// or https://.'
+  if (p.platforms.length === 0) return 'Please choose at least one platform.'
+  if (!p.platforms.every(isPlatform)) return 'Please choose platforms from the list.'
+  if (p.catalog_size !== undefined && !isCatalogSize(p.catalog_size)) return 'Please choose a product count from the list.'
   return null
+}
+
+/** Builds the payload from the early access form. Exported so tests can check the mapping without a browser. */
+export function earlyAccessPayload(fd: FormData): LeadPayload {
+  const str = (k: string) => String(fd.get(k) ?? '').trim()
+  const size = str('catalog_size')
+  const message = str('message')
+  const platforms = fd.getAll('platforms').map(v => String(v)).filter(isPlatform)
+  return {
+    name: str('name'),
+    email: str('email'),
+    agency_name: str('agency_name'),
+    source: 'site',
+    service_interest: 'early_access',
+    store_url: str('store_url'),
+    // Keep the order of PLATFORMS regardless of click order.
+    platforms: PLATFORM_VALUES.filter(p => platforms.includes(p)),
+    catalog_size: size && isCatalogSize(size) ? size : undefined,
+    message: message || undefined,
+    website: String(fd.get('website') ?? ''),
+  }
+}
+
+/** Plain-text summary for the mail-client fallback when no backend is configured. */
+export function leadMailBody(p: LeadPayload): string {
+  const platformLabels = p.platforms.map(v => PLATFORMS.find(x => x.value === v)?.label ?? v)
+  const size = CATALOG_SIZES.find(s => s.value === p.catalog_size)?.label ?? ''
+  return [
+    `Name: ${p.name}`,
+    `Work email: ${p.email}`,
+    `Store or company: ${p.agency_name}`,
+    `Store URL: ${p.store_url}`,
+    `Platforms: ${platformLabels.join(', ')}`,
+    `Approximate number of products: ${size}`,
+    '',
+    `Problem to solve: ${p.message ?? ''}`,
+  ].join('\n')
 }
 
 export async function submitLead(
@@ -100,7 +135,7 @@ export async function submitLead(
   const body =
     target.kind === 'app'
       ? payload
-      : { ...payload, _subject: `Deploi AI lead (${payload.source})` }
+      : { ...payload, _subject: `Deploi AI early access application (${payload.source})` }
   const res = await fetchImpl(target.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

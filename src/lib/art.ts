@@ -3,20 +3,20 @@
  * no external files: each theme is a dark mesh glow, a faint line motif and a
  * grain layer, returned as a CSS `url(...)` data URI.
  */
-export type ArtTheme = 'growth' | 'staffing' | 'operations' | 'money' | 'report' | 'assess' | 'build' | 'run' | 'hero' | 'glow'
+export type ArtTheme = 'trend' | 'grid' | 'rings' | 'bars' | 'rows' | 'peaks' | 'blocks' | 'cycle' | 'hero' | 'glow'
 
 const W = 1600
 const H = 900
 
 const TINT: Record<ArtTheme, [string, string]> = {
-  growth: ['#1B4F42', '#123630'],
-  staffing: ['#372D73', '#221D4E'],
-  operations: ['#1C4169', '#14304F'],
-  money: ['#4C4026', '#2F2819'],
-  report: ['#183566', '#102447'],
-  assess: ['#30323A', '#1B1C22'],
-  build: ['#264460', '#182C3E'],
-  run: ['#234E3B', '#173228'],
+  trend: ['#1B4F42', '#123630'],
+  grid: ['#372D73', '#221D4E'],
+  rings: ['#1C4169', '#14304F'],
+  bars: ['#4C4026', '#2F2819'],
+  rows: ['#183566', '#102447'],
+  peaks: ['#30323A', '#1B1C22'],
+  blocks: ['#264460', '#182C3E'],
+  cycle: ['#234E3B', '#173228'],
   hero: ['#152A58', '#0E1A3A'],
   glow: ['#183566', '#102447'],
 }
@@ -25,13 +25,13 @@ function motif(theme: ArtTheme): string {
   const s = 'stroke="rgba(255,255,255,0.10)" stroke-width="2" fill="none"'
   const sf = 'stroke="rgba(255,255,255,0.06)" stroke-width="1.5" fill="none"'
   switch (theme) {
-    case 'growth': {
+    case 'trend': {
       const pts = [[120, 700], [380, 600], [620, 640], [860, 430], [1100, 470], [1340, 250], [1520, 300]]
       const line = pts.map(p => p.join(',')).join(' ')
       const dots = pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7" fill="rgba(255,255,255,0.22)"/><circle cx="${x}" cy="${y}" r="22" ${sf}/>`).join('')
       return `<polyline points="${line}" ${s}/>${dots}<path d="M120 780 H1520" ${sf}/>`
     }
-    case 'staffing': {
+    case 'grid': {
       let out = ''
       for (let r = 0; r < 5; r++) for (let c = 0; c < 10; c++) {
         const x = 200 + c * 130, y = 240 + r * 120
@@ -40,15 +40,15 @@ function motif(theme: ArtTheme): string {
       }
       return out + `<path d="M200 760 H1370" ${sf}/>`
     }
-    case 'operations': {
+    case 'rings': {
       const rings = [120, 220, 330, 450].map(r => `<circle cx="1180" cy="430" r="${r}" ${sf}/>`).join('')
       return rings + `<path d="M140 720 C 420 520, 640 760, 900 480 S 1180 420, 1180 430" ${s} stroke-dasharray="10 14"/><circle cx="1180" cy="430" r="9" fill="rgba(255,255,255,0.3)"/><circle cx="140" cy="720" r="9" fill="rgba(255,255,255,0.3)"/>`
     }
-    case 'money': {
+    case 'bars': {
       const bars = [0, 1, 2, 3, 4].map(i => `<rect x="${220 + i * 240}" y="${640 - i * 70}" width="120" height="${120 + i * 70}" rx="10" fill="rgba(255,255,255,${0.05 + i * 0.02})"/>`).join('')
       return bars + `<path d="M180 780 H1420" ${sf}/>`
     }
-    case 'report': {
+    case 'rows': {
       let out = ''
       for (let i = 0; i < 4; i++) {
         const y = 230 + i * 130
@@ -56,11 +56,11 @@ function motif(theme: ArtTheme): string {
       }
       return out
     }
-    case 'assess':
+    case 'peaks':
       return `<path d="M260 640 L560 360 L860 520 L1160 260 L1420 380" ${s}/><circle cx="560" cy="360" r="26" ${sf}/><circle cx="1160" cy="260" r="26" ${sf}/>`
-    case 'build':
+    case 'blocks':
       return [0, 1, 2, 3, 4, 5].map(i => `<rect x="${260 + (i % 3) * 380}" y="${260 + Math.floor(i / 3) * 220}" width="300" height="160" rx="22" ${sf}/>`).join('') + `<path d="M560 340 H640 M940 340 H1020 M560 560 H640 M940 560 H1020" ${s}/>`
-    case 'run':
+    case 'cycle':
       return `<circle cx="800" cy="450" r="260" ${sf}/><circle cx="800" cy="450" r="170" ${sf}/><path d="M800 190 A260 260 0 0 1 1060 450" ${s}/><circle cx="1060" cy="450" r="10" fill="rgba(255,255,255,0.3)"/>`
     case 'glow':
       return ''

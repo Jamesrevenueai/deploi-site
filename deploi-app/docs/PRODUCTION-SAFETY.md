@@ -26,7 +26,13 @@ You asked me to leave production alone for now. These are the exact steps when y
 3. Check that `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set for Production (they are today), so the app uses Supabase magic-link sign-in.
 4. Redeploy the current production deployment without the build cache: Deployments → `dpl_BRTGfUjgMfjcfU6wBwum5kpXJM2X` → ⋯ → Redeploy. The redeploy picks up the new variables and keeps the same commit (`fd0e89e`).
    Because the rollback paused automatic domain assignment, the new build may not take over the domains on its own. If it does not, choose ⋯ → Promote to Production on it.
-5. Verify: `https://app.getdeploi.com/login` must show "We will email you a one-time sign-in link", with no user picker.
+5. Verify: run `node scripts/verify-production-login.mjs https://app.getdeploi.com` from `deploi-app/`. It sends GET requests only and must end `… passed, 0 failed`. It checks:
+   - `/login` says "We will email you a one-time sign-in link";
+   - `/login` has no user picker and no staff accounts;
+   - `/api/health` reports `supabase`;
+   - a dev session cookie is ignored.
+
+   On 2026-10-28 it fails against production, as expected (dev sign-in is still on): 3 passed, 5 failed.
 6. Optional, because it signs dev cookies: rotate `APP_SECRET` on Production at the same time. That invalidates any dev session cookie issued while the picker was public.
 
 Fastest stop-gap if you want it closed before redeploying: Vercel → `deploi-app` → Settings → Pause project. This takes `app.getdeploi.com` offline (fails closed). It is reversible with Unpause.

@@ -9,7 +9,7 @@ import type { MessageContent } from './types'
 
 export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder' | 'supplier_followup'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown>; inReplyTo?: string | null }
 
-// eslint-disable-next-line no-control-regex
+ 
 const clean = (s: unknown, max = 200) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
 const stamp = (d: Date) => d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
 

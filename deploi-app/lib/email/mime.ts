@@ -15,7 +15,7 @@ function safe(field: string, v: string): string {
   return v
 }
 function encodeWord(v: string): string {
-  // eslint-disable-next-line no-control-regex
+   
   return /^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, 'utf8').toString('base64')}?=`
 }
 function mailbox(address: string, name: string | null): string {

@@ -3,6 +3,8 @@
  * localhost DATABASE_URL), synthetic Northwind store, no network: Resend is replaced by an in-process
  * fake and inbound mail is handed to processInbound directly.
  *   npx tsx --env-file=.env.local scripts/seed-platform-demo.ts
+ * Afterwards, remove the demo agents and their work (the standard seed's agents are kept), then re-run `scripts/seed.ts`:
+ *   npx tsx --env-file=.env.local scripts/seed-platform-demo.ts --remove
  */
 import { admin } from '../lib/db'
 import { uuidFrom } from '../lib/ids'
@@ -37,6 +39,28 @@ setEmailFetch(async (u, init) => {
   if (u.endsWith('/emails') && init.method === 'POST') return new Response(JSON.stringify({ id: `re_demo_${++sent}` }), { status: 200 })
   throw new Error(`demo seed: unexpected HTTP call ${init.method} ${u}`)
 })
+
+/** Remove every Northwind agent not created by the standard seed, with its work; the seed's own agents stay. */
+async function remove() {
+  await admin(async db => {
+    const ids = (await db.query<{ id: string }>(`select id from agents where connection_id = $1 and created_by not like 'seed:%'`, [CONN])).map(r => r.id)
+    if (!ids.length) return
+    await db.query('delete from email_inbound where agent_id = any($1::uuid[])', [ids])
+    await db.query(`delete from inbound_webhook_events where provider = 'resend' and delivery_id like 'demo-%'`)
+    await db.query('delete from email_messages where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from email_accounts where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from agent_tasks where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from agent_runs where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from executions where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from approvals where proposal_id in (select id from proposals where agent_id = any($1::uuid[]))', [ids])
+    await db.query('delete from proposals where agent_id = any($1::uuid[])', [ids])
+    await db.query('update issues set agent_id = null where agent_id = any($1::uuid[])', [ids])
+    await db.query('update agents set active_policy_id = null where id = any($1::uuid[])', [ids])
+    await db.query('delete from agent_policies where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from agents where id = any($1::uuid[])', [ids])
+    console.log(JSON.stringify({ removed: ids.length }))
+  })
+}
 
 async function main() {
   const uid = (await admin(db => db.one<{ id: string }>('select id from profiles where lower(email) = $1', [OWNER])))!.id
@@ -120,4 +144,4 @@ async function main() {
   console.log(JSON.stringify({ ...counts, fakeSends: sent, guardian: guardian.agentId, watcher: watcher.agentId, chaser: chaser.agentId, reviewer: reviewer.agentId }))
 }
 
-main().then(() => process.exit(0), e => { console.error(e); process.exit(1) })
+(process.argv.includes('--remove') ? remove() : main()).then(() => process.exit(0), e => { console.error(e); process.exit(1) })

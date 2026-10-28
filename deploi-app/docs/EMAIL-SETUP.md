@@ -100,3 +100,20 @@ Deploi does not request `gmail.compose` or `Mail.ReadWrite`. Drafts are kept in 
 - **Microsoft:**
   - Publisher verification (a verified Microsoft partner account and a custom publisher domain) so users can consent to a multi-tenant app.
   - Reading needs admin consent in organizations on the default consent policy.
+
+## Reply threading: the Resend header question (resolved for our side, 2026-10-28)
+
+**Question:** Resend's docs do not say that custom `In-Reply-To` and `References` headers survive a send. If they are dropped, would supplier replies still attach to the right message?
+
+**Answer: yes. Threading does not depend on those headers.** Each sent message has its own Reply-To address, `<mailbox>+t-<token>@<agent domain>`, and an inbound reply is matched by that token first. The `In-Reply-To` and `References` headers are only a fallback.
+
+Tested with synthetic inbound mail, no network (`tests/merchant/mail-threading.test.ts`, 7 tests, all passing):
+
+| Synthetic inbound | Result |
+|---|---|
+| Sent to the tagged Reply-To, with **no** `In-Reply-To` and **no** `References` (as if Resend dropped them) | Threaded to the right message, accepted |
+| Sent to the plain address, with `In-Reply-To` only (a client that replies to From) | Threaded |
+| Neither token nor headers | Kept as unthreaded; never attached to a guessed message; the reply count stays 0 |
+| Another organization's token on this mailbox | Not threaded: no cross-organization match |
+
+**Still unverified (needs a live send to a test mailbox):** whether Resend and the receiving mail client keep the plus-tag in the Reply-To address. Most do: the address is ordinary RFC 5322 and Resend passes `reply_to` as given. If a client strips it, the reply falls back to header matching, then to "unthreaded", and the merchant still sees it in the mailbox. Check it once with step B4 in `LAUNCH-DNS.md`.

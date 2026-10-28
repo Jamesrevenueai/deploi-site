@@ -1,5 +1,6 @@
 /**
- * Demo controls for SYNTHETIC stores only (never a real merchant): reset the catalogue, make an
+ * Demo controls for SYNTHETIC stores only (never a real merchant): reset the catalogue (and, with
+ * clearHistory, the store's engine history), make an
  * outside change (as the merchant or another app would), or inject a platform fault. Disabled in
  * production unless DEMO_CONTROLS=true.
  */
@@ -24,6 +25,20 @@ export async function POST(req: Request) {
     const action = String(body.action ?? '')
     if (action === 'reset') {
       await setSyntheticState(conn.id, conn.external_id === NORTHWIND_DOMAIN ? northwindState() : harborState())
+      // optional: also clear this synthetic store's engine history (issues, proposals, approvals, executions,
+      // scans, agent runs) so a demo can start from scratch; agents, their authorizations, reference files
+      // and the audit trail are kept
+      if (body.clearHistory === true) {
+        await admin(async db => {
+          await db.query('delete from agent_runs where agent_id in (select id from agents where connection_id = $1)', [conn.id])
+          await db.query('delete from executions where connection_id = $1', [conn.id])
+          await db.query('delete from approvals where proposal_id in (select id from proposals where connection_id = $1)', [conn.id])
+          await db.query('delete from proposals where connection_id = $1', [conn.id])
+          await db.query('delete from issues where connection_id = $1', [conn.id])
+          await db.query('delete from scans where connection_id = $1', [conn.id])
+          await db.query('update agents set last_run_at = null where connection_id = $1', [conn.id])
+        })
+      }
     } else if (action === 'external_change') {
       const variantId = String(body.variantId ?? '')
       await mutateSynthetic(conn.id, s => {
@@ -42,7 +57,7 @@ export async function POST(req: Request) {
       if (!mode) throw new HttpError(400, 'invalid_input', 'unknown fault mode')
       await injectFault(conn.id, { op: String(body.op ?? 'DeploiSetInventoryPolicy'), mode })
     } else throw new HttpError(400, 'invalid_input', 'unknown action')
-    await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: `demo.${action}`, actor: actor.label, detail: { synthetic: true } }))
+    await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: `demo.${action}`, actor: actor.label, detail: { synthetic: true, ...(action === 'reset' && body.clearHistory === true ? { clear_history: true } : {}) } }))
     return NextResponse.json({ ok: true })
   } catch (e) { return errorResponse(e) }
 }

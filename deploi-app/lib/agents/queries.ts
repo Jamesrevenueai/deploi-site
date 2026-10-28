@@ -1,6 +1,7 @@
 /** Agent reads for the merchant UI. Every query runs as the actor, so RLS limits it to their organization. */
 import { withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
+import { expansionReasons, parsePolicy } from './policy'
 
 const orgFilter = (actor: Actor, col = 'org_id') => (actor.kind === 'staff' ? 'true' : `${col} = current_org_id()`)
 
@@ -44,7 +45,14 @@ export async function agentDetail(actor: Actor, agentId: string) {
        from proposals p join issues i on i.id = p.issue_id where p.agent_id = $1 and p.status = 'pending_approval' order by i.severity = 'high' desc, p.created_at limit 100`, [agentId])
     const needsPerson = await db.query(
       `select id, check_key, resource_label, severity, evidence->>'summary' as summary, evidence->>'humanAction' as human_action, evidence, first_detected_at from issues where agent_id = $1 and kind = 'needs_person' and status in ('open','needs_review') order by severity = 'high' desc, first_detected_at limit 100`, [agentId])
-    return { agent, policies, runs, executions, waiting, needsPerson }
+    // what a version waiting for a grant would add to the active one (read-only; shown next to its Grant button)
+    const active = (policies as { status: string; policy: unknown }[]).find(p => p.status === 'active')
+    const pending = (policies as { status: string; policy: unknown }[]).find(p => p.status === 'pending_grant')
+    let pendingExpansion: string[] | null = null
+    if (pending) {
+      try { pendingExpansion = active ? expansionReasons(parsePolicy(active.policy), parsePolicy(pending.policy)) : ['first authorization'] } catch { pendingExpansion = null }
+    }
+    return { agent, policies, runs, executions, waiting, needsPerson, pendingExpansion }
   })
 }
 

@@ -91,6 +91,8 @@ export type AgentWaitingRow = {
 export type AgentNeedsPersonRow = { id: string; check_key: string; resource_label: string | null; severity: string; summary: string | null; human_action: string | null; evidence: Record<string, unknown>; first_detected_at: string }
 export type AgentDetailResponse = {
   ok: true; agent: AgentRow; policies: AgentPolicyRow[]; runs: AgentRunRow[]; executions: AgentExecutionRow[]; waiting: AgentWaitingRow[]; needsPerson: AgentNeedsPersonRow[]
+  /** what the version waiting for a grant adds to the active one */
+  pendingExpansion: string[] | null
 }
 
 export type ReferenceKindName = 'price_list' | 'sku_mapping' | 'publication_list'

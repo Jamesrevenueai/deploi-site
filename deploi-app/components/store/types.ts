@@ -1,6 +1,10 @@
 /** Response shapes of /api/store/* as the browser receives them (dates are ISO strings). */
 import type { ConnectionView, IssueView, ProposalView, ExecutionView, AuditView } from '@/lib/engine/queries'
 import type { Outcome } from '@/lib/engine/outcomes'
+import type { AgentListItem } from '@/lib/agents/queries'
+import type { TaskDraft } from '@/lib/agents/parse'
+import type { AgentPolicy } from '@/lib/agents/policy'
+import type { AgentRunCounts } from '@/lib/agents/run'
 
 export type { ConnectionView, IssueView, ProposalView, ExecutionView, AuditView, Outcome }
 
@@ -51,3 +55,49 @@ export type ExecutionResult = { ok: true; approvalId?: string; executionId: stri
 export type ScanResult = { ok: true; scan: { scanId: string; resourcesScanned: number; issuesOpened: number; issuesUpdated: number; issuesResolved: number; proposalsCreated: number; proposalsInvalidated: number } }
 
 export const OVERSELL_CHECK = 'shopify.oversell_policy'
+
+// ---------------------------------------------------------------- agents
+
+export type { AgentListItem, TaskDraft, AgentPolicy, AgentRunCounts }
+
+export type AuthorizationSummary = { grants: string[]; limits: string[]; never: string[] }
+
+export type AgentsResponse = { ok: true; agents: AgentListItem[] }
+export type ParseResponse = { ok: true; draft: TaskDraft }
+export type CreateAgentResponse = { ok: true; agentId: string; policyId: string; policyHash: string; summary: AuthorizationSummary }
+export type EditAgentResponse = { ok: true; policyId: string; version: number; requiresGrant: boolean; expansion: string[]; policyHash: string; summary: AuthorizationSummary }
+export type GrantResponse = { ok: true; version: number; warnings: string[]; nextRunAt: string | null }
+export type AgentRunResponse = { ok: true; runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts }
+
+export type AgentRow = {
+  id: string; org_id: string; name: string; status: string; task_text: string; connection_id: string; active_policy_id: string | null
+  schedule: unknown; next_run_at: string | null; last_run_at: string | null; created_at: string; created_by: string
+}
+export type AgentPolicyRow = {
+  id: string; version: number; policy: AgentPolicy; policy_hash: string; summary: AuthorizationSummary; status: 'pending_grant' | 'active' | 'superseded' | 'revoked' | 'discarded'
+  requires_grant: boolean; created_by: string; created_at: string; granted_by: string | null; granted_at: string | null; revoked_at: string | null; revoke_reason: string | null
+}
+export type AgentRunRow = { id: string; policy_version: number | null; trigger: string; status: string; status_reason: string | null; counts: Partial<AgentRunCounts>; started_at: string; finished_at: string | null }
+export type ChangeShape = { field: string; from: unknown; to: unknown; params?: Record<string, unknown> }
+export type AgentExecutionRow = {
+  id: string; status: string; status_reason: string | null; started_at: string; finished_at: string | null; verified_at: string | null; attempt: number
+  before_value: unknown; after_value: unknown; qualification: { covered: boolean; reasons: string[]; blockers: string[] } | null; policy_version: number | null
+  action_key: string; target_label: string | null; change: ChangeShape; approver_kind: string; approved_by: string
+}
+export type AgentWaitingRow = {
+  id: string; action_key: string; target_label: string | null; change: ChangeShape; change_hash: string; status: string; status_reason: string | null
+  expires_at: string; issue_id: string; summary: string | null; severity: string; evidence: Record<string, unknown>
+}
+export type AgentNeedsPersonRow = { id: string; check_key: string; resource_label: string | null; severity: string; summary: string | null; human_action: string | null; evidence: Record<string, unknown>; first_detected_at: string }
+export type AgentDetailResponse = {
+  ok: true; agent: AgentRow; policies: AgentPolicyRow[]; runs: AgentRunRow[]; executions: AgentExecutionRow[]; waiting: AgentWaitingRow[]; needsPerson: AgentNeedsPersonRow[]
+}
+
+export type ReferenceKindName = 'price_list' | 'sku_mapping' | 'publication_list'
+export type ReferenceSourceView = {
+  id: string; connection_id: string; kind: ReferenceKindName; name: string; version: number; status: string; row_count: number; error_count: number; ambiguous_keys: number
+  row_errors: { row: number; message: string }[]; columns: string[]; uploaded_by: string; created_at: string; updated_at: string
+}
+export type ReferencesResponse = { ok: true; references: ReferenceSourceView[]; templates: Record<ReferenceKindName, { columns: string[]; example: string[]; notes: string }> }
+export type UploadReferenceResponse = { ok: true; source: ReferenceSourceView; unchanged: boolean; rowErrors: { row: number; message: string }[] }
+export type PublicationsResponse = { ok: true; currency: string | null; publications: { id: string; title: string }[] }

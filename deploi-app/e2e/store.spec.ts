@@ -3,7 +3,9 @@
  * scan creates issues; approving a proposal ends Verified and the issue moves to Resolved; an
  * outside change between scan and approval ends Stale with no write; a refused write ends Failed
  * and a retry verifies; a second organization cannot open the first one's issue; staff cannot
- * approve. The demo store is reset first so the spec is repeatable.
+ * approve. The demo store and its engine history are reset first, and the store-wide overselling rule
+ * is turned on for this spec (the seed leaves it off because Northwind's Stock Guardian agent covers it)
+ * and off again at the end, so the spec is repeatable.
  */
 import { test, expect, type Page } from '@playwright/test'
 
@@ -51,13 +53,25 @@ async function pendingIssues(page: Page): Promise<Issue[]> {
 }
 
 let northwindIssueId = ''
+
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage({ baseURL: BASE })
+  await signIn(page, NORTHWIND)
+  const conn = await connectionId(page)
+  await api(page, 'PUT', '/api/store/rules', { connectionId: conn, checkKey: 'shopify.oversell_policy', enabled: false })
+  await page.close()
+})
 let pendingProposalId = ''
 
 test('scan creates issues', async ({ page }) => {
   await signIn(page, NORTHWIND)
   await expect(page).toHaveURL(/\/store$/)
   const conn = await connectionId(page)
-  expect((await api(page, 'POST', '/api/store/demo', { action: 'reset', connectionId: conn })).status).toBe(200)
+  // fresh catalogue and engine history (agent runs from other specs included)
+  expect((await api(page, 'POST', '/api/store/demo', { action: 'reset', connectionId: conn, clearHistory: true })).status).toBe(200)
+  // Northwind's overselling is normally run by its Stock Guardian agent (the store-wide rule is off in the seed);
+  // this spec exercises the store-wide rule flow, so it turns the rule on for its run and off again afterwards
+  expect((await api(page, 'PUT', '/api/store/rules', { connectionId: conn, checkKey: 'shopify.oversell_policy', enabled: true })).status).toBe(200)
 
   await page.getByRole('button', { name: /Run scan/ }).click()
   await expect(page.getByText('Scan finished.')).toBeVisible({ timeout: 60_000 })

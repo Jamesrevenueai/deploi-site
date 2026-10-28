@@ -312,6 +312,7 @@ function WaitingItem({ wt, review, busy, onApprove, canAct }: { wt: AgentWaiting
   const why = wt.status_reason?.replace(/^waiting for your approval: /, '') || (review ? 'this agent is in review mode: you approve each change' : 'not covered by the standing authorization')
   const label = wt.target_label ?? 'this record'
   const expired = new Date(wt.expires_at).getTime() <= Date.now()
+  const cw = changeInWords(wt.change)
   return (
     <li>
       <Panel>
@@ -320,7 +321,7 @@ function WaitingItem({ wt, review, busy, onApprove, canAct }: { wt: AgentWaiting
         <div className="mt-3"><ChangeBox field={wt.change.field} from={wt.change.from} to={wt.change.to} /></div>
         <p className="pt-2 text-[14px] text-grey"><span className="text-grey-h">Why it waits: </span>{why}</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button size="sm" onClick={onApprove} disabled={busy !== null || expired || !canAct} aria-label={`Approve change for ${label}`}>
+          <Button size="sm" onClick={onApprove} disabled={busy !== null || expired || !canAct} aria-label={`Approve change for ${label}: ${cw.label} ${cw.from} to ${cw.to}`}>
             <Icon name="check" size={15} />{busy === `approve:${wt.id}` ? 'Running: re-read, write, verify…' : 'Approve'}
           </Button>
           <span className="text-[13px] text-grey-h">{expired ? 'Expired: run the agent again for a fresh proposal.' : `Expires ${fmtUntil(wt.expires_at)}`}</span>

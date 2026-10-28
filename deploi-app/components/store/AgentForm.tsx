@@ -306,7 +306,7 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
           </label>
           <label className="flex cursor-pointer flex-wrap items-center gap-3 text-[15px] text-ink">
             <input type="radio" name={id('sched')} className="h-5 w-5 accent-white" checked={f.scheduleKind === 'daily'} onChange={() => set({ scheduleKind: 'daily' })} />Daily at
-            <span className="w-32"><Input type="time" aria-label="Time of day" value={f.dailyTime} onChange={e => set({ dailyTime: e.target.value, scheduleKind: 'daily' })} /></span>
+            <span className="w-40"><Input type="time" aria-label="Time of day" value={f.dailyTime} onChange={e => set({ dailyTime: e.target.value, scheduleKind: 'daily' })} /></span>
             <span className="text-[13px] text-grey-h">({timezone})</span>
           </label>
         </fieldset>

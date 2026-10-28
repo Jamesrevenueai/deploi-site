@@ -9,7 +9,8 @@ import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { canonicalJson } from '../engine/hash'
 
-import { CORRECTION_TYPES, correctionTypeForAction, fieldForAction, type CorrectionType } from '../engine/capabilities'
+import { CORRECTION_TYPES, correctionCapability, correctionTypeForAction, fieldForAction, type CorrectionType } from '../engine/capabilities'
+import type { Platform } from '../engine/types'
 export { CORRECTION_TYPES, type CorrectionType }
 
 export const CORRECTION_LABEL: Record<CorrectionType, string> = {
@@ -222,15 +223,22 @@ export function inScope(p: Pick<AgentPolicy, 'productScope' | 'exceptions'>, pro
   return p.productScope.tags.some(t => tags.includes(t))
 }
 
-/** Which fields a policy allows the agent to write. A drafts-only agent writes nothing. */
-export function writableFields(p: AgentPolicy): string[] {
-  const out: string[] = []
-  if (p.approvalMode === 'draft') return out
-  if (p.correctionTypes.includes('oversell_policy')) out.push('inventoryPolicy')
-  if (p.correctionTypes.includes('publication')) out.push('published')
-  if (p.correctionTypes.includes('price')) out.push(...(p.rules.price?.fields ?? ['price']))
-  if (p.correctionTypes.includes('sku')) out.push('sku')
-  return out
+/**
+ * Which fields a policy allows the agent to write on a platform, from that platform's declared
+ * capabilities. A drafts-only agent writes nothing; a price agent writes only the price fields it chose.
+ */
+export function writableFields(p: AgentPolicy, platform: Platform = 'shopify'): string[] {
+  if (p.approvalMode === 'draft') return []
+  const out = new Set<string>()
+  for (const t of p.correctionTypes) {
+    const cap = correctionCapability(platform, t)
+    if (!cap) continue
+    for (const field of Object.values(cap.actions)) {
+      if (t === 'price' && !(p.rules.price?.fields ?? ['price']).includes(field as 'price' | 'compareAtPrice')) continue
+      out.add(field)
+    }
+  }
+  return [...out]
 }
 
 const sub = <T,>(a: T[], b: T[]) => a.every(x => b.includes(x))

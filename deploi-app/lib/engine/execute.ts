@@ -158,7 +158,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
     : ctx.agentStatus !== 'active' ? `the agent is ${ctx.agentStatus ?? 'deleted'}; it may not write`
     : !agentCtx ? 'the agent has no active authorization'
     : (p.policy_version ?? null) !== agentCtx.policyRow.version ? null // handled as stale below (recompute)
-    : !writableFields(agentCtx.policy).includes(field) ? `field "${field}" is not writable for this agent`
+    : !writableFields(agentCtx.policy, conn.platform).includes(field) ? `field "${field}" is not writable for this agent`
     : standing && (ctx.approval.policy_id !== agentCtx.policyRow.id || ctx.approval.policy_version !== agentCtx.policyRow.version) ? 'the standing authorization that covered this change was changed or revoked'
     : null
   const block =
@@ -231,7 +231,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
       return { executionId: execId, status: 'blocked', reason }
     }
   }
-  const allowedFields = agentCtx ? writableFields(agentCtx.policy) : [field]
+  const allowedFields = agentCtx ? writableFields(agentCtx.policy, conn.platform) : [field]
 
   // ---- write
   await admin(async db => {

@@ -11,7 +11,7 @@ import type { Platform } from '../engine/types'
 export type AgentRow = { id: string; org_id: string; connection_id: string; name: string; task_text: string; status: 'draft' | 'active' | 'paused' | 'revoked' | 'deleted'; active_policy_id: string | null; schedule: AgentPolicy['schedule']; next_run_at: string | null; last_run_at: string | null; created_by: string; created_at: string; updated_at: string }
 export type PolicyRow = { id: string; org_id: string; agent_id: string; version: number; policy: AgentPolicy; policy_hash: string; summary: unknown; status: 'pending_grant' | 'active' | 'superseded' | 'revoked' | 'discarded'; requires_grant: boolean; created_by: string; created_at: string; granted_by: string | null; granted_at: string | null; revoked_at: string | null; revoke_reason: string | null }
 
-export type AgentContext = { agent: AgentRow; policyRow: PolicyRow; policy: AgentPolicy; plan: ScanPlan }
+export type AgentContext = { agent: AgentRow; policyRow: PolicyRow; policy: AgentPolicy; plan: ScanPlan; platform: Platform }
 
 
 /** The agent's active, granted policy as a scan plan. Null when the agent may not act (no active grant). */
@@ -46,7 +46,7 @@ export async function loadAgentContext(db: Db, agentId: string): Promise<AgentCo
     scope: (r: ResourceRecord) => inScope(policy, String(r.productId ?? ''), Array.isArray(r.productTags) ? (r.productTags as string[]) : []),
     references, currency: conn?.currency ?? null, ownedCheckKeys: allAgentCheckKeys(),
   }
-  return { agent, policyRow, policy, plan }
+  return { agent, policyRow, policy, plan, platform }
 }
 
 export type Qualification = { covered: boolean; reasons: string[]; blockers: string[] }
@@ -68,7 +68,7 @@ export function qualifies(ctx: AgentContext, input: { actionKey: string; change:
   const type = actionType(input.actionKey)
   if (!type || !policy.correctionTypes.includes(type)) blockers.push('this kind of correction is not authorized'); else reasons.push(`correction type "${type}" is authorized`)
   const field = actionField(input.actionKey)
-  if (!field || !writableFields(policy).includes(field)) blockers.push(`field "${field ?? 'unknown'}" is not writable for this agent`); else reasons.push(`field "${field}" is writable`)
+  if (!field || !writableFields(policy, ctx.platform).includes(field)) blockers.push(`field "${field ?? 'unknown'}" is not writable for this agent`); else reasons.push(`field "${field}" is writable`)
   const pid = String(input.record.productId ?? '')
   if (!inScope(policy, pid, Array.isArray(input.record.productTags) ? (input.record.productTags as string[]) : [])) blockers.push('the product is outside the agent\'s scope or is an exception'); else reasons.push('the product is inside the agent\'s scope')
   if (input.actionKey === 'shopify.product.unpublish' && !policy.rules.publication?.allowUnpublish) blockers.push('unpublishing is not authorized')

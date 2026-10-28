@@ -29,7 +29,7 @@ export async function loadConnection(db: Db, id: string): Promise<ConnectionRow 
   return db.one<ConnectionRow>('select id, org_id, platform, external_id, display_name, status, scopes, api_version, is_synthetic, timezone, currency from store_connections where id = $1', [id])
 }
 
-export type ScanOptions = { trigger: ScanTrigger; resourceIds?: string[]; actor?: string; now?: Date; plan?: ScanPlan }
+export type ScanOptions = { trigger: ScanTrigger; resourceIds?: string[]; actor?: string; now?: Date; plan?: ScanPlan; onRecords?: (records: ResourceRecord[]) => void }
 
 /** Read the records, run the plan's checks (legacy merchant rules, or an agent's policy), reconcile. */
 export async function runScan(connectionId: string, opts: ScanOptions): Promise<ScanResult> {
@@ -64,6 +64,7 @@ export async function runScan(connectionId: string, opts: ScanOptions): Promise<
       for await (const page of connector.listResources(conn)) records.push(...page)
       store = buildStoreContext(records, plan.currency, true)
     }
+    opts.onRecords?.(records)
   } catch (e) {
     const message = (e as Error).message.slice(0, 300)
     await admin(async db => {

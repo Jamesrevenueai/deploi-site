@@ -11,6 +11,7 @@ import { invalidateProposal, type ProposalRow } from '../engine/proposals'
 import { expansionReasons, parsePolicy, policyHash, summarizePolicy, type AgentPolicy } from './policy'
 import { nextRunAt } from './schedule'
 import type { AgentRow, PolicyRow } from './plan'
+import { cancelAgentEmail } from '../email/engine'
 
 async function visibleConnection(actor: Actor, connectionId: string) {
   const c = await withActor(actor, db => db.one<{ id: string; org_id: string; display_name: string | null; external_id: string; status: string }>('select id, org_id, display_name, external_id, status from store_connections where id = $1', [connectionId]))
@@ -37,7 +38,8 @@ async function summaryFor(db: Db, p: AgentPolicy) {
   const c = await db.one<{ display_name: string | null; external_id: string }>('select display_name, external_id from store_connections where id = $1', [p.connectionId])
   const ids = [p.rules.price?.sourceId, p.rules.sku?.sourceId, p.rules.publication?.sourceId].filter((x): x is string => Boolean(x))
   const sources = ids.length ? await db.query<{ id: string; name: string; org_id: string; kind: string }>('select id, name, org_id, kind from reference_sources where id = any($1::uuid[]) and status = $2', [ids, 'active']) : []
-  return { summary: summarizePolicy(p, { storeName: c?.display_name ?? c?.external_id ?? 'your store', sourceNames: Object.fromEntries(sources.map(s => [s.id, s.name])) }), sources }
+  const acc = p.email ? await db.one<{ address: string; provider: string }>('select address, provider from email_accounts where id = $1', [p.email.accountId]) : null
+  return { summary: summarizePolicy(p, { storeName: c?.display_name ?? c?.external_id ?? 'your store', sourceNames: Object.fromEntries(sources.map(s => [s.id, s.name])), emailAccount: acc }), sources }
 }
 
 /** Reference files named in the policy must exist, belong to the same org and store, and be of the right kind. */
@@ -47,6 +49,12 @@ async function checkSources(db: Db, orgId: string, p: AgentPolicy) {
     if (!id) continue
     const s = await db.one<{ org_id: string; connection_id: string; kind: string }>(`select org_id, connection_id, kind from reference_sources where id = $1 and status = 'active'`, [id])
     if (!s || s.org_id !== orgId || s.connection_id !== p.connectionId || s.kind !== kind) throw new EngineError('invalid_input', `the ${kind.replace('_', ' ')} chosen is not available for this store`)
+  }
+  if (p.email) {
+    const a = await db.one<{ org_id: string; status: string; can_send: boolean; can_read: boolean }>('select org_id, status, can_send, can_read from email_accounts where id = $1', [p.email.accountId])
+    if (!a || a.org_id !== orgId || a.status === 'disconnected') throw new EngineError('invalid_input', 'the email account chosen is not connected to this organization')
+    if (p.email.permission !== 'draft' && !a.can_send) throw new EngineError('invalid_input', 'the email account was connected without permission to send; reconnect it and allow sending')
+    if (p.email.read.enabled && !a.can_read) throw new EngineError('invalid_input', 'reading replies needs read access to the mailbox; reconnect the account with read access first')
   }
 }
 
@@ -161,8 +169,9 @@ export async function pauseAgent(actor: Actor, agentId: string) {
     const r = await db.query(`update agents set status = 'paused', next_run_at = null where id = $1 and status = 'active' returning id`, [agentId])
     if (!r.length) throw new EngineError('not_pending', 'only an active agent can be paused')
     const n = await retireAgentProposals(db, agentId, 'blocked', 'the agent was paused', actor.label)
-    await audit(db, { orgId: a0.org_id, entityType: 'agent', entityId: agentId, event: 'agent.paused', actor: actor.label, detail: { proposals_blocked: n } })
-    return { proposalsBlocked: n }
+    const m = await cancelAgentEmail(db, agentId, 'the agent was paused; queued messages are not sent', false)
+    await audit(db, { orgId: a0.org_id, entityType: 'agent', entityId: agentId, event: 'agent.paused', actor: actor.label, detail: { proposals_blocked: n, emails_cancelled: m } })
+    return { proposalsBlocked: n, emailsCancelled: m }
   })
 }
 
@@ -187,8 +196,9 @@ async function revokeInTx(db: Db, orgId: string, agentId: string, actor: string,
   await db.query(`update agent_policies set status = 'revoked', revoked_by = $2, revoked_at = now(), revoke_reason = $3 where agent_id = $1 and status in ('active','pending_grant')`, [agentId, actor, reason])
   await db.query(`update agents set status = $2, active_policy_id = null, next_run_at = null where id = $1`, [agentId, status])
   const n = await retireAgentProposals(db, agentId, 'blocked', status === 'deleted' ? 'the agent was deleted' : 'the agent\'s authorization was revoked', actor)
-  await audit(db, { orgId, entityType: 'agent', entityId: agentId, event: `agent.${status}`, actor, detail: { reason, proposals_blocked: n } })
-  return { proposalsBlocked: n }
+  const m = await cancelAgentEmail(db, agentId, status === 'deleted' ? 'the agent was deleted' : 'the agent\'s authorization was revoked', true)
+  await audit(db, { orgId, entityType: 'agent', entityId: agentId, event: `agent.${status}`, actor, detail: { reason, proposals_blocked: n, emails_cancelled: m } })
+  return { proposalsBlocked: n, emailsCancelled: m }
 }
 
 /** Delete: revoke and hide. History (issues, executions, audit) is kept for the record. */

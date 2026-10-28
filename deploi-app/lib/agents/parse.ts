@@ -4,7 +4,7 @@
  * unless the text says so, and reports what is missing. A general instruction ("fix my store")
  * produces no correction types and a request for scope.
  */
-import type { CorrectionType } from './policy'
+import type { CorrectionType, EmailPermission, EmailTask } from './policy'
 
 export type TaskDraft = {
   correctionTypes: CorrectionType[]
@@ -20,6 +20,8 @@ export type TaskDraft = {
   missing: string[]
   /** requests the product cannot do; reported, never silently dropped */
   unsupported: string[]
+  /** email the text asks for; recipients found in the text are suggestions only, never granted */
+  email: { tasks: EmailTask[]; permission: EmailPermission | null; addresses: string[] } | null
   /** phrases that drove each decision, shown on the review screen */
   matched: { phrase: string; meaning: string }[]
 }
@@ -38,7 +40,7 @@ const UNSUPPORTED: [RegExp, string][] = [
 
 export function parseTask(input: string): TaskDraft {
   const t = ` ${input.toLowerCase().replace(/\s+/g, ' ')} `
-  const d: TaskDraft = { correctionTypes: [], productScope: { mode: null, tags: [] }, exceptionTags: [], approvalMode: null, schedule: null, priceFields: [], publicationName: null, allowUnpublish: false, allowSkuOverwrite: false, missing: [], unsupported: [], matched: [] }
+  const d: TaskDraft = { correctionTypes: [], productScope: { mode: null, tags: [] }, exceptionTags: [], approvalMode: null, schedule: null, priceFields: [], publicationName: null, allowUnpublish: false, allowSkuOverwrite: false, email: null, missing: [], unsupported: [], matched: [] }
   const add = (c: CorrectionType, phrase: string) => { if (!d.correctionTypes.includes(c)) d.correctionTypes.push(c); d.matched.push({ phrase, meaning: `correction: ${c}` }) }
 
   if (has(t, /\b(backorder|oversell|over-sell|continue selling|keep selling|sell (when|while|past|after) (out of stock|zero|sold out)|selling (with|at) (no|zero) stock|inventory polic(y|ies)|out of stock)\b/)) add('oversell_policy', 'overselling / backorders')
@@ -57,6 +59,22 @@ export function parseTask(input: string): TaskDraft {
     add('sku', 'SKUs')
     if (has(t, /\b(wrong|incorrect|fix|correct|mismatch)\w* skus?\b|\bskus? (that are )?(wrong|incorrect)\b/)) { d.allowSkuOverwrite = true; d.matched.push({ phrase: 'correct wrong SKUs', meaning: 'may overwrite SKUs that differ from the mapping' }) }
   }
+
+  // email: only these three tasks exist; anything else about email is reported as unsupported
+  const emailTasks: EmailTask[] = []
+  if (has(t, /\b(email|e-mail|send|mail|notify|let me know|tell me)\b[^.]*\b(summary|summaries|report|results|what (it|you) did)\b|\b(daily|weekly)? ?(summary|report) (by|via|over) (e-?mail)\b/)) emailTasks.push('run_report')
+  if (has(t, /\b(email|e-mail|notify|alert)\b[^.]*\b(needs? a person|problems?|issues?|anything (it|you) can'?t fix)\b/)) emailTasks.push('needs_person_alert')
+  if (has(t, /\b(supplier|vendor|reorder|re-order|restock)\b/) && has(t, /\b(email|e-mail|write|message|ask|contact)\b/)) emailTasks.push('supplier_reorder')
+  if (emailTasks.length) {
+    const addresses = [...new Set([...input.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/g)].map(m => m[0].toLowerCase()))].slice(0, 10)
+    const permission: EmailPermission | null = has(t, /\b(draft|drafts|don'?t send|for me to send)\b/) ? 'draft'
+      : has(t, /\b(automatically|without asking|on (its|it's) own)\b/) ? 'send_autonomous'
+      : has(t, /\b(ask me|my approval|let me (review|approve)|before sending)\b/) ? 'send_approved' : null
+    d.email = { tasks: emailTasks, permission, addresses }
+    d.matched.push({ phrase: 'email', meaning: `email task${emailTasks.length === 1 ? '' : 's'}: ${emailTasks.join(', ')}` })
+  }
+  if (has(t, /\b(read|reply to|answer|respond to|go through) (my |the )?(inbox|emails?|mail)\b/)) d.unsupported.push('reading or answering your inbox (an agent can only notice replies to supplier requests it sent)')
+  if (has(t, /\b(email|send) (to )?(all |my )?customers\b|\bnewsletter|marketing emails?\b/)) d.unsupported.push('emailing customers or marketing email')
 
   const tagMatch = [...t.matchAll(/\btagged (?:as |with )?["']?([a-z0-9][a-z0-9 _-]{0,40}?)["']?(?= products?\b| items?\b| and\b| or\b|[,.;]| except\b| $)/g)].map(m => m[1].trim())
   const exceptMatch = [...t.matchAll(/\bexcept (?:products |items |anything )?tagged (?:as |with )?["']?([a-z0-9][a-z0-9 _-]{0,40}?)["']?(?= products?\b| items?\b| and\b| or\b|[,.;]| $)/g)].map(m => m[1].trim())
@@ -77,8 +95,14 @@ export function parseTask(input: string): TaskDraft {
 
   for (const [re, what] of UNSUPPORTED) if (has(t, re)) d.unsupported.push(what)
 
-  if (!d.correctionTypes.length) d.missing.push('what the agent should correct (overselling settings, publication, prices or SKUs)')
-  if (!d.productScope.mode) d.missing.push('which products it may work on')
+  if (!d.correctionTypes.length && !d.email) d.missing.push('what the agent should correct (overselling settings, publication, prices or SKUs) or which email task it should do')
+  if (d.email) {
+    d.missing.push('which connected email account it sends from')
+    d.missing.push('exactly which addresses or domains it may email')
+    if (!d.email.permission) d.missing.push('whether it only drafts, sends after your approval, or sends without asking within limits')
+  }
+  const emailOnlyWithoutProducts = !d.correctionTypes.length && d.email && !d.email.tasks.includes('supplier_reorder')
+  if (!d.productScope.mode && !emailOnlyWithoutProducts) d.missing.push('which products it may work on')
   if (d.correctionTypes.includes('price')) d.missing.push('the price list to compare against')
   if (d.correctionTypes.includes('sku')) d.missing.push('the SKU mapping to use')
   if (d.correctionTypes.includes('publication')) { if (!d.publicationName) d.missing.push('which sales channel'); d.missing.push('the publication list or tags that say what should be published') }

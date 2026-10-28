@@ -15,6 +15,7 @@ import type { ProposalRow } from '../engine/proposals'
 import type { ResourceRecord } from '../engine/types'
 import { loadAgentContext, qualifies, type AgentRow, type Qualification } from './plan'
 import { nextRunAt } from './schedule'
+import { runEmailStep, type EmailRunCounts } from '../email/run'
 
 export type AgentRunTrigger = 'manual' | 'schedule' | 'webhook' | 'test'
 export type AgentRunCounts = {
@@ -22,6 +23,7 @@ export type AgentRunCounts = {
   autoApproved: number; awaitingApproval: number
   verified: number; failed: number; blocked: number; stale: number; unconfirmed: number
   missingSources: string[]
+  email?: EmailRunCounts
 }
 export type AgentRunResult = { runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts; executions: ExecutionResult[] }
 
@@ -65,8 +67,9 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
     return finishRun('blocked', 'the reference files this agent relies on are missing or archived')
 
   let scanId: string | undefined
+  let records: ResourceRecord[] | null = null
   try {
-    const scan = await runScan(ctx.agent.connection_id, { trigger: opts.trigger === 'test' ? 'test' : opts.trigger, actor: opts.actor, plan: ctx.plan, now })
+    const scan = await runScan(ctx.agent.connection_id, { trigger: opts.trigger === 'test' ? 'test' : opts.trigger, actor: opts.actor, plan: ctx.plan, now, onRecords: r => { records = r } })
     scanId = scan.scanId
   } catch (e) {
     const reason = e instanceof EngineError ? e.message : `could not read the store: ${(e as Error).message.slice(0, 160)}`
@@ -121,6 +124,17 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
     else if (r.status === 'blocked') counts.blocked++
     else if (r.status === 'stale') counts.stale++
     else counts.unconfirmed++
+  }
+
+  // email tasks run after the corrections, under the same authorization version
+  if (ctx.policy.email) {
+    const store = await admin(db => db.one<{ name: string }>('select coalesce(display_name, external_id) as name from store_connections where id = $1', [ctx.agent.connection_id]))
+    try {
+      counts.email = await runEmailStep({ agentId, agentName: ctx.agent.name, runId, policy: ctx.policy, storeName: store?.name ?? 'your store', records, actor: label, now,
+        run: { verified: counts.verified, awaitingApproval: counts.awaitingApproval, needsPerson: counts.needsPerson, failed: counts.failed, blocked: counts.blocked } })
+    } catch (e) {
+      return finishRun('failed', `email step failed: ${(e as Error).message.slice(0, 160)}`, scanId)
+    }
   }
   return finishRun('completed', undefined, scanId)
 }

@@ -45,11 +45,75 @@ export const ACTION_FIELD: Record<string, string> = {
 }
 
 const gidProduct = z.string().regex(/^gid:\/\/shopify\/Product\/\d+$/)
+
+/** Email tasks an agent can be authorized for. Each builds its messages from templates and store data; recipients come only from the policy. */
+export const EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder'] as const
+export type EmailTask = typeof EMAIL_TASKS[number]
+export const EMAIL_TASK_LABEL: Record<EmailTask, string> = {
+  run_report: 'Send a summary of each run',
+  needs_person_alert: 'Alert people about problems that need a person',
+  supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
+}
+/** cumulative permission levels: each includes the ones before it */
+export const EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
+export type EmailPermission = typeof EMAIL_PERMISSIONS[number]
+export const EMAIL_PERMISSION_LABEL: Record<EmailPermission, string> = {
+  draft: 'Create drafts for review (never sends)',
+  send_approved: 'Send messages you approve one by one',
+  send_autonomous: 'Send without asking, within the recipients, purpose, limits and dates below',
+}
+const emailAddress = z.string().trim().toLowerCase().max(254).regex(/^[^\s@<>(),;:"\[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/, 'not a valid email address')
+const emailDomain = z.string().trim().toLowerCase().transform(d => d.replace(/^@/, '')).pipe(z.string().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/, 'not a valid domain'))
+
+export const EmailPolicySchema = z.object({
+  accountId: z.string().uuid(),
+  permission: z.enum(EMAIL_PERMISSIONS),
+  /** shown in the authorization summary and in every message's audit record */
+  purpose: z.string().trim().min(3).max(300),
+  tasks: z.array(z.enum(EMAIL_TASKS)).min(1).max(3),
+  /** who the agent may ever write to; a message to anyone else always waits for approval */
+  recipients: z.object({
+    addresses: z.array(emailAddress).max(50).default([]),
+    domains: z.array(emailDomain).max(20).default([]),
+  }).default({ addresses: [], domains: [] }),
+  /** recipients of run summaries and alerts (each must satisfy the recipient rules) */
+  notify: z.array(emailAddress).max(20).default([]),
+  maxRecipientsPerMessage: z.number().int().min(1).max(20).default(5),
+  limits: z.object({
+    perRun: z.number().int().min(1).max(100).default(10),
+    perDay: z.number().int().min(1).max(500).default(25),
+  }).default({ perRun: 10, perDay: 25 }),
+  /** end of the authorization (ISO date); required to send without asking */
+  validUntil: z.string().datetime({ offset: true }).nullable().default(null),
+  allowAttachments: z.boolean().default(false),
+  supplierReorder: z.object({
+    supplierAddress: emailAddress,
+    /** variants with this many available or fewer are listed */
+    thresholdAvailable: z.number().int().min(0).max(10000).default(0),
+    /** do not ask about the same variant again within this many days */
+    cooldownDays: z.number().int().min(1).max(60).default(7),
+  }).optional(),
+  /** reading the mailbox is a separate permission, only for a task that needs it */
+  read: z.object({
+    enabled: z.boolean().default(false),
+    scope: z.literal('replies_to_agent_messages').default('replies_to_agent_messages'),
+  }).default({ enabled: false, scope: 'replies_to_agent_messages' }),
+})
+export type EmailPolicy = z.infer<typeof EmailPolicySchema>
+
+/** Is this address allowed by the policy's recipient rules? */
+export function recipientAllowed(e: Pick<EmailPolicy, 'recipients'>, address: string): boolean {
+  const a = address.trim().toLowerCase()
+  if (e.recipients.addresses.includes(a)) return true
+  const domain = a.split('@')[1] ?? ''
+  return e.recipients.domains.some(d => domain === d)
+}
+export const permissionRank = (p: EmailPermission) => EMAIL_PERMISSIONS.indexOf(p)
 const tag = z.string().trim().min(1).max(255).transform(t => t.toLowerCase())
 
 export const PolicySchema = z.object({
   connectionId: z.string().uuid(),
-  correctionTypes: z.array(z.enum(CORRECTION_TYPES)).min(1, 'choose at least one correction type').max(4),
+  correctionTypes: z.array(z.enum(CORRECTION_TYPES)).max(4).default([]),
   productScope: z.object({
     mode: z.enum(['all', 'products', 'tags']),
     productIds: z.array(gidProduct).max(5000).default([]),
@@ -95,7 +159,24 @@ export const PolicySchema = z.object({
     z.object({ kind: z.literal('interval'), everyHours: z.number().int().min(1).max(168) }),
     z.object({ kind: z.literal('daily'), hour: z.number().int().min(0).max(23), minute: z.number().int().min(0).max(59), timezone: z.string().min(1).max(64) }),
   ]).default({ kind: 'manual' }),
+  email: EmailPolicySchema.optional(),
 }).superRefine((p, ctx) => {
+  if (!p.correctionTypes.length && !p.email) ctx.addIssue({ code: 'custom', path: ['correctionTypes'], message: 'choose at least one correction type or email task' })
+  if (p.email) {
+    const e = p.email
+    if (!e.recipients.addresses.length && !e.recipients.domains.length) ctx.addIssue({ code: 'custom', path: ['email', 'recipients'], message: 'name at least one recipient address or domain the agent may write to' })
+    for (const a of e.notify) if (!recipientAllowed(e, a)) ctx.addIssue({ code: 'custom', path: ['email', 'notify'], message: `${a} is outside the recipient rules` })
+    if ((e.tasks.includes('run_report') || e.tasks.includes('needs_person_alert')) && !e.notify.length) ctx.addIssue({ code: 'custom', path: ['email', 'notify'], message: 'choose who receives summaries and alerts' })
+    if (e.tasks.includes('supplier_reorder')) {
+      if (!e.supplierReorder) ctx.addIssue({ code: 'custom', path: ['email', 'supplierReorder'], message: 'the supplier reorder task needs a supplier address and threshold' })
+      else if (!recipientAllowed(e, e.supplierReorder.supplierAddress)) ctx.addIssue({ code: 'custom', path: ['email', 'supplierReorder'], message: 'the supplier address is outside the recipient rules' })
+    }
+    if (e.read.enabled && !e.tasks.includes('supplier_reorder')) ctx.addIssue({ code: 'custom', path: ['email', 'read'], message: 'mailbox reading is only for tracking supplier replies; no configured task needs it' })
+    if (e.permission === 'send_autonomous') {
+      if (!e.validUntil) ctx.addIssue({ code: 'custom', path: ['email', 'validUntil'], message: 'sending without asking needs an end date' })
+      else if (new Date(e.validUntil).getTime() - Date.now() > 366 * 864e5) ctx.addIssue({ code: 'custom', path: ['email', 'validUntil'], message: 'an authorization to send without asking lasts at most one year' })
+    }
+  }
   for (const t of p.correctionTypes) {
     if (t === 'oversell_policy') continue
     if (!p.rules[t]) ctx.addIssue({ code: 'custom', path: ['rules', t], message: `${CORRECTION_LABEL[t]} needs its rule or reference file` })
@@ -174,10 +255,31 @@ export function expansionReasons(prev: AgentPolicy, next: AgentPolicy): string[]
   }
   const po = prev.rules.oversell_policy, no = next.rules.oversell_policy
   if (no && po && !sub(po.exemptTags, no.exemptTags)) r.push('pre-order/backorder exemptions removed')
+  r.push(...emailExpansion(prev.email, next.email))
   return [...new Set(r)]
 }
 
-export type SummaryContext = { storeName: string; sourceNames: Record<string, string>; productCount?: number }
+function emailExpansion(pe: EmailPolicy | undefined, ne: EmailPolicy | undefined): string[] {
+  if (!ne) return []
+  if (!pe) return ['email access added']
+  const r: string[] = []
+  if (ne.accountId !== pe.accountId) r.push('different email account')
+  if (permissionRank(ne.permission) > permissionRank(pe.permission)) r.push(ne.permission === 'send_autonomous' ? 'may now send email without asking' : 'may now send approved email')
+  if (!sub(ne.tasks, pe.tasks)) r.push('new email tasks')
+  if (ne.purpose !== pe.purpose) r.push('different email purpose')
+  if (!sub(ne.recipients.addresses, pe.recipients.addresses) || !sub(ne.recipients.domains, pe.recipients.domains)) r.push('more email recipients allowed')
+  if (ne.maxRecipientsPerMessage > pe.maxRecipientsPerMessage || ne.limits.perRun > pe.limits.perRun || ne.limits.perDay > pe.limits.perDay) r.push('higher sending limits')
+  const until = (x: string | null) => (x ? new Date(x).getTime() : Infinity)
+  if (ne.permission === 'send_autonomous' && (pe.permission !== 'send_autonomous' || until(ne.validUntil) > until(pe.validUntil))) r.push('email authorization extended')
+  if (ne.allowAttachments && !pe.allowAttachments) r.push('may now attach files')
+  if (ne.read.enabled && !pe.read.enabled) r.push('may now read replies in the mailbox')
+  const ps = pe.supplierReorder, ns = ne.supplierReorder
+  if (ns && (!ps || ns.supplierAddress !== ps.supplierAddress)) r.push('different supplier address')
+  if (ns && ps && (ns.thresholdAvailable > ps.thresholdAvailable || ns.cooldownDays < ps.cooldownDays)) r.push('supplier emails sent more often')
+  return r
+}
+
+export type SummaryContext = { storeName: string; sourceNames: Record<string, string>; productCount?: number; emailAccount?: { address: string; provider: string } | null }
 
 /** Plain sentences describing exactly what granting this policy allows and does not allow. */
 export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: string[]; limits: string[]; never: string[] } {
@@ -216,5 +318,21 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
     'Never invents prices or SKUs: values come only from your files or rules.',
     'Never touches products or fields outside this list.',
   ]
+  if (p.email) {
+    const e = p.email
+    const sender = ctx.emailAccount ? `${ctx.emailAccount.address}` : 'the chosen email account'
+    const who = [...e.recipients.addresses, ...e.recipients.domains.map(d => `anyone @${d}`)].join(', ')
+    const what = e.tasks.map(t => EMAIL_TASK_LABEL[t].toLowerCase()).join('; ')
+    const level = e.permission === 'draft' ? 'may write drafts for you to review; it never sends'
+      : e.permission === 'send_approved' ? 'may send a message only after you approve that exact message'
+      : `may send without asking until ${e.validUntil ? new Date(e.validUntil).toISOString().slice(0, 10) : '(no end date)'}`
+    grants.push(`Email from ${sender}: ${level}. Purpose: "${e.purpose}". Tasks: ${what}.`)
+    grants.push(`Email recipients allowed: ${who}.${e.notify.length ? ` Summaries and alerts go to ${e.notify.join(', ')}.` : ''}${e.supplierReorder ? ` Supplier requests go to ${e.supplierReorder.supplierAddress} for variants with ${e.supplierReorder.thresholdAvailable} or fewer available, at most once every ${e.supplierReorder.cooldownDays} days per variant.` : ''}`)
+    if (e.read.enabled) grants.push('Mailbox reading: only to notice replies to messages this agent sent. Reply content is never acted on.')
+    if (e.permission !== 'draft') limits.push(`Email: at most ${e.limits.perRun} messages per run, ${e.limits.perDay} per day and ${e.maxRecipientsPerMessage} recipients per message${e.allowAttachments ? '' : ', no attachments'}. Anything outside these limits waits for your approval.`)
+    never.push('Never sends email to anyone outside the allowed recipients without your approval of that exact message.')
+    never.push('Never lets an incoming email or attachment change what it is allowed to do.')
+    if (!e.read.enabled) never.push('Never reads your mailbox.')
+  } else never.push('Never sends email.')
   return { grants, limits, never }
 }

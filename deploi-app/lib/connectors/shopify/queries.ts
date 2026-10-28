@@ -9,6 +9,9 @@ export const VARIANT_FIELDS = /* GraphQL */ `
     id
     title
     sku
+    price
+    compareAtPrice
+    barcodes(first: 20) { nodes { value } }
     inventoryPolicy
     sellingPlanGroupsCount { count }
     product {
@@ -20,11 +23,14 @@ export const VARIANT_FIELDS = /* GraphQL */ `
       isGiftCard
       requiresSellingPlan
       sellingPlanGroupsCount { count }
+      onlineStoreUrl
       updatedAt
+      resourcePublicationsV2(first: 10, onlyPublished: false) { nodes { publication { id } isPublished publishDate } }
     }
     inventoryItem {
       id
       tracked
+      duplicateSkuCount
       inventoryLevels(first: 10) {
         pageInfo { hasNextPage }
         nodes {
@@ -87,5 +93,59 @@ export const M_CREATE_SUBSCRIPTION = /* GraphQL */ `
       confirmationUrl
       userErrors { field message }
     }
+  }
+`
+
+/** Variants by store-wide keys (SKU / barcode search; results are re-checked for exact matches in code). */
+export const Q_FIND_VARIANTS = /* GraphQL */ `
+  query DeploiFindVariants($query: String!) {
+    productVariants(first: 50, query: $query) { nodes { ...DeploiVariantFields } }
+  }
+  ${VARIANT_FIELDS}
+`
+
+export const Q_FIND_BY_HANDLE = /* GraphQL */ `
+  query DeploiFindByHandle($query: String!) {
+    products(first: 10, query: $query) { nodes { variants(first: 100) { nodes { ...DeploiVariantFields } } } }
+  }
+  ${VARIANT_FIELDS}
+`
+
+/** Sales channels the app can publish to; the merchant picks one by name (Online Store is never guessed). */
+export const Q_PUBLICATIONS = /* GraphQL */ `
+  query DeploiPublications {
+    shop { currencyCode }
+    publications(first: 50, catalogType: APP) {
+      nodes { id supportsFuturePublishing catalog { __typename id title status } }
+    }
+  }
+`
+
+export const M_PUBLISH = /* GraphQL */ `
+  mutation DeploiPublish($id: ID!, $input: [PublicationInput!]!) {
+    publishablePublish(id: $id, input: $input) { userErrors { field message } }
+  }
+`
+
+export const M_UNPUBLISH = /* GraphQL */ `
+  mutation DeploiUnpublish($id: ID!, $input: [PublicationInput!]!) {
+    publishableUnpublish(id: $id, input: $input) { userErrors { field message } }
+  }
+`
+
+/** One field per call (price, compare-at price or SKU), so each approved change is written and audited alone. */
+export const M_UPDATE_VARIANT = /* GraphQL */ `
+  mutation DeploiUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkUpdate(productId: $productId, variants: $variants, allowPartialUpdates: false) {
+      productVariants { id price compareAtPrice sku updatedAt }
+      userErrors { field message code }
+    }
+  }
+`
+
+/** Markets / B2B fixed prices that would override a base-price change for some buyers. */
+export const Q_PRICE_OVERRIDES = /* GraphQL */ `
+  query DeploiPriceOverrides($query: String!) {
+    priceLists(first: 50) { nodes { id name currency prices(first: 1, originType: FIXED, query: $query) { nodes { price { amount currencyCode } } } } }
   }
 `

@@ -25,7 +25,7 @@ function strList(v: unknown, max: number, field: string): string[] {
 
 export type OversellConfig = { exemptTags: string[]; exemptProductIds: string[]; flagInStockVariants: boolean }
 
-export const oversellPolicyCheck: CheckDef<ShopifyVariantRecord> = {
+export const oversellPolicyCheck: CheckDef<ShopifyVariantRecord, Finding> = {
   key: OVERSELL_CHECK,
   platform: 'shopify',
   title: 'Selling with no stock against your rule',
@@ -97,7 +97,7 @@ export const oversellPolicyCheck: CheckDef<ShopifyVariantRecord> = {
   },
 }
 
-export const oversoldCheck: CheckDef<ShopifyVariantRecord> = {
+export const oversoldCheck: CheckDef<ShopifyVariantRecord, Finding> = {
   key: OVERSOLD_CHECK,
   platform: 'shopify',
   title: 'Oversold while set to stop selling',

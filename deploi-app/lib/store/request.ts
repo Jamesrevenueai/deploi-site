@@ -58,7 +58,7 @@ export async function resolveActor(req: Request, opts: { mutating?: boolean } = 
 
 const ENGINE_STATUS: Record<EngineErrorCode, number> = {
   not_found: 404, forbidden: 403, invalid_input: 400,
-  not_pending: 409, expired: 409, hash_mismatch: 409, rule_changed: 409, not_retryable: 409, connection_inactive: 409, not_operational: 409,
+  not_pending: 409, expired: 409, hash_mismatch: 409, rule_changed: 409, not_retryable: 409, connection_inactive: 409, not_operational: 409, agent_inactive: 409, busy: 409,
 }
 
 export function errorResponse(e: unknown): NextResponse {

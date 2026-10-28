@@ -1,7 +1,20 @@
 {
   "crons": [
-    { "path": "/api/cron/morning-pipeline", "schedule": "0 * * * *" },
-    { "path": "/api/cron/morning-report", "schedule": "0 * * * *" },
-    { "path": "/api/cron/workers", "schedule": "0 6 * * *" }
+    {
+      "path": "/api/cron/morning-pipeline",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/morning-report",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/workers",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/agents",
+      "schedule": "7 * * * *"
+    }
   ]
 }

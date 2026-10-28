@@ -10,8 +10,9 @@ embedded = true
 automatically_update_urls_on_dev = true
 
 [access_scopes]
-# least privilege: read products and inventory, write products (inventory policy). No customer or order scopes.
-scopes = "read_products,write_products,read_inventory,read_locations"
+# least privilege for the four corrections: products (inventory policy, price, SKU), inventory and locations (read),
+# publications (publish / unpublish on the channel the merchant authorizes). No customer or order scopes.
+scopes = "read_products,write_products,read_inventory,read_locations,read_publications,write_publications"
 use_legacy_install_flow = false
 
 [auth]

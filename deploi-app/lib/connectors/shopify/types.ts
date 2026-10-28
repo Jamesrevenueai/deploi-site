@@ -8,6 +8,12 @@ export type ShopifyVariantRecord = ResourceRecord & {
   variantId: string
   variantTitle: string
   sku: string | null
+  /** base price in the shop currency, canonical "12.30" */
+  price: string | null
+  compareAtPrice: string | null
+  barcodes: string[]
+  /** other variants sharing this SKU, as Shopify reports it */
+  duplicateSkuCount: number | null
   inventoryPolicy: 'CONTINUE' | 'DENY' | string
   productId: string
   productTitle: string
@@ -25,4 +31,8 @@ export type ShopifyVariantRecord = ResourceRecord & {
   totalAvailable: number | null
   /** false when the record has more inventory levels than were read */
   levelsComplete: boolean
+  /** publication id -> published now (a future-dated publication counts as not published, and is listed in scheduledOn) */
+  published: Record<string, boolean>
+  scheduledOn: string[]
+  onlineStoreUrl: string | null
 }

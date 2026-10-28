@@ -21,7 +21,7 @@ export type AmazonListingRecord = ResourceRecord & {
 
 export const AMAZON_ERRORS_CHECK = 'amazon.listing_errors'
 
-export const amazonListingErrorsCheck: CheckDef<AmazonListingRecord> = {
+export const amazonListingErrorsCheck: CheckDef<AmazonListingRecord, Finding> = {
   key: AMAZON_ERRORS_CHECK,
   platform: 'amazon',
   title: 'Amazon reports an error on this listing',

@@ -32,7 +32,7 @@ const DEFAULT_EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', '
 export function wooResourceId(productId: number, variationId: number | null) { return variationId ? `variation:${productId}:${variationId}` : `product:${productId}` }
 const label = (r: WooStockRecord) => `${r.name}${r.sku ? ` (SKU ${r.sku})` : ''}`
 
-export const wooBackordersCheck: CheckDef<WooStockRecord> = {
+export const wooBackordersCheck: CheckDef<WooStockRecord, Finding> = {
   key: WOO_BACKORDERS_CHECK,
   platform: 'woocommerce',
   title: 'Taking backorders against your rule',
@@ -74,7 +74,7 @@ export const wooBackordersCheck: CheckDef<WooStockRecord> = {
   },
 }
 
-export const wooOversoldCheck: CheckDef<WooStockRecord> = {
+export const wooOversoldCheck: CheckDef<WooStockRecord, Finding> = {
   key: WOO_OVERSOLD_CHECK,
   platform: 'woocommerce',
   title: 'Oversold while backorders are off',

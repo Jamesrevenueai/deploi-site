@@ -50,9 +50,28 @@ export type Finding = {
   humanAction?: string
 }
 
-export type CheckContext = { ruleVersion: number }
+/** Store-wide facts a check may need (duplicate SKUs, barcodes, currency). `complete` is false when built from targeted lookups. */
+export type StoreContext = {
+  currency: string | null
+  variantIdsBySku: (sku: string) => string[]
+  variantIdsByBarcode: (barcode: string) => string[]
+  variantIdsByHandleTitle: (handle: string, variantTitle: string) => string[]
+  complete: boolean
+}
 
-export type CheckDef<R extends ResourceRecord = ResourceRecord> = {
+export type CheckContext = {
+  /** merchant rule version, or the agent policy version */
+  ruleVersion: number
+  agentId?: string | null
+  /** merchant reference files by source id (price lists, SKU mappings, publication lists) */
+  references?: Record<string, import('../agents/references').ReferenceIndex>
+  store?: StoreContext
+}
+
+/** Values a check needs looked up store-wide for a targeted read (e.g. other variants using the same SKU). */
+export type LookupKeys = { skus: string[]; barcodes: string[]; handles: string[] }
+
+export type CheckDef<R extends ResourceRecord = ResourceRecord, F extends Finding | Finding[] = Finding | Finding[]> = {
   key: string
   platform: Platform
   title: string
@@ -64,9 +83,13 @@ export type CheckDef<R extends ResourceRecord = ResourceRecord> = {
   resourceType: string
   defaultEnabled: boolean
   defaultConfig: Record<string, unknown>
+  /** configured only through an agent policy (needs a reference file or channel), never as a store-wide rule */
+  agentOnly?: boolean
   /** validate and normalise merchant input; throws on invalid config */
   parseConfig: (raw: unknown) => Record<string, unknown>
-  detect: (record: R, config: Record<string, unknown>, ctx: CheckContext) => Finding | null
+  detect: (record: R, config: Record<string, unknown>, ctx: CheckContext) => F | null
+  /** optional: store-wide values to look up when only some records were read */
+  lookupKeys?: (record: R, config: Record<string, unknown>, ctx: CheckContext) => LookupKeys
 }
 
 export type ConnectionRow = {
@@ -80,6 +103,7 @@ export type ConnectionRow = {
   api_version: string | null
   is_synthetic: boolean
   timezone: string | null
+  currency?: string | null
 }
 
 export type ApplyResult = {
@@ -88,6 +112,8 @@ export type ApplyResult = {
   request: Record<string, unknown>
   response: Record<string, unknown> | null
   error?: string
+  /** true when the connector refused before sending any write (permission or preflight); the engine reports it as blocked */
+  blocked?: boolean
 }
 
 export interface Connector<R extends ResourceRecord = ResourceRecord> {
@@ -100,8 +126,10 @@ export interface Connector<R extends ResourceRecord = ResourceRecord> {
   listResources(conn: ConnectionRow): AsyncGenerator<R[]>
   /** fresh read of specific resources (precheck, verification, targeted rescans); missing ids are absent from the map */
   readResources(conn: ConnectionRow, resourceIds: string[]): Promise<Map<string, R>>
-  /** perform one approved correction */
-  applyAction(conn: ConnectionRow, correction: Correction): Promise<ApplyResult>
+  /** perform one approved correction; `allowedFields` is enforced by the connector as well as the engine */
+  applyAction(conn: ConnectionRow, correction: Correction, allowedFields?: string[]): Promise<ApplyResult>
+  /** optional: find records by store-wide keys (SKU, barcode, product handle) */
+  findResources?(conn: ConnectionRow, keys: LookupKeys): Promise<R[]>
 }
 
 export class NotOperational extends Error {

@@ -20,13 +20,13 @@ export type InstallResult = { connectionId: string; orgId: string; created: bool
 async function shopInfo(shop: string, token: string) {
   try {
     const r = await realTransport(shop, token)({ query: Q_SHOP, operationName: 'DeploiShop' })
-    const d = (r.json as { data?: { shop?: { name?: string; ianaTimezone?: string } } } | null)?.data?.shop
-    return { name: d?.name ?? shop, timezone: d?.ianaTimezone ?? null }
-  } catch { return { name: shop, timezone: null } }
+    const d = (r.json as { data?: { shop?: { name?: string; ianaTimezone?: string; currencyCode?: string } } } | null)?.data?.shop
+    return { name: d?.name ?? shop, timezone: d?.ianaTimezone ?? null, currency: d?.currencyCode ?? null }
+  } catch { return { name: shop, timezone: null, currency: null } }
 }
 
 /** Ensure the shop is installed and has a usable offline token. Idempotent; safe on every app load. */
-export async function ensureInstalled(shop: string, idToken: string, opts: { exchange?: (shop: string, idToken: string) => Promise<AccessToken>; info?: typeof shopInfo; force?: boolean } = {}): Promise<InstallResult> {
+export async function ensureInstalled(shop: string, idToken: string, opts: { exchange?: (shop: string, idToken: string) => Promise<AccessToken>; info?: (shop: string, token: string) => Promise<{ name: string; timezone: string | null; currency?: string | null }>; force?: boolean } = {}): Promise<InstallResult> {
   const existing = await admin(db => db.one<{ id: string; org_id: string; status: string }>(`select id, org_id, status from store_connections where platform = 'shopify' and external_id = $1`, [shop]))
   if (existing?.status === 'active' && !opts.force) {
     const cred = await admin(db => loadCredential(db, existing.id))
@@ -43,12 +43,12 @@ export async function ensureInstalled(shop: string, idToken: string, opts: { exc
       orgId = g!.id
     }
     const conn = await db.one<{ id: string }>(
-      `insert into store_connections (org_id, platform, external_id, display_name, status, scopes, api_version, is_synthetic, timezone, installed_at, uninstalled_at)
-       values ($1,'shopify',$2,$3,'active',$4,$5,false,$6,now(),null)
+      `insert into store_connections (org_id, platform, external_id, display_name, status, scopes, api_version, is_synthetic, timezone, currency, installed_at, uninstalled_at)
+       values ($1,'shopify',$2,$3,'active',$4,$5,false,$6,$7,now(),null)
        on conflict (platform, external_id) do update set status = 'active', scopes = excluded.scopes, api_version = excluded.api_version,
-         display_name = excluded.display_name, timezone = excluded.timezone, installed_at = now(), uninstalled_at = null
+         display_name = excluded.display_name, timezone = excluded.timezone, currency = coalesce(excluded.currency, store_connections.currency), installed_at = now(), uninstalled_at = null
        returning id`,
-      [orgId, shop, info.name, token.scope.length ? token.scope : shopifyConfig.scopes, shopifyConfig.apiVersion, info.timezone])
+      [orgId, shop, info.name, token.scope.length ? token.scope : shopifyConfig.scopes, shopifyConfig.apiVersion, info.timezone, (info as { currency?: string | null }).currency ?? null])
     await storeCredential(db, {
       connectionId: conn!.id, orgId, secret: token.accessToken, tokenKind: 'offline', scopes: token.scope,
       expiresAt: token.expiresIn ? new Date(Date.now() + token.expiresIn * 1000) : null,

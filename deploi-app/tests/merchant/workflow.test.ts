@@ -35,7 +35,7 @@ describe.skipIf(!ready)('merchant engine: detect, propose, approve, execute, ver
 
   it('a scan opens exactly the expected issues and one proposal per correctable issue; rescans are idempotent', async () => {
     const s1 = await runScan(NW.conn, { trigger: 'test' })
-    expect(s1).toMatchObject({ resourcesScanned: 15, issuesOpened: 6, proposalsCreated: 5 })
+    expect(s1).toMatchObject({ resourcesScanned: 19, issuesOpened: 6, proposalsCreated: 5 })
     const s2 = await runScan(NW.conn, { trigger: 'test' })
     expect(s2).toMatchObject({ issuesOpened: 0, issuesUpdated: 6, proposalsCreated: 0, proposalsInvalidated: 0 })
     const live = await admin(db => db.one<{ n: string }>(`select count(*)::text as n from proposals where connection_id = $1 and status = 'pending_approval'`, [NW.conn]))

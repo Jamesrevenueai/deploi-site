@@ -25,7 +25,7 @@ const variant = async (id: string) => (await store(NW))!.products.flatMap(p => p
 const product = async (id: string) => (await store(NW))!.products.find(p => p.id === id)!
 const writes = async () => (await store(NW))!.writeLog.length
 
-async function upload(actor: Actor, kind: 'price_list' | 'sku_mapping' | 'publication_list', csv: string, name = kind) {
+async function upload(actor: Actor, kind: 'price_list' | 'sku_mapping' | 'publication_list', csv: string, name: string = kind) {
   const r = await admin(db => saveReference(db, { orgId: NW.org, connectionId: NW.conn, kind, name, csv, actor: actor.label }))
   if (!r.ok) throw new Error('upload failed')
   return r.source.id

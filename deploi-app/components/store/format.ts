@@ -49,6 +49,10 @@ const FIELD_LABEL: Record<string, string> = {
   tracked: 'Inventory tracked',
   productStatus: 'Product status',
   productId: 'Product',
+  published: 'Published on the sales channel',
+  price: 'Price',
+  compareAtPrice: 'Compare-at price',
+  sku: 'SKU',
 }
 
 /** A single value from a record, in merchant words for the field it belongs to */
@@ -112,4 +116,94 @@ export function actorLabel(a: string | null | undefined): string {
   if (a.startsWith('system:')) return 'Deploi (automatic)'
   if (a.startsWith('seed:')) return 'Setup'
   return a
+}
+
+// ---------------------------------------------------------------- agents
+
+/**
+ * Merchant-facing labels for an agent's work. Only "Verified" means done: a fresh read of the store
+ * shows the change. Anything the store accepted but Deploi has not confirmed is "Unconfirmed".
+ */
+export type StatusWords = { label: string; tone: Tone; hint: string }
+
+export const EXECUTION_STATUS_WORDS: Record<string, StatusWords> = {
+  queued: { label: 'Queued', tone: 'muted', hint: 'Approved and waiting to run. Pausing or revoking the agent cancels it.' },
+  prechecking: { label: 'Running', tone: 'muted', hint: 'Re-reading the record before writing.' },
+  executing: { label: 'Running', tone: 'muted', hint: 'Writing the change.' },
+  applied: { label: 'Unconfirmed (checking)', tone: 'warn', hint: 'The store accepted the write; Deploi has not confirmed it with a fresh read yet.' },
+  unknown: { label: 'Unconfirmed (checking)', tone: 'warn', hint: 'No definite answer from the store; Deploi checks the record before trying again.' },
+  verified: { label: 'Verified', tone: 'ok', hint: 'A fresh read of the store shows the change.' },
+  failed: { label: 'Failed', tone: 'danger', hint: 'The store refused the change.' },
+  verification_failed: { label: 'Failed', tone: 'danger', hint: 'The store accepted the write, but a fresh read does not show the change.' },
+  blocked: { label: 'Blocked', tone: 'warn', hint: 'Not attempted: something made it unsafe or not allowed. Nothing was written.' },
+  stale: { label: 'Stale (records changed)', tone: 'warn', hint: 'Not run: the record changed after the change was proposed. Nothing was written.' },
+}
+
+export const PROPOSAL_STATUS_WORDS: Record<string, StatusWords> = {
+  pending_approval: { label: 'Awaiting approval', tone: 'none', hint: 'Waiting for you to approve this exact change.' },
+  approved: { label: 'Queued', tone: 'muted', hint: 'Approved and waiting to run.' },
+  executing: EXECUTION_STATUS_WORDS.executing,
+  applied: EXECUTION_STATUS_WORDS.applied,
+  verified: EXECUTION_STATUS_WORDS.verified,
+  failed: EXECUTION_STATUS_WORDS.failed,
+  blocked: EXECUTION_STATUS_WORDS.blocked,
+  stale: EXECUTION_STATUS_WORDS.stale,
+  expired: { label: 'Expired', tone: 'muted', hint: 'Not approved in time. The next run proposes it again if it is still needed.' },
+  dismissed: { label: 'Withdrawn', tone: 'muted', hint: 'Withdrawn without changing the store.' },
+  superseded: { label: 'Replaced', tone: 'muted', hint: 'Replaced by a newer proposal.' },
+}
+
+const unknownWords = (s: string): StatusWords => ({ label: s.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()), tone: 'muted', hint: '' })
+export const executionWords = (status: string): StatusWords => EXECUTION_STATUS_WORDS[status] ?? unknownWords(status)
+export const proposalWords = (status: string): StatusWords => PROPOSAL_STATUS_WORDS[status] ?? unknownWords(status)
+
+export const AGENT_STATUS_WORDS: Record<string, StatusWords> = {
+  draft: { label: 'Draft', tone: 'muted', hint: 'Not authorized yet. It cannot read or change anything until you grant its authorization.' },
+  active: { label: 'Active', tone: 'ok', hint: 'Authorized. It runs on its schedule or when you press Run now.' },
+  paused: { label: 'Paused', tone: 'warn', hint: 'Paused. It does not run or write anything, including changes already queued.' },
+  revoked: { label: 'Revoked', tone: 'danger', hint: 'Authorization revoked. It writes nothing until you review and grant a new authorization.' },
+  deleted: { label: 'Deleted', tone: 'muted', hint: '' },
+}
+export const agentWords = (status: string): StatusWords => AGENT_STATUS_WORDS[status] ?? unknownWords(status)
+
+export const RUN_STATUS_WORDS: Record<string, StatusWords> = {
+  running: { label: 'Running', tone: 'muted', hint: '' },
+  completed: { label: 'Completed', tone: 'none', hint: 'The run finished. Each change has its own outcome below.' },
+  failed: { label: 'Failed', tone: 'danger', hint: '' },
+  blocked: { label: 'Blocked', tone: 'warn', hint: '' },
+}
+export const runWords = (status: string): StatusWords => RUN_STATUS_WORDS[status] ?? unknownWords(status)
+
+/** Kept in step with CORRECTION_TYPES / CORRECTION_LABEL in lib/agents/policy.ts (that module is server-only). */
+export const AGENT_CORRECTION_TYPES = ['oversell_policy', 'publication', 'price', 'sku'] as const
+export type AgentCorrectionType = typeof AGENT_CORRECTION_TYPES[number]
+export const AGENT_CORRECTION_LABEL: Record<string, string> = {
+  oversell_policy: 'Overselling configuration',
+  publication: 'Product publication',
+  price: 'Prices',
+  sku: 'SKUs',
+}
+export const AGENT_CORRECTION_HELP: Record<AgentCorrectionType, string> = {
+  oversell_policy: 'Turns "Continue selling when out of stock" off on tracked variants that should stop selling at zero. Pre-order and backorder products are skipped.',
+  publication: 'Publishes (and, if you allow it, unpublishes) active products on one sales channel to match your list or tag rule. Draft and archived products are reported, never changed.',
+  price: 'Sets variant prices to match your price list, within the change limit you set. Never invents a price.',
+  sku: 'Fills in (and, if you allow it, corrects) SKUs from your mapping when the match is unambiguous. Never generates a SKU.',
+}
+
+export const APPROVAL_MODE_LABEL: Record<string, string> = { review: 'Review each change', autonomous: 'Authorized to act within limits' }
+
+export const TRIGGER_LABEL: Record<string, string> = { manual: 'Run now', schedule: 'Schedule', webhook: 'Store update', test: 'Test' }
+
+type ScheduleLike = { kind: 'manual' } | { kind: 'interval'; everyHours: number } | { kind: 'daily'; hour: number; minute: number; timezone?: string }
+const pad2 = (n: number) => String(n).padStart(2, '0')
+export function scheduleLabel(s: unknown): string {
+  const x = s as ScheduleLike | null
+  if (!x || typeof x !== 'object') return 'Run manually'
+  if (x.kind === 'interval') return `Every ${x.everyHours} hour${x.everyHours === 1 ? '' : 's'}`
+  if (x.kind === 'daily') return `Daily at ${pad2(x.hour)}:${pad2(x.minute)}${x.timezone ? ` (${x.timezone})` : ''}`
+  return 'Run manually'
+}
+
+export function referenceKindLabel(kind: string): string {
+  return kind === 'price_list' ? 'Price list' : kind === 'sku_mapping' ? 'SKU mapping' : kind === 'publication_list' ? 'Publication list' : kind
 }

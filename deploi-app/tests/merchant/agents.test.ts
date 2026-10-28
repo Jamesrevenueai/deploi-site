@@ -31,6 +31,9 @@ async function upload(actor: Actor, kind: 'price_list' | 'sku_mapping' | 'public
   return r.source.id
 }
 
+/** autonomous store grants need an end date at most one year away */
+const UNTIL = new Date(Date.now() + 300 * 864e5).toISOString()
+
 async function agent(actor: Actor, name: string, policy: Record<string, unknown>) {
   const c = await createAgent(actor, { name, taskText: `${name} task`, policy: { connectionId: NW.conn, productScope: { mode: 'all' }, ...policy } })
   await grantPolicy(actor, c.agentId, c.policyId, c.policyHash)
@@ -66,7 +69,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
 
   it('authorized autonomous mode (Stock Guardian): writes only covered changes, preserves pre-order and backorder exceptions, verifies each, records why it qualified', async () => {
     const actor = await merchantActor(NW)
-    const id = await agent(actor, 'Stock Guardian', { ...STOCK, approvalMode: 'autonomous' })
+    const id = await agent(actor, 'Stock Guardian', { ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL })
     const r = await runAgent(id, { trigger: 'test', actor: actor.label })
     expect(r.status).toBe('completed')
     expect(r.counts).toMatchObject({ autoApproved: 5, verified: 5, failed: 0, blocked: 0, awaitingApproval: 0 })
@@ -101,7 +104,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
   it('price workflow: within-limit changes run, larger ones wait for approval, fixed Markets prices block before any write, sale prices and EUR rows are left alone', async () => {
     const actor = await merchantActor(NW)
     const list = await upload(actor, 'price_list', NORTHWIND_REFERENCES.price, 'Price list')
-    const id = await agent(actor, 'Price Keeper', { correctionTypes: ['price'], rules: { price: { sourceId: list, fields: ['price'], maxChangePct: 20, skipVariantsOnSale: true } }, approvalMode: 'autonomous' })
+    const id = await agent(actor, 'Price Keeper', { correctionTypes: ['price'], rules: { price: { sourceId: list, fields: ['price'], maxChangePct: 20, skipVariantsOnSale: true } }, approvalMode: 'autonomous', validUntil: UNTIL })
     const before = await writes()
     const r = await runAgent(id, { trigger: 'test', actor: actor.label })
     expect(r.counts).toMatchObject({ proposed: 3, autoApproved: 2, verified: 1, blocked: 1, awaitingApproval: 1 })
@@ -127,7 +130,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
   it('publication workflow: publishes on the authorized channel only, never changes status, never unpublishes without permission', async () => {
     const actor = await merchantActor(NW)
     const list = await upload(actor, 'publication_list', NORTHWIND_REFERENCES.publication, 'Channel list')
-    const id = await agent(actor, 'Channel Keeper', { correctionTypes: ['publication'], rules: { publication: { publicationId: ONLINE_STORE, publicationName: 'Online Store', sourceId: list, allowUnpublish: false } }, approvalMode: 'autonomous' })
+    const id = await agent(actor, 'Channel Keeper', { correctionTypes: ['publication'], rules: { publication: { publicationId: ONLINE_STORE, publicationName: 'Online Store', sourceId: list, allowUnpublish: false } }, approvalMode: 'autonomous', validUntil: UNTIL })
     const r = await runAgent(id, { trigger: 'test', actor: actor.label })
     expect(r.counts).toMatchObject({ autoApproved: 1, verified: 1 })
     expect((await product(P(1003))).publishedOn).toEqual(expect.arrayContaining([ONLINE_STORE]))
@@ -142,7 +145,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
   it('SKU workflow: fills only unambiguous matches and never creates duplicates', async () => {
     const actor = await merchantActor(NW)
     const map = await upload(actor, 'sku_mapping', NORTHWIND_REFERENCES.sku, 'SKU map')
-    const id = await agent(actor, 'SKU Filler', { correctionTypes: ['sku'], rules: { sku: { sourceId: map, allowOverwrite: false } }, approvalMode: 'autonomous' })
+    const id = await agent(actor, 'SKU Filler', { correctionTypes: ['sku'], rules: { sku: { sourceId: map, allowOverwrite: false } }, approvalMode: 'autonomous', validUntil: UNTIL })
     const r = await runAgent(id, { trigger: 'test', actor: actor.label })
     expect(r.counts).toMatchObject({ autoApproved: 1, verified: 1, needsPerson: 4 })
     expect((await variant(V(2016))).sku).toBe('NW-WCO-01')
@@ -152,7 +155,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
 
   it('a grant is bound to the reviewed version; staff and other organizations cannot create, grant, run or upload', async () => {
     const actor = await merchantActor(NW)
-    const c = await createAgent(actor, { name: 'Guard', taskText: '', policy: { connectionId: NW.conn, productScope: { mode: 'all' }, ...STOCK, approvalMode: 'autonomous' } })
+    const c = await createAgent(actor, { name: 'Guard', taskText: '', policy: { connectionId: NW.conn, productScope: { mode: 'all' }, ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL } })
     await expect(grantPolicy(actor, c.agentId, c.policyId, 'f'.repeat(64))).rejects.toMatchObject({ code: 'hash_mismatch' })
     await expect(runAgent(c.agentId, { trigger: 'test', actor: actor.label })).rejects.toMatchObject({ code: 'agent_inactive' }) // not granted yet
     const staff = await staffActor()
@@ -187,7 +190,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
     const id = await agent(actor, 'Guard', { ...STOCK, productScope: { mode: 'products', productIds: [P(1001)] }, approvalMode: 'review' })
     await runAgent(id, { trigger: 'test', actor: actor.label })
     const p1 = await proposalFor(id, V(2001))
-    const wider = await editAgent(actor, id, { policy: { connectionId: NW.conn, ...STOCK, productScope: { mode: 'all' }, approvalMode: 'autonomous' } })
+    const wider = await editAgent(actor, id, { policy: { connectionId: NW.conn, ...STOCK, productScope: { mode: 'all' }, approvalMode: 'autonomous', validUntil: UNTIL } })
     expect(wider.requiresGrant).toBe(true)
     expect(wider.expansion.length).toBeGreaterThan(0)
     // still version 1, still review mode: no autonomous writes
@@ -204,7 +207,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
 
   it('pause and revoke stop all writes, including queued ones', async () => {
     const actor = await merchantActor(NW)
-    const id = await agent(actor, 'Guard', { ...STOCK, approvalMode: 'autonomous' })
+    const id = await agent(actor, 'Guard', { ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL })
     // run in review-like fashion: detect, then queue writes by hand under the standing authorization
     await editAgent(actor, id, { policy: { connectionId: NW.conn, ...STOCK, productScope: { mode: 'all' }, approvalMode: 'review' } }) // narrowing: no grant needed
     await runAgent(id, { trigger: 'test', actor: actor.label })
@@ -263,7 +266,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
   it('conflicting agents: a second agent correcting the same thing on overlapping products cannot be granted', async () => {
     const actor = await merchantActor(NW)
     await agent(actor, 'Guard A', { ...STOCK, approvalMode: 'review' })
-    const c = await createAgent(actor, { name: 'Guard B', taskText: '', policy: { connectionId: NW.conn, productScope: { mode: 'tags', tags: ['home'] }, ...STOCK, approvalMode: 'autonomous' } })
+    const c = await createAgent(actor, { name: 'Guard B', taskText: '', policy: { connectionId: NW.conn, productScope: { mode: 'tags', tags: ['home'] }, ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL } })
     await expect(grantPolicy(actor, c.agentId, c.policyId, c.policyHash)).rejects.toMatchObject({ code: 'invalid_input' })
   })
 
@@ -284,7 +287,7 @@ describe.skipIf(!ready)('agents: authorization, autonomous and review runs, cont
 
   it('outcome verification: a write that does not stick is reported as failed, never as success', async () => {
     const actor = await merchantActor(NW)
-    const id = await agent(actor, 'Guard', { ...STOCK, productScope: { mode: 'products', productIds: [P(1001)] }, approvalMode: 'autonomous' })
+    const id = await agent(actor, 'Guard', { ...STOCK, productScope: { mode: 'products', productIds: [P(1001)] }, approvalMode: 'autonomous', validUntil: UNTIL })
     await injectFault(NW.conn, { op: 'DeploiSetInventoryPolicy', mode: 'write_does_not_stick' })
     const r = await runAgent(id, { trigger: 'test', actor: actor.label })
     expect(r.counts).toMatchObject({ autoApproved: 1, verified: 0, failed: 1 })

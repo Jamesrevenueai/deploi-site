@@ -77,15 +77,17 @@ async function seedNorthwindAgents(c: Client): Promise<number> {
   const skuId = await seedReference(c, org, conn, 'sku_mapping', 'Northwind SKU mapping', NORTHWIND_REFERENCES.sku)
   const pubId = await seedReference(c, org, conn, 'publication_list', 'Online Store product list', NORTHWIND_REFERENCES.publication)
   const names = { [priceId]: 'Northwind price list', [skuId]: 'Northwind SKU mapping', [pubId]: 'Online Store product list' }
+  // autonomous grants last at most one year; seeded demo grants end 360 days after seeding
+  const until = new Date(Date.now() + 360 * 864e5).toISOString()
   const agents = [
     { key: 'stock-guardian', name: 'Stock Guardian', task: 'Every 6 hours, stop products from selling when they are out of stock, except anything tagged pre-order or backorder. Fix it automatically.',
-      policy: { connectionId: conn, correctionTypes: ['oversell_policy'], productScope: { mode: 'all' }, rules: { oversell_policy: { exemptTags: DEFAULT_EXEMPT_TAGS, flagInStockVariants: true } }, approvalMode: 'autonomous', schedule: { kind: 'interval', everyHours: 6 } } },
+      policy: { connectionId: conn, correctionTypes: ['oversell_policy'], productScope: { mode: 'all' }, rules: { oversell_policy: { exemptTags: DEFAULT_EXEMPT_TAGS, flagInStockVariants: true } }, approvalMode: 'autonomous', validUntil: until, schedule: { kind: 'interval', everyHours: 6 } } },
     { key: 'price-keeper', name: 'Price Keeper', task: 'Check prices against my price list every day and ask me before changing anything.',
       policy: { connectionId: conn, correctionTypes: ['price'], productScope: { mode: 'all' }, rules: { price: { sourceId: priceId, fields: ['price'], maxChangePct: 20, skipVariantsOnSale: true } }, approvalMode: 'review', schedule: { kind: 'daily', hour: 6, minute: 0, timezone: 'America/Chicago' } } },
     { key: 'channel-keeper', name: 'Channel Keeper', task: 'Publish products on the Online Store when my product list says they should be live. Ask me first.',
       policy: { connectionId: conn, correctionTypes: ['publication'], productScope: { mode: 'all' }, rules: { publication: { publicationId: ONLINE_STORE, publicationName: 'Online Store', sourceId: pubId, allowUnpublish: false } }, approvalMode: 'review', schedule: { kind: 'manual' } } },
     { key: 'sku-filler', name: 'SKU Filler', task: 'Fill in missing SKUs from my SKU mapping automatically. Never change SKUs that are already set.',
-      policy: { connectionId: conn, correctionTypes: ['sku'], productScope: { mode: 'all' }, rules: { sku: { sourceId: skuId, allowOverwrite: false } }, approvalMode: 'autonomous', limits: { maxChangesPerRun: 10, maxChangesPerDay: 50 }, schedule: { kind: 'manual' } } },
+      policy: { connectionId: conn, correctionTypes: ['sku'], productScope: { mode: 'all' }, rules: { sku: { sourceId: skuId, allowOverwrite: false } }, approvalMode: 'autonomous', validUntil: until, limits: { maxChangesPerRun: 10, maxChangesPerDay: 50 }, schedule: { kind: 'manual' } } },
   ]
   for (const a of agents) {
     const id = uuidFrom(`agent:northwind:${a.key}`), pid = uuidFrom(`agent-policy:northwind:${a.key}:1`)

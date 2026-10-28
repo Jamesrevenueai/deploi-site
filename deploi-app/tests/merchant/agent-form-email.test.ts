@@ -10,7 +10,7 @@ function emailOnly(over: Partial<AgentFormState> = {}): AgentFormState {
   return {
     ...emptyForm(CONN),
     emailOn: true, emailAccountId: ACC, emailPermission: 'send_approved', emailPurpose: 'Restock requests and run summaries',
-    emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: true },
+    emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: true, supplier_followup: false },
     emailAddresses: 'owner@northwind-goods.example', emailDomains: 'supplier.example', emailNotify: 'owner@northwind-goods.example',
     supplierAddress: 'orders@supplier.example', scopeMode: 'all',
     ...over,
@@ -25,7 +25,7 @@ describe('agent form: email section', () => {
     expect(p.correctionTypes).toEqual([])
     expect(p.email?.tasks).toEqual(['run_report', 'supplier_reorder'])
     expect(p.email?.recipients).toEqual({ addresses: ['owner@northwind-goods.example'], domains: ['supplier.example'] })
-    expect(p.email?.supplierReorder).toEqual({ supplierAddress: 'orders@supplier.example', thresholdAvailable: 0, cooldownDays: 7 })
+    expect(p.email?.supplierReorder).toEqual({ supplierAddress: 'orders@supplier.example', thresholdAvailable: 0, cooldownDays: 7, followupDays: 3 })
     expect(p.email?.read.enabled).toBe(false)
     // round trip for editing
     const again = policyFromForm(formFromPolicy(p), 'UTC')
@@ -33,7 +33,7 @@ describe('agent form: email section', () => {
   })
 
   it('does not need products or a change-approval mode for summaries only', () => {
-    const f = emailOnly({ emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: false }, scopeMode: '', supplierAddress: '' })
+    const f = emailOnly({ emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: false, supplier_followup: false }, scopeMode: '', supplierAddress: '' })
     const { policy, problems } = policyFromForm(f, 'UTC')
     expect(problems).toEqual([])
     expect(parsePolicy(policy).productScope.mode).toBe('all')
@@ -71,6 +71,6 @@ describe('agent form: email section', () => {
   })
 
   it('still refuses an agent with neither corrections nor email', () => {
-    expect(policyFromForm({ ...emptyForm(CONN), scopeMode: 'all', approvalMode: 'review' }, 'UTC').problems).toContain('Choose at least one correction type, or turn on email.')
+    expect(policyFromForm({ ...emptyForm(CONN), scopeMode: 'all', approvalMode: 'review' }, 'UTC').problems).toContain('Choose at least one correction type or check, or turn on email.')
   })
 })

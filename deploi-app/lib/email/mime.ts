@@ -42,6 +42,9 @@ export function buildMime(m: OutgoingMessage, date = new Date()): string {
     `Date: ${date.toUTCString().replace('GMT', '+0000')}`,
     `Message-ID: ${m.internetMessageId}`,
     `X-Deploi-Message: ${safe('x-deploi-message', m.deploiId)}`,
+    ...(m.inReplyTo ? [`In-Reply-To: ${safe('in-reply-to', m.inReplyTo)}`] : []),
+    ...(m.references?.length ? [`References: ${m.references.map(r => safe('references', r)).join(' ')}`] : []),
+    ...(m.replyTo ? [`Reply-To: ${mailbox(m.replyTo, null)}`] : []),
     'MIME-Version: 1.0',
   ]
   const text = ['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', wrap76(Buffer.from(m.content.bodyText, 'utf8').toString('base64'))].join('\r\n')

@@ -8,7 +8,7 @@ import { env } from '../env'
 import { inScope, type AgentPolicy } from '../agents/policy'
 import type { ResourceRecord } from '../engine/types'
 import { checkReplies, createAgentMessages, processQueue } from './engine'
-import { needsPersonAlert, reorderCandidates, runReport, supplierReorder, type DraftMessage, type PersonItem } from './tasks'
+import { needsPersonAlert, reorderCandidates, runReport, supplierFollowup, supplierReorder, type DraftMessage, type FollowupTarget, type PersonItem } from './tasks'
 
 export type EmailRunCounts = { emailDrafted: number; emailAwaiting: number; emailAccepted: number; emailFailed: number; emailUnknown: number; emailSkipped: number }
 
@@ -20,6 +20,8 @@ export async function runEmailStep(input: {
   const out: EmailRunCounts = { emailDrafted: 0, emailAwaiting: 0, emailAccepted: 0, emailFailed: 0, emailUnknown: 0, emailSkipped: 0 }
   const appUrl = (env.appUrl || 'http://localhost:3000').replace(/\/$/, '')
   const drafts: DraftMessage[] = []
+  // replies first, so a supplier who answered is never chased
+  if (e.read.enabled) await checkReplies(input.agentId, { actor: input.actor })
 
   if (e.tasks.includes('needs_person_alert')) {
     // only items not already included in an earlier alert from this agent
@@ -43,6 +45,22 @@ export async function runEmailStep(input: {
     if (d) drafts.push(d)
   }
 
+  if (e.tasks.includes('supplier_followup') && sr && e.read.enabled) {
+    // sent restock requests with no reply after followupDays, and no follow-up yet (the dedupe key also guarantees one)
+    const due = await admin(db => db.query<FollowupTarget>(
+      `select m.id as "messageId", m.internet_message_id as "internetMessageId", m.to_addresses as "to", m.meta->>'subject' as subject, m.accepted_at as "sentAt",
+              coalesce(array(select jsonb_array_elements_text(m.meta->'variant_ids')), '{}') as "variantIds"
+       from email_messages m where m.agent_id = $1 and m.task_key = 'supplier_reorder' and m.status = 'accepted' and m.reply_count = 0
+         and m.accepted_at <= $2 and m.accepted_at > $3
+         and not exists (select 1 from email_messages f where f.agent_id = $1 and f.dedupe_key = 'supplier_followup:' || m.id::text)
+       order by m.accepted_at limit 20`,
+      [input.agentId, new Date(input.now.getTime() - sr.followupDays * 864e5).toISOString(), new Date(input.now.getTime() - 30 * 864e5).toISOString()]))
+    for (const t of due) {
+      const d = supplierFollowup(e, { agentName: input.agentName, storeName: input.storeName, target: { ...t, subject: t.subject || `Restock request from ${input.storeName}` } })
+      if (d) drafts.push(d)
+    }
+  }
+
   // the run summary comes last: it reports on everything above
   if (e.tasks.includes('run_report')) {
     const verified = await admin(db => db.query<{ target_label: string; change: { field: string; from: unknown; to: unknown } }>(
@@ -62,6 +80,5 @@ export async function runEmailStep(input: {
     else if (r.status === 'delivery_unknown') out.emailUnknown++
     else if (r.status === 'awaiting_approval') out.emailAwaiting++
   }
-  if (e.read.enabled) await checkReplies(input.agentId, { actor: input.actor })
   return out
 }

@@ -12,7 +12,7 @@ export type EmailCheckInput = {
   policyStatus: string
   policyVersion: number
   policy: AgentPolicy
-  account: Pick<EmailAccountRow, 'id' | 'address' | 'status' | 'can_send'> | null
+  account: (Pick<EmailAccountRow, 'id' | 'address' | 'status' | 'can_send'> & { provider?: string }) | null
   message: { from: string; to: string[]; cc: string[]; attachmentCount: number; taskKey: string }
   counts: { run: number | null; day: number }
   now: Date
@@ -31,6 +31,11 @@ export function sendBlockers(i: Pick<EmailCheckInput, 'agentStatus' | 'policySta
     if (i.account.id !== e.accountId) b.push('the message is from an account this agent is not authorized to use')
     if (i.account.status !== 'active' || !i.account.can_send) b.push('the email account is not connected with permission to send')
     if (i.account.address.toLowerCase() !== i.message.from.toLowerCase()) b.push('the sender address changed')
+    // an agent mailbox writes only to its allowed recipients, even with approval; adding one is a new grant
+    if (i.account.provider === 'deploi' && i.message.to) {
+      const outside = [...i.message.to, ...(i.message.cc ?? [])].filter(a => !recipientAllowed(e, a))
+      if (outside.length) b.push(`agent mailboxes write only to allowed recipients; not allowed: ${outside.join(', ')}`)
+    }
   }
   return b
 }

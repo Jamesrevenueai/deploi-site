@@ -53,11 +53,18 @@ export type AgentFormState = {
   dailyTime: string
   maxPerRun: string
   maxPerDay: string
-  approvalMode: '' | 'review' | 'autonomous'
+  approvalMode: '' | 'draft' | 'review' | 'autonomous'
+  /** what the plain-English task asked for; shown as a suggestion, never pre-selected (new agents start at drafts only) */
+  suggestedMode: '' | 'review' | 'autonomous'
+  /** YYYY-MM-DD, last day of an autonomous store authorization (required, at most one year) */
+  storeValidUntil: string
+  /** read-only check: report oversold variants for a person */
+  watchOversold: boolean
   // email (optional; an email-only agent needs no correction types)
   emailOn: boolean
   emailAccountId: string
   emailPermission: '' | AgentEmailPermission
+  suggestedEmailPermission: '' | AgentEmailPermission
   emailPurpose: string
   emailTasks: Record<AgentEmailTask, boolean>
   emailAddresses: string
@@ -69,6 +76,7 @@ export type AgentFormState = {
   supplierAddress: string
   supplierThreshold: string
   supplierCooldown: string
+  supplierFollowup: string
   emailPerRun: string
   emailPerDay: string
   emailMaxRecipients: string
@@ -78,6 +86,8 @@ export type AgentFormState = {
   emailRead: boolean
 }
 
+/** the read-only oversold check (lib/connectors/index.ts registers it as a Shopify watch) */
+export const OVERSOLD_WATCH = 'shopify.oversold_stop_selling'
 const DEFAULT_EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', 'made to order']
 const noTypes = (): Record<AgentCorrectionType, boolean> => ({ oversell_policy: false, publication: false, price: false, sku: false })
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -95,7 +105,7 @@ function productIds(s: string): { ids: string[]; bad: string[] } {
   return { ids: [...new Set(ids)], bad }
 }
 const showIds = (ids: string[]) => ids.map(id => id.replace(/^gid:\/\/shopify\/Product\//, '')).join(', ')
-const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false })
+const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false, supplier_followup: false })
 
 // same formats the server accepts (lib/agents/policy.ts)
 const EMAIL_RE = /^[^\s@<>(),;:"\[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
@@ -131,9 +141,9 @@ export function emptyForm(connectionId: string): AgentFormState {
     pubId: '', pubName: '', pubSource: 'file', pubSourceId: '', pubTags: '', allowUnpublish: false,
     priceSourceId: '', priceField: true, compareAtField: false, maxChangePct: '20', noPriceLimit: false, skipSale: true,
     skuSourceId: '', skuOverwrite: false,
-    scheduleKind: 'manual', everyHours: '6', dailyTime: '06:00', maxPerRun: '25', maxPerDay: '100', approvalMode: '',
-    emailOn: false, emailAccountId: '', emailPermission: '', emailPurpose: '', emailTasks: noEmailTasks(), emailAddresses: '', emailDomains: '',
-    emailSuggested: [], emailSuggestedConfirmed: false, emailNotify: '', supplierAddress: '', supplierThreshold: '0', supplierCooldown: '7',
+    scheduleKind: 'manual', everyHours: '6', dailyTime: '06:00', maxPerRun: '25', maxPerDay: '100', approvalMode: 'draft', suggestedMode: '', storeValidUntil: '', watchOversold: false,
+    emailOn: false, emailAccountId: '', emailPermission: 'draft', suggestedEmailPermission: '', emailPurpose: '', emailTasks: noEmailTasks(), emailAddresses: '', emailDomains: '',
+    emailSuggested: [], emailSuggestedConfirmed: false, emailNotify: '', supplierAddress: '', supplierThreshold: '0', supplierCooldown: '7', supplierFollowup: '3',
     emailPerRun: '10', emailPerDay: '25', emailMaxRecipients: '5', emailValidUntil: '', emailAttachments: false, emailRead: false,
   }
 }
@@ -145,7 +155,7 @@ export function formFromDraft(d: TaskDraft, connectionId: string): AgentFormStat
   if (d.productScope.mode) f.scopeMode = d.productScope.mode
   f.scopeTags = d.productScope.tags.join(', ')
   f.exceptTags = d.exceptionTags.join(', ')
-  if (d.approvalMode) f.approvalMode = d.approvalMode
+  if (d.approvalMode) f.suggestedMode = d.approvalMode
   if (d.schedule?.kind === 'interval') { f.scheduleKind = 'interval'; f.everyHours = String(d.schedule.everyHours) }
   if (d.schedule?.kind === 'daily') { f.scheduleKind = 'daily'; f.dailyTime = `${pad2(d.schedule.hour)}:${pad2(d.schedule.minute)}` }
   if (d.priceFields.length) { f.priceField = d.priceFields.includes('price'); f.compareAtField = d.priceFields.includes('compareAtPrice') }
@@ -155,7 +165,7 @@ export function formFromDraft(d: TaskDraft, connectionId: string): AgentFormStat
   if (d.email) {
     f.emailOn = true
     for (const t of d.email.tasks) f.emailTasks[t] = true
-    if (d.email.permission) f.emailPermission = d.email.permission
+    if (d.email.permission) f.suggestedEmailPermission = d.email.permission
     // suggestions only: they go into the allowed list, and the merchant must confirm them
     f.emailSuggested = d.email.addresses
     f.emailAddresses = d.email.addresses.join(', ')
@@ -189,6 +199,8 @@ export function formFromPolicy(p: AgentPolicy): AgentFormState {
   f.maxPerRun = String(p.limits.maxChangesPerRun)
   f.maxPerDay = String(p.limits.maxChangesPerDay)
   f.approvalMode = p.approvalMode
+  f.storeValidUntil = p.validUntil ? isoDay(p.validUntil) : ''
+  f.watchOversold = (p.watch ?? []).includes(OVERSOLD_WATCH)
   if (p.email) {
     const e = p.email
     f.emailOn = true
@@ -199,7 +211,7 @@ export function formFromPolicy(p: AgentPolicy): AgentFormState {
     f.emailAddresses = (e.recipients?.addresses ?? []).join(', ')
     f.emailDomains = (e.recipients?.domains ?? []).join(', ')
     f.emailNotify = (e.notify ?? []).join(', ')
-    if (e.supplierReorder) { f.supplierAddress = e.supplierReorder.supplierAddress; f.supplierThreshold = String(e.supplierReorder.thresholdAvailable); f.supplierCooldown = String(e.supplierReorder.cooldownDays) }
+    if (e.supplierReorder) { f.supplierAddress = e.supplierReorder.supplierAddress; f.supplierThreshold = String(e.supplierReorder.thresholdAvailable); f.supplierCooldown = String(e.supplierReorder.cooldownDays); f.supplierFollowup = String(e.supplierReorder.followupDays ?? 3) }
     f.emailPerRun = String(e.limits?.perRun ?? 10)
     f.emailPerDay = String(e.limits?.perDay ?? 25)
     f.emailMaxRecipients = String(e.maxRecipientsPerMessage ?? 5)
@@ -213,7 +225,7 @@ export function formFromPolicy(p: AgentPolicy): AgentFormState {
 /** Products only matter to an email-only agent when it asks a supplier about low stock. */
 export const needsProducts = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || !f.emailOn || f.emailTasks.supplier_reorder
 /** Store-change approval only matters when the agent corrects something. */
-export const needsApprovalMode = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || !f.emailOn
+export const needsApprovalMode = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || (!f.emailOn && !f.watchOversold)
 
 const int = (s: string) => (/^\d+$/.test(s.trim()) ? Number(s.trim()) : NaN)
 
@@ -226,7 +238,7 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
   const problems: string[] = []
   const types = AGENT_CORRECTION_TYPES.filter(t => f.types[t])
   if (!f.connectionId) problems.push('Choose the store.')
-  if (!types.length && !f.emailOn) problems.push('Choose at least one correction type, or turn on email.')
+  if (!types.length && !f.emailOn && !f.watchOversold) problems.push('Choose at least one correction type or check, or turn on email.')
   const products = needsProducts(f), approval = needsApprovalMode(f)
   if (products && !f.scopeMode) problems.push('Choose which products the agent may work on.')
   const scopeIds = productIds(f.scopeProductIds), exceptIds = productIds(f.exceptProductIds)
@@ -253,7 +265,16 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
   const perRun = int(f.maxPerRun), perDay = int(f.maxPerDay)
   if (!(perRun >= 1 && perRun <= 500)) problems.push('Limits: changes per run must be 1 to 500.')
   if (!(perDay >= 1 && perDay <= 5000)) problems.push('Limits: changes per day must be 1 to 5000.')
-  if (approval && !f.approvalMode) problems.push('Choose how changes are approved: review each change, or act within limits.')
+  if (approval && !f.approvalMode) problems.push('Choose how changes are approved: drafts only, review each change, or act within limits.')
+  let storeValidUntil: string | null = null
+  if (approval && f.approvalMode === 'autonomous' && types.length) {
+    const end = f.storeValidUntil ? endOfDay(f.storeValidUntil) : null
+    if (!end) problems.push('Acting without asking needs an end date (at most one year from today).')
+    else if (Number.isNaN(end.getTime())) problems.push('The end date is not a date.')
+    else if (end.getTime() <= Date.now()) problems.push('The end date must be in the future.')
+    else if (end.getTime() - Date.now() > 365 * 864e5) problems.push('The end date can be at most one year from today.')
+    else storeValidUntil = end.toISOString()
+  }
   const email = f.emailOn ? emailFromForm(f, problems) : undefined
   if (problems.length) return { policy: null, problems }
 
@@ -270,7 +291,9 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
     exceptions: { productIds: exceptIds.ids, tags: tagList(f.exceptTags) },
     rules,
     limits: { maxChangesPerRun: perRun, maxChangesPerDay: perDay },
-    approvalMode: approval ? f.approvalMode as 'review' | 'autonomous' : 'review',
+    approvalMode: approval ? f.approvalMode as 'draft' | 'review' | 'autonomous' : 'draft',
+    validUntil: storeValidUntil,
+    watch: f.watchOversold ? [OVERSOLD_WATCH] : [],
     schedule: f.scheduleKind === 'manual' ? { kind: 'manual' } : f.scheduleKind === 'interval' ? { kind: 'interval', everyHours } : { kind: 'daily', hour: Number(tm![1]), minute: Number(tm![2]), timezone },
     ...(email ? { email } : {}),
   }
@@ -294,7 +317,10 @@ function emailFromForm(f: AgentFormState, problems: string[]): NonNullable<Agent
   if (unconfirmed.length && !f.emailSuggestedConfirmed) problems.push(`Email: confirm the addresses found in your text (${unconfirmed.join(', ')}), or remove them.`)
   if (r.badNotify.length) problems.push(`Email: these notify entries are not valid email addresses: ${r.badNotify.join(', ')}.`)
   if ((f.emailTasks.run_report || f.emailTasks.needs_person_alert) && !r.notify.length) problems.push('Email: choose who receives summaries and alerts.')
-  const threshold = int(f.supplierThreshold), cooldown = int(f.supplierCooldown)
+  const threshold = int(f.supplierThreshold), cooldown = int(f.supplierCooldown), followup = int(f.supplierFollowup)
+  if (f.emailTasks.supplier_followup && !f.emailTasks.supplier_reorder) problems.push('Email: following up needs the supplier restock task.')
+  if (f.emailTasks.supplier_followup && !f.emailRead) problems.push('Email: following up only when there is no reply needs permission to notice replies (below).')
+  if (f.emailTasks.supplier_followup && !(followup >= 1 && followup <= 30)) problems.push('Email: days before following up must be 1 to 30.')
   if (f.emailTasks.supplier_reorder) {
     if (!r.supplier) problems.push('Email: enter the supplier address.')
     else if (!isEmailAddress(r.supplier)) problems.push(`Email: the supplier address ${r.supplier} is not a valid email address.`)
@@ -326,7 +352,7 @@ function emailFromForm(f: AgentFormState, problems: string[]): NonNullable<Agent
     limits: { perRun, perDay },
     validUntil,
     allowAttachments: f.emailAttachments,
-    ...(f.emailTasks.supplier_reorder ? { supplierReorder: { supplierAddress: r.supplier, thresholdAvailable: threshold, cooldownDays: cooldown } } : {}),
+    ...(f.emailTasks.supplier_reorder ? { supplierReorder: { supplierAddress: r.supplier, thresholdAvailable: threshold, cooldownDays: cooldown, followupDays: f.emailTasks.supplier_followup ? followup : 3 } } : {}),
     read: { enabled: f.emailRead && f.emailTasks.supplier_reorder, scope: 'replies_to_agent_messages' },
   }
 }
@@ -375,6 +401,13 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
               <span>{AGENT_CORRECTION_LABEL[t]}<span className="block text-[13px] text-grey-h">{AGENT_CORRECTION_HELP[t]}</span></span>
             </label>
           ))}
+        </fieldset>
+        <fieldset className="mt-2 flex flex-col gap-3 border-t border-line pt-3">
+          <legend className="sr-only">Read-only checks</legend>
+          <label className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
+            <input type="checkbox" className="mt-1 h-5 w-5 accent-white" checked={f.watchOversold} onChange={e => set({ watchOversold: e.target.checked })} />
+            <span>Check for oversold products (read only)<span className="block text-[13px] text-grey-h">Reports variants that sold past zero while still selling. A person decides what to do; nothing is changed.</span></span>
+          </label>
         </fieldset>
       </FormBlock>
 
@@ -469,14 +502,25 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
       {approval && <FormBlock title="How changes are approved" n={num()}>
         <fieldset className="flex flex-col gap-3">
           <legend className="sr-only">Approval mode</legend>
+          {f.suggestedMode && f.suggestedMode !== f.approvalMode && <p className="text-[13px] text-grey-h">Your task asked to {f.suggestedMode === 'autonomous' ? 'act without asking' : 'ask before each change'}. New agents start at drafts only; choose it here if you want it.</p>}
+          <label className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
+            <input type="radio" name={id('mode')} className="mt-1 h-5 w-5 accent-white" checked={f.approvalMode === 'draft'} onChange={() => set({ approvalMode: 'draft' })} />
+            <span>Drafts only (default)<span className="block text-[13px] text-grey-h">The agent finds problems and shows the exact change it would make. It never changes your store. Allowing changes later needs a new grant.</span></span>
+          </label>
           <label className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
             <input type="radio" name={id('mode')} className="mt-1 h-5 w-5 accent-white" checked={f.approvalMode === 'review'} onChange={() => set({ approvalMode: 'review' })} />
-            <span>Review each change<span className="block text-[13px] text-grey-h">The agent finds problems and proposes exact changes. Nothing is written until you approve each one.</span></span>
+            <span>After my approval<span className="block text-[13px] text-grey-h">The agent proposes exact changes. Nothing is written until you approve each one.</span></span>
           </label>
           <label className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
             <input type="radio" name={id('mode')} className="mt-1 h-5 w-5 accent-white" checked={f.approvalMode === 'autonomous'} onChange={() => set({ approvalMode: 'autonomous' })} />
-            <span>Authorized to act within limits<span className="block text-[13px] text-grey-h">Changes this authorization covers are made without asking, up to the limits below. Anything it does not cover (outside the scope, over a limit, ambiguous) waits for you.</span></span>
+            <span>Without asking, within limits (up to one year)<span className="block text-[13px] text-grey-h">Changes this authorization covers are made without asking, up to the limits below and until the end date. Anything it does not cover (outside the scope, over a limit, ambiguous) waits for you.</span></span>
           </label>
+          {f.approvalMode === 'autonomous' && (
+            <div className="flex flex-col gap-1 pl-8">
+              <label className="text-[14px] text-grey" htmlFor={id('store-until')}>Authorization ends on (required, at most one year)</label>
+              <span className="w-48"><Input id={id('store-until')} type="date" value={f.storeValidUntil} onChange={e => set({ storeValidUntil: e.target.value })} /></span>
+            </div>
+          )}
         </fieldset>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <TextField id={id('per-run')} label="Changes per run, at most" value={f.maxPerRun} onChange={v => set({ maxPerRun: v })} inputMode="numeric" />
@@ -582,6 +626,7 @@ function EmailBlock({ f, set, n }: { f: AgentFormState; set: (patch: Partial<Age
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <TextField id={id('threshold')} label="Ask when available is at or below" hint="Units available to sell. 0 means out of stock." value={f.supplierThreshold} onChange={v => set({ supplierThreshold: v })} inputMode="numeric" />
                 <TextField id={id('cooldown')} label="Days before asking again about the same product" value={f.supplierCooldown} onChange={v => set({ supplierCooldown: v })} inputMode="numeric" />
+                {f.emailTasks.supplier_followup && <TextField id={id('followup')} label="Days without a reply before the one follow-up" value={f.supplierFollowup} onChange={v => set({ supplierFollowup: v })} inputMode="numeric" />}
               </div>
             </RuleCard>
           )}

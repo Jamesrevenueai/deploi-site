@@ -7,7 +7,7 @@ import type { EmailPolicy } from '../agents/policy'
 import type { ResourceRecord } from '../engine/types'
 import type { MessageContent } from './types'
 
-export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown> }
+export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder' | 'supplier_followup'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown>; inReplyTo?: string | null }
 
 // eslint-disable-next-line no-control-regex
 const clean = (s: unknown, max = 200) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -65,10 +65,28 @@ export function supplierReorder(e: EmailPolicy, f: { runId: string; agentName: s
     ...(f.items.length > 100 ? [`- and ${f.items.length - 100} more`] : []),
     '', `This message was prepared by the store's Deploi agent "${clean(f.agentName, 80)}".`,
   ]
+  // the subject (counts only, no product data) is kept in meta so a follow-up can reply in the same thread
+  const subject = clean(`Restock request from ${f.storeName}: ${f.items.length} product${f.items.length === 1 ? '' : 's'}`, 180)
   const csv = ['sku,product,available', ...f.items.map(i => [i.sku ?? '', i.label, String(i.available)].map(v => `"${v.replace(/"/g, '""')}"`).join(','))].join('\r\n') + '\r\n'
   return {
-    taskKey: 'supplier_reorder', dedupeKey: `supplier_reorder:${f.runId}`, to: [s.supplierAddress], cc: [], meta: { variant_ids: f.items.map(i => i.variantId) },
-    content: { subject: clean(`Restock request from ${f.storeName}: ${f.items.length} product${f.items.length === 1 ? '' : 's'}`, 180), bodyText: lines.join('\n'),
+    taskKey: 'supplier_reorder', dedupeKey: `supplier_reorder:${f.runId}`, to: [s.supplierAddress], cc: [], meta: { variant_ids: f.items.map(i => i.variantId), subject },
+    content: { subject, bodyText: lines.join('\n'),
       attachments: e.allowAttachments ? [{ filename: 'restock-request.csv', contentType: 'text/csv', contentBase64: Buffer.from(csv, 'utf8').toString('base64') }] : [] },
   }
+}
+
+export type FollowupTarget = { messageId: string; internetMessageId: string; to: string[]; subject: string; sentAt: string; variantIds: string[] }
+/** One follow-up in the same thread when a supplier request has had no reply. Never more than one per request (dedupe key). */
+export function supplierFollowup(e: EmailPolicy, f: { agentName: string; storeName: string; target: FollowupTarget }): DraftMessage | null {
+  const s = e.supplierReorder
+  if (!s || !f.target.to.length) return null
+  const subject = /^re:/i.test(f.target.subject) ? f.target.subject : `Re: ${f.target.subject}`
+  const lines = [
+    'Hello,', '',
+    `Following up on the restock request ${clean(f.storeName, 120)} sent on ${stamp(new Date(f.target.sentAt))}. Could you confirm availability and lead time for the products listed there?`, '',
+    'If you have already replied, please ignore this message.', '',
+    `This message was prepared by the store's Deploi agent "${clean(f.agentName, 80)}".`,
+  ]
+  return { taskKey: 'supplier_followup', dedupeKey: `supplier_followup:${f.target.messageId}`, to: [...f.target.to], cc: [], inReplyTo: f.target.internetMessageId,
+    meta: { follows_message_id: f.target.messageId, variant_ids: f.target.variantIds }, content: { subject: clean(subject, 180), bodyText: lines.join('\n'), attachments: [] } }
 }

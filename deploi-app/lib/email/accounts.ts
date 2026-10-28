@@ -26,9 +26,12 @@ const aad = (accountId: string, kind: 'access' | 'refresh') => `email-account:${
 
 export class EmailAuthError extends Error { constructor(message: string) { super(message); this.name = 'EmailAuthError' } }
 
-export function providerStatus(p: EmailProvider): { configured: boolean; label: string } {
+/** Gmail and Microsoft are not live-verified: off unless EMAIL_OAUTH_PROVIDERS=on. Agent mailboxes are created per agent, never through Connect. */
+export function providerStatus(p: EmailProvider): { configured: boolean; label: string; liveVerified: boolean } {
   const a = emailAdapter(p)
-  return { configured: p === 'synthetic' ? emailConfig.syntheticAllowed : a.configured(), label: a.label }
+  if (p === 'synthetic') return { configured: emailConfig.syntheticAllowed, label: a.label, liveVerified: false }
+  if (p === 'deploi') return { configured: false, label: a.label, liveVerified: false }
+  return { configured: emailConfig.oauthProvidersEnabled && a.configured(), label: `${a.label} (not live-verified)`, liveVerified: false }
 }
 
 /** Start connecting (or reconnecting) an account. Returns the provider consent URL. */
@@ -116,6 +119,8 @@ export async function accessToken(accountId: string): Promise<string> {
   return admin(async db => {
     const acc = await db.one<EmailAccountRow>('select * from email_accounts where id = $1', [accountId])
     if (!acc || acc.status === 'disconnected') throw new EmailAuthError('the email account is disconnected')
+    // agent mailboxes send with Deploi's server key; there is no per-account token
+    if (acc.provider === 'deploi') return ''
     const c = await db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null; scopes: string[]; expires_at: string | null }>('select * from email_credentials where account_id = $1 for update', [accountId])
     if (!c) throw new EmailAuthError('the email account has no stored authorization; reconnect it')
     const access = decryptSecret(c.key_id, c.ciphertext, aad(accountId, 'access'))
@@ -146,6 +151,10 @@ export async function checkAccount(actor: Actor, accountId: string) {
   const acc = await visibleAccount(actor, accountId)
   let ok = true, reason: string | null = null, code: string | null = null
   try {
+    if (acc.provider === 'deploi') {
+      if (!emailAdapter('deploi').configured()) { ok = false; code = 'not_configured'; reason = 'agent mail is not configured in this environment' }
+      return finishCheck(acc.id, ok, code, reason)
+    }
     const token = await accessToken(acc.id)
     const who = await emailAdapter(acc.provider).identity(token)
     if (who.address.toLowerCase() !== acc.address.toLowerCase()) { ok = false; code = 'identity_changed'; reason = `the connection now signs in as ${who.address}; reconnect the right account` }
@@ -154,11 +163,15 @@ export async function checkAccount(actor: Actor, accountId: string) {
     code = e instanceof EmailAuthError ? 'auth' : 'unreachable'
     reason = e instanceof EmailAuthError ? 'reconnect the account' : 'could not reach the provider; try again later'
   }
+  return finishCheck(acc.id, ok, code, reason)
+}
+
+function finishCheck(accountId: string, ok: boolean, code: string | null, reason: string | null) {
   return admin(async db => {
     const row = await db.one<EmailAccountRow>(
       `update email_accounts set last_checked_at = now(), last_success_at = case when $2 then now() else last_success_at end, last_error_code = $3,
          status = case when $2 then (case when can_send then 'active' else status end) when $3 = 'auth' then 'needs_reauth' else status end,
-         status_reason = case when $2 then (case when can_send then null else status_reason end) else $4 end where id = $1 returning *`, [acc.id, ok, code, reason])
+         status_reason = case when $2 then (case when can_send then null else status_reason end) else $4 end where id = $1 returning *`, [accountId, ok, code, reason])
     return row!
   })
 }

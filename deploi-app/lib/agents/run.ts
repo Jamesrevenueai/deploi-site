@@ -20,6 +20,8 @@ import { runEmailStep, type EmailRunCounts } from '../email/run'
 export type AgentRunTrigger = 'manual' | 'schedule' | 'webhook' | 'test'
 export type AgentRunCounts = {
   issuesFound: number; needsPerson: number; proposed: number
+  /** exact changes recorded by a drafts-only agent (never made) */
+  drafted?: number
   autoApproved: number; awaitingApproval: number
   verified: number; failed: number; blocked: number; stale: number; unconfirmed: number
   missingSources: string[]
@@ -28,7 +30,7 @@ export type AgentRunCounts = {
 export type AgentRunResult = { runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts; executions: ExecutionResult[] }
 
 const STALE_RUN_MS = 15 * 60e3
-const empty = (): AgentRunCounts => ({ issuesFound: 0, needsPerson: 0, proposed: 0, autoApproved: 0, awaitingApproval: 0, verified: 0, failed: 0, blocked: 0, stale: 0, unconfirmed: 0, missingSources: [] })
+const empty = (): AgentRunCounts => ({ issuesFound: 0, needsPerson: 0, proposed: 0, drafted: 0, autoApproved: 0, awaitingApproval: 0, verified: 0, failed: 0, blocked: 0, stale: 0, unconfirmed: 0, missingSources: [] })
 
 export const agentActorLabel = (name: string, version: number) => `agent:${name}@v${version}`
 
@@ -87,6 +89,12 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
       `select p.*, i.evidence from proposals p join issues i on i.id = p.issue_id
        where p.agent_id = $1 and p.policy_version = $2 and p.status = 'pending_approval' and p.expires_at > now() order by i.severity = 'high' desc, p.created_at`, [agentId, ctx.policyRow.version])
     counts.proposed = proposals.length
+    if (ctx.policy.approvalMode === 'draft') {
+      // drafts only: the exact changes are recorded for the merchant to read; none can be approved or made
+      counts.drafted = proposals.length
+      for (const p of proposals) await db.query(`update proposals set status_reason = $2 where id = $1`, [p.id, 'draft: this agent only shows changes; it may not make them'])
+      return []
+    }
     if (ctx.policy.approvalMode !== 'autonomous') { counts.awaitingApproval = proposals.length; return [] }
     const today = await db.one<{ n: string }>(
       `select count(*)::text as n from approvals a join proposals p on p.id = a.proposal_id where p.agent_id = $1 and a.approver_kind = 'standing_authorization'

@@ -16,6 +16,7 @@ import { useLoad } from './useLoad'
 import { ErrorState, Facts, Loading, Panel, Section, SeverityBadge, useStore } from './bits'
 import { AgentPolicyForm, formFromPolicy, policyFromForm, type AgentFormState } from './AgentForm'
 import { AuthorizationSummaryView, BackToAgents, StatusBadge, countsInWords, useStoreBasics } from './Agents'
+import { AgentEmailSections } from './AgentEmail'
 import {
   AGENT_CORRECTION_LABEL, APPROVAL_MODE_LABEL, TRIGGER_LABEL, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
   proposalWords, runWords, scheduleLabel,
@@ -49,6 +50,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
   const [dialog, setDialog] = useState<null | 'revoke' | 'delete' | 'pause'>(null)
   const [reason, setReason] = useState('')
   const [editing, setEditing] = useState<{ form: AgentFormState; name: string; task: string; showProblems: boolean } | null>(null)
+  const [emailRefresh, setEmailRefresh] = useState(0)
 
   if (loading && !data) return <><BackToAgents /><Loading label="Loading agent" rows={4} /></>
   if (error && !data) {
@@ -71,7 +73,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
     try { setNotice(await run()) } catch (e) {
       const err = asApiError(e)
       setNotice(err.status === 409 && CONFLICT[err.code] ? { kind: 'error', e: new StoreApiError(err.status, err.code, `${CONFLICT[err.code]} (${err.message})`), what } : { kind: 'error', e: err, what })
-    } finally { setBusy(null); await reload() }
+    } finally { setBusy(null); setEmailRefresh(n => n + 1); await reload() }
   }
   const post = <T,>(action: string, body: unknown = {}) => storeFetch<T>(`/api/store/agents/${agent.id}/${action}`, { method: 'POST', body })
 
@@ -195,7 +197,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
                 <h3 className="text-[1.05rem]">Current authorization · version {active.version}</h3>
                 <Badge tone={isActive ? 'ok' : 'muted'}>{isActive ? 'In force' : isPaused ? 'Kept while paused' : 'Granted'}</Badge>
               </div>
-              <p className="pt-1 text-[13px] text-grey-h">Granted {fmtTime(active.granted_at)} by {actorLabel(active.granted_by)} · corrects {active.policy.correctionTypes.map(t => AGENT_CORRECTION_LABEL[t] ?? t).join(', ')}</p>
+              <p className="pt-1 text-[13px] text-grey-h">Granted {fmtTime(active.granted_at)} by {actorLabel(active.granted_by)} · {active.policy.correctionTypes.length ? `corrects ${active.policy.correctionTypes.map(t => AGENT_CORRECTION_LABEL[t] ?? t).join(', ')}` : 'changes nothing in the store'}{active.policy.email ? ' · uses email' : ''}</p>
               <div className="mt-4"><AuthorizationSummaryView summary={active.summary} /></div>
             </Panel>
           ) : !pending && (
@@ -204,6 +206,8 @@ export function AgentDetailScreen({ id }: { id: string }) {
           <p className="text-[13px] text-grey-h">Pausing or revoking stops all writes, including changes already approved and queued. Pausing keeps the authorization; revoking ends it.</p>
         </div>
       </Section>
+
+      <AgentEmailSections agentId={agent.id} policy={latest?.policy ?? null} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
 
       <Section id="waiting" title="Waiting for your approval" sub="Exact changes this agent found but may not make on its own. Approving runs the change now: Deploi re-reads the record, writes it, and confirms it with a fresh read.">
         {waiting.length === 0 ? <Empty title="Nothing waiting">No changes are waiting for your approval.</Empty> : (

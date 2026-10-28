@@ -12,7 +12,7 @@ import { storeFetch, asApiError, StoreApiError } from './api'
 import { useLoad } from './useLoad'
 import { ErrorState, Facts, Loading, NoStore, Panel, Section, SyntheticBadge, useStore } from './bits'
 import { CONNECTION_STATUS_LABEL, PLATFORM_LABEL, fmtAgo, fmtTime, planLabel, runWords } from './format'
-import { OVERSELL_CHECK, type AgentListItem, type AgentRunCounts, type AgentsResponse, type OverviewResponse, type RulesResponse, type ScanResult, type Connection } from './types'
+import { OVERSELL_CHECK, type AgentListItem, type AgentRunCounts, type AgentsResponse, type EmailAccountView, type EmailAccountsResponse, type OverviewResponse, type RulesResponse, type ScanResult, type Connection } from './types'
 import { countsInWords } from './Agents'
 
 const SETUP_HIDDEN_KEY = 'deploi.store.setupHidden'
@@ -32,7 +32,8 @@ export function OverviewScreen() {
     const o = await storeFetch<OverviewResponse>('/api/store/overview')
     const rules = o.connections.length ? await storeFetch<RulesResponse>('/api/store/rules').catch(() => null) : null
     const agents = o.connections.length ? await storeFetch<AgentsResponse>('/api/store/agents').then(r => r.agents).catch(() => null) : null
-    return { o, rules, agents }
+    const email = await storeFetch<EmailAccountsResponse>('/api/store/email/accounts').then(r => r.accounts).catch(() => null)
+    return { o, rules, agents, email }
   }, 'overview')
   const [scan, setScan] = useState<ScanState>({ kind: 'idle' })
   const [setupHidden, setSetupHidden] = useState<boolean>(() => typeof window !== 'undefined' && readHidden())
@@ -41,7 +42,7 @@ export function OverviewScreen() {
   if (loading && !data) return <><PageHeader title="Overview" /><Loading label="Loading your store" rows={4} /></>
   if (error && !data) return <><PageHeader title="Overview" /><ErrorState error={error} onRetry={reload} /></>
   if (!data) return null
-  const { o, rules, agents } = data
+  const { o, rules, agents, email } = data
   const conn: Connection | undefined = o.connections.find(c => c.status === 'active') ?? o.connections[0]
   const ov = o.overview
   const oversell = rules?.rules.find(r => r.check_key === OVERSELL_CHECK)
@@ -117,6 +118,8 @@ export function OverviewScreen() {
 
           {agents && <AgentsCard agents={agents} />}
 
+          {email && <div className={agents ? 'mt-3' : ''}><EmailCard accounts={email} /></div>}
+
           <div className={agents ? 'mt-3' : ''}><ConnectionCard conn={conn} lastScan={ov.lastScan} /></div>
 
           {conn.status !== 'active' && <div className="mt-4"><Banner tone="warn"><strong>Blocked.</strong> The store connection is {CONNECTION_STATUS_LABEL[conn.status]?.toLowerCase() ?? conn.status}. Scans and changes are paused until the app is installed again.</Banner></div>}
@@ -188,6 +191,34 @@ function ConnectionCard({ conn, lastScan }: { conn: Connection; lastScan: Overvi
         ]} />
       </div>
       <Link href={`${base}/connect`} className="mt-4 inline-flex text-[14px]"><span className="inline-flex items-center gap-1 text-ink underline-offset-4 hover:underline">Store details<Icon name="arrow-right" size={14} /></span></Link>
+    </Panel>
+  )
+}
+
+function EmailCard({ accounts }: { accounts: EmailAccountView[] }) {
+  const { base } = useStore()
+  const sum = (k: keyof EmailAccountView['usage']) => accounts.reduce((n, a) => n + a.usage[k], 0)
+  const awaiting = sum('awaiting'), unknown = sum('unknown'), failed = sum('failed7d')
+  const unhealthy = accounts.filter(a => a.status !== 'active').length
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[1.05rem]">Email</h2>
+        <Link href={`${base}/connections`} className="inline-flex text-[14px]"><span className="inline-flex items-center gap-1 text-ink underline-offset-4 hover:underline">{accounts.length ? 'Email accounts' : 'Connect an email account'}<Icon name="arrow-right" size={14} /></span></Link>
+      </div>
+      {accounts.length === 0 ? (
+        <p className="pt-2 text-[15px] text-grey">No email account connected. Agents can draft or send email only from an account you connect and only after you grant them permission.</p>
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap gap-2 text-[14px]">
+            <Badge tone={unhealthy ? 'warn' : 'muted'}>{accounts.length} account{accounts.length === 1 ? '' : 's'} connected{unhealthy ? ` · ${unhealthy} need${unhealthy === 1 ? 's' : ''} attention` : ''}</Badge>
+            <Badge tone={awaiting ? 'none' : 'muted'}>{awaiting} awaiting approval</Badge>
+            <Badge tone={unknown ? 'warn' : 'muted'}>{unknown} delivery unknown</Badge>
+            <Badge tone={failed ? 'danger' : 'muted'}>{failed} failed in 7 days</Badge>
+          </div>
+          {(awaiting > 0 || unknown > 0 || failed > 0) && <p className="pt-3 text-[14px] text-grey">Open the agent that wrote them to review, resolve or retry. <Link href={`${base}/agents`} className="text-ink underline-offset-4 hover:underline">Agents</Link></p>}
+        </>
+      )}
     </Panel>
   )
 }

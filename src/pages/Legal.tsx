@@ -87,7 +87,11 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'What the app changes',
-    body: <>Only the change you approve: a variant&rsquo;s setting from &ldquo;Continue selling when out of stock&rdquo; to &ldquo;Stop selling when out of stock&rdquo;. The app does not change stock counts.</>,
+    body: <>Only what you approve, or what an agent&rsquo;s authorization you granted explicitly covers: a variant&rsquo;s out-of-stock setting, whether a product is published on the one sales channel you choose, a variant&rsquo;s price or compare-at price from your price list, and a variant&rsquo;s SKU from your mapping. The app does not change stock counts or product status.</>,
+  },
+  {
+    title: 'If you connect an email account',
+    body: <>You connect a mailbox through Google&rsquo;s or Microsoft&rsquo;s own sign-in; we never ask for your mailbox password. We keep the access tokens <strong>encrypted at rest</strong>, your address and display name, and the permissions you granted. No agent can use the account until you grant that agent permission. For messages an agent drafts or sends, we keep the sender, recipients, subject, body and attachments (content encrypted at rest), your approvals and the provider&rsquo;s response. We read your mailbox only if you grant read access for a task that needs it, and then only to notice that a reply arrived to a message the agent sent; we do not keep reply content. You can disconnect at any time, which deletes the tokens and cancels unsent messages.</>,
   },
   {
     title: 'What we keep',

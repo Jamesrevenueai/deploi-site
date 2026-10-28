@@ -62,6 +62,44 @@ establishes an actual error. Do not claim a workflow is operational until it is;
 - Agents report unsupported requests, insufficient evidence, missing permissions and failed verification.
 - One shared engine runs every agent; no per-agent infrastructure or model training.
 
+## Email connector (extension, adopted 2026-10-28)
+
+- **Connection.** Merchants connect an email account through the provider's own authorization flow
+  (OAuth 2.0 with PKCE). Deploi never asks for a mailbox password. A shared connector interface has one
+  adapter per provider. Gmail / Google Workspace and Microsoft 365 / Outlook come first; a synthetic
+  mailbox is used for tests and demos. Connections show the sender identity, health, granted
+  permissions, and reconnect, check and disconnect controls.
+- **Agent authorization.** Connecting an account authorizes no agent. Each agent's versioned policy may
+  grant one account at one level:
+  - **create drafts** for review (kept in Deploi);
+  - **send approved messages**, one at a time;
+  - **send without asking** within an explicit task, purpose, recipient rules, limits and end date.
+
+  The readable summary shows the sender, recipient rules, purpose, limits and duration before the grant.
+  Messages outside those boundaries wait for approval. Widening any of them needs a new grant.
+  Mailbox reading is a separate permission, requested only for a configured task that needs it (noticing
+  replies to supplier requests the agent sent).
+- **Sending and review.** In review, the merchant sees the exact sender, recipients, subject, body and
+  attachments. The approval is bound to a hash of that content, so any change invalidates it.
+  Autonomous sends are checked in code against the granted policy version before queueing and again
+  before every send. Incoming mail and attachments never change an agent's permissions or recipients.
+  Pause, revoke and disconnect cancel queued sends, and each action records the authorization version
+  it ran under.
+- **Duplicates and uncertain outcomes.** One message is sent at most once. After a timeout or other
+  uncertain response, Deploi checks the provider's Sent mail where it can, and never resends blindly.
+- **Statuses.** Draft, Awaiting approval, Queued, Sending, Accepted by provider, Failed, Delivery unknown,
+  and Cancelled. Delivery is claimed only with reliable provider evidence; neither provider offers
+  that through these permissions, so "Accepted by provider" is the strongest status.
+- **Dashboard and security.**
+  - Email accounts appear under Connections; email permissions appear in agent creation and detail.
+  - Merchants see sent activity, approval requests, failures and actionable connection errors.
+  - Tokens and message content are encrypted at rest. Organizations are isolated. Content stays out
+    of logs and is not shown to Deploi staff.
+- **Testing and delivery.**
+  - Testing goes synthetic first, then controlled test accounts and recipients. No real customer email
+    is sent during development; real sends are off unless explicitly enabled.
+  - Report each provider as implemented, locally tested, live verified or externally blocked.
+
 ## Correction engine (every correction)
 
 Detect → record evidence and the rule or source → exact proposed change → individual approval or

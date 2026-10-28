@@ -15,6 +15,7 @@ correction exists. Sources: `docs/platform-research/*.md`. A merchant never need
 | WooCommerce | Stock below zero with backorders off | `stock_quantity`, `backorders` | No (stock count) | **Planned** (detection logic written and tested) |
 | Amazon | Listing has an ERROR issue (possibly suppressed / not buyable) | `getListingsItem` `issues` (severity, enforcements), `summaries.status` | Usually needs seller data; `patchListingsItem` exists for attribute fixes once data is supplied | **Planned** (detection logic written and tested) |
 | Amazon | Seller-fulfilled quantity wrong | Seller-configured authoritative stock source required | Yes, `patchListingsItem` `fulfillment_availability`, but only from that source, never guessed | Planned, needs an extra record |
+| Email (Gmail / Microsoft 365) | Supplier restock requests, run summaries, needs-a-person alerts from an agent | Store records and the agent's own run results; recipients only from the agent's policy | Send through the merchant's connected mailbox (`gmail.send` / `Mail.Send`); drafts kept in Deploi | **Built, synthetic-verified; not live-verified** (see `docs/EMAIL-SETUP.md`) |
 | Any | Cross-channel stock comparison | Two connected platforms | n/a | Optional later add-on; not part of onboarding |
 
 ## Shared engine contract

@@ -1,6 +1,6 @@
 /**
  * Demo controls for SYNTHETIC stores only (never a real merchant): reset the catalogue (and, with
- * clearHistory, the store's engine history; with clearEmail, the organization's email accounts and messages), make an
+ * clearHistory, the store's engine history; with clearEmail, the organization's synthetic email accounts and their messages), make an
  * outside change (as the merchant or another app would), or inject a platform fault. Disabled in
  * production unless DEMO_CONTROLS=true.
  */
@@ -39,13 +39,14 @@ export async function POST(req: Request) {
           await db.query('update agents set last_run_at = null where connection_id = $1', [conn.id])
         })
       }
-      // optional: also remove this synthetic store's organization's email state (messages, pending OAuth
-      // attempts, connected accounts with their tokens and synthetic mailboxes, by cascade)
+      // optional: also remove the organization's SYNTHETIC email state only (messages from synthetic
+      // mailboxes, pending synthetic OAuth attempts, synthetic accounts with their tokens by cascade).
+      // A real Gmail or Microsoft account connected to the same organization is never touched.
       if (body.clearEmail === true) {
         await admin(async db => {
-          await db.query('delete from email_messages where org_id = $1', [conn.org_id])
-          await db.query('delete from email_oauth_states where org_id = $1', [conn.org_id])
-          await db.query('delete from email_accounts where org_id = $1', [conn.org_id])
+          await db.query('delete from email_messages where account_id in (select id from email_accounts where org_id = $1 and is_synthetic)', [conn.org_id])
+          await db.query(`delete from email_oauth_states where org_id = $1 and provider = 'synthetic'`, [conn.org_id])
+          await db.query('delete from email_accounts where org_id = $1 and is_synthetic', [conn.org_id])
         })
       }
     } else if (action === 'external_change') {

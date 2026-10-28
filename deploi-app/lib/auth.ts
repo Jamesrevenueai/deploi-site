@@ -7,6 +7,7 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { env } from './env'
+import { isProductionDeployment } from './auth-guard'
 import { admin } from './db'
 import { homeFor, type Session, type Role } from './session'
 
@@ -20,7 +21,8 @@ export function encodeDevSession(s: Session) {
   return `${p}.${sign(p)}`
 }
 export function decodeDevSession(v: string | undefined): Session | null {
-  if (!v) return null
+  // a dev cookie is never a session in production, even one signed with the right secret
+  if (!v || isProductionDeployment()) return null
   const [p, sig] = v.split('.')
   if (!p || !sig) return null
   const want = sign(p)

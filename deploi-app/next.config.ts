@@ -1,5 +1,9 @@
 import type { NextConfig } from 'next'
 import path from 'node:path'
+import { assertProductionAuth } from './lib/auth-guard'
+
+// A production build with dev auth configured fails here, so the previous deployment stays live.
+assertProductionAuth(process.env)
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

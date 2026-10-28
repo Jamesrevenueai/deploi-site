@@ -1,4 +1,6 @@
 /** Central env access. Every provider is optional; empty means "mock". */
+import { resolveAuthMode } from './auth-guard'
+
 const e = (k: string, d = '') => (process.env[k] ?? d).trim()
 
 export const env = {
@@ -7,13 +9,9 @@ export const env = {
   get supabaseAnonKey() { return e('NEXT_PUBLIC_SUPABASE_ANON_KEY') },
   get supabaseServiceKey() { return e('SUPABASE_SERVICE_ROLE_KEY') },
   get hasSupabase() { return Boolean(this.supabaseUrl && this.supabaseAnonKey) },
-  /** dev auth is used when explicitly requested or when Supabase is not configured outside production */
-  /** The dev role picker only exists when ALLOW_DEV_LOGIN=true (default off). */
+  /** The dev role picker only exists when ALLOW_DEV_LOGIN=true (default off), and never in production (lib/auth-guard.ts). */
   get allowDevLogin() { return e('ALLOW_DEV_LOGIN') === 'true' },
-  get authMode(): 'supabase' | 'dev' {
-    if (this.allowDevLogin && (e('AUTH_MODE') === 'dev' || !this.hasSupabase)) return 'dev'
-    return 'supabase'
-  },
+  get authMode(): 'supabase' | 'dev' { return resolveAuthMode(process.env) },
   get appSecret() { return e('APP_SECRET', 'dev-secret') },
   get staffEmails() { return e('STAFF_EMAILS').split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },
   get appUrl() { return e('NEXT_PUBLIC_APP_URL', 'http://localhost:3000') },

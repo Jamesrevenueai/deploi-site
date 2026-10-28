@@ -43,7 +43,7 @@ export function parseTask(input: string): TaskDraft {
   const d: TaskDraft = { correctionTypes: [], productScope: { mode: null, tags: [] }, exceptionTags: [], approvalMode: null, schedule: null, priceFields: [], publicationName: null, allowUnpublish: false, allowSkuOverwrite: false, email: null, missing: [], unsupported: [], matched: [] }
   const add = (c: CorrectionType, phrase: string) => { if (!d.correctionTypes.includes(c)) d.correctionTypes.push(c); d.matched.push({ phrase, meaning: `correction: ${c}` }) }
 
-  if (has(t, /\b(backorder|oversell|over-sell|continue selling|keep selling|sell (when|while|past|after) (out of stock|zero|sold out)|selling (with|at) (no|zero) stock|inventory polic(y|ies)|out of stock)\b/)) add('oversell_policy', 'overselling / backorders')
+  if (has(t, /\b(backorders?|oversell(ing|s)?|over-sell(ing)?|oversold|continue selling|keep selling|sell (when|while|past|after) (out of stock|zero|sold out)|selling (with|at) (no|zero) stock|inventory polic(y|ies)|out of stock)\b/)) add('oversell_policy', 'overselling / backorders')
   if (has(t, /\b(publish|unpublish|published|sales channel|online store|point of sale|visible on|listed on|show on)\b/)) {
     add('publication', 'publication / sales channel')
     if (has(t, /\bpoint of sale\b/)) d.publicationName = 'Point of Sale'

@@ -110,7 +110,19 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
 
       <Section id="worklog" title="Work log" sub="Every action this agent took or was refused: what happened, when, why, and which permission allowed it.">
         {d.log.length === 0 ? <Empty title="Nothing logged yet">Actions appear here as the agent works.</Empty> : (
-          <div className="table-wrap">
+          <>
+          {/* phones: one card per entry so what, why and permission are all readable without scrolling sideways */}
+          <ul className="flex flex-col gap-2 md:hidden">
+            {d.log.slice(0, 100).map((e, i) => (
+              <li key={`${e.at}-${i}`} className="rounded-[14px] border border-line p-3 text-[14px]">
+                <div className="text-[13px] text-grey-h">{fmtTime(e.at)}</div>
+                <div className="break-words font-medium text-ink">{e.what}</div>
+                {e.why && <div className="break-words pt-1 text-grey"><span className="text-grey-h">Why: </span>{e.why}</div>}
+                <div className="break-words pt-1 text-grey"><span className="text-grey-h">Allowed by: </span>{e.permission}</div>
+              </li>
+            ))}
+          </ul>
+          <div className="table-wrap hidden md:block">
             <table className="dg-table">
               <caption className="sr-only">Work log</caption>
               <thead><tr><th scope="col">When</th><th scope="col">What</th><th scope="col">Why</th><th scope="col">Allowed by</th></tr></thead>
@@ -126,6 +138,7 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Section>
     </>

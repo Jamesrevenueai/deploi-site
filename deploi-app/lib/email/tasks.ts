@@ -30,7 +30,7 @@ export function runReport(e: EmailPolicy, f: RunFacts): DraftMessage {
     `Purpose of these emails: ${clean(e.purpose, 300)}`,
   ]
   return { taskKey: 'run_report', dedupeKey: `run_report:${f.runId}`, to: [...e.notify], cc: [], meta: { run_id: f.runId },
-    content: { subject: clean(`Deploi: ${f.agentName}: ${c.verified} verified, ${c.awaitingApproval} waiting, ${c.needsPerson} need a person`, 180), bodyText: lines.join('\n'), attachments: [] } }
+    content: { subject: clean(`Deploi: ${f.agentName}: ${c.verified} verified, ${c.awaitingApproval} waiting, ${c.needsPerson} for a person`, 180), bodyText: lines.join('\n'), attachments: [] } }
 }
 
 export type PersonItem = { id: string; label: string; summary: string; humanAction: string | null }
@@ -44,7 +44,7 @@ export function needsPersonAlert(e: EmailPolicy, f: { runId: string; agentId: st
     '', `Details: ${f.appUrl}/store/agents/${f.agentId}`, '', `Purpose of these emails: ${clean(e.purpose, 300)}`,
   ]
   return { taskKey: 'needs_person_alert', dedupeKey: `needs_person:${f.runId}`, to: [...e.notify], cc: [], meta: { issue_ids: f.items.map(i => i.id) },
-    content: { subject: clean(`Deploi: ${f.items.length} item${f.items.length === 1 ? '' : 's'} need a person in ${f.storeName}`, 180), bodyText: lines.join('\n'), attachments: [] } }
+    content: { subject: clean(`Deploi: ${f.items.length} ${f.items.length === 1 ? 'item needs' : 'items need'} a person in ${f.storeName}`, 180), bodyText: lines.join('\n'), attachments: [] } }
 }
 
 export type ReorderItem = { variantId: string; sku: string | null; label: string; available: number }

@@ -11,7 +11,7 @@ import { Icon } from '@/components/ui/Icon'
 import { storeFetch } from './api'
 import { useLoad } from './useLoad'
 import { ErrorState, Loading, NoStore, Panel, useStore } from './bits'
-import { AGENT_CORRECTION_LABEL, APPROVAL_MODE_LABEL, agentWords, fmtAgo, runWords, scheduleLabel, type StatusWords } from './format'
+import { AGENT_CORRECTION_LABEL, agentWords, toolBadges, fmtAgo, runWords, scheduleLabel, type StatusWords } from './format'
 import type { AgentListItem, AgentRunCounts, AgentsResponse, AgentTemplateView, AuthorizationSummary, OverviewResponse, WeeklyResponse } from './types'
 
 export function StatusBadge({ w }: { w: StatusWords }) {
@@ -121,7 +121,7 @@ function AgentCard({ a }: { a: AgentListItem }) {
             <Link href={`${base}/agents/${a.id}`} className="text-[1.1rem] font-medium text-ink underline-offset-4 hover:underline">{a.name}</Link>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge w={w} />
-              {a.approval_mode && <Badge tone="muted">{APPROVAL_MODE_LABEL[a.approval_mode] ?? a.approval_mode}</Badge>}
+              {toolBadges({ approvalMode: a.approval_mode, correctionTypes: a.correction_types, emailPermission: a.email_permission }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
               {a.pending_version !== null && <Badge tone="warn">Version {a.pending_version} waiting for your grant</Badge>}
             </div>
           </div>

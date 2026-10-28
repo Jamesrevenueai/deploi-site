@@ -19,7 +19,7 @@ import { AuthorizationSummaryView, BackToAgents, StatusBadge, countsInWords, use
 import { AgentEmailSections } from './AgentEmail'
 import { AgentWorkSections } from './AgentWork'
 import {
-  AGENT_CORRECTION_LABEL, APPROVAL_MODE_LABEL, TRIGGER_LABEL, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
+  AGENT_CORRECTION_LABEL, TRIGGER_LABEL, toolBadges, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
   proposalWords, runWords, scheduleLabel,
 } from './format'
 import type {
@@ -160,7 +160,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
       />
       <div className="-mt-2 mb-5 flex flex-wrap items-center gap-2">
         <StatusBadge w={w} />
-        {latest && <Badge tone="muted">{APPROVAL_MODE_LABEL[latest.policy.approvalMode]}</Badge>}
+        {latest && toolBadges({ approvalMode: latest.policy.approvalMode, correctionTypes: latest.policy.correctionTypes, emailPermission: latest.policy.email?.permission ?? null }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
         <Badge tone="muted">{scheduleLabel(agent.schedule)}</Badge>
         {active && <span className="text-[13px] text-grey-h">Authorization version {active.version}</span>}
         {isActive && agent.next_run_at && <span className="text-[13px] text-grey-h">Next run {fmtTime(agent.next_run_at)}</span>}

@@ -192,6 +192,15 @@ export const AGENT_CORRECTION_HELP: Record<AgentCorrectionType, string> = {
 
 export const APPROVAL_MODE_LABEL: Record<string, string> = { draft: 'Drafts only', review: 'After my approval', autonomous: 'Without asking, within limits' }
 
+/** Per-tool permission level in a few words, for badges ("Shopify: drafts only", "Email: after my approval"). */
+export const EMAIL_PERMISSION_SHORT: Record<string, string> = { draft: 'drafts only', send_approved: 'after my approval', send_autonomous: 'without asking, within limits' }
+export function toolBadges(p: { approvalMode?: string | null; correctionTypes?: string[]; emailPermission?: string | null }): string[] {
+  const out: string[] = []
+  if (p.approvalMode && p.correctionTypes?.length) out.push(`Shopify: ${(APPROVAL_MODE_LABEL[p.approvalMode] ?? p.approvalMode).toLowerCase()}`)
+  if (p.emailPermission) out.push(`Email: ${EMAIL_PERMISSION_SHORT[p.emailPermission] ?? p.emailPermission}`)
+  return out
+}
+
 export const TRIGGER_LABEL: Record<string, string> = { manual: 'Run now', schedule: 'Schedule', webhook: 'Store update', test: 'Test' }
 
 type ScheduleLike = { kind: 'manual' } | { kind: 'interval'; everyHours: number } | { kind: 'daily'; hour: number; minute: number; timezone?: string }

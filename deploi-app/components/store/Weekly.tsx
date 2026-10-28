@@ -1,5 +1,6 @@
 'use client'
 /** The weekly summary: the in-app version, and the email exactly as it renders (sent Mondays when sending is allowed). */
+import { useEffect, useRef } from 'react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Banner } from '@/components/ui/Banner'
 import { storeFetch } from './api'
@@ -25,11 +26,26 @@ export function WeeklyScreen() {
             <dt className="text-grey-h">Subject</dt><dd className="m-0 break-words text-ink">{d.rendered.subject}</dd>
           </dl>
           {d.rendered.html ? (
-            <iframe title="Weekly summary email" srcDoc={d.rendered.html} sandbox="" className="mt-4 h-[760px] w-full rounded-[12px] border border-line bg-white" />
+            <EmailFrame html={d.rendered.html} />
           ) : <pre className="mt-4 whitespace-pre-wrap text-[14px] text-grey">{d.rendered.text}</pre>}
         </Panel>
         {d.last && d.last.status !== 'accepted' && <div className="mt-3"><Banner tone="warn">Last summary (week of {d.last.week_start}) was not sent: {d.last.status_reason ?? d.last.status}.</Banner></div>}
       </Section>
     </>
   )
+}
+
+/** The email exactly as rendered. Scripts stay disabled; same-origin only so the frame can match the email's height. */
+function EmailFrame({ html }: { html: string }) {
+  const ref = useRef<HTMLIFrameElement>(null)
+  useEffect(() => {
+    const f = ref.current
+    if (!f) return
+    const fit = () => { const doc = f.contentDocument; if (!doc?.documentElement) return; f.style.height = '1px'; f.style.height = `${doc.documentElement.scrollHeight + 4}px` }
+    f.addEventListener('load', fit)
+    window.addEventListener('resize', fit)
+    fit()
+    return () => { f.removeEventListener('load', fit); window.removeEventListener('resize', fit) }
+  }, [html])
+  return <iframe ref={ref} title="Weekly summary email" srcDoc={html} sandbox="allow-same-origin" className="mt-4 h-[760px] w-full rounded-[12px] border border-line bg-white" />
 }

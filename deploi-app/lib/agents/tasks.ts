@@ -46,7 +46,8 @@ export function outsideRules(d: TaskDraft, p: AgentPolicy | null): string[] {
 }
 
 function decide(d: TaskDraft, p: AgentPolicy | null): { status: TaskStatus; reason: string; outside: string[] } {
-  const understood = d.correctionTypes.length > 0 || Boolean(d.email) || d.productScope.mode !== null || d.schedule !== null
+  // a schedule or a product scope alone says when or where, not what: not enough to run anything
+  const understood = d.correctionTypes.length > 0 || Boolean(d.email) || d.productScope.mode !== null
   if (!understood && d.unsupported.length) return { status: 'refused', reason: `Deploi cannot do this: ${d.unsupported.join('; ')}`, outside: [] }
   if (!understood) return { status: 'refused', reason: 'Deploi could not tell what to do from this text, so nothing will run. Name what to check or correct (for example prices, SKUs, overselling or publication) or the email to draft.', outside: [] }
   const outside = outsideRules(d, p)
@@ -153,7 +154,7 @@ export async function runTask(taskId: string, opts: { actor: string; now?: Date 
   return admin(async db => {
     const row = (await db.one<AgentTaskRow>(`update agent_tasks set status = $2, status_reason = $3, proof = $4, run_id = $5, finished_at = now() where id = $1 returning *`,
       [t.id, o.status, o.reason, JSON.stringify(o.proof), result.runId || null]))!
-    await audit(db, { orgId: t.org_id, entityType: 'agent', entityId: t.agent_id, event: `task.${o.status}`, actor: opts.actor, detail: { agent_id: t.agent_id, task_id: t.id, run_id: result.runId || null, reason: o.reason, proof: o.proof } })
+    await audit(db, { orgId: t.org_id, entityType: 'agent', entityId: t.agent_id, event: `task.${o.status}`, actor: opts.actor, detail: { agent_id: t.agent_id, task_id: t.id, run_id: result.runId || null, policy_version: row.policy_version, reason: o.reason, proof: o.proof } })
     return row
   })
 }

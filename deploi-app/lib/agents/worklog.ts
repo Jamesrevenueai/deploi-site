@@ -11,13 +11,16 @@ export type WorkLogEntry = { at: string; what: string; why: string | null; permi
 
 type AuditRow = { id: string; entity_type: string; entity_id: string | null; event: string; actor: string; detail: Record<string, unknown>; at: string }
 
+/** Field names in words for the log (the store UI uses the same wording). */
+const FIELD_WORDS: Record<string, string> = { inventoryPolicy: 'continue selling when out of stock', price: 'price', compareAtPrice: 'compare-at price', sku: 'SKU', published: 'published on the sales channel' }
+
 const WHAT: Record<string, string> = {
   'agent.created': 'Agent created (nothing granted yet)', 'agent.paused': 'Paused: no runs and no writes', 'agent.resumed': 'Resumed',
   'agent.revoked': 'Authorization revoked: nothing more is written or sent', 'agent.deleted': 'Deleted: authorization revoked, history kept',
   'policy.awaiting_grant': 'New rules prepared, waiting for your grant', 'policy.applied_without_grant': 'Narrower rules applied (no grant needed)', 'policy.granted': 'Rules granted',
   'agent_run.started': 'Run started', 'agent_run.completed': 'Run finished', 'agent_run.failed': 'Run failed', 'agent_run.blocked': 'Run blocked',
   'approval.standing': 'Change approved under the standing authorization', 'approval.granted': 'You approved a change', 'approval.refused': 'Approval refused',
-  'execution.started': 'Change started', 'execution.verified': 'Change made and confirmed by a fresh read', 'execution.failed': 'Change failed',
+  'execution.started': 'Change started', 'execution.applied': 'Change written, confirming with a fresh read', 'execution.verified': 'Change made and confirmed by a fresh read', 'execution.failed': 'Change failed',
   'execution.verification_failed': 'Change did not stick (failed verification)', 'execution.blocked': 'Change blocked before anything was written', 'execution.stale': 'Change skipped: the record changed first',
   'execution.unknown': 'Change outcome unknown', 'execution.retry': 'Change retried',
   'email.draft': 'Email drafted (not sent)', 'email.awaiting_approval': 'Email waiting for your approval', 'email.queued': 'Email queued to send', 'email.sending': 'Email sending',
@@ -69,7 +72,7 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
       const ex = r.entity_id ? execMap.get(r.entity_id) : undefined
       const em = r.entity_id ? mailMap.get(r.entity_id) : undefined
       let what = WHAT[r.event] ?? r.event
-      if (ex?.target_label) what += `: ${ex.target_label}${ex.field ? ` (${ex.field})` : ''}`
+      if (ex?.target_label) what += `: ${ex.target_label}${ex.field ? ` (${FIELD_WORDS[ex.field] ?? ex.field})` : ''}`
       if (em) what += `: ${em.task_key.replace(/_/g, ' ')} to ${em.to_addresses.length} recipient(s)`
       const reasons = Array.isArray(d.reasons) ? (d.reasons as string[]).join('; ') : null
       const blockers = Array.isArray(d.blockers) && (d.blockers as string[]).length ? `outside the rules: ${(d.blockers as string[]).join('; ')}` : null

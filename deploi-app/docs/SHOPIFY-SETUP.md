@@ -27,6 +27,20 @@ price would not reach those buyers. **Create agent** walks through plain English
 readable authorization, then the grant. The demo store and reference files are invented (see
 `lib/connectors/shopify/demo-store.ts`). `owner@harbor-supply.example` sees none of Northwind's data.
 
+### Agent platform walkthrough (templates, tiers, tasks, work log, weekly summary)
+
+Set `AGENT_MAIL_DOMAIN=agents.getdeploi.test` in `.env.local` so templates can give each agent an address; with `EMAIL_LIVE_SENDS=off` nothing is ever emailed.
+
+1. **Agents** shows three templates (Inventory Watcher, Supplier Chaser, Store Health Checker), each at **drafts only** for Shopify and email, and the **Weekly summary** for this week with time saved labelled **Estimate**.
+2. **Use this template** → add your email (or the supplier's) → **Review authorization**: the agent's own address, what it may do, its limits and what it never does → **Grant**.
+3. On the agent: **Run now** fills **Drafted changes (not made)**; there is no Approve button, because a drafts-only agent cannot make changes.
+4. **Tasks**: "Check overselling on all products now" runs and ends *Waiting on you* (drafts to read). "Fix prices automatically" is *Needs your approval* (outside the rules). "make it better" is *Refused* (nothing runs).
+5. **Edit** → "After my approval" → Save: a new version waits for your grant, listing what it adds; the drafts-only version keeps running until you grant it. Granting re-queues tasks that the wider rules now cover.
+6. **Work log**: every action with what, when, why and *Allowed by* (authorization version and tier, your approval, or "none").
+7. **Pause**, **Revoke** and **Delete** stop everything at once, including queued writes, queued email and queued tasks; deleting also closes the agent's address.
+
+New agents and new email permissions always start at drafts only. Acting without asking needs an end date at most one year away, and widening anything needs a new grant.
+
 ## 2. Development store (live verification, not yet done)
 
 1. Partner account, then a development store: `shopify store create dev --name "<name>" --plan basic --demo-data`

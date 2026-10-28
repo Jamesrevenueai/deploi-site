@@ -2,10 +2,34 @@
 
 Sources: `docs/platform-research/email.md` (official Google and Microsoft documentation; unconfirmed points marked UNVERIFIED).
 
+## Recommended path: agent mailboxes on Deploi's domain (no Google or Microsoft approval needed)
+
+Each agent can have its own address, `<name>.<code>@AGENT_MAIL_DOMAIN`. It sends from that address through Resend, and suppliers reply to it. Merchants forward or copy threads to it. This path needs **no Gmail restricted scopes and no provider review**. Setup and DNS (SPF, DKIM, DMARC, MX and the inbound webhook) are in `docs/LAUNCH-DNS.md` §B.
+
+| Piece | Where | Tested |
+|---|---|---|
+| Mailbox per agent (unique address across organizations; used only by its own agent) | `lib/email/mailbox.ts` | `tests/merchant/platform.test.ts` |
+| Send via Resend with `Idempotency-Key = deploi-<message id>`, tagged Reply-To for threading | `lib/email/adapters/deploi.ts` | fake Resend: a repeat or a forced re-queue sends once |
+| Strict recipient allowlist (even an approved message cannot go to anyone outside it) | `lib/email/check.ts` | refused-with-approval test |
+| Inbound (`email.received`): signed webhook, delivery dedupe, threading by token then headers, sender allowlist, SPF/DKIM/DMARC quarantine, encrypted storage, audit | `app/api/webhooks/agent-mail`, `lib/email/inbound.ts` | threading, duplicates, quarantine, retry, and webhook-refusal tests |
+| Supplier follow-up: one reply in the same thread when the supplier has not answered | `lib/email/tasks.ts#supplierFollowup` | unit + run |
+| **Live verified** | — | **No.** Needs `AGENT_MAIL_DOMAIN`, Resend domain verification and your dedicated test address (`LAUNCH-DNS.md` §B4). |
+
+Resend facts used (from resend.com/docs, 2026-10-28):
+- the `email.received` webhook carries metadata only; the text and headers come from `GET /emails/receiving/{id}`;
+- `Idempotency-Key` is kept for 24 hours.
+
+**Not confirmed in Resend's docs:** that custom `In-Reply-To`/`References` headers are honoured. They are set, but threading relies on the tagged Reply-To address.
+
+## Gmail and Microsoft 365: kept in the code, off by default, not live-verified
+
+They appear in Connections only when `EMAIL_OAUTH_PROVIDERS=on` **and** their OAuth clients are configured. Their labels say "(not live-verified)".
+
 ## What exists today
 
 | Provider | Implemented | Locally tested | Live verified | Externally blocked by |
 |---|---|---|---|---|
+| Agent mailbox (Deploi domain) | yes | yes (fake Resend, inbound fixtures) | **no** | DNS and Resend domain verification; your test address |
 | Synthetic mailbox | yes | yes (every engine path, fault injection) | n/a (sends nothing) | nothing |
 | Gmail / Google Workspace | yes (OAuth + PKCE, identity, send, revoke; reply tracking with read access) | request shapes and outcome mapping against a fake HTTP layer | **no** | an OAuth client, test users, then Google brand and sensitive-scope verification for public use; restricted-scope verification plus an annual security assessment (CASA) for reading replies |
 | Microsoft 365 / Outlook | yes (OAuth + PKCE, identity, send) | request shapes and outcome mapping against a fake HTTP layer | **no** | an app registration; publisher verification for a public multi-tenant app; admin consent for reading in most organizations. Reply tracking and Sent-folder lookup are disabled until verified on a test tenant |
@@ -18,6 +42,8 @@ Names only; values come from the provider consoles and must never be committed.
 - `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_TENANT` (default `common`: work, school and personal accounts)
 - `EMAIL_OAUTH_REDIRECT_URL`: defaults to `<app url>/api/email/oauth/callback`. Register exactly this URL with both providers.
 - `CREDENTIALS_ENCRYPTION_KEY` / `CREDENTIALS_KEY_ID`: the same keys that protect store tokens. They also encrypt mailbox tokens and message content.
+- `EMAIL_OAUTH_PROVIDERS`: `on` to offer Gmail and Microsoft (off by default; not live-verified).
+- `AGENT_MAIL_DOMAIN`, `RESEND_API_KEY`, `AGENT_MAIL_WEBHOOK_SECRET`: agent mailboxes (see above).
 - `EMAIL_LIVE_SENDS`:
   - `off` (default): no real provider send.
   - `allowlist`: only to `EMAIL_TEST_RECIPIENTS`, a comma-separated list of addresses or `@domains`.

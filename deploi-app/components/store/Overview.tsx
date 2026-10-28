@@ -11,8 +11,9 @@ import { OUTCOME_LABEL } from '@/lib/engine/outcomes'
 import { storeFetch, asApiError, StoreApiError } from './api'
 import { useLoad } from './useLoad'
 import { ErrorState, Facts, Loading, NoStore, Panel, Section, SyntheticBadge, useStore } from './bits'
-import { CONNECTION_STATUS_LABEL, PLATFORM_LABEL, fmtAgo, fmtTime, planLabel } from './format'
-import { OVERSELL_CHECK, type OverviewResponse, type RulesResponse, type ScanResult, type Connection } from './types'
+import { CONNECTION_STATUS_LABEL, PLATFORM_LABEL, fmtAgo, fmtTime, planLabel, runWords } from './format'
+import { OVERSELL_CHECK, type AgentListItem, type AgentRunCounts, type AgentsResponse, type OverviewResponse, type RulesResponse, type ScanResult, type Connection } from './types'
+import { countsInWords } from './Agents'
 
 const SETUP_HIDDEN_KEY = 'deploi.store.setupHidden'
 
@@ -30,7 +31,8 @@ export function OverviewScreen() {
   const { data, error, loading, reload } = useLoad(async () => {
     const o = await storeFetch<OverviewResponse>('/api/store/overview')
     const rules = o.connections.length ? await storeFetch<RulesResponse>('/api/store/rules').catch(() => null) : null
-    return { o, rules }
+    const agents = o.connections.length ? await storeFetch<AgentsResponse>('/api/store/agents').then(r => r.agents).catch(() => null) : null
+    return { o, rules, agents }
   }, 'overview')
   const [scan, setScan] = useState<ScanState>({ kind: 'idle' })
   const [setupHidden, setSetupHidden] = useState<boolean>(() => typeof window !== 'undefined' && readHidden())
@@ -39,11 +41,13 @@ export function OverviewScreen() {
   if (loading && !data) return <><PageHeader title="Overview" /><Loading label="Loading your store" rows={4} /></>
   if (error && !data) return <><PageHeader title="Overview" /><ErrorState error={error} onRetry={reload} /></>
   if (!data) return null
-  const { o, rules } = data
+  const { o, rules, agents } = data
   const conn: Connection | undefined = o.connections.find(c => c.status === 'active') ?? o.connections[0]
   const ov = o.overview
   const oversell = rules?.rules.find(r => r.check_key === OVERSELL_CHECK)
-  const showSetup = Boolean(conn && oversell && !oversell.enabled && !setupHidden && o.actor.canApprove)
+  // an agent that corrects overselling replaces the store-wide setup question
+  const agentCoversOversell = (agents ?? []).some(a => a.status !== 'revoked' && a.correction_types.includes('oversell_policy'))
+  const showSetup = Boolean(conn && oversell && !oversell.enabled && !setupHidden && o.actor.canApprove && !agentCoversOversell)
   const canScan = Boolean(conn && conn.status === 'active' && o.actor.canApprove)
 
   async function runScan() {
@@ -111,7 +115,9 @@ export function OverviewScreen() {
             </div>
           )}
 
-          <ConnectionCard conn={conn} lastScan={ov.lastScan} />
+          {agents && <AgentsCard agents={agents} />}
+
+          <div className={agents ? 'mt-3' : ''}><ConnectionCard conn={conn} lastScan={ov.lastScan} /></div>
 
           {conn.status !== 'active' && <div className="mt-4"><Banner tone="warn"><strong>Blocked.</strong> The store connection is {CONNECTION_STATUS_LABEL[conn.status]?.toLowerCase() ?? conn.status}. Scans and changes are paused until the app is installed again.</Banner></div>}
 
@@ -182,6 +188,43 @@ function ConnectionCard({ conn, lastScan }: { conn: Connection; lastScan: Overvi
         ]} />
       </div>
       <Link href={`${base}/connect`} className="mt-4 inline-flex text-[14px]"><span className="inline-flex items-center gap-1 text-ink underline-offset-4 hover:underline">Store details<Icon name="arrow-right" size={14} /></span></Link>
+    </Panel>
+  )
+}
+
+function AgentsCard({ agents }: { agents: AgentListItem[] }) {
+  const { base } = useStore()
+  const active = agents.filter(a => a.status === 'active').length
+  const awaiting = agents.reduce((n, a) => n + a.awaiting_approval, 0)
+  const person = agents.reduce((n, a) => n + a.needs_person, 0)
+  const recent = agents.filter(a => a.last_run).sort((a, b) => String(b.last_run?.finished_at ?? b.last_run_at ?? '').localeCompare(String(a.last_run?.finished_at ?? a.last_run_at ?? ''))).slice(0, 3)
+  return (
+    <Panel>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[1.05rem]">Agents</h2>
+        <Link href={`${base}/agents`} className="inline-flex text-[14px]"><span className="inline-flex items-center gap-1 text-ink underline-offset-4 hover:underline">{agents.length ? 'Open agents' : 'Create an agent'}<Icon name="arrow-right" size={14} /></span></Link>
+      </div>
+      {agents.length === 0 ? (
+        <p className="pt-2 text-[15px] text-grey">No agents yet. An agent watches for the problems you name and corrects only what you authorize.</p>
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap gap-2 text-[14px]">
+            <Badge tone={active ? 'ok' : 'muted'}>{active} active</Badge>
+            <Badge tone={awaiting ? 'none' : 'muted'}>{awaiting} awaiting approval</Badge>
+            <Badge tone={person ? 'warn' : 'muted'}>{person} need{person === 1 ? 's' : ''} a person</Badge>
+          </div>
+          {recent.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1.5 text-[14px]" aria-label="Latest agent results">
+              {recent.map(a => (
+                <li key={a.id} className="min-w-0 break-words text-grey">
+                  <Link href={`${base}/agents/${a.id}`} className="text-ink underline-offset-4 hover:underline">{a.name}</Link>{' '}
+                  · {runWords(a.last_run!.status).label} {fmtAgo(a.last_run!.finished_at ?? a.last_run_at)} · {a.last_run!.status_reason ?? countsInWords(a.last_run!.counts as Partial<AgentRunCounts>)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </Panel>
   )
 }

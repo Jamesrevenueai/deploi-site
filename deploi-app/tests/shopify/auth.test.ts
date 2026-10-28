@@ -61,3 +61,14 @@ describe('Shopify authentication primitives', () => {
     expect(() => realTransport('evil.example.com', 'x')).toThrow(/not approved/)
   })
 })
+
+describe('embedded framing policy', () => {
+  it('is per shop for embedded pages, never a wildcard, and denies framing elsewhere', async () => {
+    const { frameAncestors } = await import('../../middleware')
+    expect(frameAncestors('/shopify', 'example-shop.myshopify.com')).toBe('frame-ancestors https://example-shop.myshopify.com https://admin.shopify.com;')
+    expect(frameAncestors('/shopify/issues', null)).toBe('frame-ancestors https://admin.shopify.com;')
+    expect(frameAncestors('/shopify', 'evil.com')).toBe('frame-ancestors https://admin.shopify.com;')
+    expect(frameAncestors('/store', 'example-shop.myshopify.com')).toBe("frame-ancestors 'none';")
+    for (const v of [frameAncestors('/shopify', null), frameAncestors('/shopify', 'x.myshopify.com')]) expect(v).not.toContain('*')
+  })
+})

@@ -1,0 +1,32 @@
+# Shopify app configuration (copy to shopify.app.toml; deploy with `shopify app deploy`).
+# Values in <> come from the Dev Dashboard / Partner Dashboard. Never commit the client secret.
+client_id = "<SHOPIFY_API_KEY>"
+name = "Deploi AI"
+handle = "<app-handle>"
+application_url = "https://app.getdeploi.com/shopify"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[access_scopes]
+# least privilege: read products and inventory, write products (inventory policy). No customer or order scopes.
+scopes = "read_products,write_products,read_inventory,read_locations"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = ["https://app.getdeploi.com/api/shopify/auth/callback"]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled", "app/scopes_update", "products/create", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
+  uri = "https://app.getdeploi.com/api/shopify/webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "https://app.getdeploi.com/api/shopify/webhooks"
+
+[pos]
+embedded = false

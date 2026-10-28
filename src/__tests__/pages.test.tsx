@@ -73,8 +73,9 @@ describe('Home', () => {
     expect(CHECKS).toHaveLength(4)
     for (const c of CHECKS) expect(screen.getAllByText(c.title).length).toBeGreaterThan(0)
     expect(screen.getByText(`Example: ${EXAMPLE_AGENT.name}`)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Review each change' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Authorized to act within limits' })).toBeInTheDocument()
+    for (const t of ['Drafts only', 'After your approval', 'Without asking, within limits']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
+    for (const t of ['Inventory Watcher', 'Supplier Chaser', 'Store Health Checker']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
+    expect(screen.getByText(/time saved clearly labelled as an estimate/)).toBeInTheDocument()
     expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
   })
 

@@ -113,14 +113,23 @@ export const EXAMPLE_AGENT = {
   grants: [
     'Overselling settings on all products in your store, except products tagged pre-order or backorder',
     'May change one field: a variant’s out-of-stock setting',
-    'Acts without asking, up to 25 changes per run and 100 a day',
+    'Acts without asking for up to one year (you set the end date), up to 25 changes per run and 100 a day',
     'Runs every 6 hours; you can pause or revoke it at any time',
   ],
 }
 
+/** The same three permission levels for every tool an agent uses (store and email). */
 export const APPROVAL_MODES: { title: string; body: string }[] = [
-  { title: 'Review each change', body: 'The agent finds problems and proposes exact changes. Nothing is written until you approve that change.' },
-  { title: 'Authorized to act within limits', body: 'You grant a standing authorization: store, products, corrections, fields, files, exceptions and limits. Changes it covers run without asking again. Anything outside it waits for you, with the reason.' },
+  { title: 'Drafts only', body: 'The default for every new agent and every tool. The agent shows you the exact change or email it would make, and makes none of them.' },
+  { title: 'After your approval', body: 'The agent proposes exact changes and emails. Nothing is written or sent until you approve that exact item.' },
+  { title: 'Without asking, within limits', body: 'A standing authorization for the scope, limits and recipients you grant, for at most one year. Anything outside it waits for you, with the reason.' },
+]
+
+/** Ready-made agents: each starts at drafts only for every tool. */
+export const TEMPLATES: { name: string; body: string }[] = [
+  { name: 'Inventory Watcher', body: 'Checks your inventory every day, shows you products that are oversold or keep selling at zero, and drafts an alert to you.' },
+  { name: 'Supplier Chaser', body: 'Drafts restock requests to your supplier from its own email address for products running low, and one follow-up in the same thread if the supplier has not replied.' },
+  { name: 'Store Health Checker', body: 'Checks the whole store once a week and drafts a health report for you.' },
 ]
 
 export function Agents() {
@@ -145,7 +154,8 @@ export function Agents() {
             {EXAMPLE_AGENT.grants.map(g => <li key={g}>{g}</li>)}
           </ul>
         </div>
-        <div className="why-grid controls-grid agents-grid">
+        <h3 className="reveal" style={{ marginTop: 32 }}>Three permission levels, for every tool</h3>
+        <div className="why-grid controls-grid agents-grid" aria-label="Permission levels">
           {APPROVAL_MODES.map(m => (
             <div className="why-item reveal" key={m.title}>
               <span className="ico" aria-hidden="true"><Icon.UserCheck /></span>
@@ -155,14 +165,34 @@ export function Agents() {
           ))}
           <div className="why-item reveal">
             <span className="ico" aria-hidden="true"><Icon.History /></span>
-            <h3>See what each agent did</h3>
-            <p>Every run, every change with its before and after values, every failure and every blocked task, and why each change was covered by your authorization.</p>
+            <h3>A work log for every agent</h3>
+            <p>Every action with what happened, when, why, and which permission allowed it. A weekly email sums up what each agent did and what needs you, with time saved clearly labelled as an estimate.</p>
+          </div>
+          <div className="why-item reveal">
+            <span className="ico" aria-hidden="true"><Icon.Pencil /></span>
+            <h3>Tasks in plain English</h3>
+            <p>Give an agent a task in your own words. Inside its rules it runs; outside them it waits for you to widen the agent; if it is unclear, nothing runs. A task is marked done only with the run that proves it.</p>
+          </div>
+          <div className="why-item reveal">
+            <span className="ico" aria-hidden="true"><Icon.Link /></span>
+            <h3>Its own email address</h3>
+            <p>Each agent can send from its own address on our domain, and suppliers reply there. No access to your mailbox is needed: forward or copy a thread to the agent instead. It writes only to the recipients you allow.</p>
           </div>
           <div className="why-item reveal">
             <span className="ico" aria-hidden="true"><Icon.Shield /></span>
             <h3>Pause, edit or revoke</h3>
             <p>Pausing or revoking stops all writes, including changes already queued. Widening what an agent may do always needs your approval again.</p>
           </div>
+        </div>
+        <h3 className="reveal" style={{ marginTop: 32 }}>Start from a template</h3>
+        <div className="why-grid controls-grid agents-grid" aria-label="Agent templates">
+          {TEMPLATES.map(t => (
+            <div className="why-item reveal" key={t.name}>
+              <span className="ico" aria-hidden="true"><Icon.UserCheck /></span>
+              <h3>{t.name}</h3>
+              <p>{t.body}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>

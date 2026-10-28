@@ -107,7 +107,8 @@ export const isEmailDomain = (d: string) => DOMAIN_RE.test(d)
 export function emailRules(f: Pick<AgentFormState, 'emailAddresses' | 'emailDomains' | 'emailNotify' | 'supplierAddress' | 'emailTasks'>) {
   const addrIn = list(f.emailAddresses).map(a => a.toLowerCase())
   const domIn = list(f.emailDomains).map(d => d.toLowerCase().replace(/^@/, ''))
-  const notifyIn = list(f.emailNotify).map(a => a.toLowerCase())
+  // the notify list only matters for summaries and alerts
+  const notifyIn = f.emailTasks.run_report || f.emailTasks.needs_person_alert ? list(f.emailNotify).map(a => a.toLowerCase()) : []
   const addresses = addrIn.filter(isEmailAddress), domains = domIn.filter(isEmailDomain), notify = notifyIn.filter(isEmailAddress)
   const allowed = (a: string) => addresses.includes(a) || domains.includes(a.split('@')[1] ?? '')
   const supplier = f.supplierAddress.trim().toLowerCase()
@@ -350,6 +351,10 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
   const pubs = useLoad(() => f.connectionId && f.types.publication ? storeFetch<PublicationsResponse>(`/api/store/publications?connection=${encodeURIComponent(f.connectionId)}`) : Promise.resolve(null), `pubs:${f.connectionId}:${f.types.publication}`)
   const { problems } = policyFromForm(f, timezone)
   const references = refs.data?.references ?? []
+  const products = needsProducts(f), approval = needsApprovalMode(f)
+  const hasRules = f.types.oversell_policy || f.types.publication || f.types.price || f.types.sku
+  let n = 2
+  const num = () => ++n
 
   return (
     <div className="flex flex-col gap-4">
@@ -361,7 +366,7 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
         {lockConnection && <p className="text-[13px] text-grey-h">An agent stays on the store it was created for.</p>}
       </FormBlock>
 
-      <FormBlock title="What it may correct" n={2} sub="Only the corrections you tick here are authorized. Each one writes only its own field.">
+      <FormBlock title="What it may correct" n={2} sub="Only the corrections you tick here are authorized. Each one writes only its own field. An agent that only emails can leave these unticked.">
         <fieldset className="flex flex-col gap-3">
           <legend className="sr-only">Correction types</legend>
           {AGENT_CORRECTION_TYPES.map(t => (
@@ -373,7 +378,9 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
         </fieldset>
       </FormBlock>
 
-      <FormBlock title="Which products" n={3} sub="The agent never reads past or changes products outside this scope. Exceptions always win.">
+      <EmailBlock f={f} set={set} n={num()} />
+
+      {products && <FormBlock title="Which products" n={num()} sub="The agent never reads past or changes products outside this scope. Exceptions always win.">
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Product scope</legend>
           {([['all', 'All products in the store'], ['products', 'Specific products (by product ID)'], ['tags', 'Products with any of these tags']] as const).map(([m, l]) => (
@@ -388,10 +395,10 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
           <TextField id={id('ex-tags')} label="Exception tags (never touched)" hint="Comma separated, e.g. wholesale, do-not-change." value={f.exceptTags} onChange={v => set({ exceptTags: v })} />
           <TextField id={id('ex-ids')} label="Exception product IDs (never touched)" hint="Comma separated product IDs." value={f.exceptProductIds} onChange={v => set({ exceptProductIds: v })} />
         </div>
-      </FormBlock>
+      </FormBlock>}
 
-      {(f.types.oversell_policy || f.types.publication || f.types.price || f.types.sku) && (
-        <FormBlock title="Rules and reference files" n={4} sub="Files are treated as data only: Deploi reads the columns it knows and ignores everything else. Nothing in a file can widen what the agent may do.">
+      {hasRules && (
+        <FormBlock title="Rules and reference files" n={num()} sub="Files are treated as data only: Deploi reads the columns it knows and ignores everything else. Nothing in a file can widen what the agent may do.">
           {refs.error && <Banner tone="warn"><strong>Could not load your files.</strong> {refs.error.message}</Banner>}
           {f.types.oversell_policy && (
             <RuleCard title={AGENT_CORRECTION_LABEL.oversell_policy}>
@@ -443,7 +450,7 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
         </FormBlock>
       )}
 
-      <FormBlock title="When it runs" n={5}>
+      <FormBlock title="When it runs" n={num()}>
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Schedule</legend>
           <label className="flex cursor-pointer items-center gap-3 text-[15px] text-ink"><input type="radio" name={id('sched')} className="h-5 w-5 accent-white" checked={f.scheduleKind === 'manual'} onChange={() => set({ scheduleKind: 'manual' })} />Only when I press Run now</label>
@@ -459,7 +466,7 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
         </fieldset>
       </FormBlock>
 
-      <FormBlock title="How changes are approved" n={6}>
+      {approval && <FormBlock title="How changes are approved" n={num()}>
         <fieldset className="flex flex-col gap-3">
           <legend className="sr-only">Approval mode</legend>
           <label className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
@@ -476,7 +483,7 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
           <TextField id={id('per-day')} label="Changes per day, at most" value={f.maxPerDay} onChange={v => set({ maxPerDay: v })} inputMode="numeric" />
         </div>
         <p className="text-[13px] text-grey-h">Limits apply to changes made without asking. Changes beyond them wait for your approval.</p>
-      </FormBlock>
+      </FormBlock>}
 
       {showProblems && problems.length > 0 && (
         <div role="alert">
@@ -486,6 +493,135 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
           </Banner>
         </div>
       )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- email
+
+function EmailBlock({ f, set, n }: { f: AgentFormState; set: (patch: Partial<AgentFormState>) => void; n: number }) {
+  const { base } = useStore()
+  const uid = useId()
+  const id = (s: string) => `${uid}-${s}`
+  const accounts = useLoad(() => f.emailOn ? storeFetch<EmailAccountsResponse>('/api/store/email/accounts') : Promise.resolve(null), `email-accounts:${f.emailOn}`)
+  const list: EmailAccountView[] = accounts.data?.accounts ?? []
+  const chosen = list.find(a => a.id === f.emailAccountId) ?? null
+  const r = emailRules(f)
+  const notifyNeeded = f.emailTasks.run_report || f.emailTasks.needs_person_alert
+  const suggested = f.emailSuggested.filter(a => r.addresses.includes(a.toLowerCase()))
+  const readBlocked = !f.emailTasks.supplier_reorder || (chosen !== null && !chosen.can_read)
+
+  return (
+    <FormBlock title="Email" n={n} sub="Optional. The agent may only use one connected account, for the tasks, recipients and limits you set here. Incoming mail never changes what it may do.">
+      <Check checked={f.emailOn} onChange={v => set({ emailOn: v })} label="Let this agent use email" />
+      {f.emailOn && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-[14px] text-grey" htmlFor={id('account')}>Send from</label>
+            <Select id={id('account')} value={f.emailAccountId} onChange={e => set({ emailAccountId: e.target.value, ...(list.find(a => a.id === e.target.value)?.can_read ? {} : { emailRead: false }) })} aria-describedby={id('account-hint')}>
+              <option value="">{accounts.loading && !accounts.data ? 'Loading email accounts…' : list.length ? 'Choose a connected account' : 'No email account connected'}</option>
+              {list.map(a => <option key={a.id} value={a.id}>{a.address} · {a.label}{a.status !== 'active' ? ` · ${emailAccountWords(a.status).label}` : ''}</option>)}
+            </Select>
+            <span id={id('account-hint')} className="text-[13px] text-grey-h">
+              {list.length === 0 && !accounts.loading
+                ? <>Connect an account first on <Link href={`${base}/connections`} className="text-ink underline">Connections</Link>. Deploi never asks for your mailbox password.</>
+                : <>Accounts are connected on <Link href={`${base}/connections`} className="text-ink underline">Connections</Link>.</>}
+            </span>
+            {accounts.error && <span className="text-[13px] text-warn">Could not load your email accounts: {accounts.error.message}</span>}
+            {chosen && chosen.status !== 'active' && <span className="text-[13px] text-warn">This account is {emailAccountWords(chosen.status).label.toLowerCase()}{chosen.status_reason ? `: ${chosen.status_reason}` : ''}. It cannot send until it is reconnected.</span>}
+            {chosen && !chosen.can_send && f.emailPermission && f.emailPermission !== 'draft' && <span className="text-[13px] text-warn">This account was connected without permission to send. Reconnect it and allow sending, or choose drafts only.</span>}
+          </div>
+
+          <fieldset className="flex flex-col gap-3">
+            <legend className="text-[14px] text-grey">What it may do with email</legend>
+            {AGENT_EMAIL_PERMISSIONS.map(p => (
+              <label key={p} className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
+                <input type="radio" name={id('perm')} className="mt-1 h-5 w-5 accent-white" checked={f.emailPermission === p} onChange={() => set({ emailPermission: p })} />
+                <span>{AGENT_EMAIL_PERMISSION_LABEL[p]}<span className="block text-[13px] text-grey-h">{AGENT_EMAIL_PERMISSION_HELP[p]}</span></span>
+              </label>
+            ))}
+          </fieldset>
+
+          <TextField id={id('purpose')} label="Purpose" hint="Required. Shown in the authorization and recorded with every message, e.g. Restock requests to our supplier and run summaries for the owner." value={f.emailPurpose} onChange={v => set({ emailPurpose: v })} />
+
+          <fieldset className="flex flex-col gap-3">
+            <legend className="text-[14px] text-grey">Email tasks</legend>
+            {AGENT_EMAIL_TASKS.map(t => (
+              <label key={t} className="flex cursor-pointer items-start gap-3 text-[15px] text-ink">
+                <input type="checkbox" className="mt-1 h-5 w-5 accent-white" checked={f.emailTasks[t]} onChange={e => set({ emailTasks: { ...f.emailTasks, [t]: e.target.checked }, ...(t === 'supplier_reorder' && !e.target.checked ? { emailRead: false } : {}) })} />
+                <span>{AGENT_EMAIL_TASK_LABEL[t]}<span className="block text-[13px] text-grey-h">{AGENT_EMAIL_TASK_HELP[t]}</span></span>
+              </label>
+            ))}
+          </fieldset>
+
+          <RuleCard title="Who it may write to">
+            <p className="text-[13px] text-grey-h">The agent may only ever write to these addresses and domains. A message to anyone else always waits for your approval.</p>
+            <AreaField id={id('addresses')} label="Allowed recipient addresses" hint="Comma or line separated, e.g. owner@yourstore.com, orders@supplier.com." value={f.emailAddresses} onChange={v => set({ emailAddresses: v })} />
+            {suggested.length > 0 && (
+              <div className="rounded-[14px] border border-[#4a3a1a] p-3">
+                <div className="flex flex-wrap items-center gap-2 text-[14px] text-ink"><Badge tone="warn">found in your text: confirm</Badge>{suggested.join(', ')}</div>
+                <p className="pt-1 text-[13px] text-grey-h">These addresses came from your task description. They are not allowed until you confirm them; remove any you do not want.</p>
+                <div className="mt-2"><Check checked={f.emailSuggestedConfirmed} onChange={v => set({ emailSuggestedConfirmed: v })} label="I confirm the agent may write to these addresses" /></div>
+              </div>
+            )}
+            {r.badAddresses.length > 0 && <p className="text-[13px] text-warn">Not valid email addresses: {r.badAddresses.join(', ')}</p>}
+            <AreaField id={id('domains')} label="Allowed recipient domains" hint="Anyone at these domains, e.g. supplier.com. Comma or line separated." value={f.emailDomains} onChange={v => set({ emailDomains: v })} />
+            {r.badDomains.length > 0 && <p className="text-[13px] text-warn">Not valid domains: {r.badDomains.join(', ')}</p>}
+            {notifyNeeded && (
+              <>
+                <AreaField id={id('notify')} label="Send summaries and alerts to" hint="Each address must be allowed above." value={f.emailNotify} onChange={v => set({ emailNotify: v })} />
+                {r.badNotify.length > 0 && <p className="text-[13px] text-warn">Not valid email addresses: {r.badNotify.join(', ')}</p>}
+              </>
+            )}
+            {r.outside.length > 0 && <p className="text-[13px] text-warn" role="status">Outside the recipient rules: {r.outside.join(', ')}. Add them, or their domain, to the allowed recipients.</p>}
+          </RuleCard>
+
+          {f.emailTasks.supplier_reorder && (
+            <RuleCard title="Supplier restock requests">
+              <TextField id={id('supplier')} label="Supplier address" hint="Must be allowed above. The agent asks this address to confirm a restock; it never places an order or changes stock." value={f.supplierAddress} onChange={v => set({ supplierAddress: v })} />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <TextField id={id('threshold')} label="Ask when available is at or below" hint="Units available to sell. 0 means out of stock." value={f.supplierThreshold} onChange={v => set({ supplierThreshold: v })} inputMode="numeric" />
+                <TextField id={id('cooldown')} label="Days before asking again about the same product" value={f.supplierCooldown} onChange={v => set({ supplierCooldown: v })} inputMode="numeric" />
+              </div>
+            </RuleCard>
+          )}
+
+          <RuleCard title="Limits and dates">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <TextField id={id('e-run')} label="Messages per run, at most" value={f.emailPerRun} onChange={v => set({ emailPerRun: v })} inputMode="numeric" />
+              <TextField id={id('e-day')} label="Messages per day, at most" value={f.emailPerDay} onChange={v => set({ emailPerDay: v })} inputMode="numeric" />
+              <TextField id={id('e-rcpt')} label="Recipients per message, at most" value={f.emailMaxRecipients} onChange={v => set({ emailMaxRecipients: v })} inputMode="numeric" />
+            </div>
+            <div className="flex flex-col gap-1 md:max-w-[260px]">
+              <label className="text-[14px] text-grey" htmlFor={id('until')}>Authorization ends on{f.emailPermission === 'send_autonomous' ? ' (required)' : ' (optional)'}</label>
+              <Input id={id('until')} type="date" value={f.emailValidUntil} onChange={e => set({ emailValidUntil: e.target.value })} aria-describedby={id('until-hint')} />
+              <span id={id('until-hint')} className="text-[13px] text-grey-h">Sending without asking needs an end date, at most one year from today. After it, messages wait for your approval.</span>
+            </div>
+            <Check checked={f.emailAttachments} onChange={v => set({ emailAttachments: v })} label="Allow attachments (for example the list of low-stock products as a CSV file)" />
+          </RuleCard>
+
+          <RuleCard title="Reading replies">
+            <label className={`flex items-start gap-3 text-[15px] ${readBlocked ? 'text-grey-h' : 'cursor-pointer text-ink'}`}>
+              <input type="checkbox" className="mt-1 h-5 w-5 accent-white" checked={f.emailRead && !readBlocked} disabled={readBlocked} onChange={e => set({ emailRead: e.target.checked })} />
+              <span>Notice supplier replies to the restock requests it sent</span>
+            </label>
+            <p className="text-[13px] text-grey-h">
+              A separate, extra permission: the agent looks only for replies to messages it sent, and records who replied and when. It never acts on what a reply says.
+              {!f.emailTasks.supplier_reorder ? ' Only available with supplier restock requests.' : chosen && !chosen.can_read ? <> The chosen account has no read access: add it on <Link href={`${base}/connections`} className="text-ink underline">Connections</Link> first.</> : ' The account must have read access.'}
+            </p>
+          </RuleCard>
+        </div>
+      )}
+    </FormBlock>
+  )
+}
+
+function AreaField({ id, label, hint, value, onChange }: { id: string; label: string; hint?: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[14px] text-grey" htmlFor={id}>{label}</label>
+      <Textarea id={id} rows={2} value={value} onChange={e => onChange(e.target.value)} aria-describedby={hint ? `${id}-hint` : undefined} />
+      {hint && <span id={`${id}-hint`} className="text-[13px] text-grey-h">{hint}</span>}
     </div>
   )
 }

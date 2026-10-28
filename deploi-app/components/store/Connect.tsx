@@ -85,7 +85,7 @@ export function ConnectionDetails({ c }: { c: Connection }) {
         ]} />
       </div>
       {c.status !== 'active' && <div className="mt-4"><Banner tone="warn"><strong>Blocked.</strong> This connection is {CONNECTION_STATUS_LABEL[c.status]?.toLowerCase() ?? c.status}. Deploi cannot read or change the store until the app is installed again from the Shopify admin.</Banner></div>}
-      <p className="pt-4 text-[13px] text-grey-h">Deploi reads products, inventory and locations, and writes only the one setting you approve (&ldquo;Continue selling when out of stock&rdquo;). It never changes stock counts.</p>
+      <p className="pt-4 text-[13px] text-grey-h">Deploi reads products, inventory, locations and sales channels, and writes only the changes you or an agent you authorized approve: a variant&rsquo;s out-of-stock setting, whether a product is published on a sales channel, a variant&rsquo;s price or compare-at price, and a variant&rsquo;s SKU. It never changes stock counts, product status, customers or orders.</p>
     </Panel>
   )
 }

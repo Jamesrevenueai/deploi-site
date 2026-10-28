@@ -103,7 +103,7 @@ test('create an email-only agent in the wizard, grant it, and run it', async ({ 
   await expect(page.getByText('found in your text: confirm').last()).toBeVisible()
 
   await page.getByLabel('Send from').selectOption({ label: `${MAILBOX} · Synthetic mailbox (test only)` })
-  await page.getByLabel('Purpose').fill('Restock requests to our supplier and run summaries for the owner')
+  await page.getByLabel('Purpose', { exact: true }).fill('Restock requests to our supplier and run summaries for the owner')
   await page.getByLabel('Allowed recipient addresses').fill(`${NORTHWIND}`)
   await page.getByLabel('Allowed recipient domains').fill('supplier.example')
   await page.getByLabel('Send summaries and alerts to').fill('someone@elsewhere.example')

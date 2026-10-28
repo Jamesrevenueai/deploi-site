@@ -32,6 +32,14 @@ export function countsInWords(c: Partial<AgentRunCounts> | null | undefined): st
   add(c.blocked, 'blocked')
   add(c.stale, 'stale (records changed)')
   if (Array.isArray(c.missingSources) && c.missingSources.length) parts.push(`${c.missingSources.length} reference file${c.missingSources.length === 1 ? '' : 's'} missing`)
+  const e = c.email
+  if (e) {
+    add(e.emailDrafted, 'email drafted', 'emails drafted')
+    add(e.emailAwaiting, 'email awaiting approval', 'emails awaiting approval')
+    add(e.emailAccepted, 'email accepted by provider', 'emails accepted by provider')
+    add(e.emailUnknown, 'email with delivery unknown', 'emails with delivery unknown')
+    add(e.emailFailed, 'email failed', 'emails failed')
+  }
   return parts.length ? parts.join(' · ') : 'no problems found'
 }
 
@@ -121,7 +129,7 @@ function AgentCard({ a }: { a: AgentListItem }) {
           </div>
         </div>
         <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-[14px] sm:grid-cols-[max-content_1fr]">
-          <dt className="text-grey-h">Corrects</dt><dd className="m-0 text-ink">{a.correction_types.length ? a.correction_types.map(t => AGENT_CORRECTION_LABEL[t] ?? t).join(', ') : 'Not authorized yet'}</dd>
+          <dt className="text-grey-h">Corrects</dt><dd className="m-0 text-ink">{a.correction_types.length ? a.correction_types.map(t => AGENT_CORRECTION_LABEL[t] ?? t).join(', ') : a.active_version !== null ? 'Nothing in the store (email tasks only)' : 'Not authorized yet'}</dd>
           <dt className="text-grey-h">Schedule</dt><dd className="m-0 text-ink">{scheduleLabel(a.schedule)}{a.status === 'active' && a.next_run_at ? ` · next ${fmtAgo(a.next_run_at)}` : ''}</dd>
           <dt className="text-grey-h">Last run</dt>
           <dd className="m-0 text-ink">{last ? <>{runWords(last.status).label} · {fmtAgo(last.finished_at ?? a.last_run_at)} · <span className="text-grey">{last.status_reason ?? countsInWords(last.counts as Partial<AgentRunCounts>)}</span></> : 'Not run yet'}</dd>

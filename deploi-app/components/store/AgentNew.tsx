@@ -14,7 +14,7 @@ import { storeFetch, asApiError, type StoreApiError } from './api'
 import { ErrorState, Loading, NoStore, Panel, Section, useStore } from './bits'
 import { AgentPolicyForm, formFromDraft, policyFromForm, type AgentFormState } from './AgentForm'
 import { AuthorizationSummaryView, BackToAgents, useStoreBasics } from './Agents'
-import { AGENT_CORRECTION_LABEL } from './format'
+import { AGENT_CORRECTION_LABEL, AGENT_EMAIL_PERMISSION_LABEL, AGENT_EMAIL_TASK_LABEL } from './format'
 import type { CreateAgentResponse, EditAgentResponse, GrantResponse, ParseResponse, TaskDraft } from './types'
 
 type Created = { agentId: string; policyId: string; policyHash: string; summary: CreateAgentResponse['summary'] }
@@ -101,7 +101,7 @@ export function AgentNewScreen() {
             <div className="flex flex-col gap-1">
               <label htmlFor="agent-task" className="text-[14px] text-grey">Task, in plain English</label>
               <Textarea id="agent-task" value={task} rows={4} maxLength={2000} placeholder="e.g. Every 6 hours, stop products from selling when they are out of stock, except anything tagged pre-order. Ask me before changing anything." onChange={e => setTask(e.target.value)} aria-describedby="agent-task-hint" />
-              <span id="agent-task-hint" className="text-[13px] text-grey-h">Supported today on Shopify: overselling settings, product publication, prices (from your price list) and SKUs (from your mapping).</span>
+              <span id="agent-task-hint" className="text-[13px] text-grey-h">Supported today on Shopify: overselling settings, product publication, prices (from your price list) and SKUs (from your mapping). Agents can also email run summaries, alerts and supplier restock requests from an account you connect.</span>
             </div>
             <div><Button type="submit" variant={step === 'describe' ? 'primary' : 'ghost'} size="sm" disabled={!task.trim() || busy !== null}><Icon name="spark" size={15} />{busy === 'parse' ? 'Drafting…' : step === 'review' ? 'Draft it again' : 'Draft it'}</Button></div>
           </form>
@@ -128,7 +128,7 @@ export function AgentNewScreen() {
           <Panel>
             <AuthorizationSummaryView summary={created.summary} />
             <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5">
-              <p className="text-[14px] text-grey">Granting activates this exact version. Changing it later in a way that allows more (new corrections, fields, products, higher limits or acting without asking) needs a new grant. You can pause or revoke it at any time; both stop all writes, including queued ones.</p>
+              <p className="text-[14px] text-grey">Granting activates this exact version. Changing it later in a way that allows more (new corrections, fields, products, email recipients or permissions, higher limits or acting without asking) needs a new grant. You can pause or revoke it at any time; both stop all writes, including queued ones.</p>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={grant} disabled={busy !== null}><Icon name="check" size={16} />{busy === 'grant' ? 'Granting…' : 'Grant this authorization'}</Button>
                 <Button variant="ghost" onClick={() => { setStep('review'); setErr(null) }} disabled={busy !== null}>Back to edit</Button>
@@ -164,7 +164,8 @@ function Steps({ step }: { step: Step }) {
 
 /** What the draft understood, what is missing, and what Deploi cannot do. */
 function DraftReport({ draft }: { draft: TaskDraft }) {
-  const vague = !draft.correctionTypes.length || !draft.productScope.mode
+  const emailOnly = !draft.correctionTypes.length && Boolean(draft.email)
+  const vague = (!draft.correctionTypes.length && !draft.email) || (!draft.productScope.mode && !emailOnly)
   return (
     <Section id="understood" title="What Deploi understood" sub="A suggestion from your words. It grants nothing; you confirm every choice below.">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -198,6 +199,21 @@ function DraftReport({ draft }: { draft: TaskDraft }) {
       {draft.correctionTypes.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">{draft.correctionTypes.map(t => <Badge key={t} tone="muted">{AGENT_CORRECTION_LABEL[t] ?? t}</Badge>)}</div>
       )}
+      {draft.email && (
+        <div className="mt-3">
+          <Panel>
+            <h3 className="text-[1rem]">Email</h3>
+            <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-grey">
+              {draft.email.tasks.map(t => <li key={t}>{AGENT_EMAIL_TASK_LABEL[t] ?? t}</li>)}
+              <li>{draft.email.permission ? AGENT_EMAIL_PERMISSION_LABEL[draft.email.permission] : 'Permission level: still to choose'}</li>
+            </ul>
+            {draft.email.addresses.length > 0 && (
+              <p className="pt-2 text-[14px] text-grey"><Badge tone="warn">found in your text: confirm</Badge> {draft.email.addresses.join(', ')}. Confirm these below before the agent may write to them.</p>
+            )}
+            <p className="pt-2 text-[13px] text-grey-h">Nothing here is granted. You choose the account, recipients and limits below.</p>
+          </Panel>
+        </div>
+      )}
     </Section>
   )
 }
@@ -205,5 +221,7 @@ function DraftReport({ draft }: { draft: TaskDraft }) {
 function meaning(m: string): string {
   const c = /^correction: (.+)$/.exec(m)
   if (c) return `corrects ${(AGENT_CORRECTION_LABEL[c[1]] ?? c[1]).toLowerCase()}`
+  const e = /^email tasks?: (.+)$/.exec(m)
+  if (e) return `email: ${e[1].split(/,\s*/).map(t => (AGENT_EMAIL_TASK_LABEL as Record<string, string>)[t]?.toLowerCase() ?? t).join('; ')}`
   return m
 }

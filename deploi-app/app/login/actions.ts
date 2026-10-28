@@ -5,20 +5,20 @@ import { env } from '@/lib/env'
 import { admin } from '@/lib/db'
 import { encodeDevSession, DEV_COOKIE_NAME } from '@/lib/auth'
 import { log } from '@/lib/log'
-import type { Role } from '@/lib/session'
+import { homeFor, type Role } from '@/lib/session'
 
 export async function devSignIn(formData: FormData) {
   if (env.authMode !== 'dev') redirect('/login?error=dev-auth-disabled')
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const p = await admin(db => db.one<{ id: string; email: string; role: Role; agency_id: string | null }>(
-    'select id, email, role, agency_id from profiles where lower(email) = $1', [email]))
+  const p = await admin(db => db.one<{ id: string; email: string; role: Role; agency_id: string | null; org_type: 'merchant' | 'care_agency' | null }>(
+    'select p.id, p.email, p.role, p.agency_id, g.org_type from profiles p left join agencies g on g.id = p.agency_id where lower(p.email) = $1', [email]))
   if (!p) redirect('/login?error=unknown-user')
   const store = await cookies()
   store.set(DEV_COOKIE_NAME, encodeDevSession({ uid: p.id, email: p.email, role: p.role, agencyId: p.agency_id }), {
     httpOnly: true, sameSite: 'lax', secure: env.isProd, path: '/', maxAge: 60 * 60 * 24 * 7,
   })
   log.info('auth.dev.signin', { uid: p.id, role: p.role })
-  redirect(p.role === 'staff' ? '/staff/pipeline' : '/app/home')
+  redirect(homeFor({ role: p.role, orgType: p.org_type }))
 }
 
 export async function magicLink(formData: FormData) {

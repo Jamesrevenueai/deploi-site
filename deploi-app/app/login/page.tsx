@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { env } from '@/lib/env'
 import { admin } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { homeFor } from '@/lib/session'
 import { devSignIn, magicLink } from './actions'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export default async function Login({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
   const s = await getSession()
-  if (s) redirect(s.role === 'staff' ? '/staff/pipeline' : '/app/home')
+  if (s) redirect(homeFor(s))
   const dev = env.authMode === 'dev'
   const profiles = dev ? await admin(db => db.query<{ email: string; role: string; full_name: string | null }>('select email, role, full_name from profiles order by role desc, email')) : []
 

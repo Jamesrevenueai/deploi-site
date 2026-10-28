@@ -71,6 +71,30 @@ export async function withUser<T>(session: Session, fn: (db: Db) => Promise<T>, 
   }
 }
 
+/**
+ * Run `fn` for an organization whose user was authenticated by a platform (an embedded Shopify session
+ * token verified on the server), with RLS enforced exactly like withUser. The org_id claim is set by the
+ * server only; current_org_id() reads it. There is no profile row, so is_staff() is false.
+ */
+export async function withOrgSession<T>(orgId: string, actorLabel: string, fn: (db: Db) => Promise<T>, opts: { ip?: string | null } = {}): Promise<T> {
+  if (!/^[0-9a-f-]{36}$/i.test(orgId)) throw new Error('invalid org id')
+  const client = await getPool().connect()
+  try {
+    await client.query('begin')
+    const claims = JSON.stringify({ role: 'authenticated', org_id: orgId, actor: actorLabel.slice(0, 120) })
+    await client.query("select set_config('request.jwt.claims', $1, true), set_config('app.ip', $2, true)", [claims, opts.ip ?? ''])
+    await client.query('set local role authenticated')
+    const out = await fn(wrap(client))
+    await client.query('commit')
+    return out
+  } catch (e) {
+    await client.query('rollback').catch(() => {})
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
 /** Run `fn` with the service role (no RLS). Only for workers, seeds and auth bootstrap. */
 export async function admin<T>(fn: (db: Db) => Promise<T>, opts: { actorId?: string | null; ip?: string | null } = {}): Promise<T> {
   const client = await getPool().connect()

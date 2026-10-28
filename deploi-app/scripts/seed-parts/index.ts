@@ -10,6 +10,7 @@ import { seedArea as engage } from './engage'
 import { seedArea as econ } from './econ'
 import { seedArea as web } from './web'
 import { seedArea as ops } from './ops'
+import { seedArea as merchant } from './merchant'
 
 export type SeedCtx = { c: Client; agencyA: string; agencyB: string; counts: Record<string, number> }
 export type SeedPart = (ctx: SeedCtx) => Promise<void>
@@ -21,6 +22,7 @@ const PARTS: SeedPart[] = [
   econ,
   web,
   ops,
+  merchant,
 ]
 
 export async function runSeedParts(ctx: SeedCtx) {

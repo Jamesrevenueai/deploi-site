@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { env } from './env'
 import { admin } from './db'
-import type { Session, Role } from './session'
+import { homeFor, type Session, type Role } from './session'
 
 const DEV_COOKIE = 'deploi_dev_session'
 
@@ -30,10 +30,10 @@ export function decodeDevSession(v: string | undefined): Session | null {
 
 export async function profileFor(uid: string): Promise<Session | null> {
   return admin(async db => {
-    const p = await db.one<{ id: string; email: string; role: Role; agency_id: string | null; full_name: string | null }>(
-      'select id, email, role, agency_id, full_name from profiles where id = $1', [uid])
+    const p = await db.one<{ id: string; email: string; role: Role; agency_id: string | null; full_name: string | null; org_type: 'merchant' | 'care_agency' | null }>(
+      'select p.id, p.email, p.role, p.agency_id, p.full_name, g.org_type from profiles p left join agencies g on g.id = p.agency_id where p.id = $1', [uid])
     if (!p) return null
-    return { uid: p.id, email: p.email, role: p.role, agencyId: p.agency_id, fullName: p.full_name }
+    return { uid: p.id, email: p.email, role: p.role, agencyId: p.agency_id, fullName: p.full_name, orgType: p.org_type }
   })
 }
 
@@ -74,7 +74,7 @@ export async function requireSession(): Promise<Session> {
 
 export async function requireRole(role: Role): Promise<Session> {
   const s = await requireSession()
-  if (s.role !== role) redirect(s.role === 'staff' ? '/staff/pipeline' : '/app/home')
+  if (s.role !== role) redirect(homeFor(s))
   return s
 }
 

@@ -28,7 +28,11 @@ const Lead = z.object({
   /** honeypot */
   website: z.string().optional(),
   // ---- Website Improvement (optional; contract in docs/CONTRIBUTING-STREAMS.md)
-  service_interest: z.enum(['operations', 'website_improvement']).optional().default('operations'),
+  service_interest: z.enum(['operations', 'website_improvement', 'early_access']).optional().default('operations'),
+  /** early access (subscription product) */
+  store_url: z.string().trim().max(500).regex(/^https?:\/\/[^\s/]+\.[^\s]+$/i).optional().nullable(),
+  platforms: z.array(z.enum(['shopify', 'woocommerce', 'amazon'])).max(3).optional().default([]),
+  catalog_size: z.enum(['under_100', '100_1000', '1000_10000', 'over_10000']).optional().nullable(),
   website_url: z.string().trim().max(500).optional().nullable(),
   website_platform: z.string().trim().max(120).optional().nullable(),
   website_goal: z.string().trim().max(1000).optional().nullable(),
@@ -67,6 +71,18 @@ export async function POST(req: Request) {
   const { fields, removed } = stripSecretsFrom({ message: lead.message, website_changes: lead.website_changes, website_issues: lead.website_issues, website_goal: lead.website_goal })
   if (removed) log.warn('lead.secret_segments_removed', { source: lead.source, count: removed })
   const isWebsite = lead.service_interest === 'website_improvement'
+  if (lead.service_interest === 'early_access') {
+    if (!lead.store_url || !lead.platforms.length) return NextResponse.json({ ok: false, error: 'invalid lead', issues: [!lead.store_url && 'store_url', !lead.platforms.length && 'platforms'].filter(Boolean) }, { status: 400, headers })
+    try {
+      const id = await anon(db => db.one<{ id: string }>('select public_create_early_access($1,$2,$3,$4,$5::text[],$6,$7) as id',
+        [lead.name, lead.email, lead.agency_name, lead.store_url, lead.platforms, lead.catalog_size ?? null, fields.message]), { ip })
+      log.info('lead.created', { source: lead.source, id: id?.id, service_interest: 'early_access', platforms: lead.platforms.length })
+      return NextResponse.json({ ok: true, id: id?.id ?? null }, { headers })
+    } catch (e) {
+      log.error('lead.failed', { error: (e as Error).message })
+      return NextResponse.json({ ok: false, error: 'could not save application' }, { status: 500, headers })
+    }
+  }
   try {
     const id = await anon(db => db.one<{ id: string }>(
       'select public_create_lead_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18,$19) as id',

@@ -13,7 +13,21 @@ const post = async (body: unknown) => {
 const cleanup = (email: string) => admin(db => db.query('delete from prospects where lower(email) = lower($1)', [email]))
 
 describe.skipIf(!ready)('POST /api/public/lead', () => {
-  afterAll(async () => { for (const e of ['lead-test@example.com', 'web-lead@example.com', 'web-secret@example.com', 'web-unknown@example.com']) await cleanup(e) })
+  afterAll(async () => { for (const e of ['lead-test@example.com', 'web-lead@example.com', 'web-secret@example.com', 'web-unknown@example.com', 'early-access@example.com']) await cleanup(e) })
+
+  it('an early access application (the exact website contract) creates a tagged prospect; bad url or no platform is refused', async () => {
+    const body = { name: 'Early Tester', email: 'early-access@example.com', agency_name: 'Early Test Store', source: 'site', service_interest: 'early_access',
+      store_url: 'https://early-test-store.example', platforms: ['shopify', 'amazon'], catalog_size: '100_1000', message: 'Variants keep selling at zero', website: '' }
+    const r = await post(body)
+    expect(r.status).toBe(200)
+    const p = await admin(db => db.one<{ service_interest: string; tags: string[]; website_url: string; website_details: Record<string, unknown> }>(
+      'select service_interest, tags, website_url, website_details from prospects where id = $1', [r.json.id]))
+    expect(p).toMatchObject({ service_interest: 'early_access', website_url: 'https://early-test-store.example', website_details: { platforms: ['amazon', 'shopify'], catalog_size: '100_1000' } })
+    expect(p!.tags).toEqual(expect.arrayContaining(['Early Access', 'Shopify', 'Amazon']))
+    expect((await post({ ...body, store_url: 'early-test-store.example' })).status).toBe(400)
+    expect((await post({ ...body, platforms: [] })).status).toBe(400)
+    expect((await post({ ...body, platforms: ['ebay'] })).status).toBe(400)
+  })
 
   it('creates a prospect with source=site and a touch, dedupes on email + agency (unchanged for a normal lead)', async () => {
     const { OPTIONS } = await import('../../app/api/public/lead/route')

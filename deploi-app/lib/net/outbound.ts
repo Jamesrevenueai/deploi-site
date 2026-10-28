@@ -7,7 +7,10 @@
 const e = (k: string) => (process.env[k] ?? '').trim()
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'sms' | 'cloud_llm' | 'supabase_mgmt' | 'storage', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'sms' | 'cloud_llm' | 'supabase_mgmt' | 'storage' | 'shopify' | 'amazon' | 'woocommerce', string[]> = {
+  shopify: [], // <shop>.myshopify.com only, checked by suffix below
+  amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
+  woocommerce: [], // the merchant's own https host; never a private address
   email: ['api.resend.com'],
   sms: ['api.twilio.com', 'messaging.twilio.com'],
   cloud_llm: ['api.openai.com', 'api.anthropic.com'],
@@ -33,7 +36,11 @@ export function isPrivateHost(host: string): boolean {
 /** Throws unless `url` points at a host approved for `purpose`. Returns the host. */
 export function assertApprovedHost(url: string, purpose: keyof typeof APPROVED_HOSTS): string {
   const host = hostOf(url)
-  const ok = purpose === 'storage' ? host.endsWith('.supabase.co') || host.endsWith('.supabase.in') : APPROVED_HOSTS[purpose].includes(host)
+  let ok: boolean
+  if (purpose === 'storage') ok = host.endsWith('.supabase.co') || host.endsWith('.supabase.in')
+  else if (purpose === 'shopify') ok = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) && url.startsWith('https://')
+  else if (purpose === 'woocommerce') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.')
+  else ok = APPROVED_HOSTS[purpose].includes(host)
   if (!ok) throw new OutboundBlocked(host || url, purpose)
   return host
 }

@@ -5,7 +5,7 @@
  * No Deploi session cookie is involved, so this layout does not require a Deploi sign-in.
  */
 import Link from 'next/link'
-import { EMBEDDED_NAV } from '@/lib/store/nav'
+import { EMBEDDED_HOME, EMBEDDED_NAV } from '@/lib/store/nav'
 import { ShopifyFrame } from '@/components/store/ShopifyFrame'
 
 export const dynamic = 'force-dynamic'
@@ -21,8 +21,10 @@ export default function ShopifyLayout({ children }: { children: React.ReactNode 
       {apiKey && <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>}
       {apiKey && (
         <ui-nav-menu>
-          {EMBEDDED_NAV.map((n, i) => (
-            <Link key={n.href} href={n.href} rel={i === 0 ? 'home' : undefined}>{n.label}</Link>
+          {/* the home route first (rel="home"), then the menu entries in order, Agents first */}
+          <Link href={EMBEDDED_HOME} rel="home">Overview</Link>
+          {EMBEDDED_NAV.filter(n => n.href !== EMBEDDED_HOME).map(n => (
+            <Link key={n.href} href={n.href}>{n.label}</Link>
           ))}
         </ui-nav-menu>
       )}

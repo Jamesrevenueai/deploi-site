@@ -79,7 +79,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'What the Shopify app reads',
-    body: <>Products, product variants, inventory levels and locations, plus your shop&rsquo;s name, domain and timezone. <strong>The app does not read customer or order data.</strong> It asks Shopify for permission to read products, inventory and locations, and to write products, which it needs to change a variant&rsquo;s out-of-stock setting.</>,
+    body: <>Products, product variants (including prices, SKUs and barcodes), inventory levels and locations, the sales channels a product is published on, and fixed prices on Markets or B2B price lists, plus your shop&rsquo;s name, domain, timezone and currency. <strong>The app does not read customer or order data.</strong> It asks Shopify for permission to read products, inventory, locations and publications, to write products (a variant&rsquo;s out-of-stock setting, price, compare-at price or SKU) and to write publications (publishing or unpublishing a product on the sales channel you authorize). Reference files you upload (price lists, SKU mappings, publication lists) are stored with your account and used only to compare against your store.</>,
   },
   {
     title: 'Why it reads that data',

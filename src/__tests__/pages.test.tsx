@@ -4,7 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Nav, NAV_LINKS } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import Legal, { PRIVACY, termsSections } from '../pages/Legal'
-import Home, { FAQ, FAQS, FLOW, PLATFORM_CARDS, SHOPIFY_STATUS_LINE } from '../pages/Home'
+import Home, { FAQ, FAQS, FLOW, CHECKS, PLATFORM_CARDS, SHOPIFY_STATUS_LINE, EXAMPLE_AGENT } from '../pages/Home'
 import { AppRoutes, Shell } from '../App'
 import { CONTACT_EMAIL } from '../lib/brand'
 
@@ -66,13 +66,16 @@ describe('Home', () => {
     expect(container.textContent).not.toMatch(CONSULTING)
   })
 
-  it('renders the six-step flow and both Shopify checks', () => {
+  it('renders the six-step flow, the agent section and all four Shopify corrections', () => {
     render(<MemoryRouter><Home /></MemoryRouter>)
-    expect(FLOW.map(f => f.title)).toEqual(['Detect', 'Evidence', 'Proposed fix', 'Your approval', 'Change made', 'Verified'])
+    expect(FLOW.map(f => f.title)).toEqual(['Name and instruct', 'Authorize', 'Detect with evidence', 'Exact change', 'Checked, then made', 'Verified'])
     for (const f of FLOW) expect(screen.getByRole('heading', { level: 3, name: f.title })).toBeInTheDocument()
-    expect(screen.getAllByText('Selling with no stock against your rule').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Oversold while set to stop selling').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Should products stop selling when they run out/)).toBeInTheDocument()
+    expect(CHECKS).toHaveLength(4)
+    for (const c of CHECKS) expect(screen.getAllByText(c.title).length).toBeGreaterThan(0)
+    expect(screen.getByText(`Example: ${EXAMPLE_AGENT.name}`)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Review each change' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Authorized to act within limits' })).toBeInTheDocument()
+    expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
   })
 
   it('answers the FAQ without inventing a price', () => {
@@ -117,7 +120,7 @@ describe('Legal', () => {
   it('describes what the Shopify app reads, token protection, deletion and no analytics', () => {
     const { container } = render(<MemoryRouter><Legal kind="privacy" /></MemoryRouter>)
     const text = container.textContent ?? ''
-    expect(text).toMatch(/Products, product variants, inventory levels and locations/)
+    expect(text).toMatch(/Products, product variants \(including prices, SKUs and barcodes\), inventory levels and locations/)
     expect(text).toMatch(/does not read customer or order data/)
     expect(text).toMatch(/encrypted at rest/)
     expect(text).toMatch(/never shown in the browser/)

@@ -6,6 +6,7 @@ import { Icon } from '../lib/icons'
 
 export const NAV_LINKS = [
   { to: '/#how', label: 'How it works' },
+  { to: '/#agents', label: 'Agents' },
   { to: '/#shopify', label: 'Shopify' },
   { to: '/#controls', label: 'Controls' },
   { to: '/#platforms', label: 'Platforms' },

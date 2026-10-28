@@ -579,3 +579,4 @@ footer { border-top: 1px solid var(--dg-line); padding: 80px 0 40px; text-align:
 .footer-fine { margin: 48px auto 0; max-width: 640px; color: var(--dg-grey-headline); font-size: 0.85rem; line-height: 1.5; }
 
 @media (min-width: 960px) { .controls-grid { grid-template-columns: repeat(3, 1fr); max-width: none; } }
+@media (min-width: 960px) { .agents-grid { grid-template-columns: repeat(2, 1fr); max-width: 1000px; margin-inline: auto; } }

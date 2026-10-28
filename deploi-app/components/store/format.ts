@@ -207,3 +207,69 @@ export function scheduleLabel(s: unknown): string {
 export function referenceKindLabel(kind: string): string {
   return kind === 'price_list' ? 'Price list' : kind === 'sku_mapping' ? 'SKU mapping' : kind === 'publication_list' ? 'Publication list' : kind
 }
+
+// ---------------------------------------------------------------- email
+
+/**
+ * Merchant-facing labels for agent email. Providers only report that they accepted a message for
+ * delivery, so "Accepted by provider" is the strongest status and the only one shown as success.
+ * Nothing here says "Delivered" or "Sent successfully".
+ */
+export const EMAIL_ACCEPTED_EXPLAINER = 'The provider accepted it for delivery. Deploi cannot confirm it reached the inbox.'
+
+export const EMAIL_STATUS_WORDS: Record<string, StatusWords> = {
+  draft: { label: 'Draft', tone: 'muted', hint: 'A draft kept in Deploi. This agent may only draft: copy the text and send it yourself if you want to.' },
+  awaiting_approval: { label: 'Awaiting approval', tone: 'none', hint: 'Waiting for you to approve this exact message. Nothing is sent until you do.' },
+  queued: { label: 'Queued', tone: 'muted', hint: 'Approved and waiting to be handed to the provider. Pausing or revoking the agent, or disconnecting the account, cancels it.' },
+  sending: { label: 'Sending', tone: 'muted', hint: 'Being handed to the provider now.' },
+  accepted: { label: 'Accepted by provider', tone: 'ok', hint: EMAIL_ACCEPTED_EXPLAINER },
+  failed: { label: 'Failed', tone: 'danger', hint: 'The provider refused it or it could not be sent. Nothing was sent.' },
+  delivery_unknown: { label: 'Delivery unknown', tone: 'warn', hint: 'The provider gave no definite answer, so this message may or may not have gone out. Deploi will not send it again on its own.' },
+  cancelled: { label: 'Cancelled', tone: 'muted', hint: 'Not sent: declined, or cancelled because the agent was paused or revoked or the account was disconnected.' },
+}
+export const emailWords = (status: string): StatusWords => EMAIL_STATUS_WORDS[status] ?? unknownWords(status)
+
+/** Kept in step with EMAIL_TASKS / EMAIL_TASK_LABEL / EMAIL_PERMISSIONS / EMAIL_PERMISSION_LABEL in lib/agents/policy.ts (server-only). */
+export const AGENT_EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder'] as const
+export type AgentEmailTask = typeof AGENT_EMAIL_TASKS[number]
+export const AGENT_EMAIL_TASK_LABEL: Record<AgentEmailTask, string> = {
+  run_report: 'Send a summary of each run',
+  needs_person_alert: 'Alert people about problems that need a person',
+  supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
+}
+export const AGENT_EMAIL_TASK_HELP: Record<AgentEmailTask, string> = {
+  run_report: 'After each run, a short summary of what the agent found, changed and left for you goes to the people on the notify list.',
+  needs_person_alert: 'When the agent finds a problem it cannot correct safely, the people on the notify list get one alert per problem.',
+  supplier_reorder: 'Lists products in scope at or below your threshold and asks your supplier to confirm a restock. It never changes stock quantities and never places an order.',
+}
+/** Short names for a message's task, in lists */
+export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request' }
+
+export const AGENT_EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
+export type AgentEmailPermission = typeof AGENT_EMAIL_PERMISSIONS[number]
+export const AGENT_EMAIL_PERMISSION_LABEL: Record<AgentEmailPermission, string> = {
+  draft: 'Create drafts for review (never sends)',
+  send_approved: 'Send messages you approve one by one',
+  send_autonomous: 'Send without asking, within the recipients, purpose, limits and dates below',
+}
+export const AGENT_EMAIL_PERMISSION_HELP: Record<AgentEmailPermission, string> = {
+  draft: 'Messages are written and kept in Deploi. Nothing is ever sent from your account; you can copy the text.',
+  send_approved: 'Each message waits until you have read the exact sender, recipients, subject, body and attachments and approved it.',
+  send_autonomous: 'Messages to allowed recipients, within the limits and before the end date, are sent without asking. Anything outside those boundaries waits for your approval.',
+}
+
+/** Health of a connected email account */
+export const EMAIL_ACCOUNT_STATUS_WORDS: Record<string, StatusWords> = {
+  active: { label: 'Connected', tone: 'ok', hint: 'The provider accepted the last check.' },
+  needs_reauth: { label: 'Needs reconnect', tone: 'warn', hint: 'The provider no longer accepts this connection. Reconnect to keep sending.' },
+  error: { label: 'Error', tone: 'danger', hint: 'The account cannot send right now.' },
+  disconnected: { label: 'Disconnected', tone: 'muted', hint: 'Disconnected. Its tokens were deleted.' },
+}
+export const emailAccountWords = (status: string): StatusWords => EMAIL_ACCOUNT_STATUS_WORDS[status] ?? unknownWords(status)
+
+/** Provider availability, labelled honestly */
+export const EMAIL_PROVIDER_STATUS_WORDS: Record<string, StatusWords> = {
+  configured_unverified: { label: 'Available', tone: 'warn', hint: 'Available: not yet verified by the provider for public use' },
+  not_configured: { label: 'Not available yet', tone: 'muted', hint: 'Not available yet (needs setup)' },
+  test_only: { label: 'Test only', tone: 'warn', hint: 'Synthetic mailbox: test only, nothing is ever emailed' },
+}

@@ -66,7 +66,7 @@ export function ConnectScreen() {
   )
 }
 
-function ConnectionDetails({ c }: { c: Connection }) {
+export function ConnectionDetails({ c }: { c: Connection }) {
   return (
     <Panel className="mb-4">
       <div className="flex flex-wrap items-center gap-2">

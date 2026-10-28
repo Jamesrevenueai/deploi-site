@@ -3,6 +3,7 @@ import type { NavItem } from '../nav'
 
 export const MERCHANT_NAV: NavItem[] = [
   { href: '/store/agents', label: 'Agents', icon: 'bolt' },
+  { href: '/store/connections', label: 'Connections', icon: 'mail' },
   { href: '/store', label: 'Overview', icon: 'home', exact: true },
   { href: '/store/issues', label: 'Issues', icon: 'inbox' },
   { href: '/store/activity', label: 'Activity', icon: 'list' },
@@ -16,6 +17,7 @@ export const EMBEDDED_HOME = '/shopify'
 /** Pages listed in the embedded app's App Bridge navigation menu, in order. */
 export const EMBEDDED_NAV: { href: string; label: string }[] = [
   { href: '/shopify/agents', label: 'Agents' },
+  { href: '/shopify/connections', label: 'Connections' },
   { href: EMBEDDED_HOME, label: 'Overview' },
   { href: '/shopify/issues', label: 'Issues' },
   { href: '/shopify/activity', label: 'Activity' },

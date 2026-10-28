@@ -103,3 +103,34 @@ export type ReferenceSourceView = {
 export type ReferencesResponse = { ok: true; references: ReferenceSourceView[]; templates: Record<ReferenceKindName, { columns: string[]; example: string[]; notes: string }> }
 export type UploadReferenceResponse = { ok: true; source: ReferenceSourceView; unchanged: boolean; rowErrors: { row: number; message: string }[] }
 export type PublicationsResponse = { ok: true; currency: string | null; publications: { id: string; title: string }[] }
+
+// ---------------------------------------------------------------- email
+
+export type EmailAccountView = {
+  id: string; org_id: string; provider: 'gmail' | 'microsoft' | 'synthetic'; address: string; display_name: string | null
+  status: 'active' | 'needs_reauth' | 'error' | 'disconnected'; status_reason: string | null; granted_scopes: string[]
+  can_send: boolean; can_read: boolean; is_synthetic: boolean; last_checked_at: string | null; last_success_at: string | null
+  last_error_code: string | null; connected_by: string; connected_at: string; label: string
+  usage: { agents: number; sentToday: number; failed7d: number; unknown: number; awaiting: number }
+}
+export type EmailProviderView = { provider: EmailAccountView['provider']; label: string; configured: boolean; status: 'test_only' | 'configured_unverified' | 'not_configured'; readScopes: string[] }
+export type EmailAccountsResponse = { ok: true; accounts: EmailAccountView[]; providers: EmailProviderView[] }
+export type EmailConnectResponse = { ok: true; url: string }
+export type EmailDisconnectResponse = { ok: true; revokedAtProvider: 'revoked' | 'not_supported' | 'failed'; messagesCancelled: number }
+
+export type EmailStatusName = 'draft' | 'awaiting_approval' | 'queued' | 'sending' | 'accepted' | 'failed' | 'delivery_unknown' | 'cancelled'
+export type EmailMessageItem = {
+  id: string; org_id: string; agent_id: string | null; run_id: string | null; account_id: string; policy_version: number | null; task_key: string
+  status: EmailStatusName; status_reason: string | null; from_address: string; to_addresses: string[]; cc_addresses: string[]
+  attachment_count: number; attachment_bytes: number; content_hash: string; approval_kind: 'individual' | 'standing' | null; approved_by: string | null; approved_at: string | null
+  attempts: number; next_attempt_at: string | null; accepted_at: string | null; accepted_evidence: string | null; failure_code: string | null
+  reply_seen_at: string | null; reply_count: number; created_at: string; updated_at: string
+  /** decrypted for merchant users; null for Deploi staff */
+  subject: string | null; agent_name?: string | null
+}
+export type EmailAttachmentView = { filename: string; contentType: string; bytes: number; preview: string | null }
+export type EmailMessageDetail = Omit<EmailMessageItem, 'subject' | 'agent_name'> & { content: { subject: string; bodyText: string; attachments: EmailAttachmentView[] } | null }
+export type EmailMessagesResponse = { ok: true; messages: EmailMessageItem[] }
+export type EmailMessageResponse = { ok: true; message: EmailMessageDetail }
+export type EmailSendOutcome = { ok: true; messageId: string; status: EmailStatusName; reason?: string | null; duplicate?: boolean }
+export type EmailEditResponse = { ok: true; contentHash: string; status: EmailStatusName }

@@ -1,7 +1,9 @@
 # Shopify app: setup, permissions, billing and submission
 
-Sources: `docs/platform-research/shopify.md` (official Shopify documentation, Admin API 2026-10).
-Marketplace approval is a separate step from implementation and is not done.
+Sources: `docs/platform-research/shopify.md` and `docs/platform-research/shopify-app-store.md` (official
+Shopify documentation, Admin API 2026-10). Submission package: `docs/APP-STORE-SUBMISSION.md`.
+Marketplace approval is a separate step from implementation. The app has not been submitted, reviewed
+or approved.
 
 ## 1. Local synthetic demonstration (no Shopify account needed)
 
@@ -36,9 +38,12 @@ readable authorization, then the grant. The demo store and reference files are i
 3. Environment for the app (names only; values come from the Dev Dashboard and a key generator):
    - `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_API_VERSION=2026-10`, `SHOPIFY_APP_URL`
    - `CREDENTIALS_ENCRYPTION_KEY` (base64 of 32 random bytes), `CREDENTIALS_KEY_ID`
-   - `LIVE_WRITE_STORES=<dev-store>.myshopify.com` so corrections may write to that store only
+   - `STORE_ACCESS_MODE=beta` (default): development stores are enabled automatically (Shopify's
+     `shop.plan.partnerDevelopment`); other stores need an invite or staff approval (`/staff/store-access`).
+     Use `open` for the App Store submission and listing (see §5).
+   - `LIVE_WRITES=off` pauses writes to every real store (incident switch); leave unset otherwise
    - keep `BILLING_REQUIRED` unset during early access
-4. Apply migrations `20261028000028`, `20261028000029` and `20261028000030` to the target database. Set
+4. Apply migrations `20261028000028` to `20261029000032` to the target database (`npm run db:migrate:prod`). Set
    `CRON_SECRET` so `/api/cron/agents` (hourly, see `vercel.json`) runs scheduled agents and refuses anyone else.
 5. Install from the Shopify admin (managed installation). The embedded app loads `/shopify`, calls
    `/api/shopify/session` with the App Bridge id token, and the server exchanges it for an expiring offline
@@ -59,31 +64,24 @@ or order scopes, which keeps the app at protected customer data Level 0 (no acce
 | `write_publications` | `publishablePublish` / `publishableUnpublish` on the one channel an agent is authorized for |
 
 Possibly needed, to confirm on a development store: `write_inventory` if `productVariantsBulkUpdate` refuses
-`inventoryItem.sku` without it. Writes to any real store are refused unless that store is listed in
-`LIVE_WRITE_STORES` (or `LIVE_WRITES=all` is set deliberately for production). Each agent's writable fields are
-enforced again inside the connector.
+`inventoryItem.sku` without it. Writes to a real store need store access (`lib/engine/access.ts`): open mode,
+a development store, a redeemed beta invite or staff approval; a staff denial or `LIVE_WRITES=off` blocks
+them. Each agent's writable fields are enforced again inside the connector.
 
 ## 4. Billing
 
 App Store apps must bill through Shopify. Shopify App Pricing (formerly Managed Pricing) is the default for
 new public apps: plans are set in the Partner Dashboard, Shopify hosts the plan page
 (`lib/connectors/shopify/billing.ts#pricingPlansUrl`), and status is read from the Partner API
-(`activeSubscription`); App Pricing sends no subscription webhooks. **Blocked:** no plans or prices are
-decided, and Partner API credentials (`SHOPIFY_PARTNER_API_TOKEN`, `SHOPIFY_PARTNER_ORG_ID`,
-`SHOPIFY_PARTNER_APP_ID`) do not exist. Merchants run under an `early_access` record until then; the
-correction gate can require an active subscription with `BILLING_REQUIRED=true`.
+(`activeSubscription`, `lib/connectors/shopify/billing.ts#syncSubscription`, re-read on app open, after the
+plan page redirects back with `plan_handle`, and at most every 5 minutes); App Pricing sends no subscription
+webhooks. With `BILLING_REQUIRED=true` the Overview shows **View plans in Shopify** (opened at the top level)
+and changes are blocked until a plan is active. **Blocked:** no plans or prices are decided, and Partner
+API credentials (`SHOPIFY_PARTNER_API_TOKEN`, `SHOPIFY_PARTNER_ID` (the number in the Partner Dashboard
+URL), `SHOPIFY_PARTNER_APP_ID`) do not exist. Set the plan's welcome link to `/shopify` so the plan is re-read
+on return. Beta merchants can get private plans limited to their stores.
 
-## 5. App Store submission checklist
+## 5. App Store submission
 
-Code (implemented): session-token auth with no third-party cookies or local storage in the embedded app;
-App Bridge script; GraphQL only; per-shop `frame-ancestors` CSP (never a wildcard) and `frame-ancestors
-'none'` elsewhere; compliance webhooks with HMAC verification and 401 on a bad signature; uninstall handling;
-least-privilege scopes; valid TLS on the hosting domain.
-
-Still needed (external): Shopify billing plans (above); a unique app name and listing without statistics,
-claims or testimonials; app icon 1200 x 1200; a privacy policy URL (draft exists on the website, pending
-legal review); an emergency developer contact (email and phone); a demo screencast in English; working test
-credentials for reviewers; a development-store run of the full flow; Shopify's review (timeline not
-published). "Built for Shopify" is optional and needs install, review and performance thresholds after launch.
-Install must start from Shopify surfaces: the `/api/shopify/auth/start` code-grant route is a fallback for
-development and is not linked from the product.
+See `docs/APP-STORE-SUBMISSION.md` for the listing draft, reviewer instructions, screencast script, the
+submission checklist and every remaining blocker.

@@ -6,6 +6,7 @@ import { useScrollReveal } from './hooks/useScrollReveal'
 import Home from './pages/Home'
 // Secondary routes load on demand so the homepage bundle stays small.
 const Legal = lazy(() => import('./pages/Legal'))
+const Support = lazy(() => import('./pages/Support'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 export default function App() {
@@ -44,6 +45,7 @@ export function AppRoutes() {
         ))}
         <Route path="/terms" element={<Legal kind="terms" />} />
         <Route path="/privacy" element={<Legal kind="privacy" />} />
+        <Route path="/support" element={<Support />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

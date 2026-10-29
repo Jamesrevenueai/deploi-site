@@ -1,6 +1,6 @@
-# Readiness report: Deploi agents, the four Shopify corrections and the email connector
+# Readiness report: Deploi agents, the four Shopify corrections, the email connector and App Store readiness
 
-Date: 2026-10-28. Branch `subscription-product`, draft PR #1 (not merged). Controlling brief: `docs/PRODUCT-BRIEF.md`.
+Date: 2026-10-29. Branch `subscription-product`, draft PR #1 (not merged). Controlling brief: `docs/PRODUCT-BRIEF.md`.
 
 ## Verdict
 
@@ -8,7 +8,11 @@ Date: 2026-10-28. Branch `subscription-product`, draft PR #1 (not merged). Contr
 experience are built and meet their acceptance criteria **against a synthetic Shopify store**. The email
 connector (Gmail and Microsoft 365 adapters, per-agent email permissions, review and sending) is built and
 meets its acceptance criteria **against a synthetic mailbox**. None of it has run against a real Shopify store
-or a real mailbox yet, and no real email has been sent. The brief says not to call the launch complete until the acceptance
+or a real mailbox yet, and no real email has been sent. The public-app work for the Shopify App Store
+(installation, tokens, App Bridge, webhooks, store access replacing the development-only allowlist, Shopify App
+Pricing) is implemented and tested locally. **The app has not been submitted to Shopify, and Shopify has not
+reviewed or approved it.** The submission package and every remaining blocker are in
+`docs/APP-STORE-SUBMISSION.md`. The brief says not to call the launch complete until the acceptance
 criteria are met, and live verification is part of that, so this report does not call it complete. What
 remains, and how to close it, is below.
 
@@ -18,10 +22,10 @@ remains, and how to close it, is below.
 |---|---|
 | Typecheck (`npx tsc --noEmit`) | clean |
 | Lint (`npx eslint app components lib e2e tests --quiet`) | clean |
-| App unit and integration tests (`npx vitest run`) | **67 files, 398 tests passed** |
+| App unit and integration tests (`npx vitest run`) | **69 files, 415 tests passed** |
 | Production build (`npm run build`) | succeeded |
-| Browser tests against the production build (`e2e/store.spec.ts`, `e2e/agents.spec.ts`, `e2e/email.spec.ts`) | **16/16 passed** |
-| Website tests (`npm test` in the site root) / build | 34/34 passed; build succeeded |
+| Browser tests against the production build (`store`, `agents`, `email`, `embedded` specs) | **19/19 passed** |
+| Website tests (`npm test` in the site root) / build | 37/37 passed; build succeeded |
 | Forbidden-name scan (`scripts/forbidden-grep.sh`) | passes |
 | `.env.local` | still gitignored; no env file is tracked |
 
@@ -107,7 +111,7 @@ None of this has run against Shopify itself. The calls follow the official Admin
 8. The hourly `/api/cron/agents` schedule on Vercel (needs `CRON_SECRET`).
 
 **How to verify:** follow `docs/SHOPIFY-SETUP.md` §2. In short:
-1. Create a development store and the app, set the environment variables, and set `LIVE_WRITE_STORES` to only that store.
+1. Create a development store and the app, and set the environment variables. Development stores are enabled for changes automatically (`STORE_ACCESS_MODE=beta`).
 2. Install the app.
 3. Upload the three demo CSVs, adapted to the store's real products.
 4. Create one agent per correction type, run each in review mode and then authorized mode, and confirm every
@@ -127,7 +131,10 @@ None of this has run against Shopify itself. The calls follow the official Admin
 - **Gmail and Microsoft accounts**: OAuth clients, test users and a test tenant for live email verification
   (`docs/EMAIL-SETUP.md`, "Live verification"). Public launch then needs Google verification and Microsoft
   publisher verification.
-- **Production database**: migrations `20261028000028` to `…031` are not applied. Apply them before merging PR #1.
+- **Production database**: migrations `20261028000028` to `20261029000032` are not applied. Apply them before merging PR #1.
+- **Shopify App Store**: Partner account and app, a real development-store run, pricing decision, icon,
+  screenshots, screencast, emergency contact, legal review, then Shopify's review. Full list:
+  `docs/APP-STORE-SUBMISSION.md` §5.
 - **WooCommerce and Amazon**: planned. Detection logic is written and tested, but the connectors refuse every
   call by design.
 
@@ -142,7 +149,7 @@ None of this has run against Shopify itself. The calls follow the official Admin
 - **To fix:**
   - **Fastest:** Vercel dashboard → each project → Deployments → the previous good deployment → *Instant
     Rollback* (or *Promote to Production*).
-  - **Otherwise:** apply migrations 0028–0031 to production and then merge PR #1 after review.
+  - **Otherwise:** apply migrations 0028–0032 to production and then merge PR #1 after review.
 - **Also on production:** `AUTH_MODE=dev` is still set on the production app. Change it before any real merchant
   signs in.
 - **Domain:** `getdeploi.com` DNS still points to the previous host. The new site is live only at its Vercel URL.

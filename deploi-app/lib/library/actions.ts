@@ -106,7 +106,8 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
     await admin(async db => {
       // one open draft per record; a report is noted once a day
       if (dedupe) {
-        const dup = await db.one<{ id: string }>(`select id from library_actions where org_id = $1 and agent_key = $2 and action_type = $3 and payload->>'dedupeKey' = $4 and (status = 'draft' or created_at > $5) limit 1`, [opts.orgId, logKey, d.actionType, dedupe, dayStart])
+        // an open draft blocks a duplicate; something decided or reported today is not raised again today; an expired draft (agent switched off, plan changed) never blocks
+        const dup = await db.one<{ id: string }>(`select id from library_actions where org_id = $1 and agent_key = $2 and action_type = $3 and payload->>'dedupeKey' = $4 and (status = 'draft' or (status <> 'expired' and created_at > $5)) limit 1`, [opts.orgId, logKey, d.actionType, dedupe, dayStart])
         if (dup) { counts.skipped++; return }
       }
       const payload = executable(d)

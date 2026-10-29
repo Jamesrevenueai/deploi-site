@@ -128,6 +128,19 @@ async function main() {
   const health = await make('Store Health Checker', { ...hraw, email: { ...(hraw.email as Record<string, unknown>), permission: 'send_approved' } }, { mailbox: true, templateKey: 'store_health_checker', task: templateByKey('store_health_checker')!.job })
   await runAgent(health.agentId, { trigger: 'manual', actor: actor.label })
 
+  // 3c. Competitor & Trend Watcher on synthetic competitor stores (.example, never contacted): the first run
+  // records a starting point per store, the second reports changes; an email summary is drafted, never sent
+  const traw = templatePolicy('competitor_watcher', { connectionId: CONN, timezone: 'America/New_York', notify: OWNER, competitor: {
+    stores: ['https://linen-and-loom.example', 'https://harbor-home.example', 'https://oak-and-ember.example', 'https://plain-boutique.example', 'https://private-label.example'],
+    keywords: [], cadence: 'daily', emailSummary: true } })
+  const trend = await make('Competitor & Trend Watcher', traw, { mailbox: true, templateKey: 'competitor_watcher', task: templateByKey('competitor_watcher')!.job })
+  // the starting point yesterday morning, the comparison this morning (synthetic stores; the times are the only thing set)
+  await runAgent(trend.agentId, { trigger: 'manual', actor: actor.label, now: new Date(Date.now() - 26 * 3600e3) })
+  await runAgent(trend.agentId, { trigger: 'schedule', actor: 'system:scheduler', now: new Date(Date.now() - 2 * 3600e3) })
+  const tc = await assignTask(actor, trend.agentId, 'Check my competitors now')
+  if (tc.status === 'queued') await runTask(tc.id, { actor: actor.label })
+  await assignTask(actor, trend.agentId, "Estimate my competitors' sales and revenue")
+
   // 4. tasks on the Stock Guardian: one inside the rules (runs), one that needs approval, one refused
   const t1 = await assignTask(actor, guardian.agentId, 'Check overselling now on products tagged home.')
   if (t1.status === 'queued') await runTask(t1.id, { actor: actor.label })
@@ -140,8 +153,9 @@ async function main() {
     (select count(*)::int from executions where connection_id = $2) as executions,
     (select count(*)::int from email_messages where org_id = $1) as emails,
     (select count(*)::int from email_inbound where org_id = $1) as inbound,
-    (select count(*)::int from agent_tasks where org_id = $1) as tasks`, [ORG, CONN]))
-  console.log(JSON.stringify({ ...counts, fakeSends: sent, guardian: guardian.agentId, watcher: watcher.agentId, chaser: chaser.agentId, reviewer: reviewer.agentId }))
+    (select count(*)::int from agent_tasks where org_id = $1) as tasks,
+    (select count(*)::int from competitor_findings where org_id = $1) as competitor_findings`, [ORG, CONN]))
+  console.log(JSON.stringify({ ...counts, fakeSends: sent, guardian: guardian.agentId, watcher: watcher.agentId, chaser: chaser.agentId, reviewer: reviewer.agentId, trend: trend.agentId }))
 }
 
 (process.argv.includes('--remove') ? remove() : main()).then(() => process.exit(0), e => { console.error(e); process.exit(1) })

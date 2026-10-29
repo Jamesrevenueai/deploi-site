@@ -410,13 +410,13 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
   limits.push(p.schedule.kind === 'manual' ? 'Runs only when you press Run now.' : p.schedule.kind === 'interval' ? `Runs every ${p.schedule.everyHours} hour${p.schedule.everyHours === 1 ? '' : 's'}.` : `Runs daily at ${String(p.schedule.hour).padStart(2, '0')}:${String(p.schedule.minute).padStart(2, '0')} (${p.schedule.timezone}).`)
   if (p.correctionTypes.length) limits.push('Re-reads every record just before writing and stops if it changed; confirms every change with a fresh read.')
   if (p.competitors) limits.push("Follows each store's robots.txt and skips any store that does not allow it. At most one request per second to a store, and a fixed number of pages per check.")
-  const never = [
+  const never = storeTools ? [
     ...(p.approvalMode === 'draft' && p.correctionTypes.length ? ['Never changes anything in your store: drafts only. Making changes needs a wider permission and a new grant.'] : []),
     'Never changes stock quantities.',
     'Never changes product status (draft, active, archived) or deletes anything.',
     'Never invents prices or SKUs: values come only from your files or rules.',
     'Never touches products or fields outside this list.',
-  ]
+  ] : ['Never changes anything in your store: no products, prices, stock, publication or settings.']
   if (p.competitors) never.push(
     'Never logs in to, buys from, or contacts a competitor store, and never gets around a block or a login.',
     "Never claims to know a competitor's sales, revenue, units sold, conversion rate or exact sales ranking: none of these are public, and Deploi does not estimate them.",

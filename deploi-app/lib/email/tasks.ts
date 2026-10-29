@@ -37,7 +37,8 @@ export type CompetitorFindingLine = { basis: 'observed' | 'inference'; title: st
 
 /** The run summary for a competitor watcher: this run's findings, each marked observed or inference. */
 export function competitorReport(e: EmailPolicy, f: { runId: string; agentId: string; agentName: string; at: Date; appUrl: string; stores: { checked: number; skipped: number }; findings: CompetitorFindingLine[] }): DraftMessage | null {
-  if (!f.findings.length && !f.stores.skipped) return null
+  // nothing new, nothing to write: skipped stores are shown in the app, not mailed every day
+  if (!f.findings.length) return null
   const observed = f.findings.filter(x => x.basis === 'observed'), inferred = f.findings.filter(x => x.basis === 'inference')
   const line = (x: CompetitorFindingLine) => `- ${clean(x.title, 160)}: ${clean(x.summary, 400)}${x.url ? ` (${clean(x.url, 200)})` : ''}`
   const lines = [

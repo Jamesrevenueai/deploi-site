@@ -18,6 +18,7 @@ import { AgentPolicyForm, formFromPolicy, policyFromForm, type AgentFormState } 
 import { AuthorizationSummaryView, BackToAgents, StatusBadge, countsInWords, useStoreBasics } from './Agents'
 import { AgentEmailSections } from './AgentEmail'
 import { AgentWorkSections } from './AgentWork'
+import { CompetitorSections } from './Competitors'
 import {
   AGENT_CORRECTION_LABEL, TRIGGER_LABEL, toolBadges, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
   proposalWords, runWords, scheduleLabel,
@@ -138,6 +139,9 @@ export function AgentDetailScreen({ id }: { id: string }) {
 
   const isActive = agent.status === 'active', isPaused = agent.status === 'paused'
   const draftsOnly = (active ?? latest)?.policy.approvalMode === 'draft'
+  // an agent that only watches competitors never changes the store: the change sections would always be empty
+  const shown = (active ?? latest)?.policy
+  const storeWork = !shown?.competitors || shown.correctionTypes.length > 0 || shown.watch.length > 0 || waiting.length > 0 || executions.length > 0
   return (
     <>
       <BackToAgents />
@@ -160,7 +164,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
       />
       <div className="-mt-2 mb-5 flex flex-wrap items-center gap-2">
         <StatusBadge w={w} />
-        {latest && toolBadges({ approvalMode: latest.policy.approvalMode, correctionTypes: latest.policy.correctionTypes, emailPermission: latest.policy.email?.permission ?? null }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
+        {latest && toolBadges({ approvalMode: latest.policy.approvalMode, correctionTypes: latest.policy.correctionTypes, emailPermission: latest.policy.email?.permission ?? null, competitors: Boolean(latest.policy.competitors) }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
         <Badge tone="muted">{scheduleLabel(agent.schedule)}</Badge>
         {active && <span className="text-[13px] text-grey-h">Authorization version {active.version}</span>}
         {isActive && agent.next_run_at && <span className="text-[13px] text-grey-h">Next run {fmtTime(agent.next_run_at)}</span>}
@@ -209,10 +213,13 @@ export function AgentDetailScreen({ id }: { id: string }) {
         </div>
       </Section>
 
+      {latest?.policy.competitors && <CompetitorSections agentId={agent.id} refreshKey={`${emailRefresh}`} />}
+
       <AgentWorkSections agentId={agent.id} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
 
       <AgentEmailSections agentId={agent.id} policy={latest?.policy ?? null} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
 
+      {storeWork && <>
       <Section id="waiting" title={draftsOnly ? 'Drafted changes (not made)' : 'Waiting for your approval'} sub={draftsOnly ? 'This agent is drafts only: these are the exact changes it would make. It cannot make them, and they cannot be approved here. To let it make changes you approve, edit it and grant the wider version.' : 'Exact changes this agent found but may not make on its own. Approving runs the change now: Deploi re-reads the record, writes it, and confirms it with a fresh read.'}>
         {waiting.length === 0 ? <Empty title="Nothing waiting">{draftsOnly ? 'No drafted changes right now.' : 'No changes are waiting for your approval.'}</Empty> : (
           <ul className="flex flex-col gap-3">
@@ -243,6 +250,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
           <ul className="flex flex-col gap-2">{executions.map(e => <ResultItem key={e.id} e={e} />)}</ul>
         )}
       </Section>
+      </>}
 
       <Section id="runs" title="Runs">
         {runs.length === 0 ? <Empty title="Not run yet">{isActive ? 'Press Run now, or wait for its schedule.' : 'The agent runs once it is active.'}</Empty> : (
@@ -282,7 +290,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
 
       <Sheet open={dialog === 'pause'} onClose={() => setDialog(null)} title="Pause this agent?">
         <div className="flex flex-col gap-4">
-          <p className="text-[15px] text-grey">While paused, the agent does not run and writes nothing. Changes waiting for approval or already queued are cancelled. Its authorization is kept, so you can resume it later without granting again.</p>
+          <p className="text-[15px] text-grey">While paused, the agent does not run, reads nothing and writes nothing. Changes waiting for approval or already queued are cancelled. Its authorization is kept, so you can resume it later without granting again.</p>
           <Button onClick={pause} disabled={busy !== null}>{busy === 'pause' ? 'Pausing…' : 'Pause agent'}</Button>
         </div>
       </Sheet>

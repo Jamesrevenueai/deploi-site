@@ -130,6 +130,7 @@ export const TEMPLATES: { name: string; body: string }[] = [
   { name: 'Inventory Watcher', body: 'Checks your inventory every day, shows you products that are oversold or keep selling at zero, and drafts an alert to you.' },
   { name: 'Supplier Chaser', body: 'Drafts restock requests to your supplier from its own email address for products running low, and one follow-up in the same thread if the supplier has not replied.' },
   { name: 'Store Health Checker', body: 'Checks the whole store once a week and drafts a health report for you.' },
+  { name: 'Competitor & Trend Watcher', body: 'Watches the competitor stores you list, using only their public pages: new products, price and discount changes, sell-outs, and what they feature as best sellers. Never their sales, which are not public.' },
 ]
 
 export function Agents() {

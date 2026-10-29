@@ -15,7 +15,8 @@ import { ErrorState, Loading, NoStore, Panel, Section, useStore } from './bits'
 import { AgentPolicyForm, formFromDraft, isEmailAddress, policyFromForm, type AgentFormState } from './AgentForm'
 import { useLoad } from './useLoad'
 import { AuthorizationSummaryView, BackToAgents, useStoreBasics } from './Agents'
-import { AGENT_CORRECTION_LABEL, AGENT_EMAIL_PERMISSION_LABEL, AGENT_EMAIL_TASK_LABEL } from './format'
+import { AGENT_CORRECTION_LABEL, AGENT_EMAIL_PERMISSION_LABEL, AGENT_EMAIL_TASK_LABEL, templateToolWords } from './format'
+import { CompetitorStart, type CompetitorSetupInput } from './CompetitorSetup'
 import type { AgentsResponse, AgentTemplateView, CreateAgentResponse, EditAgentResponse, GrantResponse, ParseResponse, TaskDraft } from './types'
 
 type Created = { agentId: string; policyId: string; policyHash: string; summary: CreateAgentResponse['summary'] }
@@ -77,7 +78,7 @@ export function AgentNewScreen({ template = null }: { template?: string | null }
     } catch (e) { setErr(asApiError(e)) } finally { setBusy(null) }
   }
 
-  async function createFromTemplate(t: AgentTemplateView, input: { name: string; notify: string; supplierAddress: string; connectionId: string }) {
+  async function createFromTemplate(t: AgentTemplateView, input: { name: string; notify: string; supplierAddress: string; connectionId: string; competitor?: CompetitorSetupInput['competitor'] }) {
     setBusy('submit'); setErr(null)
     try {
       const r = await storeFetch<CreateAgentResponse>('/api/store/agents', { method: 'POST', body: { template: t.key, ...input } })
@@ -105,7 +106,9 @@ export function AgentNewScreen({ template = null }: { template?: string | null }
       <Steps step={step} />
       <div aria-live="polite">{err && <div className="mb-4"><ErrorState error={err} /></div>}</div>
 
-      {tpl && step === 'describe' && <TemplateStart template={tpl} connectionId={connectionId} busy={busy !== null} onCreate={input => void createFromTemplate(tpl, input)} />}
+      {tpl && step === 'describe' && (tpl.key === 'competitor_watcher'
+        ? <CompetitorStart template={tpl} connectionId={connectionId} busy={busy !== null} onCreate={input => void createFromTemplate(tpl, input)} />
+        : <TemplateStart template={tpl} connectionId={connectionId} busy={busy !== null} onCreate={input => void createFromTemplate(tpl, input)} />)}
       {template && !tpl && templates.data && step === 'describe' && <div className="mb-4"><Banner tone="warn">That template does not exist. Describe the task below instead.</Banner></div>}
 
       {((step === 'describe' && !tpl) || step === 'review') && (
@@ -257,7 +260,7 @@ function TemplateStart({ template, connectionId, busy, onCreate }: { template: A
       <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); if (ready) onCreate({ name: name.trim(), notify: notify.trim(), supplierAddress: supplier.trim(), connectionId }) }}>
         <div className="flex flex-wrap items-center gap-2"><Badge tone="muted">Template</Badge><h2 className="text-[1.1rem]">{template.name}</h2></div>
         <p className="text-[15px] text-grey">&ldquo;{template.job}&rdquo;</p>
-        <div className="flex flex-wrap gap-2">{template.tools.map(x => <Badge key={x} tone="muted">{x === 'shopify' ? 'Shopify' : 'Email'}: drafts only</Badge>)}<Badge tone="muted">Own email address</Badge></div>
+        <div className="flex flex-wrap gap-2">{template.tools.map(x => <Badge key={x} tone="muted">{templateToolWords(x)}</Badge>)}<Badge tone="muted">Own email address</Badge></div>
         <div className="flex flex-col gap-1">
           <label htmlFor="tpl-name" className="text-[14px] text-grey">Agent name</label>
           <Input id="tpl-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} />

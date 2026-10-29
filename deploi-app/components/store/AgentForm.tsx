@@ -16,8 +16,9 @@ import { useLoad } from './useLoad'
 import { Panel, useStore } from './bits'
 import {
   AGENT_CORRECTION_HELP, AGENT_CORRECTION_LABEL, AGENT_CORRECTION_TYPES, AGENT_EMAIL_PERMISSIONS, AGENT_EMAIL_PERMISSION_HELP, AGENT_EMAIL_PERMISSION_LABEL,
-  AGENT_EMAIL_TASKS, AGENT_EMAIL_TASK_HELP, AGENT_EMAIL_TASK_LABEL, emailAccountWords, referenceKindLabel, type AgentCorrectionType, type AgentEmailPermission, type AgentEmailTask,
+  AGENT_EMAIL_TASKS, AGENT_EMAIL_TASK_HELP, AGENT_EMAIL_TASK_LABEL, COMPETITOR_ALERTS, COMPETITOR_ALERT_WORDS, emailAccountWords, referenceKindLabel, type AgentCorrectionType, type AgentEmailPermission, type AgentEmailTask, type CompetitorAlertKey,
 } from './format'
+import { MAX_COMPETITOR_STORES, normalizeStoreUrl, storeKey } from '@/lib/competitors/url'
 import type {
   AgentPolicy, Connection, EmailAccountsResponse, EmailAccountView, PublicationsResponse, ReferenceKindName, ReferenceSourceView, ReferencesResponse, TaskDraft, UploadReferenceResponse,
 } from './types'
@@ -84,6 +85,13 @@ export type AgentFormState = {
   emailValidUntil: string
   emailAttachments: boolean
   emailRead: boolean
+  // competitor monitoring (public pages of other stores, read only)
+  competitorOn: boolean
+  competitorStores: string
+  competitorKeywords: string
+  competitorAlerts: Record<CompetitorAlertKey, boolean>
+  competitorMinPct: string
+  competitorCompare: boolean
 }
 
 import { OVERSOLD_WATCH } from '@/lib/agents/watch'
@@ -105,6 +113,7 @@ function productIds(s: string): { ids: string[]; bad: string[] } {
   return { ids: [...new Set(ids)], bad }
 }
 const showIds = (ids: string[]) => ids.map(id => id.replace(/^gid:\/\/shopify\/Product\//, '')).join(', ')
+const allAlerts = (): Record<CompetitorAlertKey, boolean> => Object.fromEntries(COMPETITOR_ALERTS.map(a => [a, true])) as Record<CompetitorAlertKey, boolean>
 const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false, supplier_followup: false })
 
 // same formats the server accepts (lib/agents/policy.ts)
@@ -145,6 +154,7 @@ export function emptyForm(connectionId: string): AgentFormState {
     emailOn: false, emailAccountId: '', emailPermission: 'draft', suggestedEmailPermission: '', emailPurpose: '', emailTasks: noEmailTasks(), emailAddresses: '', emailDomains: '',
     emailSuggested: [], emailSuggestedConfirmed: false, emailNotify: '', supplierAddress: '', supplierThreshold: '0', supplierCooldown: '7', supplierFollowup: '3',
     emailPerRun: '10', emailPerDay: '25', emailMaxRecipients: '5', emailValidUntil: '', emailAttachments: false, emailRead: false,
+    competitorOn: false, competitorStores: '', competitorKeywords: '', competitorAlerts: allAlerts(), competitorMinPct: '5', competitorCompare: true,
   }
 }
 
@@ -219,13 +229,22 @@ export function formFromPolicy(p: AgentPolicy): AgentFormState {
     f.emailAttachments = Boolean(e.allowAttachments)
     f.emailRead = Boolean(e.read?.enabled)
   }
+  if (p.competitors) {
+    const c = p.competitors
+    f.competitorOn = true
+    f.competitorStores = c.stores.map(st => st.url.replace(/^https:\/\//, '')).join('\n')
+    f.competitorKeywords = c.keywords.join(', ')
+    f.competitorAlerts = Object.fromEntries(COMPETITOR_ALERTS.map(a => [a, c.alerts.includes(a)])) as Record<CompetitorAlertKey, boolean>
+    f.competitorMinPct = String(c.minPriceChangePct)
+    f.competitorCompare = c.compareOwnCatalog
+  }
   return f
 }
 
 /** Products only matter to an email-only agent when it asks a supplier about low stock. */
-export const needsProducts = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || !f.emailOn || f.emailTasks.supplier_reorder
+export const needsProducts = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || (!f.emailOn && !f.competitorOn) || (f.emailOn && f.emailTasks.supplier_reorder)
 /** Store-change approval only matters when the agent corrects something. */
-export const needsApprovalMode = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || (!f.emailOn && !f.watchOversold)
+export const needsApprovalMode = (f: AgentFormState) => AGENT_CORRECTION_TYPES.some(t => f.types[t]) || (!f.emailOn && !f.watchOversold && !f.competitorOn)
 
 const int = (s: string) => (/^\d+$/.test(s.trim()) ? Number(s.trim()) : NaN)
 
@@ -238,7 +257,7 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
   const problems: string[] = []
   const types = AGENT_CORRECTION_TYPES.filter(t => f.types[t])
   if (!f.connectionId) problems.push('Choose the store.')
-  if (!types.length && !f.emailOn && !f.watchOversold) problems.push('Choose at least one correction type or check, or turn on email.')
+  if (!types.length && !f.emailOn && !f.watchOversold && !f.competitorOn) problems.push('Choose at least one correction type or check, turn on email, or add competitor stores.')
   const products = needsProducts(f), approval = needsApprovalMode(f)
   if (products && !f.scopeMode) problems.push('Choose which products the agent may work on.')
   const scopeIds = productIds(f.scopeProductIds), exceptIds = productIds(f.exceptProductIds)
@@ -276,6 +295,7 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
     else storeValidUntil = end.toISOString()
   }
   const email = f.emailOn ? emailFromForm(f, problems) : undefined
+  const competitors = f.competitorOn ? competitorsFromForm(f, problems) : undefined
   if (problems.length) return { policy: null, problems }
 
   const rules: AgentPolicy['rules'] = {}
@@ -296,8 +316,31 @@ export function policyFromForm(f: AgentFormState, timezone: string): { policy: A
     watch: f.watchOversold ? [OVERSOLD_WATCH] : [],
     schedule: f.scheduleKind === 'manual' ? { kind: 'manual' } : f.scheduleKind === 'interval' ? { kind: 'interval', everyHours } : { kind: 'daily', hour: Number(tm![1]), minute: Number(tm![2]), timezone },
     ...(email ? { email } : {}),
+    ...(competitors ? { competitors } : {}),
   }
   return { policy, problems: [] }
+}
+
+/** The competitor part of the policy, or problems in words. Addresses are normalized the same way the server does. */
+function competitorsFromForm(f: AgentFormState, problems: string[]): NonNullable<AgentPolicy['competitors']> | undefined {
+  const before = problems.length
+  const stores: { url: string }[] = []
+  const seen = new Set<string>()
+  for (const raw of list(f.competitorStores)) {
+    const n = normalizeStoreUrl(raw)
+    if (!n.ok) { problems.push(`Competitor stores: ${raw}: ${n.reason}.`); continue }
+    if (seen.has(storeKey(n.host))) { problems.push(`Competitor stores: ${n.host} is listed twice.`); continue }
+    seen.add(storeKey(n.host)); stores.push({ url: n.url })
+  }
+  if (!stores.length && problems.length === before) problems.push('Competitor stores: add at least one store address.')
+  if (stores.length > MAX_COMPETITOR_STORES) problems.push(`Competitor stores: at most ${MAX_COMPETITOR_STORES}.`)
+  const alerts = COMPETITOR_ALERTS.filter(a => f.competitorAlerts[a])
+  if (!alerts.length) problems.push('Competitor stores: choose at least one kind of alert.')
+  const pct = Number(f.competitorMinPct)
+  if (!(f.competitorMinPct.trim() && pct >= 0 && pct <= 100)) problems.push('Competitor stores: the smallest price change must be a number from 0 to 100 (%).')
+  const keywords = tagList(f.competitorKeywords).filter(k => k.length >= 2)
+  if (problems.length > before) return undefined
+  return { stores, keywords, alerts, minPriceChangePct: pct, compareOwnCatalog: f.competitorCompare }
 }
 
 /** The email part of the policy, or problems in words. */
@@ -414,6 +457,22 @@ export function AgentPolicyForm({ value: f, onChange, connections, timezone, loc
       </FormBlock>
 
       <EmailBlock f={f} set={set} n={num()} agentId={agentId} />
+
+      <FormBlock title="Competitor stores" n={num()} sub="Optional. Reads the public pages of other stores (read only), following their robots.txt. It never changes your store and never sees anyone's sales.">
+        <Check checked={f.competitorOn} onChange={v => set({ competitorOn: v })} label="Watch competitor stores" />
+        {f.competitorOn && (
+          <div className="flex flex-col gap-4">
+            <AreaField id={id('cmp-stores')} label="Store addresses (one per line, up to 10)" hint="Adding a store is a wider permission and needs a new grant. Removing one takes effect at once." value={f.competitorStores} onChange={v => set({ competitorStores: v })} />
+            <TextField id={id('cmp-keywords')} label="Categories or keywords (optional)" hint="Comma separated. Only matching products are recorded; empty means every product." value={f.competitorKeywords} onChange={v => set({ competitorKeywords: v })} />
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-[14px] text-grey">Alert me about</legend>
+              {COMPETITOR_ALERTS.map(a => <Check key={a} checked={f.competitorAlerts[a]} onChange={v => set({ competitorAlerts: { ...f.competitorAlerts, [a]: v } })} label={COMPETITOR_ALERT_WORDS[a]} />)}
+            </fieldset>
+            <TextField id={id('cmp-pct')} label="Ignore price changes smaller than (%)" value={f.competitorMinPct} onChange={v => set({ competitorMinPct: v })} inputMode="decimal" />
+            <Check checked={f.competitorCompare} onChange={v => set({ competitorCompare: v })} label="Compare with my own product names to point out possible opportunities (reads your store, never changes it)" />
+          </div>
+        )}
+      </FormBlock>
 
       {products && <FormBlock title="Which products" n={num()} sub="The agent never reads past or changes products outside this scope. Exceptions always win.">
         <fieldset className="flex flex-col gap-2">

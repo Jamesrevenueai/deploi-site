@@ -194,11 +194,29 @@ export const APPROVAL_MODE_LABEL: Record<string, string> = { draft: 'Drafts only
 
 /** Per-tool permission level in a few words, for badges ("Shopify: drafts only", "Email: after my approval"). */
 export const EMAIL_PERMISSION_SHORT: Record<string, string> = { draft: 'drafts only', send_approved: 'after my approval', send_autonomous: 'without asking, within limits' }
-export function toolBadges(p: { approvalMode?: string | null; correctionTypes?: string[]; emailPermission?: string | null }): string[] {
+export function toolBadges(p: { approvalMode?: string | null; correctionTypes?: string[]; emailPermission?: string | null; competitors?: boolean }): string[] {
   const out: string[] = []
+  if (p.competitors) out.push('Public web: read only')
   if (p.approvalMode && p.correctionTypes?.length) out.push(`Shopify: ${(APPROVAL_MODE_LABEL[p.approvalMode] ?? p.approvalMode).toLowerCase()}`)
   if (p.emailPermission) out.push(`Email: ${EMAIL_PERMISSION_SHORT[p.emailPermission] ?? p.emailPermission}`)
   return out
+}
+
+/** A template's tools as badges: public web is always read only; every other tool starts at drafts only. */
+export const templateToolWords = (t: string, opts: { optionalEmail?: boolean } = {}) =>
+  t === 'public_web' ? 'Public web: read only' : t === 'shopify' ? 'Shopify: drafts only' : opts.optionalEmail ? 'Email summary: optional, drafts only' : 'Email: drafts only'
+
+export const COMPETITOR_ALERTS = ['launches', 'price_changes', 'discounts', 'availability', 'bestsellers', 'featured', 'trends'] as const
+export type CompetitorAlertKey = typeof COMPETITOR_ALERTS[number]
+/** Kept in step with COMPETITOR_ALERT_LABEL in lib/agents/policy.ts (server-only). */
+export const COMPETITOR_ALERT_WORDS: Record<CompetitorAlertKey, string> = {
+  launches: 'New products',
+  price_changes: 'Price changes',
+  discounts: 'Advertised discounts starting or ending',
+  availability: 'Sold out or back in stock',
+  bestsellers: 'Changes in public best-seller lists',
+  featured: 'Newly featured or promoted products',
+  trends: 'Similar products on several stores, and possible opportunities',
 }
 
 export const TRIGGER_LABEL: Record<string, string> = { manual: 'Run now', schedule: 'Schedule', webhook: 'Store update', test: 'Test' }

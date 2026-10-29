@@ -18,6 +18,8 @@ export type AgentWeek = {
   agentId: string; name: string; status: string
   runs: number; verified: number; drafted: number; failed: number
   emailsAccepted: number; emailsDrafted: number; tasksDone: number
+  /** competitor watchers: changes seen on other stores' public pages, and inferences from them (not in the time estimate) */
+  competitorObserved?: number; competitorInferences?: number
 }
 export type Attention = { kind: string; count: number; label: string }
 export type WeeklyFacts = {
@@ -52,7 +54,9 @@ export async function weeklyFacts(db: Db, orgId: string, weekStart: Date): Promi
        (select count(*)::int from executions e where e.agent_id = a.id and e.status in ('failed','verification_failed') and e.finished_at >= $2 and e.finished_at < $3) as failed,
        (select count(*)::int from email_messages m where m.agent_id = a.id and m.status = 'accepted' and m.accepted_at >= $2 and m.accepted_at < $3) as "emailsAccepted",
        (select count(*)::int from email_messages m where m.agent_id = a.id and m.status = 'draft' and m.created_at >= $2 and m.created_at < $3) as "emailsDrafted",
-       (select count(*)::int from agent_tasks t where t.agent_id = a.id and t.status = 'done' and t.finished_at >= $2 and t.finished_at < $3) as "tasksDone"
+       (select count(*)::int from agent_tasks t where t.agent_id = a.id and t.status = 'done' and t.finished_at >= $2 and t.finished_at < $3) as "tasksDone",
+       (select count(*)::int from competitor_findings f where f.agent_id = a.id and f.basis = 'observed' and f.kind <> 'baseline' and f.created_at >= $2 and f.created_at < $3) as "competitorObserved",
+       (select count(*)::int from competitor_findings f where f.agent_id = a.id and f.basis = 'inference' and f.created_at >= $2 and f.created_at < $3) as "competitorInferences"
      from agents a where a.org_id = $1 and a.status <> 'deleted' order by a.name`, [orgId, from, to])
   const n = async (sql: string) => Number((await db.one<{ n: string }>(sql, [orgId]))?.n ?? 0)
   const attention: Attention[] = [
@@ -61,6 +65,7 @@ export async function weeklyFacts(db: Db, orgId: string, weekStart: Date): Promi
     { kind: 'unknown', count: await n(`select count(*)::text as n from email_messages where org_id = $1 and status = 'delivery_unknown'`), label: 'email(s) with unknown delivery to check' },
     { kind: 'person', count: await n(`select count(*)::text as n from issues where org_id = $1 and agent_id is not null and kind = 'needs_person' and status in ('open','needs_review')`), label: 'problem(s) that need a person' },
     { kind: 'tasks', count: await n(`select count(*)::text as n from agent_tasks where org_id = $1 and status = 'needs_approval'`), label: 'task(s) outside an agent\'s rules' },
+    { kind: 'competitors', count: await n(`select count(*)::text as n from competitor_findings where org_id = $1 and status = 'new' and kind <> 'baseline'`), label: 'new competitor finding(s) to read' },
     { kind: 'quarantine', count: await n(`select count(*)::text as n from email_inbound where org_id = $1 and status = 'quarantined' and received_at > now() - interval '7 days'`), label: 'incoming email(s) quarantined' },
     { kind: 'expiring', count: await n(`select count(*)::text as n from agent_policies p join agents a on a.active_policy_id = p.id where p.org_id = $1 and a.status = 'active'
         and least(nullif(p.policy->>'validUntil', '')::timestamptz, nullif(p.policy->'email'->>'validUntil', '')::timestamptz) < now() + interval '14 days'`), label: 'authorization(s) ending within 14 days' },
@@ -68,11 +73,15 @@ export async function weeklyFacts(db: Db, orgId: string, weekStart: Date): Promi
   return { orgName: org?.name ?? 'your store', weekStart: from.slice(0, 10), weekEnd: new Date(weekStart.getTime() + 6 * 864e5).toISOString().slice(0, 10), agents, attention, estimate: estimateMinutes(agents) }
 }
 
+/** Competitor findings for one agent, kept apart: what was seen versus what Deploi inferred. */
+export const competitorWords = (a: Pick<AgentWeek, 'competitorObserved' | 'competitorInferences'>) =>
+  a.competitorObserved || a.competitorInferences ? `, ${a.competitorObserved ?? 0} competitor change(s) seen on public pages, ${a.competitorInferences ?? 0} trend(s) inferred` : ''
+
 export function renderWeekly(f: WeeklyFacts, appUrl: string): { subject: string; text: string } {
   const lines = [
     `Your Deploi agents, week of ${f.weekStart} to ${f.weekEnd}`, '',
     'What each agent did:',
-    ...(f.agents.length ? f.agents.map(a => `- ${a.name} (${a.status}): ${a.runs} run(s), ${a.verified} change(s) verified, ${a.drafted} change(s) drafted, ${a.failed} failed, ${a.emailsAccepted} email(s) sent, ${a.emailsDrafted} email draft(s), ${a.tasksDone} task(s) done`) : ['- No agents yet.']),
+    ...(f.agents.length ? f.agents.map(a => `- ${a.name} (${a.status}): ${a.runs} run(s), ${a.verified} change(s) verified, ${a.drafted} change(s) drafted, ${a.failed} failed, ${a.emailsAccepted} email(s) sent, ${a.emailsDrafted} email draft(s), ${a.tasksDone} task(s) done${competitorWords(a)}`) : ['- No agents yet.']),
     '', 'Needs your attention:',
     ...(f.attention.length ? f.attention.map(a => `- ${a.count} ${a.label}`) : ['- Nothing is waiting for you.']),
     '', `Estimated time saved: about ${f.estimate.minutes} minutes. This is an estimate, not a measurement: ${f.estimate.formula}.`,
@@ -87,7 +96,7 @@ const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g,
 export function renderWeeklyHtml(f: WeeklyFacts, appUrl: string): string {
   // one block per agent rather than a wide table: readable at any width, no media queries (many mail clients ignore them)
   const n = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`
-  const rows = f.agents.map(a => `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222"><strong>${esc(a.name)}</strong> <span style="color:#777;font-size:12px">${esc(a.status)}</span><br><span style="color:#444;font-size:13px">${[n(a.runs, 'run', 'runs'), `${a.verified} verified`, `${a.drafted} drafted`, n(a.emailsAccepted, 'email sent', 'emails sent'), n(a.emailsDrafted, 'email draft', 'email drafts'), n(a.tasksDone, 'task done', 'tasks done')].join(' · ')}</span></td></tr>`).join('')
+  const rows = f.agents.map(a => `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222"><strong>${esc(a.name)}</strong> <span style="color:#777;font-size:12px">${esc(a.status)}</span><br><span style="color:#444;font-size:13px">${[n(a.runs, 'run', 'runs'), `${a.verified} verified`, `${a.drafted} drafted`, n(a.emailsAccepted, 'email sent', 'emails sent'), n(a.emailsDrafted, 'email draft', 'email drafts'), n(a.tasksDone, 'task done', 'tasks done'), ...(a.competitorObserved || a.competitorInferences ? [`${a.competitorObserved ?? 0} competitor change(s) seen`, `${a.competitorInferences ?? 0} trend(s) inferred`] : [])].join(' · ')}</span></td></tr>`).join('')
   const attention = f.attention.length ? `<ul style="margin:8px 0 0;padding-left:20px;color:#222;font-size:14px;line-height:1.6">${f.attention.map(a => `<li><strong>${a.count}</strong> ${esc(a.label)}</li>`).join('')}</ul>` : '<p style="margin:8px 0 0;font-size:14px;color:#222">Nothing is waiting for you.</p>'
   const link = `${esc(appUrl.replace(/\/$/, ''))}/store/agents`
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f4f4;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">

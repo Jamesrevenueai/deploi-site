@@ -62,11 +62,11 @@ export type { AgentListItem, TaskDraft, AgentPolicy, AgentRunCounts }
 
 export type AuthorizationSummary = { grants: string[]; limits: string[]; never: string[] }
 
-export type AgentTemplateView = { key: string; name: string; job: string; tools: ('shopify' | 'email')[]; mailbox: boolean; needs: string[]; minutesPerItem: number }
+export type AgentTemplateView = { key: string; name: string; job: string; tools: ('shopify' | 'email' | 'public_web')[]; mailbox: boolean; needs: string[]; minutesPerItem: number }
 export type AgentsResponse = { ok: true; agents: AgentListItem[]; templates?: AgentTemplateView[] }
 export type WeeklyResponse = {
   ok: true
-  facts: { orgName: string; weekStart: string; weekEnd: string; agents: { agentId: string; name: string; status: string; runs: number; verified: number; drafted: number; failed: number; emailsAccepted: number; emailsDrafted: number; tasksDone: number }[]
+  facts: { orgName: string; weekStart: string; weekEnd: string; agents: { agentId: string; name: string; status: string; runs: number; verified: number; drafted: number; failed: number; emailsAccepted: number; emailsDrafted: number; tasksDone: number; competitorObserved?: number; competitorInferences?: number }[]
     attention: { kind: string; count: number; label: string }[]; estimate: { minutes: number; formula: string; label: 'Estimate' } }
   rendered: { subject: string; text: string; html?: string }
   from?: string

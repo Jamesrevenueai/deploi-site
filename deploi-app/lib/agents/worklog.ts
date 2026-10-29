@@ -44,8 +44,10 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
   return withActor(actor, async db => {
     const agent = await db.one<{ id: string }>('select id from agents where id = $1', [agentId])
     if (!agent) throw new EngineError('not_found', 'agent not found')
-    const policies = await db.query<{ id: string; version: number; mode: ApprovalMode; email_permission: Tier | null; valid_until: string | null }>(
-      `select id, version, coalesce(policy->>'approvalMode', 'review') as mode, policy->'email'->>'permission' as email_permission, policy->>'validUntil' as valid_until from agent_policies where agent_id = $1`, [agentId])
+    const policies = await db.query<{ id: string; version: number; mode: ApprovalMode; email_permission: Tier | null; valid_until: string | null; competitor_only: boolean }>(
+      `select id, version, coalesce(policy->>'approvalMode', 'review') as mode, policy->'email'->>'permission' as email_permission, policy->>'validUntil' as valid_until,
+         (policy ? 'competitors' and coalesce(jsonb_array_length(policy->'correctionTypes'), 0) = 0 and coalesce(jsonb_array_length(policy->'watch'), 0) = 0) as competitor_only
+       from agent_policies where agent_id = $1`, [agentId])
     const byVersion = new Map(policies.map(p => [p.version, p]))
     const execs = await db.query<{ id: string; policy_version: number | null; approver_kind: string | null; approved_by: string | null; target_label: string | null; field: string | null }>(
       `select e.id, e.policy_version, a.approver_kind, a.approved_by, p.target_label, p.change->>'field' as field from executions e left join approvals a on a.id = e.approval_id left join proposals p on p.id = e.proposal_id where e.agent_id = $1`, [agentId])
@@ -66,7 +68,7 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
       if (!v) return null
       const p = byVersion.get(v)
       if (!p) return `authorization v${v}`
-      if (tool === 'public') return `authorization v${v} (public pages of other stores: read only)`
+      if (tool === 'public' || (tool === 'store' && p.competitor_only)) return `authorization v${v} (public pages of other stores: read only)`
       const tier: Tier | null = tool === 'store' ? tierOfMode(p.mode) : p.email_permission
       return `authorization v${v}${tier ? ` (${tool}: ${TIER_LABEL[tier]}${tier === 'send_autonomous' && tool === 'store' && p.valid_until ? ` until ${p.valid_until.slice(0, 10)}` : ''})` : ''}`
     }

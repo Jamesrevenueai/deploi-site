@@ -19,6 +19,7 @@ import { runAgent } from '../../lib/agents/run'
 import { parsePolicy, expansionReasons, summarizePolicy } from '../../lib/agents/policy'
 import { templatePolicy, TEMPLATES } from '../../lib/agents/templates'
 import { normalizeStoreUrl } from '../../lib/competitors/url'
+import { assignTask, runTask } from '../../lib/agents/tasks'
 import { parseRobots, robotsAllows, robotsFromResponse } from '../../lib/competitors/robots'
 import { PoliteFetcher } from '../../lib/competitors/fetch'
 import { collectStore } from '../../lib/competitors/collect'
@@ -140,6 +141,8 @@ describe.skipIf(!ready)('Competitor & Trend Watcher end to end (synthetic stores
     expect(words).toMatch(/Never claims to know a competitor's sales, revenue, units sold, conversion rate or exact sales ranking/)
     expect(words).toMatch(/never changes your store/)
     expect(words).toMatch(/Never sends email/)
+    expect(words).toMatch(/Never changes anything in your store: no products, prices, stock, publication or settings/)
+    expect(words).not.toMatch(/Never invents prices or SKUs/) // store-editing rules do not apply to an agent that cannot edit the store
   })
 
   it('first run records a baseline per store; the second reports changes with evidence; trends and an opportunity are inferences', async () => {
@@ -241,7 +244,8 @@ describe.skipIf(!ready)('Competitor & Trend Watcher end to end (synthetic stores
     await runAgent(c.agentId, { trigger: 'test', actor: actor.label })
     const log = await agentWorkLog(actor, c.agentId)
     const base = log.find(e => /Starting point recorded/.test(e.what))!
-    expect(base.permission).toMatch(/authorization v1/)
+    expect(base.permission).toBe('authorization v1 (public pages of other stores: read only)')
+    expect(log.find(e => e.event === 'agent_run.started')!.permission).toBe('authorization v1 (public pages of other stores: read only)')
     const skipped = log.find(e => /Store not checked/.test(e.what) && /robots/.test(e.why ?? ''))!
     expect(skipped.what).toMatch(/private-label\.example/)
   })
@@ -252,5 +256,42 @@ describe.skipIf(!ready)('Competitor & Trend Watcher end to end (synthetic stores
     expect(s.grants.join(' ')).toMatch(/harbor-home\.example/)
     expect(s.grants.join(' ')).toMatch(/"linen"/)
     expect(s.limits.join(' ')).toMatch(/one request per second/)
+  })
+  it('tasks: "check my competitors" runs a competitor agent; asking for their sales is refused; other agents need a wider grant', async () => {
+    const { actor, c } = await chaser({ stores: ['linen-and-loom.example'] })
+    await grantPolicy(actor, c.agentId, c.policyId, c.policyHash)
+    const t1 = await assignTask(actor, c.agentId, 'Check my competitors now')
+    expect(t1.status).toBe('queued')
+    const done = await runTask(t1.id, { actor: actor.label })
+    expect(done.status).toBe('done')
+    expect(done.status_reason).toMatch(/read the public pages of 1 competitor store\(s\)/)
+    const t2 = await assignTask(actor, c.agentId, "Estimate my competitors' sales and revenue")
+    expect(t2.status).toBe('refused')
+    expect(t2.status_reason).toMatch(/not public; Deploi never estimates them/)
+    const plain = await createAgent(actor, { name: 'Stock', taskText: '', policy: { connectionId: NW.conn, productScope: { mode: 'all' }, correctionTypes: ['oversell_policy'] } })
+    await grantPolicy(actor, plain.agentId, plain.policyId, plain.policyHash)
+    const t3 = await assignTask(actor, plain.agentId, 'Check my competitors for price drops')
+    expect(t3.status).toBe('needs_approval')
+    expect(t3.outside_rules.join(' ')).toMatch(/does not watch competitor stores/)
+  })
+})
+
+describe('politeness', () => {
+  it('waits between requests to the same real store (network path), and never between synthetic ones', async () => {
+    const prev = process.env.COMPETITOR_MIN_INTERVAL_MS
+    process.env.COMPETITOR_MIN_INTERVAL_MS = '200'
+    const realFetch = globalThis.fetch
+    const times: number[] = []
+    globalThis.fetch = (async () => { times.push(Date.now()); return new Response('{}', { status: 200 }) }) as typeof fetch
+    try {
+      const f = new PoliteFetcher()
+      await f.get('https://polite-test.example.com/a')
+      await f.get('https://polite-test.example.com/b')
+      expect(times[1] - times[0]).toBeGreaterThanOrEqual(190)
+      const s = new PoliteFetcher(syntheticTransport(0))
+      const t0 = Date.now()
+      await s.get('https://harbor-home.example/robots.txt'); await s.get('https://harbor-home.example/robots.txt')
+      expect(Date.now() - t0).toBeLessThan(150)
+    } finally { globalThis.fetch = realFetch; process.env.COMPETITOR_MIN_INTERVAL_MS = prev }
   })
 })

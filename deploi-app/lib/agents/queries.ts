@@ -8,7 +8,7 @@ const orgFilter = (actor: Actor, col = 'org_id') => (actor.kind === 'staff' ? 't
 export type AgentListItem = {
   id: string; name: string; status: string; task_text: string; connection_id: string; store: string | null
   schedule: unknown; next_run_at: string | null; last_run_at: string | null
-  active_version: number | null; approval_mode: string | null; email_permission: string | null; correction_types: string[]; summary: unknown
+  active_version: number | null; approval_mode: string | null; email_permission: string | null; competitor_stores: number; competitor_unseen: number; correction_types: string[]; summary: unknown
   pending_version: number | null; awaiting_approval: number; needs_person: number
   last_run: { status: string; counts: Record<string, unknown>; finished_at: string | null; status_reason: string | null } | null
 }
@@ -17,6 +17,8 @@ export async function listAgents(actor: Actor, connectionId?: string | null): Pr
   return withActor(actor, db => db.query<AgentListItem>(
     `select a.id, a.name, a.status, a.task_text, a.connection_id, coalesce(c.display_name, c.external_id) as store, a.schedule, a.next_run_at, a.last_run_at,
        ap.version as active_version, ap.policy->>'approvalMode' as approval_mode, ap.policy->'email'->>'permission' as email_permission,
+       coalesce(jsonb_array_length(ap.policy->'competitors'->'stores'), 0) as competitor_stores,
+       (select count(*)::int from competitor_findings f where f.agent_id = a.id and f.status = 'new' and f.kind <> 'baseline') as competitor_unseen,
        coalesce((select array_agg(x) from jsonb_array_elements_text(ap.policy->'correctionTypes') x), '{}') as correction_types, ap.summary,
        (select max(version) from agent_policies pp where pp.agent_id = a.id and pp.status = 'pending_grant') as pending_version,
        (select count(*)::int from proposals p where p.agent_id = a.id and p.status = 'pending_approval' and coalesce(p.status_reason, '') not like 'draft:%') as awaiting_approval,

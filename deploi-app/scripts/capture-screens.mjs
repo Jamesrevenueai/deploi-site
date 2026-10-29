@@ -28,7 +28,7 @@ async function shot(group, name, caption, target = 'page') {
     const path = `${OUT}/${id}-${w}.png`
     // long captures would paint the sticky top bar and fixed phone tab bar mid-image; keep them in the page flow instead
     const tag = target === 'view' ? null : await page.addStyleTag({ content: '.bottombar,.topbar{position:static!important}' })
-    if (target === 'page') await page.screenshot({ path, fullPage: true })
+    if (target === 'page') { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path, fullPage: true }) }
     else if (target === 'view') await page.screenshot({ path })
     else { const el = page.locator(target).first(); await el.scrollIntoViewIfNeeded(); await el.screenshot({ path }) }
     if (tag) await tag.evaluate(t => t.remove())
@@ -182,6 +182,59 @@ await page.fill('#ea-email', 'sam@example.com')
 await page.fill('#ea-company', 'Example Goods')
 await page.fill('#ea-url', 'https://example.com')
 await shot('12. Website', 'site-early-access', 'Early-access form, filled with synthetic details (not submitted).', '#early-access')
+
+// 13. Competitor & Trend Watcher (synthetic competitor stores on the reserved .example domain)
+const G = '13. Competitor & Trend Watcher'
+await go('/store/agents')
+await shot(G, 'cw-agents-home', 'Agents home with the fourth template, and the seeded watcher showing its count of new competitor findings.')
+await go('/store/agents/new?template=competitor_watcher')
+await shot(G, 'cw-setup-empty', 'Setup: name, competitor stores, keywords, daily or weekly, alerts and an optional email summary, with what Deploi can and cannot read.')
+const storesBox = page.getByLabel('Competitor store addresses, one per line')
+await storesBox.fill('linen-and-loom.example\nhttps://harbor-home.example/collections/all\noak-and-ember.example\nplain-boutique.example\nprivate-label.example\nhttps://192.168.1.10')
+await page.getByLabel('Also write me a summary after each check').check()
+await page.getByLabel('Your email address (the only address it may write to)').fill('owner@northwind-goods.example')
+await shot(G, 'cw-setup-validation', 'Addresses are validated as you type: any page of a store becomes its address, and an IP address is refused with the reason.', 'view')
+await storesBox.fill('linen-and-loom.example\nhttps://harbor-home.example/collections/all\noak-and-ember.example\nplain-boutique.example\nprivate-label.example')
+await page.getByRole('button', { name: 'Check these stores' }).click()
+await page.getByText('Can be monitored').first().waitFor()
+await shot(G, 'cw-setup-checked', 'Check these stores: three can be monitored, one is not supported (no public product feed), one asks not to be read (robots.txt) and will be skipped.')
+await page.getByRole('button', { name: 'Review authorization' }).click()
+await page.getByRole('heading', { name: 'Review the authorization' }).waitFor()
+await shot(G, 'cw-rules', 'The rules in plain English: read only, public pages, robots.txt, one request per second, and never any claim about competitors\' sales.')
+await page.getByRole('button', { name: 'Grant this authorization' }).click()
+await page.getByText('Authorization granted.').waitFor()
+await page.getByRole('link', { name: 'Open agent' }).click()
+await page.waitForURL(/\/store\/agents\/[0-9a-f-]{36}$/)
+await settle()
+const cwUrl = new URL(page.url()).pathname
+await page.getByRole('button', { name: 'Run now' }).click()
+await page.waitForTimeout(1500)
+await go(cwUrl)
+await shot(G, 'cw-first-run-baseline', 'First run: a starting point per store. Nothing is reported as new; skipped stores say why.', 'section#competitors')
+
+const trendId = (await (await page.request.get(`${BASE}/api/store/agents`)).json()).agents.find(a => a.name === 'Competitor & Trend Watcher' && a.id !== cwUrl.split('/').pop())?.id
+await go(`/store/agents/${trendId}`)
+await shot(G, 'cw-agent-detail', 'The seeded watcher after its second check: findings, stores, checks, tasks, mailbox and work log on one page.')
+await shot(G, 'cw-findings', 'Findings: inferences (similar products on several stores, a possible opportunity) kept apart from changes observed on public pages.', 'section#competitors')
+await shot(G, 'cw-opportunity', 'A possible opportunity with its evidence: each listing with store, page address, time seen and the public signals it rests on.', 'section#competitors div:has(> h3:text-is("Trends and possible opportunities (inference)"))')
+await shot(G, 'cw-observed', 'Observed changes: new products, price changes, advertised discounts, sold out or back in stock, best-seller list moves and newly featured products.', 'section#competitors div:has(> h3:text-is("Changes observed on public pages"))')
+await shot(G, 'cw-checks', 'Every check: when, how many requests, the exact pages read, and the stores skipped with the reason.', 'section#competitor-checks')
+await shot(G, 'cw-tasks', 'Tasks: "Check my competitors now" runs; "Estimate my competitors\' sales and revenue" is refused because that is not public.', 'section#tasks')
+await shot(G, 'cw-mailbox', 'The optional email summary, as a draft from the agent\'s own address: observed changes and inferences listed separately.', 'section#mailbox')
+await shot(G, 'cw-worklog', 'Work log: each store checked or skipped, why, and the authorization that allowed reading public pages.', 'section#worklog')
+
+await go(cwUrl)
+await page.getByRole('button', { name: 'Edit', exact: true }).first().click()
+await page.getByRole('heading', { name: 'Edit agent' }).waitFor()
+const cwBlock = ':has(> h3:has-text("Competitor stores"))'
+await shot(G, 'cw-edit', 'Editing: the competitor stores, keywords, alerts and the smallest price change to report.', cwBlock)
+const cwArea = page.locator(cwBlock).locator('textarea').first()
+await cwArea.fill((await cwArea.inputValue()) + '\nnew-rival.example')
+await page.getByRole('button', { name: 'Save changes' }).click()
+await page.getByRole('button', { name: /Grant authorization version/ }).waitFor()
+await shot(G, 'cw-widen-new-grant', 'Adding a store is a wider permission: saved as a new version that waits for your grant; the current stores keep being watched until then.')
+await go('/store/weekly')
+await shot(G, 'cw-weekly', 'Weekly summary: competitor changes seen and trends inferred, counted separately and kept out of the time-saved estimate.')
 
 await browser.close()
 

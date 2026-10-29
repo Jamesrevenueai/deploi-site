@@ -62,7 +62,6 @@ export async function runCompetitorStep(input: {
   for (const src of sources) {
     const still = await admin(db => db.one<{ status: string }>('select status from agents where id = $1', [agentId]))
     if (still?.status !== 'active') break
-    const started = new Date()
     const f = fetcherFor(src.host, src.checks_done)
     const result = f === 'blocked'
       ? { status: 'unreachable' as const, platform: 'unknown' as const, reason: 'synthetic demo stores are not available here', requests: 0, urls: [] as string[] }
@@ -73,7 +72,7 @@ export async function runCompetitorStep(input: {
         await db.query(`update competitor_sources set status = $2, platform = case when $3 = 'unknown' then platform else $3 end, status_reason = $4, last_checked_at = $5 where id = $1`,
           [src.id, result.status, result.platform, result.reason, input.now.toISOString()])
         await db.query(`insert into competitor_checks (org_id, agent_id, source_id, run_id, status, status_reason, requests, urls, started_at, finished_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())`,
-          [orgId, agentId, src.id, input.runId, result.status, result.reason, result.requests, result.urls.slice(0, 20), started.toISOString()])
+          [orgId, agentId, src.id, input.runId, result.status, result.reason, result.requests, result.urls.slice(0, 20), input.now.toISOString()])
         await audit(db, { orgId, connectionId: input.connectionId, entityType: 'agent', entityId: agentId, event: 'competitor.skipped', actor: input.actor,
           detail: { agent_id: agentId, policy_version: input.policyVersion, store: src.host, url: src.url, status: result.status, reason: result.reason, requests: result.requests } })
       })

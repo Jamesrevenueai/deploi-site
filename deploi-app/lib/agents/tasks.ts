@@ -34,6 +34,7 @@ export function outsideRules(d: TaskDraft, p: AgentPolicy | null): string[] {
   if (d.productScope.mode === 'tags' && p.productScope.mode === 'products') r.push("the task names tags; the agent works only on listed products")
   const rank = { draft: 0, review: 1, autonomous: 2 } as const
   if (d.approvalMode && rank[d.approvalMode] > rank[p.approvalMode]) r.push(`the task asks to ${d.approvalMode === 'autonomous' ? 'act without asking' : 'make changes'}; the agent is ${p.approvalMode === 'draft' ? 'drafts only' : 'in review mode'}`)
+  if (d.competitor && !p.competitors) r.push('the agent does not watch competitor stores')
   if (d.email) {
     if (!p.email) r.push('the agent is not authorized to use email')
     else {
@@ -47,8 +48,10 @@ export function outsideRules(d: TaskDraft, p: AgentPolicy | null): string[] {
 
 function decide(d: TaskDraft, p: AgentPolicy | null): { status: TaskStatus; reason: string; outside: string[] } {
   // a schedule or a product scope alone says when or where, not what: not enough to run anything
-  const understood = d.correctionTypes.length > 0 || Boolean(d.email) || d.productScope.mode !== null
+  const understood = d.correctionTypes.length > 0 || Boolean(d.email) || d.productScope.mode !== null || Boolean(d.competitor)
   if (!understood && d.unsupported.length) return { status: 'refused', reason: `Deploi cannot do this: ${d.unsupported.join('; ')}`, outside: [] }
+  // asking what competitors sell is the whole task, not a part that can be left out
+  if (d.competitor && !d.correctionTypes.length && !d.email && d.unsupported.some(u => u.startsWith("another store's sales"))) return { status: 'refused', reason: `Deploi cannot do this: ${d.unsupported.join('; ')}. It can report what competitors publicly list, price, discount and feature.`, outside: [] }
   if (!understood) return { status: 'refused', reason: 'Deploi could not tell what to do from this text, so nothing will run. Name what to check or correct (for example prices, SKUs, overselling or publication) or the email to draft.', outside: [] }
   const outside = outsideRules(d, p)
   const note = d.unsupported.length ? ` Left out (Deploi cannot do it): ${d.unsupported.join('; ')}.` : ''
@@ -113,13 +116,16 @@ export async function cancelTask(actor: Actor, taskId: string) {
 export function taskOutcome(r: Pick<AgentRunResult, 'status' | 'reason' | 'counts' | 'runId'>): { status: TaskStatus; reason: string; proof: Record<string, unknown> } {
   const c = r.counts
   const proof = { run_id: r.runId, run_status: r.status, verified: c.verified, failed: c.failed, blocked: c.blocked, awaiting_approval: c.awaitingApproval, drafted: c.drafted ?? 0,
-    needs_person: c.needsPerson, issues_found: c.issuesFound, email: c.email ?? null }
+    needs_person: c.needsPerson, issues_found: c.issuesFound, email: c.email ?? null, competitors: c.competitors ?? null }
   if (r.status !== 'completed') return { status: 'failed', reason: `The run ${r.status}: ${r.reason ?? 'no reason given'}. Nothing more was done.`, proof }
   if (c.failed > 0 || c.unconfirmed > 0) return { status: 'failed', reason: `${c.failed} change(s) failed and ${c.unconfirmed} could not be confirmed. See the work log.`, proof }
   const emailWaiting = (c.email?.emailAwaiting ?? 0) + (c.email?.emailDrafted ?? 0) + (c.email?.emailUnknown ?? 0)
   const waiting = c.awaitingApproval + (c.drafted ?? 0) + emailWaiting + c.needsPerson
   if (waiting > 0) return { status: 'waiting_on_you', reason: `Run finished. Waiting on you: ${[c.awaitingApproval && `${c.awaitingApproval} change(s) to approve`, c.drafted && `${c.drafted} drafted change(s) to read`, emailWaiting && `${emailWaiting} email(s) to review`, c.needsPerson && `${c.needsPerson} item(s) that need a person`].filter(Boolean).join(', ')}.`, proof }
-  return { status: 'done', reason: `Run finished: ${c.verified} change(s) verified by a fresh read, ${c.issuesFound} issue(s) found${c.email ? `, ${c.email.emailAccepted} email(s) accepted by the provider` : ''}.`, proof }
+  const k = c.competitors
+  const store = `${c.verified} change(s) verified by a fresh read, ${c.issuesFound} issue(s) found`
+  const comp = k ? `read the public pages of ${k.storesChecked} competitor store(s)${k.storesSkipped ? ` (${k.storesSkipped} skipped)` : ''}, ${k.findings} new finding(s)` : ''
+  return { status: 'done', reason: `Run finished: ${[k && !c.verified && !c.issuesFound ? '' : store, comp].filter(Boolean).join('; ')}${c.email ? `, ${c.email.emailAccepted} email(s) accepted by the provider` : ''}.`, proof }
 }
 
 /** Run one queued task now (or leave it queued, honestly, while the agent is paused). */

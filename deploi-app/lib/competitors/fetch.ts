@@ -33,9 +33,11 @@ export class PoliteFetcher {
     for (let hop = 0; hop < 4; hop++) {
       try { assertApprovedHost(current, 'competitor_public') } catch (e) { return { url: current, status: 0, body: '', contentType: '', error: (e as Error).message } }
       const host = new URL(current).hostname
-      const wait = (last.get(host) ?? 0) + minInterval() - Date.now()
+      // politeness applies to real stores; a test or synthetic transport never touches the network
+      const network = !this.transport && !override
+      const wait = network ? (last.get(host) ?? 0) + minInterval() - Date.now() : 0
       if (wait > 0) await sleep(wait)
-      last.set(host, Date.now())
+      if (network) last.set(host, Date.now())
       this.requests++
       const ctl = new AbortController()
       const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS)

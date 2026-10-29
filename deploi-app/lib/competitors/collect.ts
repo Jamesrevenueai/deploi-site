@@ -118,3 +118,19 @@ export async function collectStore(origin: string, opts: { fetcher?: PoliteFetch
   }
   return { status: 'ok', platform: 'shopify', requests: f.requests, snapshot: { observedAt: (opts.now ?? new Date()).toISOString(), products, complete, bestsellers, featured, urls } }
 }
+
+export type ProbeResult = { status: 'supported' | 'unsupported' | 'blocked_robots' | 'unreachable'; reason: string }
+
+/** A quick check before saving: robots.txt and one product from the public feed (two requests at most). */
+export async function probeStore(origin: string, fetcher: PoliteFetcher = new PoliteFetcher()): Promise<ProbeResult> {
+  const rb = await fetcher.get(`${origin}/robots.txt`)
+  if (rb.status === 0) return { status: 'unreachable', reason: `could not be reached: ${'error' in rb ? rb.error : 'no response'}` }
+  const robots = robotsFromResponse(rb.status, rb.body)
+  if (robots.kind === 'disallow_all') return { status: 'blocked_robots', reason: robots.reason }
+  if (!robotsAllows(robots, '/products.json?limit=1')) return { status: 'blocked_robots', reason: "its robots.txt does not allow reading the product feed, so Deploi will not check it" }
+  const r = await fetcher.get(`${origin}/products.json?limit=1`)
+  if (r.status === 0) return { status: 'unreachable', reason: `could not be reached: ${'error' in r ? r.error : 'no response'}` }
+  const body = json(r) as { products?: unknown } | null
+  if (!body || !Array.isArray(body.products)) return { status: 'unsupported', reason: 'it does not publish a public product feed Deploi can read (only Shopify storefronts are supported today)' }
+  return { status: 'supported', reason: 'Shopify storefront with a public product feed' }
+}

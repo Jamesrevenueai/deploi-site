@@ -22,6 +22,8 @@ export type TaskDraft = {
   unsupported: string[]
   /** email the text asks for; recipients found in the text are suggestions only, never granted */
   email: { tasks: EmailTask[]; permission: EmailPermission | null; addresses: string[] } | null
+  /** the text asks about competitor stores (read only public pages) */
+  competitor?: boolean
   /** phrases that drove each decision, shown on the review screen */
   matched: { phrase: string; meaning: string }[]
 }
@@ -29,6 +31,7 @@ export type TaskDraft = {
 const has = (t: string, re: RegExp) => re.test(t)
 
 const UNSUPPORTED: [RegExp, string][] = [
+  [/\b(competitors?|rivals?|their|other stores?)'?s?\b[^.]{0,40}\b(sales|revenue|turnover|units sold|conversion|orders|profit)\b/, "another store's sales, revenue, units or conversion (not public; Deploi never estimates them)"],
   [/\b(restock|reorder|purchase order|stock (count|level)s?|inventory (count|quantit)|set (the )?stock|adjust (the )?(stock|inventory))\b/, 'changing stock quantities (Deploi never guesses or sets physical stock)'],
   [/\b(delete|remove) (the )?products?\b/, 'deleting products'],
   [/\b(archive|draft|un-?archive|change (the )?status)\b/, 'changing product status'],
@@ -93,6 +96,7 @@ export function parseTask(input: string): TaskDraft {
   else if (has(t, /\b(once|one[- ]time|right now|now)\b/)) d.schedule = { kind: 'manual' }
   if (d.schedule) d.matched.push({ phrase: 'schedule', meaning: d.schedule.kind === 'interval' ? `every ${d.schedule.everyHours} h` : d.schedule.kind })
 
+  if (has(t, /\b(competitors?|rivals?|other stores?|competing stores?)\b/)) { d.competitor = true; d.matched.push({ phrase: 'competitors', meaning: 'check the competitor stores the agent watches (public pages only)' }) }
   for (const [re, what] of UNSUPPORTED) if (has(t, re)) d.unsupported.push(what)
 
   if (!d.correctionTypes.length && !d.email) d.missing.push('what the agent should correct (overselling settings, publication, prices or SKUs) or which email task it should do')

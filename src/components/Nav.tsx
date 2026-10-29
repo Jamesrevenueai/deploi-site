@@ -5,11 +5,11 @@ import { CtaButton } from './Button'
 import { Icon } from '../lib/icons'
 
 export const NAV_LINKS = [
+  { to: '/agents', label: 'Agents' },
+  { to: '/pricing', label: 'Pricing' },
   { to: '/#how', label: 'How it works' },
-  { to: '/#agents', label: 'Agents' },
   { to: '/#shopify', label: 'Shopify' },
   { to: '/#controls', label: 'Controls' },
-  { to: '/#platforms', label: 'Platforms' },
   { to: '/#faq', label: 'FAQ' },
 ]
 

@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/weekly-summary",
       "schedule": "13 13 * * 1"
+    },
+    {
+      "path": "/api/cron/library",
+      "schedule": "23 * * * *"
     }
   ]
 }

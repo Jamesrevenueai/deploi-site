@@ -1,11 +1,11 @@
 /* ==========================================================================
-   Deploi — "Black Glass" design tokens
+   Deploi — "Aurora" design tokens (Black Glass base, aurora light)
    Shared verbatim between deploi-site and deploi-app. Edit here, copy there.
    ========================================================================== */
 :root {
   /* Ground */
-  --dg-black: #000000;
-  --dg-black-alt: #0A0A0A;
+  --dg-black: #06080F;
+  --dg-black-alt: #0B0F1A;
 
   /* Type colors */
   --dg-white: #FFFFFF;
@@ -53,4 +53,28 @@
 
   /* Motion */
   --dg-fade-ms: 300ms;
+
+  /* ------------------------------------------------------------------
+     Aurora theme (the only theme): a near-black night ground with soft
+     aurora light (teal, violet, blue, rose) used for glows, rings and
+     accents. Panels are glass over the glow. Text stays white on black.
+     ------------------------------------------------------------------ */
+  --au-ground: #06080F;
+  --au-ground-alt: #0B0F1A;
+  --au-panel: rgba(13, 18, 32, 0.72);
+  --au-panel-border: rgba(148, 163, 255, 0.16);
+  --au-teal: #2EE6A8;
+  --au-violet: #8B5CF6;
+  --au-blue: #4D7CFF;
+  --au-rose: #F472B6;
+  --au-amber: #F5B548;
+  --au-teal-soft: rgba(46, 230, 168, 0.14);
+  --au-violet-soft: rgba(139, 92, 246, 0.16);
+  --au-blue-soft: rgba(77, 124, 255, 0.16);
+  --au-rose-soft: rgba(244, 114, 182, 0.14);
+  --au-glow: radial-gradient(60% 50% at 10% 0%, rgba(46, 230, 168, 0.18), transparent 60%),
+             radial-gradient(50% 45% at 90% 10%, rgba(139, 92, 246, 0.22), transparent 60%),
+             radial-gradient(45% 40% at 50% 100%, rgba(77, 124, 255, 0.16), transparent 60%);
+  --au-ring: conic-gradient(from 180deg, #2EE6A8, #4D7CFF, #8B5CF6, #F472B6, #2EE6A8);
+  --au-text-glow: linear-gradient(90deg, #2EE6A8 0%, #4D7CFF 45%, #8B5CF6 100%);
 }

@@ -1,7 +1,7 @@
 /**
  * Cron authentication. Vercel sends `Authorization: Bearer ${CRON_SECRET}`. Without a CRON_SECRET, cron routes
- * are open only on a developer machine: any Vercel deployment (production or preview) or DEPLOI_ENV=production
- * refuses, so a missing secret fails closed instead of exposing the jobs.
+ * are open only on a developer machine running a dev server: any production build (NODE_ENV=production), any
+ * Vercel deployment (production or preview) or DEPLOI_ENV=production refuses, so a missing secret fails closed.
  */
 import { timingSafeEqual } from 'node:crypto'
 import { isProductionDeployment } from './auth-guard'
@@ -13,5 +13,5 @@ export function cronAuthorized(req: Request, env: Record<string, string | undefi
     const a = Buffer.from(got), b = Buffer.from(secret)
     return a.length === b.length && timingSafeEqual(a, b)
   }
-  return !isProductionDeployment(env) && !(env.VERCEL_ENV ?? '').trim()
+  return !isProductionDeployment(env) && !(env.VERCEL_ENV ?? '').trim() && (env.NODE_ENV ?? '').trim() !== 'production'
 }

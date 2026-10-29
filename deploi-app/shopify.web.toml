@@ -4,5 +4,5 @@ name = "deploi-app"
 roles = ["frontend", "backend"]
 
 [commands]
-# the production build (`npm run build`) must exist; `next start` serves it on the port the CLI picks
-dev = "npx next start -p $PORT"
+# the production build (`npm run build`) must exist; scripts/dev-server.mjs serves it on the port the CLI picks
+dev = "node scripts/dev-server.mjs"

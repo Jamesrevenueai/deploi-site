@@ -4,6 +4,7 @@
  * for merchant users of the owning organization; staff see senders, statuses and times only.
  * Incoming text is shown as data for the merchant to read. The agent never acts on it.
  */
+import { emailConfig } from './config'
 import { admin } from '../db'
 import { withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
@@ -16,7 +17,7 @@ export type InboundItem = { id: string; from_address: string; classification: st
 const MAX_SHOWN = 4000
 const shown = (t: string) => (t.length > MAX_SHOWN ? `${t.slice(0, MAX_SHOWN)}\n… (shortened here; the full message is ${t.length} characters)` : t)
 
-export async function agentMailThreads(actor: Actor, agentId: string): Promise<{ mailbox: { address: string } | null; threads: (ThreadMessage & { replies: InboundItem[] })[]; other: InboundItem[] }> {
+export async function agentMailThreads(actor: Actor, agentId: string): Promise<{ mailbox: { address: string; inboundReady: boolean } | null; threads: (ThreadMessage & { replies: InboundItem[] })[]; other: InboundItem[] }> {
   const rows = await withActor(actor, async db => {
     const agent = await db.one<{ id: string }>('select id from agents where id = $1', [agentId])
     if (!agent) throw new EngineError('not_found', 'agent not found')
@@ -42,5 +43,7 @@ export async function agentMailThreads(actor: Actor, agentId: string): Promise<{
   const inbound: InboundItem[] = rows.inbound.map(i => ({ ...i, subject: inContent.get(i.id)?.subject ?? null, text: inContent.get(i.id)?.text ?? null }))
   const threads = rows.msgs.map(m => ({ ...m, subject: msgContent.get(m.id)?.subject ?? null, body: msgContent.get(m.id)?.body ?? null, replies: inbound.filter(i => i.thread_message_id === m.id) }))
   const other = inbound.filter(i => !i.thread_message_id || !rows.msgs.some(m => m.id === i.thread_message_id)).reverse()
-  return { mailbox: rows.mailbox ? { address: rows.mailbox.address } : null, threads, other }
+  // replies reach a mailbox only when inbound mail is configured here; the UI says so instead of implying they will arrive
+  const inboundReady = Boolean(emailConfig.agentMailWebhookSecret && emailConfig.agentMailDomain)
+  return { mailbox: rows.mailbox ? { address: rows.mailbox.address, inboundReady } : null, threads, other }
 }

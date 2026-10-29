@@ -23,7 +23,7 @@ type Inbound = { id: string; from_address: string; classification: string; statu
 type WorkResponse = { ok: true; log: LogEntry[]; tasks: Task[]; mailbox: { id: string; address: string; status: string } | null; inbound: Inbound[]; mailDomain: string | null }
 type InboundFull = Inbound & { thread_message_id: string | null; subject: string | null; text: string | null }
 type Thread = { id: string; status: string; status_reason: string | null; task_key: string; to_addresses: string[]; created_at: string; accepted_at: string | null; reply_count: number; subject: string | null; body: string | null; replies: InboundFull[] }
-type MailResponse = { ok: true; mailbox: { address: string } | null; threads: Thread[]; other: InboundFull[] }
+type MailResponse = { ok: true; mailbox: { address: string; inboundReady?: boolean } | null; threads: Thread[]; other: InboundFull[] }
 
 export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged }: { agentId: string; agentActive: boolean; refreshKey: string; onChanged: () => void }) {
   const { data, error, loading, reload } = useLoad(async () => {
@@ -94,7 +94,8 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
         <Panel>
           {d.mailbox ? (
             <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2"><Icon name="mail" size={16} /><span className="break-all text-[1.05rem] font-medium text-ink">{d.mailbox.address}</span><Badge tone="ok">Ready</Badge></div>
+              <div className="flex flex-wrap items-center gap-2"><Icon name="mail" size={16} /><span className="break-all text-[1.05rem] font-medium text-ink">{d.mailbox.address}</span>{d.mail?.mailbox?.inboundReady === false ? <Badge tone="warn">Sends only: replies are not received yet</Badge> : <Badge tone="ok">Ready</Badge>}</div>
+              {d.mail?.mailbox?.inboundReady === false && <p className="text-[13px] text-warn">Inbound mail is not set up in this environment, so replies to this address do not reach Deploi yet. Follow-ups that wait for a reply cannot tell whether the supplier answered.</p>}
               <p className="text-[13px] text-grey-h">Only this agent can send from this address. Mail from senders outside its allowed recipients, or that fails sender checks, is quarantined. Incoming mail never changes what the agent may do.</p>
             </div>
           ) : (

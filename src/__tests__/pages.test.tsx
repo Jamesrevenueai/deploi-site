@@ -4,7 +4,8 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Nav, NAV_LINKS } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import Legal, { PRIVACY, termsSections } from '../pages/Legal'
-import Home, { FAQ, FAQS, FLOW, CHECKS, PLATFORM_CARDS, SHOPIFY_STATUS_LINE, EXAMPLE_AGENT } from '../pages/Home'
+import Support, { SUPPORT_FAQ } from '../pages/Support'
+import Home, { FAQ, FAQS, FLOW, CHECKS, PLATFORM_CARDS, SHOPIFY_STATUS_LINE, EXAMPLE_AGENT, AGENT_ROLES } from '../pages/Home'
 import { AppRoutes, Shell } from '../App'
 import { CONTACT_EMAIL } from '../lib/brand'
 
@@ -33,6 +34,7 @@ describe('Footer', () => {
     const { container } = render(<MemoryRouter><Footer /></MemoryRouter>)
     expect(screen.getByText('Privacy Policy')).toHaveAttribute('href', '/privacy')
     expect(screen.getByText('Terms of Service')).toHaveAttribute('href', '/terms')
+    expect(screen.getByText('Support')).toHaveAttribute('href', '/support')
     expect(screen.getByText(CONTACT_EMAIL)).toHaveAttribute('href', `mailto:${CONTACT_EMAIL}`)
     expect(container.querySelector('a[href="/website"], a[href="/evv"], a[href="/baa"]')).toBeNull()
     expect(container.textContent).not.toMatch(CONSULTING)
@@ -58,7 +60,7 @@ describe('Home', () => {
     expect(within(byName('Amazon Seller Central')).getByText('Planned')).toBeInTheDocument()
     expect(PLATFORM_CARDS.filter(p => p.status === 'planned').map(p => p.name)).toEqual(['WooCommerce', 'Amazon Seller Central'])
     expect(container.textContent).toMatch(/not partnerships/)
-    expect(container.querySelectorAll('img')).toHaveLength(0) // no vendor logos
+    for (const c of cards) expect(c.querySelectorAll('img')).toHaveLength(0) // no vendor logos
   })
 
   it('contains no consulting terms anywhere on the rendered home page', () => {
@@ -77,6 +79,22 @@ describe('Home', () => {
     for (const t of ['Inventory Watcher', 'Supplier Chaser', 'Store Health Checker', 'Competitor & Trend Watcher']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
     expect(screen.getByText(/time saved clearly labelled as an estimate/)).toBeInTheDocument()
     expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
+  })
+
+  it('shows the agent illustrations with alt text, only roles the product can do today, and each agent once', () => {
+    render(<MemoryRouter><Home /></MemoryRouter>)
+    expect(AGENT_ROLES.map(r => r.title)).toEqual(['Store Health Checker', 'Inventory Watcher', 'Approval Inbox', 'Supplier Chaser', 'Weekly Summary'])
+    for (const r of AGENT_ROLES) {
+      const img = screen.getByAltText(r.alt)
+      expect(img).toHaveAttribute('src', `/agents/${r.key}-640.webp`)
+      expect(img).toHaveAttribute('loading', 'lazy')
+      expect(r.alt.startsWith('Illustration:')).toBe(true)
+    }
+    // the one agent without an illustration is listed as a template, and never claims competitors' sales
+    expect(screen.getByRole('heading', { level: 3, name: 'Competitor & Trend Watcher' })).toBeInTheDocument()
+    expect(screen.getByText(/Never their sales, which are not public\./)).toBeInTheDocument()
+    expect(screen.getByText(/Inventory Watcher, Supplier Chaser and Store Health Checker above/)).toBeInTheDocument()
+    expect(screen.getByText(/Illustrations\. The names, products and numbers in them are examples\./)).toBeInTheDocument()
   })
 
   it('answers the FAQ without inventing a price', () => {
@@ -130,5 +148,27 @@ describe('Legal', () => {
     expect(text).not.toMatch(/We use basic cookies and analytics/i)
     expect(text).not.toMatch(CONSULTING)
     expect(PRIVACY[PRIVACY.length - 1].title).toBe('Contact')
+  })
+})
+
+describe('Support', () => {
+  it('gives the support email, install and uninstall answers, data deletion and beta access, with no invented promises', () => {
+    const { container } = render(<MemoryRouter><Support /></MemoryRouter>)
+    const text = container.textContent ?? ''
+    expect(screen.getAllByText(CONTACT_EMAIL)[0]).toHaveAttribute('href', `mailto:${CONTACT_EMAIL}`)
+    expect(SUPPORT_FAQ.length).toBeGreaterThanOrEqual(6)
+    expect(text).toMatch(/You never type your store address into Deploi/)
+    expect(text).toMatch(/delete your store.s data/)
+    expect(text).toMatch(/invite code/)
+    expect(text).not.toMatch(/guarantee|within \d+ (hours|minutes)|24\/7/i)
+    expect(text).not.toMatch(CONSULTING)
+  })
+
+  it('the privacy policy covers customers, retention and transfers', () => {
+    const { container } = render(<MemoryRouter><Legal kind="privacy" /></MemoryRouter>)
+    const text = container.textContent ?? ''
+    expect(text).toMatch(/does not read, receive or store information about your customers/)
+    expect(text).toMatch(/kept for up to 30 days/)
+    expect(text).toMatch(/outside your country/)
   })
 })

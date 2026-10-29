@@ -28,6 +28,7 @@ export async function staffActor(): Promise<Actor> {
 /** Reset a merchant's engine state and synthetic store to the seeded starting point. */
 export async function resetMerchant(m: typeof NW, opts: { ruleOn?: boolean; state?: SynthState } = {}) {
   await admin(async db => {
+    await db.query(`delete from store_access where platform = 'shopify' and external_id = $1`, [m.domain])
     await db.query('delete from email_messages where org_id = $1', [m.org])
     await db.query('delete from email_oauth_states where org_id = $1', [m.org])
     await db.query('delete from email_accounts where org_id = $1', [m.org])

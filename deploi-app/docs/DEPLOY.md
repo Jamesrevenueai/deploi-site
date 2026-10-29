@@ -21,7 +21,7 @@
    `AUTH_MODE=supabase`, `APP_SECRET`, `STAFF_EMAILS`, `NEXT_PUBLIC_APP_URL=https://app.getdeploi.com`,
    `PUBLIC_API_ALLOWED_ORIGINS=https://getdeploi.com,https://www.getdeploi.com`, `CRON_SECRET`,
    `RESEND_API_KEY`, `AGENT_MAIL_DOMAIN`, `AGENT_MAIL_WEBHOOK_SECRET`, the `SHOPIFY_*` keys,
-   `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_KEY_ID`. Keep `EMAIL_LIVE_SENDS=off` and `LIVE_WRITE_STORES` empty
+   `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_KEY_ID`. Keep `EMAIL_LIVE_SENDS=off` and `STORE_ACCESS_MODE=beta`
    until launch is approved (`docs/LAUNCH-STEPS.md`).
 4. Crons come from `vercel.json`: agent runs hourly at minute 7, the weekly summary Mondays 13:13 UTC.
    The Hobby plan allows only daily crons; use Pro or change the schedules.

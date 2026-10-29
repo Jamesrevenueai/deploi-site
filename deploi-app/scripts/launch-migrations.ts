@@ -1,6 +1,6 @@
 /**
  * Launch migrations 20261028000028 .. 20261029000033 (merchant engine, early access, agents, email,
- * agent platform, competitor watch), and their rollback. Each file runs in its own transaction and is recorded in
+ * agent platform, store access, competitor watch), and their rollback. Each file runs in its own transaction and is recorded in
  * _migrations, exactly like scripts/migrate.ts.
  *
  *   npx tsx scripts/launch-migrations.ts status   --db <url>
@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Client } from 'pg'
 
-export const LAUNCH = ['20261028000028_merchant_engine.sql', '20261028000029_early_access_leads.sql', '20261028000030_agents.sql', '20261028000031_email.sql', '20261028000032_agent_platform.sql', '20261029000033_competitor_watch.sql']
+export const LAUNCH = ['20261028000028_merchant_engine.sql', '20261028000029_early_access_leads.sql', '20261028000030_agents.sql', '20261028000031_email.sql', '20261028000032_agent_platform.sql', '20261029000032_store_access.sql', '20261029000033_competitor_watch.sql']
 const PREREQ = '20261021000027_website.sql'
 const ROOT = join(__dirname, '..', 'supabase')
 

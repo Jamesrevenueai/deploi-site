@@ -144,3 +144,18 @@ export type EmailMessagesResponse = { ok: true; messages: EmailMessageItem[] }
 export type EmailMessageResponse = { ok: true; message: EmailMessageDetail }
 export type EmailSendOutcome = { ok: true; messageId: string; status: EmailStatusName; reason?: string | null; duplicate?: boolean }
 export type EmailEditResponse = { ok: true; contentHash: string; status: EmailStatusName }
+
+export type StoreAccess = {
+  eligible: boolean
+  status: 'eligible' | 'pending' | 'denied'
+  basis: 'open_access' | 'development_store' | 'beta_invite' | 'staff_approved' | 'synthetic' | null
+  mode: 'beta' | 'open'
+  reason: string
+  isDevelopmentStore: boolean | null
+  requestedAt: string | null
+  writesPaused: boolean
+}
+export type StoreAccessResponse = { ok: true; access: StoreAccess }
+
+export type BillingState = { required: boolean; active: boolean; planHandle: string | null; checkFailed: boolean; plansUrl: string | null; partnerApiConfigured: boolean }
+export type BillingResponse = { ok: true; billing: BillingState }

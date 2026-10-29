@@ -12,7 +12,7 @@ async function signIn(page: Page, email: string) {
   await Promise.all([page.waitForURL(u => !u.pathname.startsWith('/login')), page.click('button[type=submit]')])
 }
 
-const STAFF_PAGES = ['/staff', '/staff/early-access', '/staff/audit']
+const STAFF_PAGES = ['/staff', '/staff/early-access', '/staff/audit', '/staff/store-access']
 const RETIRED = ['/app/home', '/app/evv', '/staff/pipeline', '/staff/assessments', '/staff/engagements', '/staff/economics', '/staff/evv', '/staff/queue', '/staff/website', '/staff/setup']
 
 test('anonymous visitors are redirected to /login from every protected page', async ({ page }) => {

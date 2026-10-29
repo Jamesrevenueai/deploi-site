@@ -17,7 +17,7 @@ npm run dev                         # http://localhost:3000 -> /login (dev auth:
 ```
 
 Sign in as `owner@northwind-goods.example` for the merchant area (`/store`), or `hello@getdeploi.com`
-for staff (`/staff`: early access applications and the audit log). For a fuller demo, run
+for staff (`/staff`: early access applications, store access and the audit log). For a fuller demo, run
 `npx tsx --env-file=.env.local scripts/seed-platform-demo.ts` (and `--remove` to undo it).
 
 ## Checks

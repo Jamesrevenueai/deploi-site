@@ -125,12 +125,50 @@ export const APPROVAL_MODES: { title: string; body: string }[] = [
   { title: 'Without asking, within limits', body: 'A standing authorization for the scope, limits and recipients you grant, for at most one year. Anything outside it waits for you, with the reason.' },
 ]
 
-/** Ready-made agents: each starts at drafts only for every tool. */
+/** Ready-made agents: each starts at drafts only for every tool. The first three are illustrated in AGENT_ROLES. */
 export const TEMPLATES: { name: string; body: string }[] = [
   { name: 'Inventory Watcher', body: 'Checks your inventory every day, shows you products that are oversold or keep selling at zero, and drafts an alert to you.' },
   { name: 'Supplier Chaser', body: 'Drafts restock requests to your supplier from its own email address for products running low, and one follow-up in the same thread if the supplier has not replied.' },
   { name: 'Store Health Checker', body: 'Checks the whole store once a week and drafts a health report for you.' },
   { name: 'Competitor & Trend Watcher', body: 'Watches the competitor stores you list, using only their public pages: new products, price and discount changes, sell-outs, and what they feature as best sellers. Never their sales, which are not public.' },
+]
+
+export const AGENT_ROLES: { key: string; title: string; kind: string; body: string; alt: string }[] = [
+  {
+    key: '03-store-health-checker',
+    title: 'Store Health Checker',
+    kind: 'Finds problems',
+    body: 'Scans your Shopify store for four problems: overselling settings, publication, price and SKU. For each one it shows the evidence and the exact change it proposes.',
+    alt: 'Illustration: an agent checking a grid of product listings and flagging one that needs attention.',
+  },
+  {
+    key: '01-inventory-watcher',
+    title: 'Inventory Watcher',
+    kind: 'Store correction',
+    body: 'Stops out-of-stock products from selling when your rule says they should, while leaving pre-order and backorder products alone. It never changes stock counts.',
+    alt: 'Illustration: an agent watching warehouse shelves, with one shelf highlighted as low on stock.',
+  },
+  {
+    key: '05-approval-inbox',
+    title: 'Approval Inbox',
+    kind: 'You decide',
+    body: 'Every proposed change waits for you with its before and after values, and every email shows the exact message, unless an authorization you granted already covers it.',
+    alt: 'Illustration: proposed changes waiting in a tray, each locked until approved.',
+  },
+  {
+    key: '02-supplier-chaser',
+    title: 'Supplier Chaser',
+    kind: 'Email',
+    body: 'Drafts restock requests to your supplier for low-stock products from its own email address, and one follow-up in the same thread if there is no reply. A reply never changes what the agent may do.',
+    alt: 'Illustration: an agent sending a restock email to a supplier and receiving a reply.',
+  },
+  {
+    key: '06-weekly-summary',
+    title: 'Weekly Summary',
+    kind: 'Email',
+    body: 'Run an agent weekly and it emails you a summary of each run: what it found, what it changed and what is waiting for a person.',
+    alt: 'Illustration: store activity flowing into a weekly summary report that is sent by email.',
+  },
 ]
 
 export function Agents() {
@@ -148,6 +186,28 @@ export function Agents() {
             scope, shows you a readable summary of exactly what the agent may do, and grants nothing until you confirm it.
           </p>
         </div>
+        <div className="agent-roles">
+          {AGENT_ROLES.map(r => (
+            <figure className="agent-role reveal" key={r.key}>
+              <img
+                src={`/agents/${r.key}-640.webp`}
+                srcSet={`/agents/${r.key}-640.webp 640w, /agents/${r.key}-1200.webp 1200w`}
+                sizes="(min-width: 960px) 360px, (min-width: 640px) 50vw, 100vw"
+                width={1200}
+                height={800}
+                loading="lazy"
+                decoding="async"
+                alt={r.alt}
+              />
+              <figcaption>
+                <span className="agent-role-kind">{r.kind}</span>
+                <h3>{r.title}</h3>
+                <p>{r.body}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <p className="agent-roles-note">Illustrations. The names, products and numbers in them are examples. Email goes out only from the agent's own address or an account you connect, within the permissions you give each agent.</p>
         <div className="setup-question reveal">
           <div className="setup-label">Example: {EXAMPLE_AGENT.name}</div>
           <p>&ldquo;{EXAMPLE_AGENT.task}&rdquo;</p>
@@ -186,8 +246,12 @@ export function Agents() {
           </div>
         </div>
         <h3 className="reveal" style={{ marginTop: 32 }}>Start from a template</h3>
+        <p className="reveal">
+          {TEMPLATES.filter(t => AGENT_ROLES.some(r => r.title === t.name)).map(t => t.name).join(', ').replace(/, ([^,]*)$/, ' and $1')} above
+          are ready-made templates. Every template starts at drafts only for every tool.
+        </p>
         <div className="why-grid controls-grid agents-grid" aria-label="Agent templates">
-          {TEMPLATES.map(t => (
+          {TEMPLATES.filter(t => !AGENT_ROLES.some(r => r.title === t.name)).map(t => (
             <div className="why-item reveal" key={t.name}>
               <span className="ico" aria-hidden="true"><Icon.UserCheck /></span>
               <h3>{t.name}</h3>

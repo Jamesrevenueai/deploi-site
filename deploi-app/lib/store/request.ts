@@ -58,11 +58,15 @@ export async function resolveActor(req: Request, opts: { mutating?: boolean } = 
 
 const ENGINE_STATUS: Record<EngineErrorCode, number> = {
   not_found: 404, forbidden: 403, invalid_input: 400,
-  not_pending: 409, expired: 409, hash_mismatch: 409, rule_changed: 409, not_retryable: 409, connection_inactive: 409, not_operational: 409, agent_inactive: 409, busy: 409,
+  not_pending: 409, expired: 409, hash_mismatch: 409, rule_changed: 409, not_retryable: 409, connection_inactive: 409, not_operational: 409, agent_inactive: 409, busy: 409, too_many_attempts: 429,
 }
 
 export function errorResponse(e: unknown): NextResponse {
-  if (e instanceof HttpError) return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: e.status })
+  if (e instanceof HttpError) {
+    // App Bridge fetches a fresh ID token and retries once when it sees this header on a 401
+    const headers = e.code === 'invalid_session_token' ? { 'X-Shopify-Retry-Invalid-Session-Request': '1' } : undefined
+    return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: e.status, headers })
+  }
   if (isEngineError(e)) return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: ENGINE_STATUS[e.code] ?? 400 })
   log.error('store.api.failed', { error: (e as Error).message })
   return NextResponse.json({ ok: false, error: 'internal', message: 'something went wrong' }, { status: 500 })

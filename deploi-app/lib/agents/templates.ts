@@ -6,8 +6,9 @@
  */
 import { OVERSOLD_WATCH } from './watch'
 
-export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'store_health_checker'
-export type TemplateTool = 'shopify' | 'email'
+export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'store_health_checker' | 'competitor_watcher'
+/** web: reads other stores' public pages only */
+export type TemplateTool = 'shopify' | 'email' | 'web'
 
 export type AgentTemplate = {
   key: TemplateKey
@@ -45,6 +46,13 @@ export const TEMPLATES: AgentTemplate[] = [
     needs: ['who receives the report (your email address)'],
     minutesPerItem: 3,
   },
+  {
+    key: 'competitor_watcher', name: 'Competitor & Trend Watcher',
+    job: 'Every day, check the public pages of the stores I follow. Tell me what they launch, put on sale, change the price of or feature in their bestseller collections, and point out patterns across several stores. Say what was observed and what is only inferred. Never guess their sales, and do not change anything or contact anyone.',
+    tools: ['web', 'email'], mailbox: true,
+    needs: ['the stores to watch (their web addresses)', 'optional: keywords or categories you care about', 'optional: your email address for alerts (drafted to you)'],
+    minutesPerItem: 6,
+  },
 ]
 
 export const templateByKey = (k: string) => TEMPLATES.find(t => t.key === k) ?? null
@@ -55,7 +63,9 @@ const EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', 'made to 
  * The raw policy a template starts from (validated by the server like any other). Every tool is at
  * drafts only. Empty inputs stay empty, so the server refuses the policy until the merchant fills them.
  */
-export function templatePolicy(key: TemplateKey, input: { connectionId: string; timezone: string; notify?: string | null; supplierAddress?: string | null }): Record<string, unknown> {
+export type CompetitorTemplateInput = { stores?: { url: string; label?: string; bestsellerCollection?: string | null }[]; keywords?: string[]; categories?: string[]; region?: string | null; currency?: string | null; everyHours?: number | null; alerts?: Record<string, unknown> }
+
+export function templatePolicy(key: TemplateKey, input: { connectionId: string; timezone: string; notify?: string | null; supplierAddress?: string | null; competitor?: CompetitorTemplateInput }): Record<string, unknown> {
   const notify = (input.notify ?? '').trim().toLowerCase()
   const supplier = (input.supplierAddress ?? '').trim().toLowerCase()
   const base = { connectionId: input.connectionId, productScope: { mode: 'all' }, approvalMode: 'draft', validUntil: null, limits: { maxChangesPerRun: 25, maxChangesPerDay: 100 } }
@@ -66,6 +76,22 @@ export function templatePolicy(key: TemplateKey, input: { connectionId: string; 
     schedule: { kind: 'daily', hour: 7, minute: 0, timezone: input.timezone },
     email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Alert the store owner about inventory problems that need a person', tasks: ['needs_person_alert'],
       recipients: { addresses: notify ? [notify] : [], domains: [] }, notify: notify ? [notify] : [], limits: { perRun: 5, perDay: 10 }, maxRecipientsPerMessage: 3 },
+  }
+  if (key === 'competitor_watcher') {
+    const c = input.competitor ?? {}
+    const list = (v: unknown) => (Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean) : [])
+    return {
+      connectionId: input.connectionId, productScope: { mode: 'all' }, approvalMode: 'draft', validUntil: null, correctionTypes: [], rules: {}, watch: [],
+      schedule: c.everyHours && c.everyHours >= 6 ? { kind: 'interval', everyHours: Math.min(168, Math.round(c.everyHours)) } : { kind: 'daily', hour: 6, minute: 30, timezone: input.timezone },
+      competitor: {
+        stores: (Array.isArray(c.stores) ? c.stores : []).map(st => ({ url: String(st?.url ?? ''), label: st?.label ? String(st.label) : undefined, bestsellerCollection: st?.bestsellerCollection ? String(st.bestsellerCollection) : null })),
+        keywords: list(c.keywords), categories: list(c.categories), region: c.region || null, currency: c.currency || null,
+        ...(c.alerts && typeof c.alerts === 'object' ? { alerts: c.alerts } : {}),
+      },
+      // alerts are optional; when wanted they start as drafts to the merchant's own address
+      ...(notify ? { email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Tell the store owner about meaningful changes at the competitor stores they follow', tasks: ['competitor_alert'],
+        recipients: { addresses: [notify], domains: [] }, notify: [notify], limits: { perRun: 1, perDay: 2 }, maxRecipientsPerMessage: 2 } } : {}),
+    }
   }
   if (key === 'supplier_chaser') return {
     ...base, correctionTypes: [], rules: {}, watch: [],

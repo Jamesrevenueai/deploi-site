@@ -3,7 +3,7 @@ import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/re
 import { listAgents } from '@/lib/agents/queries'
 import { createAgent } from '@/lib/agents/lifecycle'
 import { parseTask } from '@/lib/agents/parse'
-import { TEMPLATES, templateByKey, templatePolicy } from '@/lib/agents/templates'
+import { TEMPLATES, templateByKey, templatePolicy, type CompetitorTemplateInput } from '@/lib/agents/templates'
 import { withActor } from '@/lib/engine/actor'
 
 export const dynamic = 'force-dynamic'
@@ -37,9 +37,13 @@ export async function POST(req: Request) {
       const connectionId = String(body.connectionId ?? '')
       // read under the actor's RLS: another organization's store is simply not found here (and createAgent refuses it)
       const tz = await withActor(actor, db => db.one<{ timezone: string | null }>('select timezone from store_connections where id = $1', [connectionId]))
-      const policy = templatePolicy(t.key, { connectionId, timezone: tz?.timezone || 'UTC', notify: typeof body.notify === 'string' ? body.notify : null, supplierAddress: typeof body.supplierAddress === 'string' ? body.supplierAddress : null })
+      const notify = typeof body.notify === 'string' ? body.notify : null
+      const competitor = t.key === 'competitor_watcher' && body.competitor && typeof body.competitor === 'object' ? body.competitor as CompetitorTemplateInput : undefined
+      const policy = templatePolicy(t.key, { connectionId, timezone: tz?.timezone || 'UTC', notify, supplierAddress: typeof body.supplierAddress === 'string' ? body.supplierAddress : null, competitor })
       const name = typeof body.name === 'string' && body.name.trim() ? body.name : t.name
-      return NextResponse.json({ ok: true, ...(await createAgent(actor, { name, taskText: t.job, policy, mailbox: t.mailbox, templateKey: t.key })) })
+      // the watcher gets a mailbox only when alerts were asked for (its only email task)
+      const mailbox = t.key === 'competitor_watcher' ? Boolean(notify?.trim()) : t.mailbox
+      return NextResponse.json({ ok: true, ...(await createAgent(actor, { name, taskText: t.job, policy, mailbox, templateKey: t.key })) })
     }
     const r = await createAgent(actor, { name: String(body.name ?? ''), taskText: String(body.taskText ?? ''), policy: body.policy, mailbox: body.mailbox === true })
     return NextResponse.json({ ok: true, ...r })

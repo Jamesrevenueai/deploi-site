@@ -164,7 +164,7 @@ export function formFromDraft(d: TaskDraft, connectionId: string): AgentFormStat
   f.skuOverwrite = d.allowSkuOverwrite
   if (d.email) {
     f.emailOn = true
-    for (const t of d.email.tasks) f.emailTasks[t] = true
+    for (const t of d.email.tasks) if (t in f.emailTasks) f.emailTasks[t as AgentEmailTask] = true
     if (d.email.permission) f.suggestedEmailPermission = d.email.permission
     // suggestions only: they go into the allowed list, and the merchant must confirm them
     f.emailSuggested = d.email.addresses
@@ -207,7 +207,7 @@ export function formFromPolicy(p: AgentPolicy): AgentFormState {
     f.emailAccountId = e.accountId
     f.emailPermission = e.permission
     f.emailPurpose = e.purpose
-    for (const t of e.tasks) f.emailTasks[t] = true
+    for (const t of e.tasks) if (t in f.emailTasks) f.emailTasks[t as AgentEmailTask] = true
     f.emailAddresses = (e.recipients?.addresses ?? []).join(', ')
     f.emailDomains = (e.recipients?.domains ?? []).join(', ')
     f.emailNotify = (e.notify ?? []).join(', ')

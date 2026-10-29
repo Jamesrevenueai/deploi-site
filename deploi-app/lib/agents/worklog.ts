@@ -31,6 +31,8 @@ const WHAT: Record<string, string> = {
   'proposal.expired': 'Recorded change expired', 'proposal.stale': 'Recorded change went stale (the record changed)', 'proposal.blocked': 'Recorded change blocked',
   'issue.detected': 'Problem found', 'issue.resolved': 'Problem resolved', 'issue.dismissed': 'Problem dismissed by you', 'issue.exempted': 'Problem exempted',
   'issue.loop_guard': 'Stopped repeating the same change (loop guard)', 'issue.conflicting_agent': 'Skipped: another agent covers this record', 'execution.routed_for_approval': 'Change sent for your approval',
+  'competitor.checked': 'Competitor stores checked (public pages only)', 'competitor.handed_off': 'Finding handed to a Supplier Chaser as a draft (nothing sent)',
+  'competitor.dismissed': 'Finding dismissed by you', 'email.handoff_received': 'Sourcing request received from a competitor finding (not sent)',
   'mailbox.created': 'Agent mailbox created', 'mailbox.closed': 'Agent mailbox closed',
   'task.queued': 'Task accepted: within the rules', 'task.needs_approval': 'Task outside the rules: needs your approval', 'task.refused': 'Task refused: nothing will run',
   'task.running': 'Task running', 'task.done': 'Task done (with proof)', 'task.waiting_on_you': 'Task run finished: waiting on you', 'task.failed': 'Task failed', 'task.cancelled': 'Task cancelled',

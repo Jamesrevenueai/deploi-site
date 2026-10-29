@@ -241,11 +241,13 @@ export const emailWords = (status: string): StatusWords => EMAIL_STATUS_WORDS[st
 /** Kept in step with EMAIL_TASKS / EMAIL_TASK_LABEL / EMAIL_PERMISSIONS / EMAIL_PERMISSION_LABEL in lib/agents/policy.ts (server-only). */
 export const AGENT_EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup'] as const
 export type AgentEmailTask = typeof AGENT_EMAIL_TASKS[number]
-export const AGENT_EMAIL_TASK_LABEL: Record<AgentEmailTask, string> = {
+/** competitor_alert belongs to the Competitor & Trend Watcher only; it is not offered in the general agent form */
+export const AGENT_EMAIL_TASK_LABEL: Record<AgentEmailTask | 'competitor_alert', string> = {
   run_report: 'Send a summary of each run',
   needs_person_alert: 'Alert people about problems that need a person',
   supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
   supplier_followup: 'Follow up once, in the same thread, when a supplier has not replied',
+  competitor_alert: 'Alert you about meaningful changes at the competitor stores you follow',
 }
 export const AGENT_EMAIL_TASK_HELP: Record<AgentEmailTask, string> = {
   run_report: 'After each run, a short summary of what the agent found, changed and left for you goes to the people on the notify list.',
@@ -254,7 +256,7 @@ export const AGENT_EMAIL_TASK_HELP: Record<AgentEmailTask, string> = {
   supplier_followup: 'One polite reminder in the same email thread when the supplier has not replied after the days you choose. Needs the restock task and permission to notice replies; never more than one follow-up per request.',
 }
 /** Short names for a message's task, in lists */
-export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request', supplier_followup: 'Supplier follow-up' }
+export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request', supplier_followup: 'Supplier follow-up', competitor_alert: 'Competitor alert', sourcing_request: 'Sourcing request' }
 
 export const AGENT_EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
 export type AgentEmailPermission = typeof AGENT_EMAIL_PERMISSIONS[number]

@@ -8,6 +8,7 @@
 import { z } from 'zod'
 import { createHash } from 'node:crypto'
 import { canonicalJson } from '../engine/hash'
+import { normalizeStoreUrl } from '../net/safe-fetch'
 
 import { CORRECTION_TYPES, correctionCapability, correctionTypeForAction, fieldForAction, type CorrectionType } from '../engine/capabilities'
 import type { Platform } from '../engine/types'
@@ -48,13 +49,14 @@ export const tierOfMode = (m: ApprovalMode): Tier => (m === 'draft' ? 'draft' : 
 export const MAX_AUTONOMY_MS = 366 * 864e5
 
 /** Email tasks an agent can be authorized for. Each builds its messages from templates and store data; recipients come only from the policy. */
-export const EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup'] as const
+export const EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup', 'competitor_alert'] as const
 export type EmailTask = typeof EMAIL_TASKS[number]
 export const EMAIL_TASK_LABEL: Record<EmailTask, string> = {
   run_report: 'Send a summary of each run',
   needs_person_alert: 'Alert people about problems that need a person',
   supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
   supplier_followup: 'Follow up once, in the same thread, when a supplier has not replied',
+  competitor_alert: 'Alert you about meaningful changes at the competitor stores you follow',
 }
 /** cumulative permission levels: each includes the ones before it */
 export const EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
@@ -73,7 +75,7 @@ export const EmailPolicySchema = z.object({
   permission: z.enum(EMAIL_PERMISSIONS).default('draft'),
   /** shown in the authorization summary and in every message's audit record */
   purpose: z.string().trim().min(3).max(300),
-  tasks: z.array(z.enum(EMAIL_TASKS)).min(1).max(4),
+  tasks: z.array(z.enum(EMAIL_TASKS)).min(1).max(5),
   /** who the agent may ever write to; a message to anyone else always waits for approval */
   recipients: z.object({
     addresses: z.array(emailAddress).max(50).default([]),
@@ -115,6 +117,48 @@ export function recipientAllowed(e: Pick<EmailPolicy, 'recipients'>, address: st
 }
 export const permissionRank = (p: EmailPermission) => EMAIL_PERMISSIONS.indexOf(p)
 const tag = z.string().trim().min(1).max(255).transform(t => t.toLowerCase())
+
+/**
+ * Competitor & Trend Watcher. Reads the public pages of the stores listed here, nothing else: no logins,
+ * no carts, no private data, and never anything in the merchant's own store. Store URLs are normalized to
+ * their https origin; private, internal and IP addresses are refused (lib/net/safe-fetch.ts).
+ */
+const competitorStore = z.object({
+  url: z.string().trim().min(4).max(300),
+  label: z.string().trim().max(80).optional(),
+  /** the store's own bestseller collection handle (e.g. "best-sellers"); auto-detected when empty */
+  bestsellerCollection: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{0,99}$/, 'a collection handle uses letters, numbers and dashes').nullable().default(null),
+}).transform((st, ctx) => {
+  const n = normalizeStoreUrl(st.url)
+  if (!n.ok) { ctx.addIssue({ code: 'custom', message: `${st.url}: ${n.reason}` }); return z.NEVER }
+  return { url: n.origin, label: (st.label || n.host.replace(/^www\./, '')).slice(0, 80), bestsellerCollection: st.bestsellerCollection }
+})
+const term = z.string().trim().toLowerCase().min(2).max(60)
+export const CompetitorPolicySchema = z.object({
+  stores: z.array(competitorStore).min(1, 'add at least one store to watch').max(25),
+  keywords: z.array(term).max(30).default([]),
+  categories: z.array(term).max(20).default([]),
+  /** informational: public feeds show the store's default region and currency */
+  region: z.string().trim().max(60).nullable().default(null),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, 'a three-letter currency code, e.g. USD').nullable().default(null),
+  budget: z.object({
+    maxRequestsPerStore: z.number().int().min(3).max(40).default(12),
+    maxProductsPerStore: z.number().int().min(50).max(2500).default(1000),
+  }).default({ maxRequestsPerStore: 12, maxProductsPerStore: 1000 }),
+  alerts: z.object({
+    newLaunches: z.boolean().default(true),
+    priceChangePct: z.number().min(1).max(90).default(15),
+    promotions: z.boolean().default(true),
+    availability: z.boolean().default(false),
+    bestsellers: z.boolean().default(true),
+    crossStoreMin: z.number().int().min(2).max(10).default(2),
+    windowDays: z.number().int().min(1).max(30).default(7),
+  }).default({ newLaunches: true, priceChangePct: 15, promotions: true, availability: false, bestsellers: true, crossStoreMin: 2, windowDays: 7 }),
+}).superRefine((c, ctx) => {
+  const seen = new Set<string>()
+  c.stores.forEach((st, i) => { if (seen.has(st.url)) ctx.addIssue({ code: 'custom', path: ['stores', i], message: `${st.url} is listed twice` }); seen.add(st.url) })
+})
+export type CompetitorPolicy = z.infer<typeof CompetitorPolicySchema>
 
 export const PolicySchema = z.object({
   connectionId: z.string().uuid(),
@@ -170,8 +214,17 @@ export const PolicySchema = z.object({
     z.object({ kind: z.literal('daily'), hour: z.number().int().min(0).max(23), minute: z.number().int().min(0).max(59), timezone: z.string().min(1).max(64) }),
   ]).default({ kind: 'manual' }),
   email: EmailPolicySchema.optional(),
+  competitor: CompetitorPolicySchema.optional(),
 }).superRefine((p, ctx) => {
-  if (!p.correctionTypes.length && !p.email && !p.watch.length) ctx.addIssue({ code: 'custom', path: ['correctionTypes'], message: 'choose at least one correction type, check or email task' })
+  if (!p.correctionTypes.length && !p.email && !p.watch.length && !p.competitor) ctx.addIssue({ code: 'custom', path: ['correctionTypes'], message: 'choose at least one correction type, check or email task' })
+  if (p.competitor) {
+    // monitoring is read-only and separate from store work: a watcher never also changes the store
+    if (p.correctionTypes.length || p.watch.length) ctx.addIssue({ code: 'custom', path: ['competitor'], message: 'a competitor watcher only reads other stores; create a separate agent for changes to your store' })
+    if (p.approvalMode !== 'draft') ctx.addIssue({ code: 'custom', path: ['approvalMode'], message: 'a competitor watcher makes no store changes; keep it at drafts only' })
+    if (p.schedule.kind === 'interval' && p.schedule.everyHours < 6) ctx.addIssue({ code: 'custom', path: ['schedule'], message: 'competitor stores are checked at most every 6 hours' })
+    if (p.email && p.email.tasks.some(t => t !== 'competitor_alert')) ctx.addIssue({ code: 'custom', path: ['email', 'tasks'], message: 'a competitor watcher may only email you alerts' })
+  }
+  if (p.email?.tasks.includes('competitor_alert') && !p.competitor) ctx.addIssue({ code: 'custom', path: ['email', 'tasks'], message: 'competitor alerts need stores to watch' })
   if (p.approvalMode === 'autonomous' && p.correctionTypes.length) {
     if (!p.validUntil) ctx.addIssue({ code: 'custom', path: ['validUntil'], message: 'changing the store without asking needs an end date' })
     else if (new Date(p.validUntil).getTime() - Date.now() > MAX_AUTONOMY_MS) ctx.addIssue({ code: 'custom', path: ['validUntil'], message: 'an authorization to change the store without asking lasts at most one year' })
@@ -180,7 +233,7 @@ export const PolicySchema = z.object({
     const e = p.email
     if (!e.recipients.addresses.length && !e.recipients.domains.length) ctx.addIssue({ code: 'custom', path: ['email', 'recipients'], message: 'name at least one recipient address or domain the agent may write to' })
     for (const a of e.notify) if (!recipientAllowed(e, a)) ctx.addIssue({ code: 'custom', path: ['email', 'notify'], message: `${a} is outside the recipient rules` })
-    if ((e.tasks.includes('run_report') || e.tasks.includes('needs_person_alert')) && !e.notify.length) ctx.addIssue({ code: 'custom', path: ['email', 'notify'], message: 'choose who receives summaries and alerts' })
+    if ((e.tasks.includes('run_report') || e.tasks.includes('needs_person_alert') || e.tasks.includes('competitor_alert')) && !e.notify.length) ctx.addIssue({ code: 'custom', path: ['email', 'notify'], message: 'choose who receives summaries and alerts' })
     if (e.tasks.includes('supplier_reorder')) {
       if (!e.supplierReorder) ctx.addIssue({ code: 'custom', path: ['email', 'supplierReorder'], message: 'the supplier reorder task needs a supplier address and threshold' })
       else if (!recipientAllowed(e, e.supplierReorder.supplierAddress)) ctx.addIssue({ code: 'custom', path: ['email', 'supplierReorder'], message: 'the supplier address is outside the recipient rules' })
@@ -284,7 +337,18 @@ export function expansionReasons(prev: AgentPolicy, next: AgentPolicy): string[]
   const po = prev.rules.oversell_policy, no = next.rules.oversell_policy
   if (no && po && !sub(po.exemptTags, no.exemptTags)) r.push('pre-order/backorder exemptions removed')
   r.push(...emailExpansion(prev.email, next.email))
+  r.push(...competitorExpansion(prev.competitor, next.competitor))
   return [...new Set(r)]
+}
+
+function competitorExpansion(pc: CompetitorPolicy | undefined, nc: CompetitorPolicy | undefined): string[] {
+  if (!nc) return []
+  if (!pc) return ['competitor monitoring added']
+  const r: string[] = []
+  const before = new Set(pc.stores.map(st => st.url))
+  if (nc.stores.some(st => !before.has(st.url))) r.push('more competitor stores watched')
+  if (nc.budget.maxRequestsPerStore > pc.budget.maxRequestsPerStore || nc.budget.maxProductsPerStore > pc.budget.maxProductsPerStore) r.push('larger monitoring budget')
+  return r
 }
 
 function emailExpansion(pe: EmailPolicy | undefined, ne: EmailPolicy | undefined): string[] {
@@ -338,12 +402,27 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
     }
   }
   for (const w of p.watch) grants.push(`Checks (read only): ${ctx.watchLabels?.[w] ?? w}. Problems are reported for a person; nothing is changed.`)
+  if (p.competitor) {
+    const c = p.competitor
+    grants.splice(0, grants.length, `Reads the public pages of ${c.stores.length} store${c.stores.length === 1 ? '' : 's'} you chose: ${c.stores.map(st => st.label).join(', ')}.`)
+    grants.push('Records what those pages show (products, prices, compare-at prices, availability, the store’s own bestseller collection) with the time it was seen, and reports changes as findings.')
+    if (c.keywords.length || c.categories.length) grants.push(`Looks for patterns across these stores in: ${[...c.keywords, ...c.categories].join(', ')}.`)
+  }
   const limits: string[] = []
   if (p.approvalMode === 'autonomous') limits.push(`At most ${p.limits.maxChangesPerRun} changes per run and ${p.limits.maxChangesPerDay} per day without asking; anything beyond waits for your approval.`)
   if (p.correctionTypes.includes('price') && p.rules.price) limits.push(p.rules.price.maxChangePct === null ? 'No limit on the size of a price change.' : `Price changes larger than ${p.rules.price.maxChangePct}% always wait for your approval.`)
   limits.push(p.schedule.kind === 'manual' ? 'Runs only when you press Run now.' : p.schedule.kind === 'interval' ? `Runs every ${p.schedule.everyHours} hour${p.schedule.everyHours === 1 ? '' : 's'}.` : `Runs daily at ${String(p.schedule.hour).padStart(2, '0')}:${String(p.schedule.minute).padStart(2, '0')} (${p.schedule.timezone}).`)
   limits.push('Re-reads every record just before writing and stops if it changed; confirms every change with a fresh read.')
+  if (p.competitor) {
+    limits.push(`At most ${p.competitor.budget.maxRequestsPerStore} requests and ${p.competitor.budget.maxProductsPerStore} products per store per check; obeys each store's robots.txt and waits between requests.`)
+  }
   const never = [
+    ...(p.competitor ? [
+      'Never reads, changes or writes anything in your own store.',
+      'Never signs in to, adds to cart at, or contacts any competitor store, and never bypasses a block, password page or bot check.',
+      'Never claims a competitor’s sales, revenue or units: public pages do not show them.',
+      'Never contacts a supplier, buys anything or changes prices or inventory because of a finding. A finding can become a draft for your Supplier Chaser, which still follows its own permissions.',
+    ] : []),
     ...(p.approvalMode === 'draft' && p.correctionTypes.length ? ['Never changes anything in your store: drafts only. Making changes needs a wider permission and a new grant.'] : []),
     'Never changes stock quantities.',
     'Never changes product status (draft, active, archived) or deletes anything.',

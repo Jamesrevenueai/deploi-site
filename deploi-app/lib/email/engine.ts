@@ -63,7 +63,9 @@ async function dayCount(db: Db, agentId: string, excludeId?: string): Promise<nu
  * approval (review, or outside the standing authorization) or Queued (covered). Duplicates of an
  * earlier run's message (same agent and dedupe key) are skipped.
  */
-export async function createAgentMessages(input: { agentId: string; runId: string | null; drafts: DraftMessage[]; actor: string; now?: Date }) {
+export async function createAgentMessages(input: { agentId: string; runId: string | null; drafts: DraftMessage[]; actor: string; now?: Date
+  /** never queue under the standing authorization: a message handed over from another agent always waits for the merchant (or stays a draft) */
+  neverAutoSend?: boolean }) {
   const now = input.now ?? new Date()
   return admin(async db => {
     const ctx = await agentPolicy(db, input.agentId)
@@ -90,7 +92,7 @@ export async function createAgentMessages(input: { agentId: string; runId: strin
       const enc = encryptSecret(JSON.stringify(d.content), `email-message:${row.id}`)
       let status: EmailStatus, reason: string, q: EmailQualification | null = null
       if (permissionRank(e.permission) < permissionRank('send_approved')) { status = 'draft'; reason = 'this agent only drafts: review it and send it yourself, or grant send permission' }
-      else if (e.permission === 'send_approved') { status = 'awaiting_approval'; reason = 'waiting for your approval of this exact message' }
+      else if (e.permission === 'send_approved' || input.neverAutoSend) { status = 'awaiting_approval'; reason = input.neverAutoSend ? 'handed over from another agent: waiting for your approval of this exact message' : 'waiting for your approval of this exact message' }
       else {
         q = qualifyEmail({ agentStatus: ctx.agentStatus, policyStatus: ctx.policyStatus, policyVersion: ctx.policyVersion, policy: ctx.policy!, account, now,
           message: { from, to, cc, attachmentCount: d.content.attachments.length, taskKey: d.taskKey }, counts: { run, day } })

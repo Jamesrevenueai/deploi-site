@@ -16,6 +16,7 @@ import type { ResourceRecord } from '../engine/types'
 import { loadAgentContext, qualifies, type AgentRow, type Qualification } from './plan'
 import { nextRunAt } from './schedule'
 import { runEmailStep, type EmailRunCounts } from '../email/run'
+import { runCompetitorStep, type CompetitorRunCounts } from '../competitors/run'
 
 export type AgentRunTrigger = 'manual' | 'schedule' | 'webhook' | 'test'
 export type AgentRunCounts = {
@@ -26,6 +27,7 @@ export type AgentRunCounts = {
   verified: number; failed: number; blocked: number; stale: number; unconfirmed: number
   missingSources: string[]
   email?: EmailRunCounts
+  competitor?: CompetitorRunCounts
 }
 export type AgentRunResult = { runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts; executions: ExecutionResult[] }
 
@@ -64,6 +66,18 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
       await audit(db, { orgId: ctx.agent.org_id, connectionId: ctx.agent.connection_id, entityType: 'run', entityId: runId, event: `agent_run.${status}`, actor: opts.actor, detail: { reason: reason ?? null, counts } })
     })
     return { runId, status, reason, counts, executions }
+  }
+
+  // Competitor & Trend Watcher: reads other stores' public pages only; never scans or writes the merchant's store
+  if (ctx.policy.competitor) {
+    try {
+      counts.competitor = await runCompetitorStep({ agentId, orgId: ctx.agent.org_id, agentName: ctx.agent.name, runId, policy: ctx.policy, actor: agentActorLabel(ctx.agent.name, ctx.policyRow.version), now })
+    } catch (e) {
+      return finishRun('failed', `competitor check failed: ${(e as Error).message.slice(0, 160)}`)
+    }
+    const cc = counts.competitor
+    if (cc.storesChecked > 0 && cc.storesComplete + cc.storesPartial === 0) return finishRun('failed', 'none of the watched stores could be read; see each store for the reason')
+    return finishRun('completed', cc.storesFailed ? `${cc.storesFailed} of ${cc.storesFailed + cc.storesComplete + cc.storesPartial} stores could not be read` : undefined)
   }
 
   const sourceIds = [ctx.policy.rules.price?.sourceId, ctx.policy.rules.sku?.sourceId, ctx.policy.rules.publication?.sourceId].filter((x): x is string => Boolean(x))

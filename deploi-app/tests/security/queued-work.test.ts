@@ -2,6 +2,7 @@
  * Already-queued work must not act after pause, revoke, uninstall or a scheduler overlap, and failed webhook
  * deliveries must be processed again on retry (not acknowledged as duplicates).
  */
+import '../merchant/env'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { createHmac } from 'node:crypto'
 import { prepareDb } from '../db/helpers'

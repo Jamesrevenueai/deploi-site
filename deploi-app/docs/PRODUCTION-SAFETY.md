@@ -59,7 +59,7 @@ Fastest stop-gap if you want it closed before redeploying: Vercel → `deploi-ap
   ```
 
   If PR #2 is merged while the variables are still set, the production build fails and production stays on the current deployment. So do section 2 first.
-- **Each project builds only when its own files change** (`ignoreCommand` in each `vercel.json`). A website commit can no longer redeploy the app, and an app commit can no longer redeploy the website.
+- **Each project builds only when its own files change** (`ignoreCommand` in each `vercel.json`). A website commit can no longer redeploy the app, and an app commit can no longer redeploy the website. The check compares with the last deployed commit (`VERCEL_GIT_PREVIOUS_SHA`, falling back to the previous commit), so a push of several commits builds a project if any of them touched it; if that commit cannot be found, the project builds.
 
 ## 5. Recommended (needs you; I cannot change these)
 

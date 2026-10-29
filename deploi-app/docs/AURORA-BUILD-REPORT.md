@@ -1,6 +1,6 @@
 # Aurora build report: agent library, tiers, pricing, website (branch `claude/aurora-agent-library`)
 
-Base: `claude/retire-consulting` (365c3a7). Parallel session: `claude/jolly-ptolemy-kp7ljd` (dev-store test), untouched.
+Base: `claude/retire-consulting` at 5ece2f0 (rebased from 365c3a7; the base merged `claude/agents-platform` meanwhile). Parallel session: `claude/jolly-ptolemy-kp7ljd` (dev-store test), untouched.
 Nothing in this branch touched production, Vercel environment variables, deployments, the Shopify CLI, the
 Shopify app configuration or the dev store. Email stays off. Every live Shopify read or write for the new
 agents sits behind `lib/library/store-data.ts`, whose live implementation refuses with `not_wired`.
@@ -27,17 +27,34 @@ agents sits behind `lib/library/store-data.ts`, whose live implementation refuse
 |---|---|---|
 | `deploi-app` typecheck (`tsc --noEmit`) | pass | |
 | `deploi-app` lint (`eslint .`) | pass | 0 problems |
-| `deploi-app` vitest | pass | 245 / 245 (28 → 35 files; 185 baseline + 60 new) |
+| `deploi-app` vitest | pass | 262 / 262 in 37 files (base 202 after its merge; 60 new) |
 | `deploi-app` build (`next build`) | pass | |
 | `deploi-app` Playwright, `DEMO_CONTROLS=true` | see below | |
-| `deploi-app` launch migrations 28–34 apply / rollback / re-apply on a production-shaped copy | pass | |
+| `deploi-app` launch migrations 28–34 (now 8 files with the base's store access) apply / rollback / re-apply on a production-shaped copy | pass (run before the rebase; the list and the script were updated for the base's extra migration) | |
 | `deploi-site` typecheck | pass | |
 | `deploi-site` lint | pass | 0 problems |
-| `deploi-site` vitest | pass | 38 / 38 (34 baseline + 4 new) |
+| `deploi-site` vitest | pass | 41 / 41 in 4 files (base 37 after its merge; 4 new) |
 | `deploi-site` build (`vite build`) | pass | |
-| Trial merge with `claude/jolly-ptolemy-kp7ljd` (`git merge-tree`) | clean, no conflicts | |
+| Trial merge with `claude/jolly-ptolemy-kp7ljd` (`git merge-tree`) | 3 conflicts, none caused by this branch (see below) | |
 
-Playwright, SHAs, preview deployment IDs and the screenshot index are filled in at the end of this file.
+## Conflicts with the other session's branch
+
+`git merge-tree` of this branch against `claude/jolly-ptolemy-kp7ljd` reports three conflicting files:
+`deploi-app/docs/SHOPIFY-SETUP.md`, `deploi-app/lib/connectors/shopify/install.ts` and
+`deploi-app/shopify.app.toml.example`. The same three files conflict when the other branch is merged against the
+**base** alone (`origin/claude/retire-consulting` at 5ece2f0, which merged `claude/agents-platform` after both
+sessions branched). This branch does not touch any of the three, so it adds no conflicts of its own; the other
+session will meet those three when it rebases on the current base, whatever happens to this PR. Before the base
+moved, the trial merge of the two branches was clean.
+
+The files both branches change in different places (auto-merged, no conflict): none. The files this branch
+shares with the base's own merge and that were resolved during the rebase: `lib/engine/audit.ts` (two new
+entity types, `access` and `library`), `scripts/launch-migrations.ts` and its test and script (eight launch
+migrations), `src/pages/Home.tsx` (the base's agent illustrations kept beside the library grid) and
+`src/styles.css` (both appended blocks kept). The eight `proof/platform-*.png` images the base regenerated are
+the base's versions.
+
+Playwright, SHAs, preview deployment IDs and the screenshot index are at the end of this file.
 
 ## What the tests cover (new, `tests/library/`, 60 cases)
 

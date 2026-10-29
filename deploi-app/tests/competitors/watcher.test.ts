@@ -241,3 +241,25 @@ describe.skipIf(!ready)('plan limits are enforced on the server', () => {
     await expect(watcher(actor)).rejects.toThrow(/allows 1 agents/)
   })
 })
+
+describe.skipIf(!ready)('delivery outcomes for agent mail', () => {
+  beforeEach(async () => { process.env.AGENT_MAIL_DOMAIN = DOMAIN; await resetMerchant(NW, { ruleOn: false }) })
+  afterEach(() => { delete process.env.AGENT_MAIL_DOMAIN })
+  it('a bounce marks the accepted message failed with the reason; a repeat delivery is a duplicate; "delivered" never changes the status', async () => {
+    const { processInbound } = await import('../../lib/email/inbound')
+    const actor = await merchantActor(NW)
+    const { agentId } = await watcher(actor, { notify: OWNER })
+    const acc = (await admin(db => db.one<{ id: string; address: string }>(`select id, address from email_accounts where agent_id = $1`, [agentId])))!
+    const mk = (pid: string) => admin(db => db.one<{ id: string }>(`insert into email_messages (org_id, agent_id, account_id, task_key, dedupe_key, status, from_address, to_addresses, key_id, content_ciphertext, content_hash, internet_message_id, provider_message_id)
+      values ($1,$2,$3,'competitor_alert',$4,'accepted',$5,$6,'k','c','h',$7,$8) returning id`, [NW.org, agentId, acc.id, `t:${pid}`, acc.address, [OWNER], `<${pid}@test>`, pid]))
+    const run = Date.now().toString(36)
+    const bounced = (await mk(`re_bounce_${run}`))!.id, delivered = (await mk(`re_ok_${run}`))!.id
+    const evt = (id: string, type: string, email_id: string) => processInbound({ deliveryId: id, type, data: { email_id, bounce: { message: 'mailbox does not exist' } } }, async () => { throw new Error('no fetch for delivery events') })
+    await evt(`d1-${run}`, 'email.bounced', `re_bounce_${run}`)
+    expect(await evt(`d1-${run}`, 'email.bounced', `re_bounce_${run}`)).toEqual({ outcome: 'duplicate' })
+    await evt(`d2-${run}`, 'email.delivered', `re_ok_${run}`)
+    const rows = await admin(db => db.query<{ id: string; status: string; failure_code: string | null; status_reason: string | null }>('select id, status, failure_code, status_reason from email_messages where id = any($1::uuid[])', [[bounced, delivered]]))
+    expect(rows.find(r => r.id === bounced)).toMatchObject({ status: 'failed', failure_code: 'bounced', status_reason: 'bounced: mailbox does not exist' })
+    expect(rows.find(r => r.id === delivered)!.status).toBe('accepted')
+  })
+})

@@ -7,7 +7,7 @@ const DIRECT = 'postgres://postgres:pw@db.abcdefghijklmnopqrst.supabase.co:5432/
 
 describe('launch migrations: production guard', () => {
   it('covers exactly migrations 28 to 32, in order', () => {
-    expect(LAUNCH.map(f => f.slice(0, 14))).toEqual(['20261028000028', '20261028000029', '20261028000030', '20261028000031', '20261028000032'])
+    expect(LAUNCH.map(f => f.slice(0, 14))).toEqual(['20261028000028', '20261028000029', '20261028000030', '20261028000031', '20261028000032', '20261029000033', '20261029000034'])
   })
   it('recognises Supabase pooler and direct hosts', () => {
     expect(productionRef(POOLER)).toBe('abcdefghijklmnopqrst')

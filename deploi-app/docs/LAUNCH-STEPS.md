@@ -1,6 +1,22 @@
 # Launch steps, click by click
 
-These are the three changes only you can make. They are listed in the order to do them. Menu names are as of October 2026. If a label has moved, the setting is the same. Background and reasons are in `LAUNCH-DNS.md` and `PRODUCTION-SAFETY.md`.
+These are the changes only you can make. Menu names are as of October 2026. If a label has moved, the setting is the same. Background and reasons are in `LAUNCH-DNS.md`, `PRODUCTION-SAFETY.md` and `RELEASE-PLAN.md`.
+
+## The whole sequence (updated 2026-10-29)
+
+| # | Step | Where | Blocks |
+|---|---|---|---|
+| 0 | **Close the public dev sign-in** (remove `AUTH_MODE`/`ALLOW_DEV_LOGIN` from Production, rotate `APP_SECRET` per environment, redeploy, verify) | `PRODUCTION-SAFETY.md` §2 | everything; it is live today |
+| 0a | A mailbox for `hello@getdeploi.com`, or a receivable `STAFF_EMAILS` address (getdeploi.com has **no MX record**) | your email provider | staff sign-in after step 0 |
+| 1 | Protect `main` | below | safe merging |
+| 2 | Resend: verify `agents.getdeploi.com` and the root domain | below | any real email |
+| 3 | Move getdeploi.com to the new website | below | public site |
+| 4 | Back up production and apply migrations 28–34 | `RELEASE-PLAN.md` §3 | merging anything into `main` |
+| 5 | Create the Shopify app in the Dev Dashboard and set `SHOPIFY_*` and `CREDENTIALS_*` in Vercel | `RELEASE-PLAN.md` §4, `SHOPIFY-SETUP.md` | Shopify installs |
+| 6 | Merge in order: #2, then new PR → #3 → #1 | `RELEASE-PLAN.md` §2 | production platform |
+| 7 | Run the development-store test, and name the test mailbox for the email test | `DEV-STORE-CHECKLIST.md`, `EMAIL-SETUP.md` | beta |
+| 8 | Grant beta stores write access one by one | `RELEASE-PLAN.md` §5 | beta merchants making changes |
+| 9 | Decisions: pricing (free beta proposed), legal review, app icon, listing | `APP-STORE-OPEN-ITEMS.md` | public listing |
 
 ## 1. Protect `main` on GitHub (5 minutes)
 
@@ -59,6 +75,8 @@ DNS for getdeploi.com is at Squarespace, so every record below goes in **Squares
    Leave sends off until the test in `DEV-STORE-CHECKLIST.md` passes, and do not redeploy until you approve.
 
 For `hello@getdeploi.com` (the weekly summary sender), repeat steps 1 to 5 with the name `getdeploi.com`. That adds `resend._domainkey`, `send` MX and `send` TXT records on the root. Skip Receiving and skip the DMARC row.
+
+Checked 2026-10-29 (public DNS): the root has `v=spf1 -all`, `_dmarc` `p=reject; sp=reject; adkim=s; aspf=s`, **no MX**, and no Resend records on `agents` or the root. With strict DKIM alignment, mail from `hello@getdeploi.com` is rejected by receivers until the root domain is verified in Resend; the agent subdomain passes once its own DKIM record is verified, because Resend signs with `d=agents.getdeploi.com`. Receiving mail at `hello@getdeploi.com` needs a mailbox provider's MX records (step 0a); add those as Custom records and keep them when moving the website (step 3).
 
 ## 3. Move getdeploi.com off Squarespace to the new website (10 minutes, then waiting on DNS)
 

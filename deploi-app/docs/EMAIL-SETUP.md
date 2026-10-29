@@ -117,3 +117,53 @@ Tested with synthetic inbound mail, no network (`tests/merchant/mail-threading.t
 | Another organization's token on this mailbox | Not threaded: no cross-organization match |
 
 **Still unverified (needs a live send to a test mailbox):** whether Resend and the receiving mail client keep the plus-tag in the Reply-To address. Most do: the address is ordinary RFC 5322 and Resend passes `reply_to` as given. If a client strips it, the reply falls back to header matching, then to "unthreaded", and the merchant still sees it in the mailbox. Check it once with step B4 in `LAUNCH-DNS.md`.
+
+## Status on 2026-10-29: what is ready, what is verified, what is not
+
+**No real email has been sent or received by this work.** The owner has not yet named a test mailbox, Resend
+is not configured in Vercel (`RESEND_API_KEY`, `AGENT_MAIL_DOMAIN`, `AGENT_MAIL_WEBHOOK_SECRET` are absent from
+`deploi-app` Production and Preview), and no Resend domain is verified.
+
+Sender-domain readiness (public DNS, read 2026-10-29):
+
+| Name | Record today | Needed |
+|---|---|---|
+| `getdeploi.com` | SPF `v=spf1 -all`; DMARC `p=reject; sp=reject; adkim=s; aspf=s`; **no MX** | Resend DKIM (`resend._domainkey`), `send` MX/TXT for `hello@` sends; a mailbox provider's MX to receive `hello@` |
+| `agents.getdeploi.com` | nothing | Resend DKIM, `send.agents` MX/TXT, receiving MX, `_dmarc.agents` (`LAUNCH-STEPS.md` step 2) |
+
+With strict DKIM alignment, `hello@getdeploi.com` mail (the weekly summary) is rejected by receivers until the
+root domain is verified in Resend. The weekly page now says "Not sent from this environment (reason)" whenever
+the server would not send it (no provider, or recipients outside `EMAIL_TEST_RECIPIENTS`).
+
+Built and covered by tests (synthetic or local only):
+
+| Behaviour | Where | Test |
+|---|---|---|
+| Inbound webhook signature (svix, 5-minute tolerance), fails closed without a secret | `app/api/webhooks/agent-mail` | `tests/merchant/mail-threading.test.ts` |
+| Reply associated with the right tenant and thread (tagged Reply-To first, `In-Reply-To` fallback, never across organizations) | `lib/email/inbound.ts` | same |
+| Duplicate deliveries handled once (`inbound_webhook_events`); a failed fetch releases the delivery for the retry | same | same |
+| Unmatched, outside-allowlist or failing-auth mail is quarantined; mail never changes permissions | same | same |
+| Send failures, uncertain outcomes (Delivery unknown, never resent automatically), idempotency key on Resend | `lib/email/engine.ts` | `tests/merchant/platform.test.ts`, `email.test.ts` |
+| **New:** bounces and spam complaints mark an accepted agent message Failed with the reason; "delivered" is noted but the status stays Accepted by provider | `lib/email/inbound.ts` | `tests/competitors/watcher.test.ts` ("delivery outcomes") |
+| **New:** Resend inbound for referrals is deduplicated by `svix-id`; mail without a routing address is dropped | `app/api/webhooks/resend-inbound` | `tests/baa/gate.test.ts` (routing), code review |
+| Weekly summary HTML at desktop and phone width (single column, no media queries, every value escaped) | `lib/agents/weekly.ts` | `mail-threading.test.ts` screens, `proof/screens` |
+
+To also receive bounce and delivery events for agent mail, add `email.bounced`, `email.complained` and
+`email.delivered` to the same Resend webhook endpoint (`/api/webhooks/agent-mail`) as `email.received`.
+
+### Live email test (owner-designated test mailbox only; never a real supplier or customer)
+
+1. Do `LAUNCH-STEPS.md` step 2 and wait until Resend shows every record **Verified**.
+2. Set in the environment under test: `RESEND_API_KEY`, `AGENT_MAIL_DOMAIN=agents.getdeploi.com`,
+   `AGENT_MAIL_WEBHOOK_SECRET`, `EMAIL_LIVE_SENDS=allowlist`, `EMAIL_TEST_RECIPIENTS=<the test mailbox>`.
+3. Supplier Chaser with supplier = the test mailbox, email permission "Send messages you approve". Approve one
+   restock request. Expect: **Accepted by provider**, the mail in the test inbox (not spam), and in its headers
+   `dkim=pass header.d=agents.getdeploi.com` and `dmarc=pass`.
+4. Reply from the test mailbox. Expect: the reply under the sent message in **Agent mailbox**, threaded;
+   `Reply-To` kept its `+t-<token>` tag (record yes/no in this file).
+5. Send a mail to the agent address from a second address that is not in the allowed recipients. Expect:
+   **Quarantined**, and no change to the agent.
+6. Approve a message to a non-existent address at the test domain (if the test domain allows that) and expect
+   **Failed: bounced** after the bounce event arrives.
+7. Weekly summary: with the test mailbox as the only merchant user, trigger `/api/cron/weekly-summary` with the
+   cron secret; open it on a phone and a desktop client.

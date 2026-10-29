@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests the launch migrations (20261028000028..32) and their rollback on a COPY of a database in the
+# Tests the launch migrations (20261028000028..20261029000034) and their rollback on a COPY of a database in the
 # state production is in today (migrations up to 20261021000027 plus existing care-agency data).
 # Never touches production. Needs a local Postgres reachable as $PGURL (default postgres:postgres@127.0.0.1).
 #
@@ -53,8 +53,8 @@ MERCHANT_TEST_DATABASE_URL="$PGURL/$COPY" npx vitest run tests/merchant/platform
 step "7. rollback refuses while launch tables hold data"
 OUT=$(npx tsx scripts/launch-migrations.ts rollback --db "$PGURL/$COPY" 2>&1 || true)
 if grep -q 'rollback refused' <<<"$OUT"; then echo "refused: $OUT"; else echo "NOT REFUSED: $OUT"; exit 1; fi
-STILL=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261028%'")
-echo "launch migrations still recorded after the refusal: $STILL of 5"; [[ "$STILL" == "5" ]] || { echo "PARTIAL ROLLBACK"; exit 1; }
+STILL=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name >= '20261028000028'")
+echo "launch migrations still recorded after the refusal: $STILL of 7"; [[ "$STILL" == "7" ]] || { echo "PARTIAL ROLLBACK"; exit 1; }
 
 step "8. rollback with --discard-data, then compare the schema with the original"
 npx tsx scripts/launch-migrations.ts rollback --db "$PGURL/$COPY" --discard-data

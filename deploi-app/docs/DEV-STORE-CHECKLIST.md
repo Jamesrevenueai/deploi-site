@@ -58,8 +58,32 @@ In the dev store admin → Products → pick one product → its variant:
 - [ ] **Run now** → **Approvals → Emails to approve** shows the restock request. Approve it. Because `EMAIL_LIVE_SENDS=off`, it is held and **nothing arrives** in the test mailbox. That is the expected result for this test.
 - [ ] Optional, only once `LAUNCH-STEPS.md` step 2 is verified: set `EMAIL_LIVE_SENDS=allowlist` and `EMAIL_TEST_RECIPIENTS=<your test mailbox>`, restart, and approve again. It arrives in the inbox (not spam), and your reply shows under it in **Agent mailbox**.
 
-## 7. Clean up (1 minute)
+## 7. Competitor & Trend Watcher (5 minutes, read only)
 
-- [ ] Delete the agents. Uninstall the app from the dev store (Settings → Apps). The `app/uninstalled` webhook marks the store disconnected in Deploi.
+- [ ] **Agents → Competitor & Trend Watcher → Use this template.** Add one public Shopify store you are allowed to monitor (your own second dev store with its password page off works), plus `example.org` as a non-Shopify site. Grant.
+- [ ] **Run now.** The Shopify store shows **Readable**, a baseline and its currency; findings show only "Baseline recorded…"; `example.org` shows **Not supported** with the reason. Nothing is reported as a new launch.
+- [ ] Add a product to the watched store with today's date, then **Run now** again: one "added 1 new product" finding, labelled **Observed**, with the product link and time.
+- [ ] Your own dev store was not read or changed by this agent (Activity shows no scan for it).
+
+## 8. Webhooks, reconnection and uninstall (5 minutes)
+
+- [ ] Change a product in the dev store admin: within a minute **Activity** shows a targeted re-check (`products/update`).
+- [ ] Duplicate delivery: Shopify retries with the same `X-Shopify-Webhook-Id`. To check live, run `shopify app webhook trigger --topic products/update --address <your tunnel URL>/api/shopify/webhooks` twice with the same `--delivery-method http` payload saved to a file, or replay one captured request with `curl` (same headers and body): the second answer is `{"ok":true,"duplicate":true}` and nothing runs twice. (Covered by tests: `tests/security/queued-work.test.ts`, "Shopify webhook retries".)
+- [ ] Remove `write_publications` from `shopify.app.toml`, `shopify app deploy`, accept the scope change: a publication change is refused with "missing permission: write_publications". Put it back.
+- [ ] Uninstall the app (Settings → Apps). Deploi shows the store **disconnected**, its agents **paused**, and queued email cancelled. Reinstall: the same organization comes back connected, agents stay paused until you resume them.
+- [ ] (48 hours after uninstall, Shopify sends `shop/redact`.) Optional: trigger it with `shopify app webhook trigger --topic shop/redact` and check the store's data is erased.
+
+## 9. Tenant isolation with a second store (3 minutes)
+
+- [ ] Install on a second dev store. Signed in to the second store, no agent, finding, email or work-log entry of the first store is visible, and opening a first-store agent URL says **Agent not found**.
+
+## 10. Clean up (1 minute)
+
+- [ ] Delete the agents. Uninstall the app from the dev stores (Settings → Apps). The `app/uninstalled` webhook marks each store disconnected in Deploi.
+
+## Notes for this release (2026-10-29)
+
+- Writes to a real store need a `store_eligibility` row in production (`RELEASE-PLAN.md` §5). Locally, `LIVE_WRITE_STORES=<your dev store>` (section 1) still enables writes.
+- **Status: not run.** No development store or Partner app credentials were available to this work, so every box above is unverified on a real store. The same flows pass against the synthetic store (`npx vitest run`, `npx playwright test`).
 
 Record the time taken and any step that did not match. That list, with screenshots, is the live verification the readiness report still lacks.

@@ -580,3 +580,15 @@ footer { border-top: 1px solid var(--dg-line); padding: 80px 0 40px; text-align:
 
 @media (min-width: 960px) { .controls-grid { grid-template-columns: repeat(3, 1fr); max-width: none; } }
 @media (min-width: 960px) { .agents-grid { grid-template-columns: repeat(2, 1fr); max-width: 1000px; margin-inline: auto; } }
+
+/* Agent role illustrations */
+.agent-roles { display: grid; grid-template-columns: 1fr; gap: var(--dg-card-gap); margin: 0 auto 16px; text-align: left; }
+@media (min-width: 640px) { .agent-roles { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 960px) { .agent-roles { grid-template-columns: repeat(3, 1fr); } }
+.agent-role { margin: 0; border-radius: var(--dg-card-radius); border: 1px solid var(--dg-line); background: var(--dg-black-alt); overflow: hidden; display: flex; flex-direction: column; }
+.agent-role img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; background: var(--dg-black); border-bottom: 1px solid var(--dg-line); }
+.agent-role figcaption { padding: 22px 24px 26px; display: flex; flex-direction: column; gap: 8px; }
+.agent-role h3 { font-size: 1.125rem; }
+.agent-role p { color: var(--dg-grey-body); font-size: 0.95rem; line-height: 1.5; }
+.agent-role-kind { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dg-accent); }
+.agent-roles-note { margin: 0 auto 40px; max-width: 680px; text-align: center; color: var(--dg-grey-headline); font-size: 0.85rem; line-height: 1.5; }

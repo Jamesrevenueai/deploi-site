@@ -54,7 +54,7 @@ step "7. rollback refuses while launch tables hold data"
 OUT=$(npx tsx scripts/launch-migrations.ts rollback --db "$PGURL/$COPY" 2>&1 || true)
 if grep -q 'rollback refused' <<<"$OUT"; then echo "refused: $OUT"; else echo "NOT REFUSED: $OUT"; exit 1; fi
 STILL=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261028%' or name like '20261029%'")
-echo "launch migrations still recorded after the refusal: $STILL of 6"; [[ "$STILL" == "6" ]] || { echo "PARTIAL ROLLBACK"; exit 1; }
+echo "launch migrations still recorded after the refusal: $STILL of 7"; [[ "$STILL" == "7" ]] || { echo "PARTIAL ROLLBACK"; exit 1; }
 
 step "8. rollback with --discard-data, then compare the schema with the original"
 npx tsx scripts/launch-migrations.ts rollback --db "$PGURL/$COPY" --discard-data

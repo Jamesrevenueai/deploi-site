@@ -9,7 +9,7 @@ Updated 2026-10-28. Branches:
 
 ## Verdict
 
-**The launch is not complete.** Everything below is built and passes against a synthetic Shopify store, a fake Resend API and local Postgres. None of it has run against a real Shopify development store or a real mailbox, and no real email has been sent.
+**The launch is not complete.** The Shopify App Store work (store access, App Pricing check, App Bridge first, token hardening) is on PR #1 and tested locally; the app has **not** been submitted to or reviewed by Shopify (`docs/APP-STORE-SUBMISSION.md`). Everything below is built and passes against a synthetic Shopify store, a fake Resend API and local Postgres. None of it has run against a real Shopify development store or a real mailbox, and no real email has been sent.
 
 Production right now is on the rolled-back deployments (verified). It **still allows password-free dev sign-in**: you chose to fix that later, and the steps are in `docs/PRODUCTION-SAFETY.md` §2.
 
@@ -129,7 +129,7 @@ None of this has run against Shopify itself. The calls follow the official Admin
 8. The hourly `/api/cron/agents` schedule on Vercel (needs `CRON_SECRET`).
 
 **How to verify:** follow `docs/SHOPIFY-SETUP.md` §2. In short:
-1. Create a development store and the app, set the environment variables, and set `LIVE_WRITE_STORES` to only that store.
+1. Create a development store and the app, and set the environment variables. Development stores are enabled for changes automatically (`STORE_ACCESS_MODE=beta`).
 2. Install the app.
 3. Upload the three demo CSVs, adapted to the store's real products.
 4. Create one agent per correction type, run each in review mode and then authorized mode, and confirm every
@@ -152,6 +152,9 @@ None of this has run against Shopify itself. The calls follow the official Admin
 - **Production database**: migrations `20261028000028` to `…032` are not applied. Use `scripts/launch-migrations.ts` (tested on a copy) with your approval, before merging PR #1.
 - **Agent mail live test**: needs `AGENT_MAIL_DOMAIN` DNS and Resend domain verification (`docs/LAUNCH-DNS.md` §B), and **your dedicated test address**.
 - **Production dev sign-in**: remove `AUTH_MODE` and `ALLOW_DEV_LOGIN` from Production (`docs/PRODUCTION-SAFETY.md` §2).
+- **Shopify App Store**: Partner account and app, a real development-store run, pricing decision, icon,
+  screenshots, screencast, emergency contact, legal review, then Shopify's review. Full list:
+  `docs/APP-STORE-SUBMISSION.md` §5.
 - **WooCommerce and Amazon**: planned. Detection logic is written and tested, but the connectors refuse every
   call by design.
 

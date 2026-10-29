@@ -15,6 +15,7 @@ import { verifySessionToken, type VerifiedSession } from '../connectors/shopify/
 import { shopifyConfig } from '../connectors/shopify/config'
 import type { Actor } from '../engine/actor'
 import { isEngineError, type EngineErrorCode } from '../engine/errors'
+import { isLibraryError, LIBRARY_STATUS } from '../library/errors'
 import '../connectors'
 
 export class HttpError extends Error { constructor(public status: number, public code: string, message: string) { super(message); this.name = 'HttpError' } }
@@ -68,6 +69,7 @@ export function errorResponse(e: unknown): NextResponse {
     return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: e.status, headers })
   }
   if (isEngineError(e)) return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: ENGINE_STATUS[e.code] ?? 400 })
+  if (isLibraryError(e)) return NextResponse.json({ ok: false, error: e.code, message: e.message, detail: e.detail }, { status: LIBRARY_STATUS[e.code] ?? 400 })
   log.error('store.api.failed', { error: (e as Error).message })
   return NextResponse.json({ ok: false, error: 'internal', message: 'something went wrong' }, { status: 500 })
 }

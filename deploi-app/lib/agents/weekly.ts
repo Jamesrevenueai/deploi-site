@@ -10,6 +10,7 @@ import { withActor, type Actor } from '../engine/actor'
 import { env, COMPANY_EMAIL, COMPANY_NAME } from '../env'
 import { resendSystemEmail } from '../email/adapters/deploi'
 import { emailConfig, liveSendAllowed } from '../email/config'
+import { libraryWeek, type LibraryWeek } from '../library/weekly'
 
 /** Minutes of merchant work one finished item replaces. Assumptions, shown with every estimate. */
 export const ESTIMATE_MINUTES = { verifiedChange: 3, draftedChange: 1, emailSent: 5, emailDrafted: 3, taskDone: 2 } as const
@@ -26,6 +27,8 @@ export type WeeklyFacts = {
   orgName: string; weekStart: string; weekEnd: string
   agents: AgentWeek[]; attention: Attention[]
   estimate: { minutes: number; formula: string; label: 'Estimate' }
+  /** the agent library's week: actions per agent, time and money saved (estimates, with formulas) */
+  library?: LibraryWeek
 }
 
 /** Monday 00:00 UTC of the week containing `d`. */
@@ -70,7 +73,10 @@ export async function weeklyFacts(db: Db, orgId: string, weekStart: Date): Promi
     { kind: 'expiring', count: await n(`select count(*)::text as n from agent_policies p join agents a on a.active_policy_id = p.id where p.org_id = $1 and a.status = 'active'
         and least(nullif(p.policy->>'validUntil', '')::timestamptz, nullif(p.policy->'email'->>'validUntil', '')::timestamptz) < now() + interval '14 days'`), label: 'authorization(s) ending within 14 days' },
   ].filter(a => a.count > 0)
-  return { orgName: org?.name ?? 'your store', weekStart: from.slice(0, 10), weekEnd: new Date(weekStart.getTime() + 6 * 864e5).toISOString().slice(0, 10), agents, attention, estimate: estimateMinutes(agents) }
+  const library = await libraryWeek(db, orgId, weekStart)
+  const libraryWaiting = library.agents.reduce((s, a) => s + a.drafted, 0)
+  if (libraryWaiting) attention.push({ kind: 'library', count: libraryWaiting, label: 'team action(s) waiting for your approval' })
+  return { orgName: org?.name ?? 'your store', weekStart: from.slice(0, 10), weekEnd: new Date(weekStart.getTime() + 6 * 864e5).toISOString().slice(0, 10), agents, attention, estimate: estimateMinutes(agents), library }
 }
 
 /** Competitor findings for one agent, kept apart: what was seen versus what Deploi inferred. */
@@ -82,9 +88,11 @@ export function renderWeekly(f: WeeklyFacts, appUrl: string): { subject: string;
     `Your Deploi agents, week of ${f.weekStart} to ${f.weekEnd}`, '',
     'What each agent did:',
     ...(f.agents.length ? f.agents.map(a => `- ${a.name} (${a.status}): ${a.runs} run(s), ${a.verified} change(s) verified, ${a.drafted} change(s) drafted, ${a.failed} failed, ${a.emailsAccepted} email(s) sent, ${a.emailsDrafted} email draft(s), ${a.tasksDone} task(s) done${competitorWords(a)}`) : ['- No agents yet.']),
+    ...(f.library && f.library.agents.length ? ['', 'Your team (agent library):', ...f.library.agents.map(a => `- ${a.name}${a.enabled ? '' : ' (off)'}: ${a.noted} reported, ${a.drafted} waiting for you, ${a.approved} approved, ${a.done} done, ${a.declined} declined, ${a.failed} failed`)] : []),
     '', 'Needs your attention:',
     ...(f.attention.length ? f.attention.map(a => `- ${a.count} ${a.label}`) : ['- Nothing is waiting for you.']),
-    '', `Estimated time saved: about ${f.estimate.minutes} minutes. This is an estimate, not a measurement: ${f.estimate.formula}.`,
+    '', `Estimated time saved: about ${f.estimate.minutes + (f.library?.time.minutes ?? 0)} minutes. This is an estimate, not a measurement: ${f.estimate.formula}${f.library?.time.minutes ? `; team: ${f.library.time.formula}` : ''}.`,
+    ...(f.library ? [`Estimated money saved: about $${f.library.money.usd}. An estimate: ${f.library.money.formula} (average order value from ${f.library.money.aovSource}).`] : []),
     '', `Open Deploi: ${appUrl.replace(/\/$/, '')}/store/agents`,
   ]
   return { subject: `Deploi weekly summary: ${f.agents.reduce((s, a) => s + a.verified, 0)} verified, ${f.attention.reduce((s, a) => s + a.count, 0)} waiting for you`, text: lines.join('\n') }
@@ -108,6 +116,7 @@ export function renderWeeklyHtml(f: WeeklyFacts, appUrl: string): string {
 <tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">What each agent did</td></tr>
 <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px;border-collapse:collapse">
 ${rows || '<tr><td style="padding:10px 0;font-size:14px;color:#222">No agents yet.</td></tr>'}</table></td></tr>
+${f.library && f.library.agents.length ? `<tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">Your team</td></tr><tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px;border-collapse:collapse">${f.library.agents.map(a => `<tr><td style="padding:8px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222"><strong>${esc(a.name)}</strong>${a.enabled ? '' : ' <span style="color:#777;font-size:12px">off</span>'}<br><span style="color:#444;font-size:13px">${a.noted} reported · ${a.drafted} waiting for you · ${a.approved} approved · ${a.done} done · ${a.declined} declined · ${a.failed} failed</span></td></tr>`).join('')}</table></td></tr><tr><td style="padding-top:12px"><div style="background:#eef6ff;border:1px solid #b9d3f5;border-radius:8px;padding:12px;font-size:14px;color:#222"><strong>Estimated money saved: about $${esc(f.library.money.usd)}.</strong> <span style="display:inline-block;background:#b9d3f5;border-radius:4px;padding:1px 6px;font-size:12px">Estimate</span><br><span style="font-size:12px;color:#555">${esc(f.library.money.formula)} (average order value from ${esc(f.library.money.aovSource)}).</span></div></td></tr>` : ''}
 <tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">Needs your attention</td></tr>
 <tr><td>${attention}</td></tr>
 <tr><td style="padding-top:20px"><div style="background:#fff8e6;border:1px solid #f0d58a;border-radius:8px;padding:12px;font-size:14px;color:#222"><strong>Estimated time saved: about ${f.estimate.minutes} minutes.</strong> <span style="display:inline-block;background:#f0d58a;border-radius:4px;padding:1px 6px;font-size:12px">Estimate</span><br><span style="font-size:12px;color:#555">This is an estimate, not a measurement: ${esc(f.estimate.formula)}.</span></div></td></tr>

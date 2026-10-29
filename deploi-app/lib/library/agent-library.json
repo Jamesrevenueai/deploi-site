@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "pricingStatus": "coming_soon",
+  "currency": "USD",
+  "permissionLevels": [
+    { "key": "read", "label": "Read only", "description": "The agent reads your store and reports what it finds. It never drafts or changes anything." },
+    { "key": "draft", "label": "Draft for approval", "description": "The agent drafts the change, reply or email and puts it in your approval queue. Nothing happens until you approve it." },
+    { "key": "act", "label": "Act within limits", "description": "For action types you have granted auto-run, the agent acts on its own inside the limits you set, and logs every action with proof. Everything else still waits for you." }
+  ],
+  "tiers": [
+    {
+      "key": "starter", "name": "Starter", "order": 1,
+      "tagline": "Keep the store healthy and the listings sharp.",
+      "agents": ["inventory_watcher", "store_health_checker", "weekly_insights", "listing_writer"],
+      "monthlyActions": 150, "proposedPriceUsd": 29, "proposedOverageUsd": 0.25, "buildYourOwn": false
+    },
+    {
+      "key": "growth", "name": "Growth", "order": 2,
+      "tagline": "Everything in Starter, plus orders, suppliers, promotions and AI shopping channels.",
+      "agents": ["inventory_watcher", "store_health_checker", "weekly_insights", "listing_writer", "supplier_chaser", "order_tracker", "promo_manager", "ai_visibility"],
+      "monthlyActions": 500, "proposedPriceUsd": 79, "proposedOverageUsd": 0.20, "buildYourOwn": false
+    },
+    {
+      "key": "pro", "name": "Pro", "order": 3,
+      "tagline": "All twelve agents, customer-facing work, money checks, and build your own.",
+      "agents": ["inventory_watcher", "store_health_checker", "weekly_insights", "listing_writer", "supplier_chaser", "order_tracker", "promo_manager", "ai_visibility", "customer_care", "campaign", "returns", "payout_fees_checker"],
+      "monthlyActions": 1500, "proposedPriceUsd": 199, "proposedOverageUsd": 0.15, "buildYourOwn": true
+    }
+  ],
+  "agents": [
+    {
+      "key": "order_tracker", "name": "Order Tracker", "status": "new",
+      "character": { "emoji": "📦", "hue": 28, "shape": "round" },
+      "tagline": "Flags stuck or late orders.",
+      "description": "Looks at open orders every day and flags the ones that are stuck: unfulfilled past your promised dispatch time, fulfilled but not moving, or missing tracking. It shows you the order, how late it is and what it suggests you do.",
+      "exampleTask": "Tell me every morning which orders are more than two days late and draft a note to the customer for each one.",
+      "tools": ["shopify"],
+      "actionTypes": [
+        { "key": "flag_late_order", "label": "Flag a late order", "writes": false },
+        { "key": "draft_customer_update", "label": "Draft a delay update to the customer", "writes": true }
+      ],
+      "scopes": ["read_orders", "read_fulfillments"],
+      "protectedScopes": ["read_orders"]
+    },
+    {
+      "key": "returns", "name": "Returns", "status": "new",
+      "character": { "emoji": "↩️", "hue": 200, "shape": "square" },
+      "tagline": "Handles return requests and drafts responses.",
+      "description": "Reads new return requests, checks them against your return policy, and drafts the reply: approve, ask for a photo, or decline with the reason. With auto-run granted it can approve returns that clearly fit your policy.",
+      "exampleTask": "For any return request inside 30 days on an unworn item, draft the approval and the return label email.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "draft_return_reply", "label": "Draft a reply to a return request", "writes": true },
+        { "key": "approve_return", "label": "Approve a return that fits the policy", "writes": true }
+      ],
+      "scopes": ["read_orders", "read_returns", "write_returns"],
+      "protectedScopes": ["read_orders", "read_returns", "write_returns"]
+    },
+    {
+      "key": "listing_writer", "name": "Listing Writer", "status": "new",
+      "character": { "emoji": "✍️", "hue": 300, "shape": "round" },
+      "tagline": "Improves titles and descriptions.",
+      "description": "Finds products with thin or missing titles and descriptions and drafts better ones from the facts already in the listing. It never invents claims, and every draft shows the before and after side by side.",
+      "exampleTask": "Rewrite the descriptions of my ten weakest listings in a warm, plain tone, under 120 words each.",
+      "tools": ["shopify"],
+      "actionTypes": [
+        { "key": "draft_title", "label": "Draft an improved title", "writes": true },
+        { "key": "draft_description", "label": "Draft an improved description", "writes": true }
+      ],
+      "scopes": ["read_products", "write_products"],
+      "protectedScopes": []
+    },
+    {
+      "key": "inventory_watcher", "name": "Inventory Watcher", "status": "existing", "templateKey": "inventory_watcher",
+      "character": { "emoji": "👀", "hue": 150, "shape": "round" },
+      "tagline": "Catches oversold and keep-selling-at-zero products.",
+      "description": "Checks your inventory every day and shows you products that are oversold or still selling when out of stock, except anything tagged pre-order or backorder. It drafts the exact setting change and an alert to you.",
+      "exampleTask": "Every day at 7am, show me anything selling past zero and draft the fix, but don't change anything.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "flag_oversold", "label": "Flag an oversold product", "writes": false },
+        { "key": "draft_inventory_policy_fix", "label": "Draft the stop-selling-at-zero change", "writes": true }
+      ],
+      "scopes": ["read_products", "read_inventory", "read_locations"],
+      "protectedScopes": []
+    },
+    {
+      "key": "supplier_chaser", "name": "Supplier Chaser", "status": "existing", "templateKey": "supplier_chaser",
+      "character": { "emoji": "📨", "hue": 45, "shape": "square" },
+      "tagline": "Drafts restock requests and follow-ups to suppliers.",
+      "description": "Finds products running low, drafts a restock request to your supplier from its own email address, and drafts one follow-up in the same thread if nobody replies after three days.",
+      "exampleTask": "Whenever something drops to two or fewer, draft a restock request to orders@mysupplier.com and chase it after three days.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "draft_restock_request", "label": "Draft a restock request", "writes": true },
+        { "key": "draft_supplier_followup", "label": "Draft a follow-up", "writes": true }
+      ],
+      "scopes": ["read_products", "read_inventory"],
+      "protectedScopes": []
+    },
+    {
+      "key": "customer_care", "name": "Customer Care", "status": "new",
+      "character": { "emoji": "💬", "hue": 190, "shape": "round" },
+      "tagline": "Drafts customer replies.",
+      "description": "Reads customer messages you forward or copy to it, looks up the order, and drafts a reply in your tone with the facts filled in. You send it, or let it send replies for the question types you have granted.",
+      "exampleTask": "Draft replies to 'where is my order' messages with the real tracking link and a friendly apology if it's late.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "draft_customer_reply", "label": "Draft a reply to a customer", "writes": true },
+        { "key": "send_customer_reply", "label": "Send an approved reply type", "writes": true }
+      ],
+      "scopes": ["read_orders", "read_customers"],
+      "protectedScopes": ["read_orders", "read_customers"]
+    },
+    {
+      "key": "campaign", "name": "Campaign", "status": "new",
+      "character": { "emoji": "📣", "hue": 350, "shape": "square" },
+      "tagline": "Drafts marketing emails.",
+      "description": "Drafts a marketing email around the products, launches or promotions you point it at, in your brand voice, with a plain-text and an HTML version. It never sends to your customers; you paste it into your email tool or approve each send.",
+      "exampleTask": "Draft a launch email for the new ceramic range with three products and one discount code.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "draft_campaign_email", "label": "Draft a marketing email", "writes": true }
+      ],
+      "scopes": ["read_products", "read_discounts"],
+      "protectedScopes": []
+    },
+    {
+      "key": "promo_manager", "name": "Promo Manager", "status": "new",
+      "character": { "emoji": "🏷️", "hue": 20, "shape": "round" },
+      "tagline": "Proposes and manages discounts.",
+      "description": "Proposes discounts for slow movers and overstock, drafts the discount code with its limits and end date, and reminds you when a promotion is about to expire or has been running too long.",
+      "exampleTask": "Propose a 15% code for anything with more than 90 days of stock, ending in two weeks.",
+      "tools": ["shopify"],
+      "actionTypes": [
+        { "key": "propose_discount", "label": "Propose a discount", "writes": false },
+        { "key": "create_discount", "label": "Create the discount code", "writes": true },
+        { "key": "end_discount", "label": "End an expired promotion", "writes": true }
+      ],
+      "scopes": ["read_products", "read_inventory", "read_discounts", "write_discounts"],
+      "protectedScopes": []
+    },
+    {
+      "key": "weekly_insights", "name": "Weekly Insights", "status": "new",
+      "character": { "emoji": "📈", "hue": 260, "shape": "square" },
+      "tagline": "Summarises sales and trends.",
+      "description": "Every Monday it writes a short, honest summary of the week: sales against last week, best and worst sellers, what ran out, and what your agents did. Numbers come straight from your store; nothing is estimated without saying so.",
+      "exampleTask": "Each Monday, tell me the three products that moved most and the three that didn't move at all.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "weekly_summary", "label": "Write the weekly summary", "writes": false }
+      ],
+      "scopes": ["read_orders", "read_products", "read_inventory"],
+      "protectedScopes": ["read_orders"]
+    },
+    {
+      "key": "payout_fees_checker", "name": "Payout and Fees Checker", "status": "new",
+      "character": { "emoji": "🧾", "hue": 95, "shape": "round" },
+      "tagline": "Reviews payouts and fees.",
+      "description": "Reconciles each payout against the orders it covers, checks the fees charged against your expected rate, and flags anything that does not add up: a missing payout, a fee above your rate, a refund that was not netted.",
+      "exampleTask": "Check every payout this month against my orders and tell me if any fees are above 2.9% plus 30 cents.",
+      "tools": ["shopify"],
+      "actionTypes": [
+        { "key": "reconcile_payout", "label": "Reconcile a payout", "writes": false },
+        { "key": "flag_fee_anomaly", "label": "Flag a fee that looks wrong", "writes": false }
+      ],
+      "scopes": ["read_orders", "read_shopify_payments_payouts"],
+      "protectedScopes": ["read_orders"]
+    },
+    {
+      "key": "store_health_checker", "name": "Store Health Checker", "status": "existing", "templateKey": "store_health_checker",
+      "character": { "emoji": "🩺", "hue": 170, "shape": "square" },
+      "tagline": "Weekly health report for the whole store.",
+      "description": "Once a week it checks the whole store for oversold products and products that keep selling when out of stock, and writes a health report. It changes nothing.",
+      "exampleTask": "Every Sunday night, check the whole catalogue and send me a report of what's wrong.",
+      "tools": ["shopify", "email"],
+      "actionTypes": [
+        { "key": "health_report", "label": "Write the health report", "writes": false }
+      ],
+      "scopes": ["read_products", "read_inventory", "read_locations"],
+      "protectedScopes": []
+    },
+    {
+      "key": "ai_visibility", "name": "AI Visibility", "status": "new",
+      "character": { "emoji": "🔭", "hue": 230, "shape": "round" },
+      "tagline": "Checks your products on AI shopping channels.",
+      "description": "Checks which products are published to Shopify's agentic sales channel (Sales channels > Agentic) and whether each listing has what AI shopping assistants need: a clear title, a full description, images, price and availability. It recommends the fix for each gap.",
+      "exampleTask": "Tell me which products aren't visible to AI shopping assistants and what each one is missing.",
+      "tools": ["shopify"],
+      "actionTypes": [
+        { "key": "check_ai_visibility", "label": "Check a product's AI channel visibility", "writes": false },
+        { "key": "recommend_visibility_fix", "label": "Recommend a visibility fix", "writes": false }
+      ],
+      "scopes": ["read_products", "read_publications"],
+      "protectedScopes": []
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests the launch migrations (20261028000028..20261029000033) and their rollback on a COPY of a database in the
+# Tests the launch migrations (20261028000028..20261029000034) and their rollback on a COPY of a database in the
 # state production is in today (migrations up to 20261021000027 plus existing care-agency data).
 # Never touches production. Needs a local Postgres reachable as $PGURL (default postgres:postgres@127.0.0.1).
 #

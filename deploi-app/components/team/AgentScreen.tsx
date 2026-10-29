@@ -136,30 +136,34 @@ function ChatPanel({ agentKey, name, history, enabled, onChanged }: { agentKey: 
 
 function QueuePanel({ queue, agentKey, onChanged }: { queue: ActionRow[]; agentKey: string; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState<string | null>(null)
-  const [result, setResult] = useState<Record<string, string>>({})
-  async function decide(id: string, decision: 'approve' | 'decline') {
-    setBusy(id)
-    try { const r = await storeFetch<{ status: string; executed?: boolean; reason?: string }>(`/api/store/library/actions/${id}/${decision}`, { method: 'POST', body: {} }); setResult(x => ({ ...x, [id]: decision === 'approve' ? (r.status === 'done' ? 'Done: a fresh read of the store shows the change.' : r.status === 'failed' ? `Failed: ${r.reason}` : 'Approved. Email sending is off in this environment, so nothing was sent; the text is ready to copy.') : 'Declined.' })) }
-    catch (e) { setResult(x => ({ ...x, [id]: asApiError(e).message })) } finally { setBusy(null); await onChanged() }
+  const [result, setResult] = useState<{ title: string; text: string; ok: boolean } | null>(null)
+  async function decide(q: ActionRow, decision: 'approve' | 'decline') {
+    setBusy(q.id); setResult(null)
+    try {
+      const r = await storeFetch<{ status: string; executed?: boolean; reason?: string }>(`/api/store/library/actions/${q.id}/${decision}`, { method: 'POST', body: {} })
+      setResult({ title: q.title, ok: r.status !== 'failed', text: decision === 'approve' ? (r.status === 'done' ? 'Done: a fresh read of the store shows the change. It is in the activity log with the proof.' : r.status === 'failed' ? `Failed: ${r.reason}` : 'Approved. Email sending is off in this environment, so nothing was sent; the text is ready to copy from the activity log.') : 'Declined.' })
+    } catch (e) { setResult({ title: q.title, ok: false, text: asApiError(e).message }) } finally { setBusy(null); await onChanged() }
   }
-  if (!queue.length) return <Empty title="Nothing waiting for you">When {agentKey.startsWith('custom-') ? 'this agent' : 'the agent'} drafts something, it appears here with its evidence. Approving a change makes it and keeps a fresh read as proof.</Empty>
   return (
-    <ul className="flex flex-col gap-3" id="queue" aria-label="Approval queue">
-      {queue.map(q => (
-        <li key={q.id} className="au-panel p-4" data-action={q.id} data-action-type={q.action_type}>
-          <div className="flex flex-wrap items-center gap-2"><Badge tone="none">{STATUS_WORDS[q.status]?.label ?? q.status}</Badge><Badge tone="muted">{q.action_type.replace(/_/g, ' ')}</Badge><span className="text-ink font-medium">{q.title}</span></div>
-          <p className="pt-2 text-[14px] text-grey">{q.summary}</p>
-          <ActionDetail a={q} />
-          <p className="pt-2 text-[12px] text-grey-h">Why it waits: {q.permission_basis}{q.expires_at ? ` · expires ${fmtWhen(q.expires_at)}` : ''}</p>
-          {result[q.id] ? <p className="pt-2 text-[14px] text-ink">{result[q.id]}</p> : (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="xs" onClick={() => decide(q.id, 'approve')} disabled={busy !== null} aria-label={`Approve: ${q.title}`}><Icon name="check" size={13} />{busy === q.id ? 'Working…' : 'Approve'}</Button>
-              <Button size="xs" variant="ghost" onClick={() => decide(q.id, 'decline')} disabled={busy !== null} aria-label={`Decline: ${q.title}`}><Icon name="x" size={13} />Decline</Button>
-            </div>
-          )}
-        </li>
-      ))}
-    </ul>
+    <div id="queue">
+      <div aria-live="polite">{result && <div className="mb-3" data-queue-result><Banner tone={result.ok ? 'info' : 'warn'} icon={result.ok ? 'check' : 'alert'}><strong>{result.title}.</strong> {result.text}</Banner></div>}</div>
+      {!queue.length ? <Empty title="Nothing waiting for you">When {agentKey.startsWith('custom-') ? 'this agent' : 'the agent'} drafts something, it appears here with its evidence. Approving a change makes it and keeps a fresh read as proof.</Empty> : (
+        <ul className="flex flex-col gap-3" aria-label="Approval queue">
+          {queue.map(q => (
+            <li key={q.id} className="au-panel p-4" data-action={q.id} data-action-type={q.action_type}>
+              <div className="flex flex-wrap items-center gap-2"><Badge tone="none">{STATUS_WORDS[q.status]?.label ?? q.status}</Badge><Badge tone="muted">{q.action_type.replace(/_/g, ' ')}</Badge><span className="text-ink font-medium">{q.title}</span></div>
+              <p className="pt-2 text-[14px] text-grey">{q.summary}</p>
+              <ActionDetail a={q} />
+              <p className="pt-2 text-[12px] text-grey-h">Why it waits: {q.permission_basis}{q.expires_at ? ` · expires ${fmtWhen(q.expires_at)}` : ''}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="xs" onClick={() => decide(q, 'approve')} disabled={busy !== null} aria-label={`Approve: ${q.title}`}><Icon name="check" size={13} />{busy === q.id ? 'Working…' : 'Approve'}</Button>
+                <Button size="xs" variant="ghost" onClick={() => decide(q, 'decline')} disabled={busy !== null} aria-label={`Decline: ${q.title}`}><Icon name="x" size={13} />Decline</Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

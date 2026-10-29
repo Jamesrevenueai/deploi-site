@@ -26,7 +26,7 @@ Estimated model cost per action on Sonnet 5.5 (from `tests/library/config.test.t
 | Draft a marketing email | 6,000 / 900 | $0.0315 |
 | Weekly summary | 12,000 / 900 | $0.0495 |
 | Reconcile a payout | 8,000 / 300 | $0.0285 |
-| Average across all 22 action types | | **about $0.019** |
+| Average across all 22 action types | | **$0.0184** |
 
 **No model is called in this build**: drafts are deterministic templates filled from store facts, and the hook for
 a model-written draft is `setLibraryBrain` in `lib/library/chat.ts`. Usage rows are marked `measured = false`
@@ -36,11 +36,11 @@ until real token counts replace the estimates.
 
 | Tier | Agents | Included actions / month | Base price | Overage / action | Model cost at full allowance | Gross margin at full allowance | Overage margin |
 |---|---|---|---|---|---|---|---|
-| Starter | 4 | 150 | **$29** | $0.25 | about $2.90 | about 90% | about 92% |
-| Growth | 8 | 500 | **$79** | $0.20 | about $9.60 | about 88% | about 90% |
-| Pro | 12 + build your own | 1,500 | **$199** | $0.15 | about $29 | about 85% | about 87% |
+| Starter | 4 | 150 | **$29** | $0.25 | $2.75 | 91% | 93% |
+| Growth | 8 | 500 | **$79** | $0.20 | $9.18 | 88% | 91% |
+| Pro | 12 + build your own | 1,500 | **$199** | $0.15 | $27.53 | 86% | 88% |
 
-(`npx tsx -e "import('./lib/library/pricing.ts').then(m => console.table(m.allTierEconomics()))"` prints the live figures.)
+(`allTierEconomics()` in `lib/library/pricing.ts` prints the live figures; `tests/library/config.test.ts` asserts every margin stays above 80%.)
 
 The margins cover the model only. Hosting, Shopify's revenue share (where the app is billed through Shopify),
 support and the email provider are not in the cost line; at these prices they fit comfortably inside the margin.

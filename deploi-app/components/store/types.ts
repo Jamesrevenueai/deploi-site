@@ -19,6 +19,8 @@ export type OverviewResponse = {
   actor: { kind: 'profile' | 'shopify_user' | 'staff'; label: string; canApprove: boolean }
   org: { id: string; name: string; timezone: string } | null
   connections: Connection[]
+  /** per connection id: may Deploi write to this store (beta eligibility), and why not */
+  writes?: Record<string, { enabled: boolean; reason: string; tier: string }>
   overview: {
     openIssues: number; needsReview: number; needsPerson: number; highSeverity: number; waitingApproval: number
     executions30d: Record<Outcome, number>

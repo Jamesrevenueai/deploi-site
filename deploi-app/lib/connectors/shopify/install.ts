@@ -37,8 +37,13 @@ export async function ensureInstalled(shop: string, idToken: string, opts: { exc
   const token = await (opts.exchange ?? ((s, t) => exchangeSessionToken(s, t)))(shop, idToken)
   const info = await (opts.info ?? shopInfo)(shop, token.accessToken)
   return admin(async db => {
-    let orgId = existing?.org_id
-    const created = !existing
+    // one install per shop at a time: two first loads at once must not create two organizations
+    await db.query('select pg_advisory_xact_lock(hashtext($1))', [`shopify-install:${shop}`])
+    const blocked = await db.one<{ tier: string }>(`select tier from store_eligibility where shop = $1 and tier = 'blocked'`, [shop])
+    if (blocked) throw new Error('this store is blocked from installing Deploi')
+    const current = await db.one<{ id: string; org_id: string }>(`select id, org_id from store_connections where platform = 'shopify' and external_id = $1`, [shop])
+    let orgId = current?.org_id ?? existing?.org_id
+    const created = !current && !existing
     if (!orgId) {
       const g = await db.one<{ id: string }>(`insert into agencies (name, state, timezone, org_type) values ($1,'',$2,'merchant') returning id`, [info.name, info.timezone ?? 'UTC'])
       orgId = g!.id

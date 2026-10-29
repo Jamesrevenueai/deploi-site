@@ -9,7 +9,8 @@ import { admin } from '../db'
 import { getConnector } from './registry'
 import { changeHash, getPath, sameValue } from './hash'
 import { audit } from './audit'
-import { engineConfig, liveWritesAllowed } from './config'
+import { engineConfig } from './config'
+import { storeEligibility } from '../connectors/eligibility'
 import { EngineError } from './errors'
 import { loadConnection, withOwner } from './scan'
 import { legacyPlan, buildStoreContext, detectWithPlan, lookupKeysFor } from './plan'
@@ -142,7 +143,8 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
       `select count(*)::text as n from executions e join approvals a on a.id = e.approval_id where e.agent_id = $1 and a.approver_kind = 'standing_authorization'
        and e.started_at >= date_trunc('day', now()) and e.status not in ('blocked','stale') and e.id <> $2`, [p!.agent_id, execId]) : null
     await db.query('update executions set agent_id = $2, policy_id = $3, policy_version = $4 where id = $1', [execId, p!.agent_id ?? null, p!.policy_id ?? null, p!.policy_version ?? null])
-    return { exec: exec!, p: p!, conn: conn!, checkKey: issue!.check_key, approval: approval!, agentCtx, agentStatus: agentRow?.status ?? null, plan, hasSubscription: Boolean(sub), dayCount: Number(day?.n ?? 0) }
+    const eligibility = await storeEligibility(db, conn!.external_id, conn!.is_synthetic)
+    return { exec: exec!, p: p!, conn: conn!, checkKey: issue!.check_key, approval: approval!, agentCtx, agentStatus: agentRow?.status ?? null, plan, hasSubscription: Boolean(sub), dayCount: Number(day?.n ?? 0), eligibility }
   })
   const { p, conn, agentCtx, plan } = ctx
   const correction = correctionFromProposal(p)
@@ -167,7 +169,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
     : !connector.operational ? `${conn.platform} connector is not operational`
     : missing.length ? `missing permission: ${missing.join(', ')}`
     : engineConfig.billingRequired && !ctx.hasSubscription ? 'no active subscription'
-    : !liveWritesAllowed(conn.external_id, conn.is_synthetic) ? 'writes to this live store are disabled in this environment'
+    : !ctx.eligibility.liveWrites ? ctx.eligibility.reason
     : agentBlock
   if (block) { await finish(execId, p, 'blocked', 'blocked', block, {}, opts.actor); return { executionId: execId, status: 'blocked', reason: block } }
   if (p.agent_id && agentCtx && (p.policy_version ?? null) !== agentCtx.policyRow.version) {

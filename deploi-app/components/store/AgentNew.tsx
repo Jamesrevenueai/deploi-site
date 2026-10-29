@@ -147,6 +147,7 @@ export function AgentNewScreen({ template = null }: { template?: string | null }
         <Section id="authorize" title="Review the authorization" sub={`Read exactly what "${name.trim()}" will be allowed to do. Nothing has been granted yet.`}>
           <Panel>
             {mailbox && <p className="mb-6 flex flex-wrap items-center gap-2 text-[15px] text-grey"><Icon name="mail" size={15} />Its own address: <span className="break-all text-ink">{mailbox}</span></p>}
+            {basics.data?.writes[connectionId]?.enabled === false && <div className="mb-4"><Banner tone="warn"><strong>Changes cannot be written to this store yet.</strong> {basics.data.writes[connectionId].reason}. A drafts-only or monitoring agent works normally.</Banner></div>}
             <AuthorizationSummaryView summary={created.summary} />
             <div className="mt-6 flex flex-col gap-3 border-t border-line pt-5">
               <p className="text-[14px] text-grey">Granting activates this exact version. Changing it later in a way that allows more (new corrections, fields, products, email recipients or permissions, higher limits or acting without asking) needs a new grant. You can pause or revoke it at any time; both stop all writes, including queued ones.</p>

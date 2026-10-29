@@ -102,7 +102,7 @@ export function NoStore() {
       <p className="pt-2 text-[15px] text-grey">
         {embedded
           ? 'Deploi has not finished connecting to this store. Reload the app from your Shopify admin.'
-          : 'Deploi checks one store. The Shopify app installs from your Shopify admin; once it is installed, your store shows up here.'}
+          : 'Deploi works with one connected store. Install (or reinstall) the Shopify app from your Shopify admin; once it is connected, your store shows up here.'}
       </p>
       {!embedded && <Link href={`${base}/connect`} className="btn ghost sm mt-4">Store setup<Icon name="arrow-right" size={15} /></Link>}
     </div>

@@ -39,9 +39,11 @@ export async function provisionMailbox(db: Db, input: { id?: string; orgId: stri
   for (let i = 0; i < 5; i++) {
     const address = `${mailboxLocalPart(input.agentName)}@${domain}`
     const row = await db.one<EmailAccountRow>(`insert into email_accounts (id, org_id, provider, address, display_name, status, granted_scopes, can_send, can_read, is_synthetic, connected_by, agent_id, last_checked_at)
-      values (coalesce($1::uuid, gen_random_uuid()), $2, 'deploi', $3, $4, 'active', $5, true, true, false, $6, $7, now())
+      values (coalesce($1::uuid, gen_random_uuid()), $2, 'deploi', $3, $4, 'active', $5, true, $8, false, $6, $7, now())
       on conflict do nothing returning *`,
-      [input.id ?? null, input.orgId, address, `${input.agentName.slice(0, 60)} (Deploi agent)`, [DEPLOI_SEND, DEPLOI_INBOUND], input.actor, input.agentId])
+      [input.id ?? null, input.orgId, address, `${input.agentName.slice(0, 60)} (Deploi agent)`, [DEPLOI_SEND, DEPLOI_INBOUND], input.actor, input.agentId,
+        // replies can only arrive when inbound mail is configured; never claim a mailbox can read when it cannot
+        Boolean(emailConfig.agentMailWebhookSecret && emailConfig.agentMailDomain)])
     if (row) {
       await audit(db, { orgId: input.orgId, entityType: 'credential', entityId: row.id, event: 'mailbox.created', actor: input.actor, detail: { agent_id: input.agentId, address } })
       return row

@@ -170,6 +170,9 @@ export function AgentDetailScreen({ id }: { id: string }) {
         {isActive && agent.next_run_at && <span className="text-[13px] text-grey-h">Next run {fmtTime(agent.next_run_at)}</span>}
       </div>
       {w.hint && agent.status !== 'active' && <div className="mb-4"><Banner tone={agent.status === 'draft' ? 'info' : 'warn'}>{w.hint}</Banner></div>}
+      {latest && latest.policy.correctionTypes.length > 0 && latest.policy.approvalMode !== 'draft' && basics.data?.writes[agent.connection_id]?.enabled === false && (
+        <div className="mb-4"><Banner tone="warn"><strong>Changes cannot be written to this store yet.</strong> {basics.data.writes[agent.connection_id].reason}. The agent can still find problems and show the exact changes; approving one will be refused before anything is written.</Banner></div>
+      )}
 
       <div aria-live="polite" className="flex flex-col gap-3">
         {notice && <NoticeView n={notice} />}

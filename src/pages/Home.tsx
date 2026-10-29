@@ -260,6 +260,9 @@ export function Agents() {
           <Link to="/agents" className="btn btn-ghost sm">All twelve agents</Link>
           <Link to="/pricing" className="btn btn-ghost sm">Plans: {TIERS.map(t => t.name).join(', ')}</Link>
         </div>
+        <p className="muted reveal" style={{ marginTop: 20, maxWidth: 640, marginInline: 'auto' }}>
+          The Competitor &amp; Trend Watcher template from the earlier release stays available in the app. It reads only what anyone can see on competitors&rsquo; public pages. Never their sales, which are not public.
+        </p>
       </div>
     </section>
   )

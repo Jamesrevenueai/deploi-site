@@ -177,8 +177,8 @@ export async function grantPolicy(actor: Actor, agentId: string, policyId: strin
 async function retireAgentProposals(db: Db, agentId: string, status: 'stale' | 'blocked', reason: string, actor: string) {
   const live = await db.query<ProposalRow>(`select * from proposals where agent_id = $1 and status in ('pending_approval','approved')`, [agentId])
   for (const p of live) await invalidateProposal(db, p, status, reason, actor)
-  // queued writes never start: the execution is closed as blocked before any request is sent
-  await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where agent_id = $1 and status = 'queued'`, [agentId, reason])
+  // queued writes never start, and one still prechecking (reading the record) stops at its last gate before writing
+  await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where agent_id = $1 and status in ('queued','prechecking')`, [agentId, reason])
   return live.length
 }
 

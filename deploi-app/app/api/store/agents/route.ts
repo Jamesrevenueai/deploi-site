@@ -4,7 +4,7 @@ import { listAgents } from '@/lib/agents/queries'
 import { createAgent } from '@/lib/agents/lifecycle'
 import { parseTask } from '@/lib/agents/parse'
 import { TEMPLATES, templateByKey, templatePolicy } from '@/lib/agents/templates'
-import { admin } from '@/lib/db'
+import { withActor } from '@/lib/engine/actor'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +35,8 @@ export async function POST(req: Request) {
       const t = templateByKey(body.template)
       if (!t) throw new HttpError(400, 'invalid_input', 'unknown template')
       const connectionId = String(body.connectionId ?? '')
-      const tz = await admin(db => db.one<{ timezone: string | null }>('select timezone from store_connections where id = $1', [connectionId]))
+      // read under the actor's RLS: another organization's store is simply not found here (and createAgent refuses it)
+      const tz = await withActor(actor, db => db.one<{ timezone: string | null }>('select timezone from store_connections where id = $1', [connectionId]))
       const policy = templatePolicy(t.key, { connectionId, timezone: tz?.timezone || 'UTC', notify: typeof body.notify === 'string' ? body.notify : null, supplierAddress: typeof body.supplierAddress === 'string' ? body.supplierAddress : null })
       const name = typeof body.name === 'string' && body.name.trim() ? body.name : t.name
       return NextResponse.json({ ok: true, ...(await createAgent(actor, { name, taskText: t.job, policy, mailbox: t.mailbox, templateKey: t.key })) })

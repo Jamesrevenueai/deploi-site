@@ -41,6 +41,9 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
     const agent = await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId])
     if (!agent || agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
     if (agent.status !== 'active') throw new EngineError('agent_inactive', `the agent is ${agent.status}`)
+    // a scheduled run re-checks that it is still due under the lock: an overlapping scheduler that picked the agent
+    // before another run moved next_run_at forward must not run it a second time
+    if (opts.trigger === 'schedule' && (!agent.next_run_at || new Date(agent.next_run_at).getTime() > now.getTime())) throw new EngineError('busy', 'this agent is not due (another scheduler already ran it)')
     const running = await db.one<{ id: string; started_at: string }>(`select id, started_at from agent_runs where agent_id = $1 and status = 'running' order by started_at desc limit 1`, [agentId])
     if (running && now.getTime() - new Date(running.started_at).getTime() < STALE_RUN_MS) throw new EngineError('busy', 'this agent is already running')
     if (running) await db.query(`update agent_runs set status = 'failed', status_reason = 'did not finish', finished_at = now() where id = $1`, [running.id])

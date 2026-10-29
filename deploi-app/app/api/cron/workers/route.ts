@@ -17,14 +17,14 @@ import '@/workers'
 import { runAllNightly, runWorker, drainDueActions, markUnknownDeliveries, type RunSummary } from '@/lib/workers/runtime'
 import { localDateKey } from '@/lib/workers/window'
 import { WORKER_NAMES, type WorkerName } from '@/lib/workers/types'
+import { cronAuthorized } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const auth = req.headers.get('authorization')
   const session = await getSession().catch(() => null)
   const isStaff = Boolean(session && session.role === 'staff')
-  const isCron = env.cronSecret ? auth === `Bearer ${env.cronSecret}` : !env.isProd || isStaff
+  const isCron = cronAuthorized(req) || isStaff
   if (!isCron && !isStaff) return NextResponse.json({ ok: false }, { status: 401 })
   const url = new URL(req.url)
   const worker = url.searchParams.get('worker') as WorkerName | null

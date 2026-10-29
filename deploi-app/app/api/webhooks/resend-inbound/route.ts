@@ -44,17 +44,29 @@ export async function POST(req: Request) {
   }
   if (evt.type && !/received|inbound/.test(evt.type)) return NextResponse.json({ ok: true, ignored: evt.type })
 
+  // Resend retries a delivery with the same svix-id: process each delivery once. The marker is removed again
+  // if processing fails, so the retry is not lost.
+  const deliveryId = req.headers.get('svix-id')?.trim() || null
+  if (deliveryId) {
+    const fresh = await admin(db => db.query(`insert into inbound_webhook_events (provider, delivery_id, event_type, outcome) values ('resend-inbound', $1, $2, 'processing') on conflict do nothing returning delivery_id`, [deliveryId, evt.type ?? 'email.received']))
+    if (!fresh.length) return NextResponse.json({ ok: true, duplicate: true })
+  }
+  const release = () => deliveryId ? admin(db => db.query(`delete from inbound_webhook_events where provider = 'resend-inbound' and delivery_id = $1`, [deliveryId])) : Promise.resolve()
+  const settle = (outcome: string) => deliveryId ? admin(db => db.query(`update inbound_webhook_events set outcome = $2 where provider = 'resend-inbound' and delivery_id = $1`, [deliveryId, outcome])) : Promise.resolve()
+
   const from = parseFrom(String(d.from ?? ''))
   const to = ([] as string[]).concat((d.to as string[] | string) ?? [])
   const subject = String(d.subject ?? '')
   const text = String(d.text ?? d.html ?? '')
-  // Route by the inbound address slug: referrals+<agency-id>@... or the first agency when unset.
+  // Route only by the inbound address slug: referrals+<agency-id>@... Mail without a slug belongs to no tenant and is
+  // dropped (never filed under some other organization).
   const slug = to.map(t => t.match(/\+([0-9a-f-]{36})@/)?.[1]).find(Boolean)
+  if (!slug) { await settle('unrouted'); log.warn('resend.inbound.unrouted', { recipients: to.length }); return NextResponse.json({ ok: true, ignored: 'no routing address' }) }
   let id: string | null = null
   let replied = false
   try {
     id = await admin(async db => {
-      const agency = slug ? await db.one<{ id: string; name: string }>('select id, name from agencies where id = $1', [slug]) : await db.one<{ id: string; name: string }>('select id, name from agencies order by created_at limit 1')
+      const agency = await db.one<{ id: string; name: string }>(`select id, name from agencies where id = $1 and org_type = 'care_agency'`, [slug])
       if (!agency) return null
       await assertBaaSigned(db, agency.id)
       // A reply from a referrer we already have on file: stop the drafted first reply, hand the thread to a person.
@@ -82,9 +94,11 @@ export async function POST(req: Request) {
       return r?.id ?? null
     })
   } catch (e) {
+    await release()
     if (isBaaError(e)) return baaResponse(e)
     throw e
   }
+  await settle(id ? (replied ? 'referrer_reply' : 'referral') : 'unknown_agency')
   log.info(replied ? 'resend.inbound.referrer_reply' : 'resend.inbound.referral', { referral_id: id })
   return NextResponse.json({ ok: true, id, replied })
 }

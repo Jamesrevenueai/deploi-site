@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
 import { admin } from '@/lib/db'
 import { env } from '@/lib/env'
 import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
-import { withActor } from '@/lib/engine/actor'
+import { assertMerchant, withActor } from '@/lib/engine/actor'
 import { audit } from '@/lib/engine/audit'
 import { setSyntheticState, mutateSynthetic, injectFault, type SynthFault } from '@/lib/connectors/shopify/synthetic'
 import { northwindState, harborState, NORTHWIND_DOMAIN } from '@/lib/connectors/shopify/demo-store'
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     const conn = await withActor(actor, db => db.one<{ id: string; org_id: string; external_id: string; is_synthetic: boolean }>(
       `select id, org_id, external_id, is_synthetic from store_connections where id = $1`, [String(body.connectionId ?? '')]))
     if (!conn) throw new HttpError(404, 'not_found', 'connection not found')
+    assertMerchant(actor, conn.org_id)
     if (!conn.is_synthetic) throw new HttpError(403, 'not_synthetic', 'demo controls only work on synthetic stores')
     const action = String(body.action ?? '')
     if (action === 'reset') {

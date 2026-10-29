@@ -13,21 +13,44 @@ import { homeFor, type Session, type Role } from './session'
 
 const DEV_COOKIE = 'deploi_dev_session'
 
-function sign(payload: string) {
-  return createHmac('sha256', env.appSecret).update(payload).digest('base64url')
+/** Dev sessions last at most this long, whatever the cookie's own max-age says. */
+export const DEV_SESSION_TTL_S = 60 * 60 * 24 * 7
+/** A signing secret shorter than this (or unset) disables dev sessions entirely: nothing is signed or accepted. */
+export const MIN_APP_SECRET_LENGTH = 32
+
+function secret(): string | null {
+  const k = env.appSecret
+  return k.length >= MIN_APP_SECRET_LENGTH ? k : null
 }
-export function encodeDevSession(s: Session) {
-  const p = Buffer.from(JSON.stringify(s)).toString('base64url')
-  return `${p}.${sign(p)}`
+function sign(payload: string, key: string) {
+  return createHmac('sha256', key).update(payload).digest('base64url')
 }
-export function decodeDevSession(v: string | undefined): Session | null {
+export function encodeDevSession(s: Session, now = Date.now()) {
+  const key = secret()
+  if (!key) throw new Error(`APP_SECRET must be set to at least ${MIN_APP_SECRET_LENGTH} characters to sign dev sessions`)
+  const iat = Math.floor(now / 1000)
+  const p = Buffer.from(JSON.stringify({ ...s, iat, exp: iat + DEV_SESSION_TTL_S })).toString('base64url')
+  return `${p}.${sign(p, key)}`
+}
+/**
+ * A dev cookie is a session only when: not production, APP_SECRET is strong, the signature matches,
+ * and it has not expired. Rotating APP_SECRET invalidates every dev cookie signed with the old one.
+ * Cookies issued before expiry was added (no exp) are rejected.
+ */
+export function decodeDevSession(v: string | undefined, now = Date.now()): Session | null {
   // a dev cookie is never a session in production, even one signed with the right secret
   if (!v || isProductionDeployment()) return null
+  const key = secret()
+  if (!key) return null
   const [p, sig] = v.split('.')
   if (!p || !sig) return null
-  const want = sign(p)
+  const want = sign(p, key)
   if (want.length !== sig.length || !timingSafeEqual(Buffer.from(want), Buffer.from(sig))) return null
-  try { return JSON.parse(Buffer.from(p, 'base64url').toString()) as Session } catch { return null }
+  try {
+    const { iat, exp, ...s } = JSON.parse(Buffer.from(p, 'base64url').toString()) as Session & { iat?: number; exp?: number }
+    if (typeof exp !== 'number' || typeof iat !== 'number' || exp - iat > DEV_SESSION_TTL_S || now / 1000 >= exp) return null
+    return s as Session
+  } catch { return null }
 }
 
 export async function profileFor(uid: string): Promise<Session | null> {

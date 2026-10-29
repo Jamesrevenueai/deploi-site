@@ -17,6 +17,7 @@ import { localDayStart } from '@/lib/dashboard/time'
 import { sendMorningReport } from '@/lib/dashboard/send'
 import { localDateKey } from '@/lib/workers/window'
 import { drainDueActions, markUnknownDeliveries } from '@/lib/workers/runtime'
+import { cronAuthorized } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +25,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const force = url.searchParams.get('force') === '1'
   const only = url.searchParams.get('agency')
-  const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
-  const cronOk = env.cronSecret ? bearer === env.cronSecret : !env.isProd || bearer === ''
+  const cronOk = cronAuthorized(req)
   let staffOk = false
   if (force) { const s = await getSession(); staffOk = s?.role === 'staff' }
   if (!cronOk && !staffOk) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })

@@ -28,7 +28,10 @@ test('reset: Starter tier, every agent off', async ({ page }) => {
   await signIn(page, NORTHWIND)
   expect((await api(page, 'POST', '/api/store/plan', { tier: 'starter' })).status).toBe(200)
   const t = await api<Team>(page, 'GET', '/api/store/library')
-  for (const a of t.json.agents) if (a.enabled) expect((await api(page, 'POST', `/api/store/library/${a.key}/switch`, { enabled: false })).status).toBe(200)
+  for (const a of t.json.agents) {
+    if (a.enabled) expect((await api(page, 'POST', `/api/store/library/${a.key}/switch`, { enabled: false })).status).toBe(200)
+    if (!a.locked) expect((await api(page, 'POST', `/api/store/library/${a.key}/permission`, { level: 'draft' })).status).toBe(200)
+  }
 })
 
 test('team dashboard: twelve agents, eight locked on Starter, each locked card has an Upgrade button', async ({ page }) => {

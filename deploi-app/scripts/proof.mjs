@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs'
 
 const [base, email, ...pairs] = process.argv.slice(2)
 mkdirSync('proof', { recursive: true })
-const browser = await chromium.launch()
+const browser = await chromium.launch(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {})
 for (const [w, h, tag] of [[1440, 900, '1440'], [390, 844, '390']]) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
   const page = await ctx.newPage()

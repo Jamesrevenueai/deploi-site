@@ -16,25 +16,9 @@ export const env = {
   get staffEmails() { return e('STAFF_EMAILS').split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },
   get appUrl() { return e('NEXT_PUBLIC_APP_URL', 'http://localhost:3000') },
   get siteUrl() { return e('NEXT_PUBLIC_SITE_URL', 'https://getdeploi.com') },
-  get bookingUrl() { return e('BOOKING_URL') },
   get allowedOrigins() { return e('PUBLIC_API_ALLOWED_ORIGINS', 'https://getdeploi.com,https://www.getdeploi.com').split(',').map(s => s.trim()).filter(Boolean) },
   get resendKey() { return e('RESEND_API_KEY') },
-  get staffNotifyEmail() { return e('STAFF_NOTIFY_EMAIL', 'hello@getdeploi.com') },
-  get twilio() { return { sid: e('TWILIO_ACCOUNT_SID'), token: e('TWILIO_AUTH_TOKEN'), from: e('TWILIO_FROM_NUMBER') } },
-  get ollamaUrl() { return e('OLLAMA_URL', 'http://localhost:11434') },
-  get ollamaModel() { return e('OLLAMA_MODEL', 'llama3.1:8b') },
-  get cloud() { return { provider: e('LLM_CLOUD_PROVIDER'), apiKey: e('LLM_CLOUD_API_KEY'), model: e('LLM_CLOUD_MODEL') } },
-  get llmMock() { return e('LLM_MOCK') === '1' },
-  get smartleadSecret() { return e('SMARTLEAD_WEBHOOK_SECRET') },
   get cronSecret() { return e('CRON_SECRET') },
-  get pricing() {
-    return {
-      assessment: e('ASSESSMENT_PRICE', '$1,500–2,500'),
-      build: e('BUILD_PRICE_RANGE', '$3,000–7,000 per door'),
-      retainer: e('RETAINER_RANGE', '$500–1,500 / mo'),
-    }
-  },
-  get storageBucket() { return e('STORAGE_BUCKET', 'reports') },
   get isProd() { return process.env.NODE_ENV === 'production' },
 }
 

@@ -11,17 +11,6 @@ const eslintConfig = [
   {
     ignores: ['node_modules/**', '.next/**', '.next-*/**', 'out/**', 'build/**', 'next-env.d.ts', 'proof/**', '.storage/**', 'playwright-report/**', 'test-results/**'],
   },
-  {
-    // HIPAA boundary: anything under lib/phi may only talk to the local Ollama lane.
-    files: ['lib/phi/**/*.ts', 'lib/phi/**/*.tsx'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [
-          { regex: '(^|/)llm(/index|/cloud)?$|^openai|^@anthropic-ai|^resend|^twilio', message: 'lib/phi may only import lib/llm/local (Ollama).' },
-        ],
-      }],
-    },
-  },
 ]
 
 export default eslintConfig

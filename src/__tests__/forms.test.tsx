@@ -82,7 +82,7 @@ describe('EarlyAccessForm', () => {
     expect(JSON.parse(String(init.body))).toEqual({
       name: 'Pat Example',
       email: 'pat@example-store.test',
-      agency_name: 'Example Store',
+      store_name: 'Example Store',
       source: 'site',
       service_interest: 'early_access',
       store_url: 'https://example-store.test',
@@ -100,7 +100,7 @@ describe('EarlyAccessForm', () => {
     fireEvent.click(screen.getByRole('button', { name: CTA }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body))
-    expect(Object.keys(body).sort()).toEqual(['agency_name', 'email', 'name', 'platforms', 'service_interest', 'source', 'store_url', 'website'])
+    expect(Object.keys(body).sort()).toEqual(['email', 'name', 'platforms', 'service_interest', 'source', 'store_name', 'store_url', 'website'])
     expect(body.platforms).toEqual(['shopify'])
   })
 

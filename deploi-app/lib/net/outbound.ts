@@ -1,21 +1,15 @@
 /**
  * Outbound request boundary. Every network call the app makes to a third party goes through
  * assertApprovedHost() first, so a misconfigured URL cannot send data to an unapproved provider.
- * The PHI lane (Ollama) is additionally restricted to private / loopback hosts unless
- * OLLAMA_ALLOWED_HOSTS names the host explicitly.
  */
-const e = (k: string) => (process.env[k] ?? '').trim()
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'sms' | 'cloud_llm' | 'supabase_mgmt' | 'storage' | 'shopify' | 'amazon' | 'woocommerce' | 'competitor_public', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'amazon' | 'woocommerce' | 'competitor_public', string[]> = {
   shopify: [], // <shop>.myshopify.com only, checked by suffix below
   amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
   woocommerce: [], // the merchant's own https host; never a private address
   email: ['api.resend.com'],
-  sms: ['api.twilio.com', 'messaging.twilio.com'],
-  cloud_llm: ['api.openai.com', 'api.anthropic.com'],
   supabase_mgmt: ['api.supabase.com'],
-  storage: [], // *.supabase.co, checked by suffix below
   competitor_public: [], // a public https store the merchant chose to monitor; never a private address or an IP, and never a provider above
 }
 
@@ -38,26 +32,11 @@ export function isPrivateHost(host: string): boolean {
 export function assertApprovedHost(url: string, purpose: keyof typeof APPROVED_HOSTS): string {
   const host = hostOf(url)
   let ok: boolean
-  if (purpose === 'storage') ok = host.endsWith('.supabase.co') || host.endsWith('.supabase.in')
-  else if (purpose === 'shopify') ok = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) && url.startsWith('https://')
+  if (purpose === 'shopify') ok = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) && url.startsWith('https://')
   else if (purpose === 'woocommerce') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.')
   else if (purpose === 'competitor_public') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
     && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.supabase.co')
   else ok = APPROVED_HOSTS[purpose].includes(host)
   if (!ok) throw new OutboundBlocked(host || url, purpose)
   return host
-}
-
-/**
- * The local LLM lane may only reach a private host, or a host named in OLLAMA_ALLOWED_HOSTS
- * (comma-separated; for a self-hosted Ollama behind a private DNS name). Never a public API.
- */
-export function assertLocalLlmHost(url: string): string {
-  const host = hostOf(url)
-  const allowed = e('OLLAMA_ALLOWED_HOSTS').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-  if (isPrivateHost(host) || allowed.includes(host)) {
-    if (APPROVED_HOSTS.cloud_llm.includes(host)) throw new OutboundBlocked(host, 'local_llm')
-    return host
-  }
-  throw new OutboundBlocked(host || url, 'local_llm')
 }

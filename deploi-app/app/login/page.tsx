@@ -44,7 +44,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
             ) : (
               <form action={magicLink} className="flex flex-col gap-4">
                 <Field label="Work email" htmlFor="email">
-                  <Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@agency.com" />
+                  <Input id="email" name="email" type="email" autoComplete="email" required placeholder="you@your-store.com" />
                 </Field>
                 <Button type="submit">Email me a link</Button>
               </form>

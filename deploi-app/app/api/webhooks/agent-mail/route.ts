@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
 import { log } from '@/lib/log'
 import { emailConfig } from '@/lib/email/config'
 import { inboundConfigured, processInbound } from '@/lib/email/inbound'
-import { verifySvix } from '@/lib/workers/webhooks'
+import { verifySvix } from '@/lib/email/svix'
 
 export const dynamic = 'force-dynamic'
 const TOLERANCE_SEC = 300

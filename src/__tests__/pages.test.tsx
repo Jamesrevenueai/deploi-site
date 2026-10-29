@@ -4,7 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Nav, NAV_LINKS } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import Legal, { PRIVACY, termsSections } from '../pages/Legal'
-import Home, { FAQ, FAQS, FLOW, CHECKS, PLATFORM_CARDS, SHOPIFY_STATUS_LINE, EXAMPLE_AGENT } from '../pages/Home'
+import Home, { FAQ, FAQS, FLOW, CHECKS, PLATFORM_CARDS, SHOPIFY_STATUS_LINE, EXAMPLE_AGENT, AGENT_ROLES } from '../pages/Home'
 import { AppRoutes, Shell } from '../App'
 import { CONTACT_EMAIL } from '../lib/brand'
 
@@ -58,7 +58,7 @@ describe('Home', () => {
     expect(within(byName('Amazon Seller Central')).getByText('Planned')).toBeInTheDocument()
     expect(PLATFORM_CARDS.filter(p => p.status === 'planned').map(p => p.name)).toEqual(['WooCommerce', 'Amazon Seller Central'])
     expect(container.textContent).toMatch(/not partnerships/)
-    expect(container.querySelectorAll('img')).toHaveLength(0) // no vendor logos
+    for (const c of cards) expect(c.querySelectorAll('img')).toHaveLength(0) // no vendor logos
   })
 
   it('contains no consulting terms anywhere on the rendered home page', () => {
@@ -76,6 +76,19 @@ describe('Home', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Review each change' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: 'Authorized to act within limits' })).toBeInTheDocument()
     expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
+  })
+
+  it('shows the agent illustrations with alt text, and only roles the product can do today', () => {
+    render(<MemoryRouter><Home /></MemoryRouter>)
+    expect(AGENT_ROLES.map(r => r.title)).toEqual(['Store Health Checker', 'Inventory Watcher', 'Approval Inbox', 'Supplier Chaser', 'Weekly Summary'])
+    for (const r of AGENT_ROLES) {
+      const img = screen.getByAltText(r.alt)
+      expect(img).toHaveAttribute('src', `/agents/${r.key}-640.webp`)
+      expect(img).toHaveAttribute('loading', 'lazy')
+      expect(r.alt.startsWith('Illustration:')).toBe(true)
+    }
+    expect(screen.queryByText(/competitor/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/Illustrations\. The names, products and numbers in them are examples\./)).toBeInTheDocument()
   })
 
   it('answers the FAQ without inventing a price', () => {

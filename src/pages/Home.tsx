@@ -123,6 +123,44 @@ export const APPROVAL_MODES: { title: string; body: string }[] = [
   { title: 'Authorized to act within limits', body: 'You grant a standing authorization: store, products, corrections, fields, files, exceptions and limits. Changes it covers run without asking again. Anything outside it waits for you, with the reason.' },
 ]
 
+export const AGENT_ROLES: { key: string; title: string; kind: string; body: string; alt: string }[] = [
+  {
+    key: '03-store-health-checker',
+    title: 'Store Health Checker',
+    kind: 'Finds problems',
+    body: 'Scans your Shopify store for four problems: overselling settings, publication, price and SKU. For each one it shows the evidence and the exact change it proposes.',
+    alt: 'Illustration: an agent checking a grid of product listings and flagging one that needs attention.',
+  },
+  {
+    key: '01-inventory-watcher',
+    title: 'Inventory Watcher',
+    kind: 'Store correction',
+    body: 'Stops out-of-stock products from selling when your rule says they should, while leaving pre-order and backorder products alone. It never changes stock counts.',
+    alt: 'Illustration: an agent watching warehouse shelves, with one shelf highlighted as low on stock.',
+  },
+  {
+    key: '05-approval-inbox',
+    title: 'Approval Inbox',
+    kind: 'You decide',
+    body: 'Every proposed change waits for you with its before and after values, and every email shows the exact message, unless an authorization you granted already covers it.',
+    alt: 'Illustration: proposed changes waiting in a tray, each locked until approved.',
+  },
+  {
+    key: '02-supplier-chaser',
+    title: 'Supplier Chaser',
+    kind: 'Email',
+    body: 'Emails your supplier a restock request for low-stock products from your own mailbox. With read access it records that the supplier replied, but never acts on what a reply says.',
+    alt: 'Illustration: an agent sending a restock email to a supplier and receiving a reply.',
+  },
+  {
+    key: '06-weekly-summary',
+    title: 'Weekly Summary',
+    kind: 'Email',
+    body: 'Run an agent weekly and it emails you a summary of each run: what it found, what it changed and what is waiting for a person.',
+    alt: 'Illustration: store activity flowing into a weekly summary report that is sent by email.',
+  },
+]
+
 export function Agents() {
   return (
     <section id="agents">
@@ -138,6 +176,28 @@ export function Agents() {
             scope, shows you a readable summary of exactly what the agent may do, and grants nothing until you confirm it.
           </p>
         </div>
+        <div className="agent-roles">
+          {AGENT_ROLES.map(r => (
+            <figure className="agent-role reveal" key={r.key}>
+              <img
+                src={`/agents/${r.key}-640.webp`}
+                srcSet={`/agents/${r.key}-640.webp 640w, /agents/${r.key}-1200.webp 1200w`}
+                sizes="(min-width: 960px) 360px, (min-width: 640px) 50vw, 100vw"
+                width={1200}
+                height={800}
+                loading="lazy"
+                decoding="async"
+                alt={r.alt}
+              />
+              <figcaption>
+                <span className="agent-role-kind">{r.kind}</span>
+                <h3>{r.title}</h3>
+                <p>{r.body}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <p className="agent-roles-note">Illustrations. The names, products and numbers in them are examples. Email works only from an account you connect, within the permissions you give each agent.</p>
         <div className="setup-question reveal">
           <div className="setup-label">Example: {EXAMPLE_AGENT.name}</div>
           <p>&ldquo;{EXAMPLE_AGENT.task}&rdquo;</p>

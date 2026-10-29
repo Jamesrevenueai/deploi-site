@@ -21,11 +21,13 @@ export function EarlyAccessForm() {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'done'>('idle')
   const [error, setError] = useState<string | null>(null)
   const configured = resolveLeadTarget().kind !== 'none'
+  // time-trap: people take seconds to fill the form, bots milliseconds
+  const [openedAt] = useState(() => Date.now())
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
-    const payload = earlyAccessPayload(new FormData(e.currentTarget))
+    const payload = { ...earlyAccessPayload(new FormData(e.currentTarget)), elapsed_ms: Date.now() - openedAt }
     const problem = validateLead(payload)
     if (problem) {
       setError(problem)

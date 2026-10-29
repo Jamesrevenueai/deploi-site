@@ -112,4 +112,13 @@ describe.skipIf(!ready)('POST /api/public/lead', () => {
     const bot = await POST(new Request('http://localhost/x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'b', email: 'b@b.co', source: 'chat', website: 'spam' }) }))
     expect((await bot.json()).id).toBeNull()
   })
+  it('time-trap: a form submitted within 2.5 s is answered as accepted but not stored; a normal pace is stored', async () => {
+    const { POST } = await import('../../app/api/public/lead/route')
+    const send = (elapsed_ms: number, email: string) => POST(new Request('http://localhost/x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'T', email, agency_name: 'Timing Co', source: 'site', elapsed_ms }) }))
+    const fast = await send(400, 'fast-bot@timing.example')
+    expect(fast.status).toBe(200)
+    expect((await fast.json()).id).toBeNull()
+    const human = await send(12000, 'person@timing.example')
+    expect((await human.json()).id).toBeTruthy()
+  })
 })

@@ -94,6 +94,10 @@ export const PRIVACY: LegalSection[] = [
     body: <>You connect a mailbox through Google&rsquo;s or Microsoft&rsquo;s own sign-in; we never ask for your mailbox password. We keep the access tokens <strong>encrypted at rest</strong>, your address and display name, and the permissions you granted. No agent can use the account until you grant that agent permission. For messages an agent drafts or sends, we keep the sender, recipients, subject, body and attachments (content encrypted at rest), your approvals and the provider&rsquo;s response. We read your mailbox only if you grant read access for a task that needs it, and then only to notice that a reply arrived to a message the agent sent; we do not keep reply content. You can disconnect at any time, which deletes the tokens and cancels unsent messages.</>,
   },
   {
+    title: 'If you use the Competitor & Trend Watcher',
+    body: <>It reads only the public pages of the stores you list (their product feed, prices, availability as shown, and their own bestseller collection), obeying each store&rsquo;s robots.txt, waiting between requests and never signing in or working around a block. We keep what those pages showed, with the time we saw it, so you can compare over time. It collects no personal data about anyone and does not read or change your own store. It cannot see other stores&rsquo; sales, and does not claim to.</>,
+  },
+  {
     title: 'Agent email addresses',
     body: <>An agent can have its own email address on our domain. Messages it sends from there go through our email provider (Resend). Mail sent to that address, including threads you forward or copy to it and replies from your suppliers, is <strong>stored encrypted at rest</strong> with its sender, recipients, subject and text so you can read it in Deploi. Incoming mail never changes what an agent is allowed to do. Mail from senders outside the agent&rsquo;s allowed list, or that fails sender checks, is kept separately as quarantined. Deleting the agent closes its address.</>,
   },

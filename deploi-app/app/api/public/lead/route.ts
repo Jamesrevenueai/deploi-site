@@ -27,6 +27,8 @@ const Lead = z.object({
   state: z.string().trim().max(2).optional().nullable(),
   /** honeypot */
   website: z.string().optional(),
+  /** time-trap: how long the form was open (ms); absent from older clients */
+  elapsed_ms: z.number().int().min(0).max(864e5).optional(),
   // ---- Website Improvement (optional; contract in docs/CONTRIBUTING-STREAMS.md)
   service_interest: z.enum(['operations', 'website_improvement', 'early_access']).optional().default('operations'),
   /** early access (subscription product) */
@@ -66,7 +68,8 @@ export async function POST(req: Request) {
   const parsed = Lead.safeParse(body)
   if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid lead', issues: parsed.error.issues.map(i => i.path.join('.')) }, { status: 400, headers })
   const lead = parsed.data
-  if (lead.website) return NextResponse.json({ ok: true, id: null }, { headers }) // bot
+  // bots: the honeypot was filled, or the form was submitted faster than a person can type (answer as if accepted)
+  if (lead.website || (lead.elapsed_ms !== undefined && lead.elapsed_ms < 2500)) { log.warn('lead.bot_dropped', { source: lead.source, reason: lead.website ? 'honeypot' : 'too_fast' }); return NextResponse.json({ ok: true, id: null }, { headers }) }
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
   const { fields, removed } = stripSecretsFrom({ message: lead.message, website_changes: lead.website_changes, website_issues: lead.website_issues, website_goal: lead.website_goal })
   if (removed) log.warn('lead.secret_segments_removed', { source: lead.source, count: removed })

@@ -96,12 +96,15 @@ describe('tiers and widening (no database)', () => {
   })
   it('templates start every tool at drafts only and are accepted once the merchant fills them in', () => {
     for (const t of TEMPLATES) {
-      const raw = templatePolicy(t.key, { connectionId: base.connectionId, timezone: 'UTC', notify: OWNER, supplierAddress: SUPPLIER })
+      const raw = templatePolicy(t.key, { connectionId: base.connectionId, timezone: 'UTC', notify: OWNER, supplierAddress: SUPPLIER, competitor: { stores: ['harbor-home.example'], emailSummary: true } })
       const p = parsePolicy(raw)
       expect(p.approvalMode, t.key).toBe('draft')
       expect(p.email?.permission, t.key).toBe('draft')
       expect(t.mailbox).toBe(true)
     }
+    // the competitor watcher's email summary is optional: without it the agent has no email permission at all
+    expect(parsePolicy(templatePolicy('competitor_watcher', { connectionId: base.connectionId, timezone: 'UTC', competitor: { stores: ['harbor-home.example'] } })).email).toBeUndefined()
+    expect(() => parsePolicy(templatePolicy('competitor_watcher', { connectionId: base.connectionId, timezone: 'UTC' }))).toThrow(/at least one competitor store/)
     // the supplier chaser without a supplier address is refused, not guessed
     expect(() => parsePolicy(templatePolicy('supplier_chaser', { connectionId: base.connectionId, timezone: 'UTC' }))).toThrow()
   })

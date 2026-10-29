@@ -6,8 +6,9 @@
  */
 import { OVERSOLD_WATCH } from './watch'
 
-export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'store_health_checker'
-export type TemplateTool = 'shopify' | 'email'
+export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'store_health_checker' | 'competitor_watcher'
+/** public_web: reads other stores' public pages (read only); it is never a permission over your store */
+export type TemplateTool = 'shopify' | 'email' | 'public_web'
 
 export type AgentTemplate = {
   key: TemplateKey
@@ -45,6 +46,13 @@ export const TEMPLATES: AgentTemplate[] = [
     needs: ['who receives the report (your email address)'],
     minutesPerItem: 3,
   },
+  {
+    key: 'competitor_watcher', name: 'Competitor & Trend Watcher',
+    job: 'Watch the competitor stores I list. Tell me when they add products, change prices, advertise discounts, sell out, restock, or change what they publicly feature as best sellers. Point out similar products showing up on several of them that I do not sell. Use only what anyone can see on their public pages, and never guess their sales.',
+    tools: ['public_web', 'email'], mailbox: true,
+    needs: ['the competitor store addresses', 'optional: keywords or categories to focus on', 'optional: your email address for summaries'],
+    minutesPerItem: 2,
+  },
 ]
 
 export const templateByKey = (k: string) => TEMPLATES.find(t => t.key === k) ?? null
@@ -55,7 +63,9 @@ const EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', 'made to 
  * The raw policy a template starts from (validated by the server like any other). Every tool is at
  * drafts only. Empty inputs stay empty, so the server refuses the policy until the merchant fills them.
  */
-export function templatePolicy(key: TemplateKey, input: { connectionId: string; timezone: string; notify?: string | null; supplierAddress?: string | null }): Record<string, unknown> {
+export type CompetitorTemplateInput = { stores?: string[]; keywords?: string[]; cadence?: 'daily' | 'weekly'; alerts?: string[]; minPriceChangePct?: number; emailSummary?: boolean }
+
+export function templatePolicy(key: TemplateKey, input: { connectionId: string; timezone: string; notify?: string | null; supplierAddress?: string | null; competitor?: CompetitorTemplateInput }): Record<string, unknown> {
   const notify = (input.notify ?? '').trim().toLowerCase()
   const supplier = (input.supplierAddress ?? '').trim().toLowerCase()
   const base = { connectionId: input.connectionId, productScope: { mode: 'all' }, approvalMode: 'draft', validUntil: null, limits: { maxChangesPerRun: 25, maxChangesPerDay: 100 } }
@@ -74,6 +84,24 @@ export function templatePolicy(key: TemplateKey, input: { connectionId: string; 
       recipients: { addresses: supplier ? [supplier] : [], domains: [] }, notify: [], limits: { perRun: 5, perDay: 10 }, maxRecipientsPerMessage: 2,
       supplierReorder: supplier ? { supplierAddress: supplier, thresholdAvailable: 2, cooldownDays: 7, followupDays: 3 } : undefined,
       read: { enabled: true, scope: 'replies_to_agent_messages' } },
+  }
+  if (key === 'competitor_watcher') {
+    const c = input.competitor ?? {}
+    const summary = Boolean(c.emailSummary) && Boolean(notify)
+    return {
+      ...base, correctionTypes: [], rules: {}, watch: [],
+      schedule: c.cadence === 'weekly' ? { kind: 'interval', everyHours: 168 } : { kind: 'daily', hour: 7, minute: 30, timezone: input.timezone },
+      competitors: {
+        stores: (c.stores ?? []).map(url => ({ url })),
+        keywords: c.keywords ?? [],
+        alerts: c.alerts?.length ? c.alerts : ['launches', 'price_changes', 'discounts', 'availability', 'bestsellers', 'featured', 'trends'],
+        minPriceChangePct: c.minPriceChangePct ?? 5,
+        compareOwnCatalog: true,
+      },
+      // the summary email is optional; without it the agent has no email permission and no address
+      ...(summary ? { email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Send the store owner a summary of what monitored competitor stores changed', tasks: ['run_report'],
+        recipients: { addresses: [notify], domains: [] }, notify: [notify], limits: { perRun: 1, perDay: 2 }, maxRecipientsPerMessage: 3 } } : {}),
+    }
   }
   return {
     ...base, correctionTypes: ['oversell_policy'], rules: { oversell_policy: { exemptTags: EXEMPT, flagInStockVariants: true } }, watch: [OVERSOLD_WATCH],

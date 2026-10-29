@@ -11,6 +11,7 @@ import { canonicalJson } from '../engine/hash'
 
 import { CORRECTION_TYPES, correctionCapability, correctionTypeForAction, fieldForAction, type CorrectionType } from '../engine/capabilities'
 import type { Platform } from '../engine/types'
+import { MAX_COMPETITOR_STORES, normalizeStoreUrl, storeKey } from '../competitors/url'
 export { CORRECTION_TYPES, type CorrectionType }
 
 export const CORRECTION_LABEL: Record<CorrectionType, string> = {
@@ -114,6 +115,46 @@ export function recipientAllowed(e: Pick<EmailPolicy, 'recipients'>, address: st
   return e.recipients.domains.some(d => domain === d)
 }
 export const permissionRank = (p: EmailPermission) => EMAIL_PERMISSIONS.indexOf(p)
+
+/**
+ * Competitor & Trend Watcher: which other stores' public pages to read, what to look for, and what to
+ * alert on. Read only: it never logs in, buys, contacts the store or touches the merchant's store.
+ */
+export const COMPETITOR_ALERTS = ['launches', 'price_changes', 'discounts', 'availability', 'bestsellers', 'featured', 'trends'] as const
+export type CompetitorAlert = typeof COMPETITOR_ALERTS[number]
+export const COMPETITOR_ALERT_LABEL: Record<CompetitorAlert, string> = {
+  launches: 'New products',
+  price_changes: 'Price changes',
+  discounts: 'Advertised discounts starting or ending',
+  availability: 'Sold out or back in stock',
+  bestsellers: 'Changes in public best-seller lists',
+  featured: 'Newly featured or promoted products',
+  trends: 'Similar products on several stores, and possible opportunities',
+}
+const keyword = z.string().trim().min(2).max(60).transform(k => k.toLowerCase())
+export const CompetitorPolicySchema = z.object({
+  /** each store is identified by its https origin; what the merchant typed is normalized on save */
+  stores: z.array(z.object({ url: z.string().min(1).max(300), label: z.string().trim().max(80).optional() })).min(1, 'add at least one competitor store').max(MAX_COMPETITOR_STORES),
+  /** only products whose title, type or tags contain one of these; empty = every product */
+  keywords: z.array(keyword).max(30).default([]),
+  alerts: z.array(z.enum(COMPETITOR_ALERTS)).min(1, 'choose at least one kind of alert').default([...COMPETITOR_ALERTS]),
+  /** price changes smaller than this (percent) are not reported */
+  minPriceChangePct: z.number().min(0).max(100).default(5),
+  /** compare what competitors show with your own catalog titles (read only) to suggest opportunities */
+  compareOwnCatalog: z.boolean().default(true),
+}).transform((c, ctx) => {
+  const seen = new Set<string>()
+  const stores: { url: string; label?: string }[] = []
+  c.stores.forEach((st, i) => {
+    const n = normalizeStoreUrl(st.url)
+    if (!n.ok) { ctx.addIssue({ code: 'custom', path: ['stores', i, 'url'], message: `${n.input || 'store'}: ${n.reason}` }); return }
+    if (seen.has(storeKey(n.host))) { ctx.addIssue({ code: 'custom', path: ['stores', i, 'url'], message: `${n.host} is listed twice` }); return }
+    seen.add(storeKey(n.host))
+    stores.push({ url: n.url, ...(st.label ? { label: st.label } : {}) })
+  })
+  return { ...c, stores, keywords: [...new Set(c.keywords)], alerts: [...new Set(c.alerts)] }
+})
+export type CompetitorPolicy = z.infer<typeof CompetitorPolicySchema>
 const tag = z.string().trim().min(1).max(255).transform(t => t.toLowerCase())
 
 export const PolicySchema = z.object({
@@ -170,8 +211,9 @@ export const PolicySchema = z.object({
     z.object({ kind: z.literal('daily'), hour: z.number().int().min(0).max(23), minute: z.number().int().min(0).max(59), timezone: z.string().min(1).max(64) }),
   ]).default({ kind: 'manual' }),
   email: EmailPolicySchema.optional(),
+  competitors: CompetitorPolicySchema.optional(),
 }).superRefine((p, ctx) => {
-  if (!p.correctionTypes.length && !p.email && !p.watch.length) ctx.addIssue({ code: 'custom', path: ['correctionTypes'], message: 'choose at least one correction type, check or email task' })
+  if (!p.correctionTypes.length && !p.email && !p.watch.length && !p.competitors) ctx.addIssue({ code: 'custom', path: ['correctionTypes'], message: 'choose at least one correction type, check, email task or competitor store' })
   if (p.approvalMode === 'autonomous' && p.correctionTypes.length) {
     if (!p.validUntil) ctx.addIssue({ code: 'custom', path: ['validUntil'], message: 'changing the store without asking needs an end date' })
     else if (new Date(p.validUntil).getTime() - Date.now() > MAX_AUTONOMY_MS) ctx.addIssue({ code: 'custom', path: ['validUntil'], message: 'an authorization to change the store without asking lasts at most one year' })
@@ -284,7 +326,20 @@ export function expansionReasons(prev: AgentPolicy, next: AgentPolicy): string[]
   const po = prev.rules.oversell_policy, no = next.rules.oversell_policy
   if (no && po && !sub(po.exemptTags, no.exemptTags)) r.push('pre-order/backorder exemptions removed')
   r.push(...emailExpansion(prev.email, next.email))
+  r.push(...competitorExpansion(prev.competitors, next.competitors))
   return [...new Set(r)]
+}
+
+function competitorExpansion(pc: CompetitorPolicy | undefined, nc: CompetitorPolicy | undefined): string[] {
+  if (!nc) return []
+  if (!pc) return ['competitor monitoring added']
+  const r: string[] = []
+  const hosts = (c: CompetitorPolicy) => c.stores.map(st => storeKey(new URL(st.url).hostname))
+  if (!sub(hosts(nc), hosts(pc))) r.push('new competitor stores to watch')
+  // an empty keyword list means every product, so dropping all keywords or adding one widens what is read
+  if (pc.keywords.length && (!nc.keywords.length || !sub(nc.keywords, pc.keywords))) r.push('more competitor products in scope')
+  if (nc.compareOwnCatalog && !pc.compareOwnCatalog) r.push('now compares with your catalog')
+  return r
 }
 
 function emailExpansion(pe: EmailPolicy | undefined, ne: EmailPolicy | undefined): string[] {
@@ -315,7 +370,11 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
     : p.productScope.mode === 'products' ? `${p.productScope.productIds.length} selected product${p.productScope.productIds.length === 1 ? '' : 's'}`
     : `products tagged ${p.productScope.tags.map(t => `"${t}"`).join(' or ')}`
   const except = [...p.exceptions.tags.map(t => `tagged "${t}"`), ...(p.exceptions.productIds.length ? [`${p.exceptions.productIds.length} excluded product(s)`] : [])]
-  const grants: string[] = [`Works on ${ctx.storeName}, on ${scope}${except.length ? `, except products ${except.join(' and ')}` : ''}.`]
+  // a competitor-only agent reads its own store at most for titles; every other agent works on the store
+  const storeTools = !p.competitors || p.correctionTypes.length > 0 || p.watch.length > 0 || Boolean(p.email?.tasks.some(t => t === 'supplier_reorder'))
+  const grants: string[] = storeTools ? [`Works on ${ctx.storeName}, on ${scope}${except.length ? `, except products ${except.join(' and ')}` : ''}.`]
+    : p.competitors?.compareOwnCatalog ? [`Reads the product titles of ${ctx.storeName} only to compare them with what competitors show. It never changes your store.`]
+    : [`Does not read or change ${ctx.storeName}.`]
   const how = p.approvalMode === 'autonomous' ? `may change without asking until ${p.validUntil ? p.validUntil.slice(0, 10) : '(no end date)'}`
     : p.approvalMode === 'review' ? 'will propose; you approve each exact change before it is made'
     : 'drafts only: will show you the exact change it would make, and never makes it'
@@ -338,11 +397,19 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
     }
   }
   for (const w of p.watch) grants.push(`Checks (read only): ${ctx.watchLabels?.[w] ?? w}. Problems are reported for a person; nothing is changed.`)
+  if (p.competitors) {
+    const c = p.competitors
+    const hosts = c.stores.map(st => new URL(st.url).hostname)
+    grants.push(`Competitor monitoring (read only): reads the public pages of ${hosts.join(', ')}, the same pages any visitor can see. ${c.keywords.length ? `Only products whose name, type or tags mention ${c.keywords.map(k => `"${k}"`).join(', ')}.` : 'Every product they list.'}`)
+    grants.push(`Records, with the page address and time seen: products, prices, advertised discounts, availability, and the store's own public best-seller and featured collections. The first check is the starting point; later checks report changes against it.`)
+    grants.push(`Alerts in Deploi on: ${c.alerts.map(a => COMPETITOR_ALERT_LABEL[a].toLowerCase()).join('; ')}.${c.alerts.includes('price_changes') ? ` Price changes under ${c.minPriceChangePct}% are not reported.` : ''}`)
+  }
   const limits: string[] = []
   if (p.approvalMode === 'autonomous') limits.push(`At most ${p.limits.maxChangesPerRun} changes per run and ${p.limits.maxChangesPerDay} per day without asking; anything beyond waits for your approval.`)
   if (p.correctionTypes.includes('price') && p.rules.price) limits.push(p.rules.price.maxChangePct === null ? 'No limit on the size of a price change.' : `Price changes larger than ${p.rules.price.maxChangePct}% always wait for your approval.`)
   limits.push(p.schedule.kind === 'manual' ? 'Runs only when you press Run now.' : p.schedule.kind === 'interval' ? `Runs every ${p.schedule.everyHours} hour${p.schedule.everyHours === 1 ? '' : 's'}.` : `Runs daily at ${String(p.schedule.hour).padStart(2, '0')}:${String(p.schedule.minute).padStart(2, '0')} (${p.schedule.timezone}).`)
-  limits.push('Re-reads every record just before writing and stops if it changed; confirms every change with a fresh read.')
+  if (p.correctionTypes.length) limits.push('Re-reads every record just before writing and stops if it changed; confirms every change with a fresh read.')
+  if (p.competitors) limits.push("Follows each store's robots.txt and skips any store that does not allow it. At most one request per second to a store, and a fixed number of pages per check.")
   const never = [
     ...(p.approvalMode === 'draft' && p.correctionTypes.length ? ['Never changes anything in your store: drafts only. Making changes needs a wider permission and a new grant.'] : []),
     'Never changes stock quantities.',
@@ -350,6 +417,10 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
     'Never invents prices or SKUs: values come only from your files or rules.',
     'Never touches products or fields outside this list.',
   ]
+  if (p.competitors) never.push(
+    'Never logs in to, buys from, or contacts a competitor store, and never gets around a block or a login.',
+    "Never claims to know a competitor's sales, revenue, units sold, conversion rate or exact sales ranking: none of these are public, and Deploi does not estimate them.",
+  )
   if (p.email) {
     const e = p.email
     const sender = ctx.emailAccount ? `${ctx.emailAccount.address}` : 'the chosen email account'

@@ -33,6 +33,26 @@ export function runReport(e: EmailPolicy, f: RunFacts): DraftMessage {
     content: { subject: clean(`Deploi: ${f.agentName}: ${c.verified} verified, ${c.awaitingApproval} waiting, ${c.needsPerson} for a person`, 180), bodyText: lines.join('\n'), attachments: [] } }
 }
 
+export type CompetitorFindingLine = { basis: 'observed' | 'inference'; title: string; summary: string; url: string | null }
+
+/** The run summary for a competitor watcher: this run's findings, each marked observed or inference. */
+export function competitorReport(e: EmailPolicy, f: { runId: string; agentId: string; agentName: string; at: Date; appUrl: string; stores: { checked: number; skipped: number }; findings: CompetitorFindingLine[] }): DraftMessage | null {
+  if (!f.findings.length && !f.stores.skipped) return null
+  const observed = f.findings.filter(x => x.basis === 'observed'), inferred = f.findings.filter(x => x.basis === 'inference')
+  const line = (x: CompetitorFindingLine) => `- ${clean(x.title, 160)}: ${clean(x.summary, 400)}${x.url ? ` (${clean(x.url, 200)})` : ''}`
+  const lines = [
+    'Hello,', '',
+    `This is an automatic summary from the Deploi agent "${clean(f.agentName, 80)}", run at ${stamp(f.at)}. It read the public pages of ${f.stores.checked} store${f.stores.checked === 1 ? '' : 's'}${f.stores.skipped ? `; ${f.stores.skipped} could not be checked (see the agent page)` : ''}.`, '',
+    ...(observed.length ? ['Observed on public pages (with the page and time seen):', ...observed.slice(0, 40).map(line), ...(observed.length > 40 ? [`- and ${observed.length - 40} more`] : []), ''] : []),
+    ...(inferred.length ? ["Deploi's inferences from those listings (not facts about anyone's sales):", ...inferred.slice(0, 20).map(line), ''] : []),
+    'Deploi cannot see any store\'s sales, revenue, units sold or conversion, and does not estimate them.', '',
+    `Details and evidence: ${f.appUrl}/store/agents/${f.agentId}#competitors`, '',
+    `Purpose of these emails: ${clean(e.purpose, 300)}`,
+  ]
+  return { taskKey: 'run_report', dedupeKey: `run_report:${f.runId}`, to: [...e.notify], cc: [], meta: { run_id: f.runId },
+    content: { subject: clean(`Deploi: ${f.agentName}: ${observed.length} change${observed.length === 1 ? '' : 's'} seen, ${inferred.length} trend${inferred.length === 1 ? '' : 's'} to look at`, 180), bodyText: lines.join('\n'), attachments: [] } }
+}
+
 export type PersonItem = { id: string; label: string; summary: string; humanAction: string | null }
 export function needsPersonAlert(e: EmailPolicy, f: { runId: string; agentId: string; agentName: string; storeName: string; appUrl: string; items: PersonItem[] }): DraftMessage | null {
   if (!f.items.length) return null

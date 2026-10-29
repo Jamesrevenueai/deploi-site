@@ -33,6 +33,8 @@ const WHAT: Record<string, string> = {
   'issue.loop_guard': 'Stopped repeating the same change (loop guard)', 'issue.conflicting_agent': 'Skipped: another agent covers this record', 'execution.routed_for_approval': 'Change sent for your approval',
   'mailbox.created': 'Agent mailbox created', 'mailbox.closed': 'Agent mailbox closed',
   'task.queued': 'Task accepted: within the rules', 'task.needs_approval': 'Task outside the rules: needs your approval', 'task.refused': 'Task refused: nothing will run',
+  'competitor.baseline': 'Starting point recorded', 'competitor.checked': 'Competitor store checked', 'competitor.skipped': 'Store not checked',
+  'competitor.trends': 'Similar products found on several stores (inference)',
   'task.running': 'Task running', 'task.done': 'Task done (with proof)', 'task.waiting_on_you': 'Task run finished: waiting on you', 'task.failed': 'Task failed', 'task.cancelled': 'Task cancelled',
 }
 
@@ -60,10 +62,11 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
        where (entity_type = 'agent' and entity_id = $1) or detail->>'agent_id' = $1 or entity_id = any($2::text[])
        order by at desc, id desc limit $3`, [agentId, ids, Math.min(opts.limit ?? 200, 500)])
 
-    const versionWords = (v: number | null | undefined, tool: 'store' | 'email' = 'store') => {
+    const versionWords = (v: number | null | undefined, tool: 'store' | 'email' | 'public' = 'store') => {
       if (!v) return null
       const p = byVersion.get(v)
       if (!p) return `authorization v${v}`
+      if (tool === 'public') return `authorization v${v} (public pages of other stores: read only)`
       const tier: Tier | null = tool === 'store' ? tierOfMode(p.mode) : p.email_permission
       return `authorization v${v}${tier ? ` (${tool}: ${TIER_LABEL[tier]}${tier === 'send_autonomous' && tool === 'store' && p.valid_until ? ` until ${p.valid_until.slice(0, 10)}` : ''})` : ''}`
     }
@@ -74,6 +77,7 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
       let what = WHAT[r.event] ?? r.event
       if (ex?.target_label) what += `: ${ex.target_label}${ex.field ? ` (${FIELD_WORDS[ex.field] ?? ex.field})` : ''}`
       if (em) what += `: ${em.task_key.replace(/_/g, ' ')} to ${em.to_addresses.length} recipient(s)`
+      if (r.event.startsWith('competitor.') && str(d.store)) what += `: ${d.store}${typeof d.products_seen === 'number' ? ` (${d.products_seen} products read)` : ''}`
       const reasons = Array.isArray(d.reasons) ? (d.reasons as string[]).join('; ') : null
       const blockers = Array.isArray(d.blockers) && (d.blockers as string[]).length ? `outside the rules: ${(d.blockers as string[]).join('; ')}` : null
       const why = str(d.reason) ?? reasons ?? blockers ?? (Array.isArray(d.expansion) && (d.expansion as string[]).length ? `widens: ${(d.expansion as string[]).join(', ')}` : null)
@@ -87,6 +91,7 @@ export async function agentWorkLog(actor: Actor, agentId: string, opts: { limit?
       else if (em) permission = em.approval_kind === 'standing' ? `standing ${versionWords(em.policy_version, 'email') ?? 'authorization'}` : em.approval_kind === 'individual' ? `your approval (${em.approved_by ?? 'you'})` : (versionWords(em.policy_version, 'email') ?? 'drafts only')
       else if (r.entity_id && propVersion.has(r.entity_id)) permission = `${versionWords(propVersion.get(r.entity_id)) ?? 'the agent\'s grant'} (recorded only; nothing changed)`
       else if (/^(scan|issue)\./.test(r.event)) permission = 'read access under the agent\'s grant (nothing changed)'
+      else if (r.event.startsWith('competitor.')) permission = `${versionWords(typeof d.policy_version === 'number' ? d.policy_version : null, 'public') ?? 'the agent\'s grant'}`
       else permission = versionWords(typeof d.policy_version === 'number' ? d.policy_version : typeof d.version === 'number' ? d.version : null) ?? 'none recorded'
       return { at: r.at, what, why, permission, event: r.event, actor: r.actor, ref: { type: r.entity_type, id: r.entity_id } }
     })

@@ -8,13 +8,14 @@ import { env } from '../env'
 import { inScope, type AgentPolicy } from '../agents/policy'
 import type { ResourceRecord } from '../engine/types'
 import { checkReplies, createAgentMessages, processQueue } from './engine'
-import { needsPersonAlert, reorderCandidates, runReport, supplierFollowup, supplierReorder, type DraftMessage, type FollowupTarget, type PersonItem } from './tasks'
+import { competitorReport, needsPersonAlert, reorderCandidates, runReport, supplierFollowup, supplierReorder, type DraftMessage, type FollowupTarget, type PersonItem } from './tasks'
 
 export type EmailRunCounts = { emailDrafted: number; emailAwaiting: number; emailAccepted: number; emailFailed: number; emailUnknown: number; emailSkipped: number }
 
 export async function runEmailStep(input: {
   agentId: string; agentName: string; runId: string; policy: AgentPolicy; storeName: string; records: ResourceRecord[] | null; actor: string; now: Date
   run: { verified: number; awaitingApproval: number; needsPerson: number; failed: number; blocked: number }
+  competitors?: { storesChecked: number; storesSkipped: number }
 }): Promise<EmailRunCounts> {
   const e = input.policy.email!
   const out: EmailRunCounts = { emailDrafted: 0, emailAwaiting: 0, emailAccepted: 0, emailFailed: 0, emailUnknown: 0, emailSkipped: 0 }
@@ -62,7 +63,13 @@ export async function runEmailStep(input: {
   }
 
   // the run summary comes last: it reports on everything above
-  if (e.tasks.includes('run_report')) {
+  if (e.tasks.includes('run_report') && input.policy.competitors) {
+    const rows = await admin(db => db.query<{ basis: 'observed' | 'inference'; title: string; summary: string; url: string | null }>(
+      `select basis, title, summary, evidence->0->>'url' as url from competitor_findings where run_id = $1 and kind <> 'baseline' order by basis, created_at`, [input.runId]))
+    const d = competitorReport(e, { runId: input.runId, agentId: input.agentId, agentName: input.agentName, at: input.now, appUrl, findings: rows,
+      stores: { checked: input.competitors?.storesChecked ?? 0, skipped: input.competitors?.storesSkipped ?? 0 } })
+    if (d) drafts.push(d)
+  } else if (e.tasks.includes('run_report')) {
     const verified = await admin(db => db.query<{ target_label: string; change: { field: string; from: unknown; to: unknown } }>(
       `select p.target_label, p.change from executions e join proposals p on p.id = e.proposal_id where e.agent_id = $1 and e.status = 'verified' and e.finished_at >= $2`, [input.agentId, input.now.toISOString()]))
     drafts.push(runReport(e, { runId: input.runId, agentId: input.agentId, agentName: input.agentName, storeName: input.storeName, at: input.now, appUrl, counts: input.run,

@@ -7,7 +7,7 @@
 const e = (k: string) => (process.env[k] ?? '').trim()
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'sms' | 'cloud_llm' | 'supabase_mgmt' | 'storage' | 'shopify' | 'amazon' | 'woocommerce', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'sms' | 'cloud_llm' | 'supabase_mgmt' | 'storage' | 'shopify' | 'amazon' | 'woocommerce' | 'competitor_public', string[]> = {
   shopify: [], // <shop>.myshopify.com only, checked by suffix below
   amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
   woocommerce: [], // the merchant's own https host; never a private address
@@ -16,6 +16,7 @@ export const APPROVED_HOSTS: Record<'email' | 'sms' | 'cloud_llm' | 'supabase_mg
   cloud_llm: ['api.openai.com', 'api.anthropic.com'],
   supabase_mgmt: ['api.supabase.com'],
   storage: [], // *.supabase.co, checked by suffix below
+  competitor_public: [], // a public https store the merchant chose to monitor; never a private address or an IP, and never a provider above
 }
 
 export class OutboundBlocked extends Error { constructor(public host: string, public purpose: string) { super(`outbound request to ${host} is not approved for ${purpose}`); this.name = 'OutboundBlocked' } }
@@ -40,6 +41,8 @@ export function assertApprovedHost(url: string, purpose: keyof typeof APPROVED_H
   if (purpose === 'storage') ok = host.endsWith('.supabase.co') || host.endsWith('.supabase.in')
   else if (purpose === 'shopify') ok = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) && url.startsWith('https://')
   else if (purpose === 'woocommerce') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.')
+  else if (purpose === 'competitor_public') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
+    && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.supabase.co')
   else ok = APPROVED_HOSTS[purpose].includes(host)
   if (!ok) throw new OutboundBlocked(host || url, purpose)
   return host

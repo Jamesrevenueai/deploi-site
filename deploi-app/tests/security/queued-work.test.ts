@@ -151,6 +151,7 @@ describe('cron routes fail closed without CRON_SECRET', () => {
     expect(cronAuthorized(req(), { VERCEL_ENV: 'production' })).toBe(false)
     expect(cronAuthorized(req(), { VERCEL_ENV: 'preview' })).toBe(false)
     expect(cronAuthorized(req(), { DEPLOI_ENV: 'production' })).toBe(false)
-    expect(cronAuthorized(req(), {})).toBe(true)
+    expect(cronAuthorized(req(), { NODE_ENV: 'production' })).toBe(false)
+    expect(cronAuthorized(req(), { NODE_ENV: 'development' })).toBe(true)
   })
 })

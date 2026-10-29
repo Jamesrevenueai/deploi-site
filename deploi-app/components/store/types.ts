@@ -75,7 +75,7 @@ export type WeeklyResponse = {
 }
 export type ParseResponse = { ok: true; draft: TaskDraft }
 export type CreateAgentResponse = { ok: true; agentId: string; policyId: string; policyHash: string; summary: AuthorizationSummary; mailbox?: { id: string; address: string } | null }
-export type EditAgentResponse = { ok: true; policyId: string; version: number; requiresGrant: boolean; expansion: string[]; policyHash: string; summary: AuthorizationSummary }
+export type EditAgentResponse = { ok: true; policyId: string; version: number; requiresGrant: boolean; expansion: string[]; policyHash: string; summary: AuthorizationSummary; /** Shopify scopes the store has not granted for what this version may write */ missingScopes: string[] }
 export type GrantResponse = { ok: true; version: number; warnings: string[]; nextRunAt: string | null }
 export type AgentRunResponse = { ok: true; runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts }
 
@@ -86,6 +86,8 @@ export type AgentRow = {
 export type AgentPolicyRow = {
   id: string; version: number; policy: AgentPolicy; policy_hash: string; summary: AuthorizationSummary; status: 'pending_grant' | 'active' | 'superseded' | 'revoked' | 'discarded'
   requires_grant: boolean; created_by: string; created_at: string; granted_by: string | null; granted_at: string | null; revoked_at: string | null; revoke_reason: string | null
+  /** Shopify scopes the store has not granted for what this version may write (empty at drafts only) */
+  missing_scopes?: string[]
 }
 export type AgentRunRow = { id: string; policy_version: number | null; trigger: string; status: string; status_reason: string | null; counts: Partial<AgentRunCounts>; started_at: string; finished_at: string | null }
 export type ChangeShape = { field: string; from: unknown; to: unknown; params?: Record<string, unknown> }
@@ -103,6 +105,8 @@ export type AgentDetailResponse = {
   ok: true; agent: AgentRow; policies: AgentPolicyRow[]; runs: AgentRunRow[]; executions: AgentExecutionRow[]; waiting: AgentWaitingRow[]; needsPerson: AgentNeedsPersonRow[]
   /** what the version waiting for a grant adds to the active one */
   pendingExpansion: string[] | null
+  /** what the store has granted the app, and what it can still be asked for at runtime */
+  storeScopes?: { granted: string[]; requestable: string[] }
 }
 
 export type ReferenceKindName = 'price_list' | 'sku_mapping' | 'publication_list'

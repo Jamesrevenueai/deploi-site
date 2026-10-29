@@ -6,6 +6,7 @@
  * paths: platform refusal, lost responses, writes that do not stick, unreadable records.
  */
 import { admin } from '../../db'
+import { REQUIRED_SCOPES, OPTIONAL_SCOPES } from './config'
 import type { GqlVariant } from './normalize'
 
 export type SynthLevel = { locationId: string; available: number; onHand: number; committed: number }
@@ -22,6 +23,8 @@ export type SynthState = {
   faults: SynthFault[]
   writeLog: { at: string; op: string; variantIds: string[]; inventoryPolicy: string }[]
   subscriptions: { id: string; name: string; status: string; test: boolean; trialDays: number; currentPeriodEnd: string | null; createdAt: string }[]
+  /** what the merchant has granted (currentAppInstallation.accessScopes); absent = everything the app can ask for */
+  accessScopes?: string[]
 }
 
 export class SyntheticNetworkError extends Error { constructor(m: string) { super(m); this.name = 'SyntheticNetworkError' } }
@@ -218,6 +221,8 @@ export function handleSynthetic(s: SynthState, body: { operationName?: string; v
       const has = (s.priceListOverrides ?? []).includes(vid)
       return { json: { data: { priceLists: { nodes: has ? [{ id: 'gid://shopify/PriceList/1', name: 'Wholesale (synthetic)', currency: s.shop.currencyCode, prices: { nodes: [{ price: { amount: '1.00', currencyCode: s.shop.currencyCode } }] } }] : [] } }, extensions: COST(10) }, changed: Boolean(fault) }
     }
+    case 'DeploiAccessScopes':
+      return { json: { data: { currentAppInstallation: { accessScopes: (s.accessScopes ?? [...REQUIRED_SCOPES, ...OPTIONAL_SCOPES]).map(handle => ({ handle })) } }, extensions: COST(1) }, changed: Boolean(fault) }
     case 'DeploiActiveSubscriptions':
       return { json: { data: { currentAppInstallation: { activeSubscriptions: s.subscriptions.filter(x => x.status === 'ACTIVE') } }, extensions: COST(1) }, changed: Boolean(fault) }
     case 'DeploiCreateSubscription': {

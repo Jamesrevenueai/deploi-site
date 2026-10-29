@@ -14,12 +14,14 @@ automatically_update_urls_on_dev = true
 dev_store_url = "james-jwtftl1e.myshopify.com"
 
 [access_scopes]
-# Only what the three starter templates need (docs/DEV-STORE-TEST-2026-10-29.md, section 1):
-#   read_products, read_inventory, read_locations  Inventory Watcher, Supplier Chaser, Store Health Checker (reads)
-#   write_products                                 Inventory Watcher only, and only once widened past "drafts only"
-#                                                  ("Continue selling when out of stock" On -> Off is productVariantsBulkUpdate.inventoryPolicy)
-# No customer, order, report, publication or inventory-write scopes.
-scopes = "read_products,read_inventory,read_locations,write_products"
+# Installed with the app: read only. Enough for every template at "drafts only" (lib/connectors/shopify/config.ts REQUIRED_SCOPES).
+scopes = "read_products,read_inventory,read_locations"
+# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant widens an agent past drafts only:
+#   write_products        Inventory Watcher after "after my approval" / "without asking" ("Continue selling when out of stock" On -> Off), price and SKU corrections
+#   read_publications,    publication correction only (which sales channels a product is on; publish / unpublish)
+#   write_publications
+# Must match OPTIONAL_SCOPES in config.ts. No customer, order, report or inventory-write scope anywhere.
+optional_scopes = ["write_products", "read_publications", "write_publications"]
 use_legacy_install_flow = false
 
 [auth]

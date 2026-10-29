@@ -4,7 +4,8 @@
  * The Admin GraphQL documents this app sends. Operation names are stable: the synthetic store
  * dispatches on them, and they make requests easy to find in logs.
  */
-export const VARIANT_FIELDS = /* GraphQL */ `
+/** The variant fields read on every scan. Publication fields need `read_publications`, which is optional, so they are included only when it is granted. */
+export const variantFields = (withPublications: boolean) => /* GraphQL */ `
   fragment DeploiVariantFields on ProductVariant {
     id
     title
@@ -25,7 +26,7 @@ export const VARIANT_FIELDS = /* GraphQL */ `
       sellingPlanGroupsCount { count }
       onlineStoreUrl
       updatedAt
-      resourcePublicationsV2(first: 10, onlyPublished: false) { nodes { publication { id } isPublished publishDate } }
+      ${withPublications ? 'resourcePublicationsV2(first: 10, onlyPublished: false) { nodes { publication { id } isPublished publishDate } }' : ''}
     }
     inventoryItem {
       id
@@ -39,6 +40,20 @@ export const VARIANT_FIELDS = /* GraphQL */ `
         }
       }
     }
+  }
+`
+export const VARIANT_FIELDS = variantFields(true)
+const VARIANT_FIELDS_NO_PUBLICATIONS = variantFields(false)
+
+/** The document to send for this connection: without publication fields unless `read_publications` is granted. */
+export function docFor(doc: string, scopes: string[]): string {
+  return scopes.includes('read_publications') ? doc : doc.split(VARIANT_FIELDS).join(VARIANT_FIELDS_NO_PUBLICATIONS)
+}
+
+/** What the store has granted this app (the source of truth for store_connections.scopes, with app/scopes_update). */
+export const Q_ACCESS_SCOPES = /* GraphQL */ `
+  query DeploiAccessScopes {
+    currentAppInstallation { accessScopes { handle } }
   }
 `
 

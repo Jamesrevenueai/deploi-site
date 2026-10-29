@@ -1,0 +1,3 @@
+/app/home        -> HTTP 307 location=https://app.getdeploi.com/login
+/staff/pipeline  -> HTTP 307 location=https://app.getdeploi.com/login
+/staff           -> HTTP 307 location=https://app.getdeploi.com/login

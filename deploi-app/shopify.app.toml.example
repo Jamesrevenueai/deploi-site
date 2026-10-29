@@ -10,9 +10,14 @@ embedded = true
 automatically_update_urls_on_dev = true
 
 [access_scopes]
-# least privilege for the four corrections: products (inventory policy, price, SKU), inventory and locations (read),
-# publications (publish / unpublish on the channel the merchant authorizes). No customer or order scopes.
-scopes = "read_products,write_products,read_inventory,read_locations,read_publications,write_publications"
+# Installed with the app: read only. Enough for every template at "drafts only" (lib/connectors/shopify/config.ts REQUIRED_SCOPES).
+scopes = "read_products,read_inventory,read_locations"
+# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant widens an agent past drafts only:
+#   write_products        Inventory Watcher after "after my approval" / "without asking" ("Continue selling when out of stock" On -> Off), price and SKU corrections
+#   read_publications,    publication correction only (which sales channels a product is on; publish / unpublish)
+#   write_publications
+# Must match OPTIONAL_SCOPES in config.ts. No customer, order, report or inventory-write scope anywhere.
+optional_scopes = ["write_products", "read_publications", "write_publications"]
 use_legacy_install_flow = false
 
 [auth]

@@ -62,20 +62,28 @@ New agents and new email permissions always start at drafts only. Acting without
 
 ## 3. Permissions
 
-`read_products, write_products, read_inventory, read_locations, read_publications, write_publications`. No customer
-or order scopes, which keeps the app at protected customer data Level 0 (no access request needed).
+Installed with the app (`[access_scopes].scopes`, `config.ts#REQUIRED_SCOPES`): **`read_products, read_inventory,
+read_locations`**, read only. That is everything the three starter templates need at "drafts only". No customer or
+order scopes, which keeps the app at protected customer data Level 0 (no access request needed).
 
-| Scope | Used for |
-|---|---|
-| `read_products`, `read_inventory`, `read_locations` | variants, prices, SKUs, barcodes, inventory levels; Markets price lists (fixed-price preflight) |
-| `write_products` | inventory policy, price, compare-at price and SKU (`productVariantsBulkUpdate`, one field per call) |
-| `read_publications` | which sales channels a product is published on; the channel list for agent setup |
-| `write_publications` | `publishablePublish` / `publishableUnpublish` on the one channel an agent is authorized for |
+Optional, declared in `optional_scopes` and asked for at runtime (`config.ts#OPTIONAL_SCOPES`): **`write_products,
+read_publications, write_publications`**. The embedded app asks Shopify for the write scope an agent needs
+(App Bridge `shopify.scopes.request`) only when a merchant widens that agent past drafts only; Shopify shows its
+own grant screen; the server re-reads `currentAppInstallation.accessScopes` (`POST /api/store/scopes/sync`) and
+also receives `app/scopes_update`. A store that only ever drafts never grants a write scope.
 
-Possibly needed, to confirm on a development store: `write_inventory` if `productVariantsBulkUpdate` refuses
-`inventoryItem.sku` without it. Writes to any real store are refused unless that store is listed in
-`LIVE_WRITE_STORES` (or `LIVE_WRITES=all` is set deliberately for production). Each agent's writable fields are
-enforced again inside the connector.
+| Scope | When | Used for |
+|---|---|---|
+| `read_products`, `read_inventory`, `read_locations` | install | variants, prices, SKUs, barcodes, inventory levels, locations; Markets price lists (fixed-price preflight) |
+| `write_products` | first agent widened past drafts only with an overselling, price or SKU correction | `productVariantsBulkUpdate`: inventory policy, price, compare-at price, SKU (one field per call) |
+| `read_publications` | first publication correction | which sales channels a product is on; the channel list for agent setup. Publication fields are left out of the scan query until it is granted. |
+| `write_publications` | first publication correction widened past drafts only | `publishablePublish` / `publishableUnpublish` on the one channel the agent is authorized for |
+
+Every execution re-checks the granted list and ends **blocked: missing permission: <scope>** rather than
+writing. Writes to any real store are refused unless that store is listed in `LIVE_WRITE_STORES` (or
+`LIVE_WRITES=all` is set deliberately for production). Each agent's writable fields are enforced again inside the
+connector. Possibly needed, to confirm on a development store: `write_inventory` if `productVariantsBulkUpdate`
+refuses `inventoryItem.sku` without it.
 
 ## 4. Billing
 

@@ -62,6 +62,11 @@ export async function POST(req: Request) {
         if (body.status === 'ACTIVE' || body.status === 'DRAFT' || body.status === 'ARCHIVED') p.status = body.status
         p.updatedAt = new Date().toISOString()
       })
+    } else if (action === 'set_scopes') {
+      // what the synthetic store answers to currentAppInstallation.accessScopes; the app's own copy follows through /api/store/scopes/sync
+      const scopes = Array.isArray(body.scopes) ? body.scopes.map(String) : null
+      if (!scopes) throw new HttpError(400, 'invalid_input', 'scopes must be a list')
+      await mutateSynthetic(conn.id, s => { s.accessScopes = scopes })
     } else if (action === 'fault') {
       const modes: SynthFault['mode'][] = ['user_error', 'lost_response_applied', 'lost_response_not_applied', 'write_does_not_stick', 'read_error', 'throttle_once']
       const mode = modes.find(m => m === body.mode)

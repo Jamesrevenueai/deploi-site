@@ -3,8 +3,8 @@
 -- LIVE_WRITE_STORES environment allowlist. Any shop can install; whether Deploi may write to the
 -- store or send real email for it depends on its access record:
 --   * STORE_ACCESS_MODE=open  every installed store is eligible (the public listing)
---   * STORE_ACCESS_MODE=beta  eligible only when Shopify reports a development store (where Shopify's
---     reviewers and partners test), when the merchant redeems a beta invite, or when Deploi staff
+--   * STORE_ACCESS_MODE=beta  eligible only when Shopify reports a development store (partners'
+--     test stores), when the merchant redeems a beta invite, or when Deploi staff
 --     approve the store. Other stores can scan and review but nothing is written.
 -- Every change is audited. Invite codes are stored only as SHA-256 hashes.
 -- =============================================================================

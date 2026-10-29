@@ -6,7 +6,8 @@
  *   1. a staff decision (denied wins over everything; approved makes the store eligible)
  *   2. a redeemed beta invite
  *   3. Shopify reporting a development store (shop.plan.partnerDevelopment, read with the store's
- *      own token, so a merchant cannot claim it). Shopify's reviewers and partners test on these.
+ *      own token, so a merchant cannot claim it). Partners test on these; Shopify does not say whether its
+ *      reviewers do, so the App Store submission runs in open mode.
  *   4. STORE_ACCESS_MODE=open (the public listing): every installed store
  * Anything else is "pending". LIVE_WRITES=off pauses writes to every real store (incident switch).
  * Synthetic stores are always eligible; they never reach Shopify.

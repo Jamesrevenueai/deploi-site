@@ -27,7 +27,7 @@ export default async function StoreAccessPage({ searchParams }: { searchParams: 
       <div className="mb-5 flex flex-col gap-2">
         <Banner icon="shield">
           Mode: <strong>{mode === 'open' ? 'open (every installed store)' : 'beta'}</strong>. In beta, a store is enabled when Shopify reports a development store
-          (where Shopify reviewers test), when it redeems an invite, or when staff approve it. A denial always wins.
+          (partners&rsquo; test stores), when it redeems an invite, or when staff approve it. A denial always wins. Shopify does not say which store type its reviewers use, so submit for review in open mode.
           {accessConfig.writesPaused && <> <strong>LIVE_WRITES=off: writes to every live store are paused.</strong></>}
         </Banner>
       </div>
@@ -42,7 +42,7 @@ export default async function StoreAccessPage({ searchParams }: { searchParams: 
           {rows.map(r => {
             const live = decide(r, mode)
             return (
-              <div key={r.id} className="card p-5 flex flex-col gap-3">
+              <div key={r.id} className="metal rounded-[20px] p-5"><div className="relative flex flex-col gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <strong className="break-all">{r.display_name ?? r.external_id}</strong>
                   <span className="text-grey-h text-[13px] break-all">{r.external_id}</span>
@@ -61,7 +61,7 @@ export default async function StoreAccessPage({ searchParams }: { searchParams: 
                   <Button size="sm" variant="ghost" type="submit" name="decision" value="denied">Deny</Button>
                   {r.staff_decision && <Button size="sm" variant="ghost" type="submit" name="decision" value="clear">Clear decision</Button>}
                 </form>
-              </div>
+              </div></div>
             )
           })}
         </div>
@@ -73,13 +73,18 @@ export default async function StoreAccessPage({ searchParams }: { searchParams: 
         <div className="flex flex-col gap-2">
           {invites.map(i => {
             const expired = new Date(i.expires_at).getTime() <= Date.now()
+            const usedUp = i.uses >= i.max_uses
             return (
-              <div key={i.id} className="card p-4 flex flex-wrap items-center gap-3 text-[14px]">
-                <strong>{i.label}</strong>
-                <span className="text-grey-h">{i.shop_domain ?? 'any shop'} · {i.uses}/{i.max_uses} used · expires {when(i.expires_at)} · by {i.created_by}</span>
-                {i.revoked_at ? <Badge tone="warn">Revoked</Badge> : expired ? <Badge tone="warn">Expired</Badge> : (
-                  <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><Button size="sm" variant="ghost" type="submit">Revoke</Button></form>
-                )}
+              <div key={i.id} className="metal rounded-[16px] px-5 py-4">
+                <div className="relative flex flex-wrap items-center justify-between gap-3 text-[14px]">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <strong className="break-words">{i.label}</strong>
+                    <span className="text-grey-h break-all">{i.shop_domain ?? 'Any shop'} · {i.uses} of {i.max_uses} used · expires {when(i.expires_at)} · created by {i.created_by}</span>
+                  </div>
+                  {i.revoked_at ? <Badge tone="warn">Revoked</Badge> : expired ? <Badge tone="warn">Expired</Badge> : usedUp ? <Badge tone="muted">Used up</Badge> : (
+                    <form action={revokeInviteAction}><input type="hidden" name="id" value={i.id} /><Button size="sm" variant="ghost" type="submit">Revoke</Button></form>
+                  )}
+                </div>
               </div>
             )
           })}

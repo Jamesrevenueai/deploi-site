@@ -7,7 +7,8 @@ import { createInviteAction, type InviteState } from './actions'
 export function InviteForm() {
   const [state, action, pending] = useActionState<InviteState, FormData>(createInviteAction, {})
   return (
-    <form action={action} className="card p-5 flex flex-col gap-3">
+    <form action={action} className="metal rounded-[20px] p-5">
+      <div className="relative flex flex-col gap-3">
       <div className="grid gap-3 md:grid-cols-4">
         <Field label="Who it is for" htmlFor="inv-label"><Input id="inv-label" name="label" required maxLength={120} placeholder="Merchant or reviewer" /></Field>
         <Field label="Only this shop (optional)" htmlFor="inv-shop"><Input id="inv-shop" name="shop" placeholder="store.myshopify.com" /></Field>
@@ -22,6 +23,7 @@ export function InviteForm() {
           <div className="text-grey-h text-[13px]">Copy it now. It is stored only as a hash and cannot be shown again.</div>
         </div>
       )}
+      </div>
     </form>
   )
 }

@@ -60,6 +60,9 @@ describe.skipIf(!ready)('store access (beta eligibility) replaces the live-write
     delete process.env.STORE_ACCESS_MODE
     delete process.env.LIVE_WRITES
     await admin(db => db.query('update store_connections set is_synthetic = true where id = any($1)', [[NW.conn, HB.conn]]))
+    // invites made by these tests must not pile up in a shared local database
+    await admin(db => db.query(`update store_access set invite_id = null where invite_id in (select id from beta_invites where created_by = 'staff:test')`))
+    await admin(db => db.query(`delete from beta_invites where created_by = 'staff:test'`))
   })
 
   it('a development store is enabled at install; a paid store waits, and shop/redact erases its access record', async () => {

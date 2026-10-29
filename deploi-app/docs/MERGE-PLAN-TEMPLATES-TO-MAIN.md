@@ -50,7 +50,7 @@ same change made twice.
    rewrite needed, 0 conflicts verified) and **merge it**. `main` then has the merchant engine, the three templates,
    the weekly summary, agent mail, the production auth guard, the uninstall fix and the dev-store work, and no
    consulting product. PRs #1 and #3 become redundant (their commits are all contained) and can be closed.
-3. **Decide the competitor watcher.** Either keep the one on `main` after step 2 (migration 33) and close PR #4
+3. **Decide the competitor watcher** (recommendation and diff summary in `COMPETITOR-WATCHER-DECISION.md`). Either keep the one on `main` after step 2 (migration 33) and close PR #4
    after cherry-picking from `claude/platform-launch` the parts that are not competitor code and not consulting
    code: `3c02065` store eligibility (migration 34, which would have to be renumbered after 33), `dd5d6cd`
    free-beta limits, `6c96747` cron auth, `9bd7b24` bounce handling and launch migrations; or take

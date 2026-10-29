@@ -234,9 +234,29 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
   const allowedFields = agentCtx ? writableFields(agentCtx.policy, conn.platform) : [field]
 
   // ---- write
-  await admin(async db => {
-    await db.query(`update executions set status = 'executing', precheck = $2, before_value = $3, qualification = $4 where id = $1`, [execId, JSON.stringify(precheck), JSON.stringify(current ?? null), qualification ? JSON.stringify(qualification) : null])
+  // last gate, atomic with the move to 'executing': the agent must still be active on the same authorization and
+  // the store still connected. The agent row is share-locked, so a pause, revoke or delete either commits first
+  // (and this write never starts) or waits until the write has been claimed. A pause that closed this execution
+  // while it was prechecking also stops it here (status is no longer 'prechecking').
+  const lastGate = await admin(async db => {
+    if (p.agent_id) {
+      const a = await db.one<{ status: string; active_policy_id: string | null }>('select status, active_policy_id from agents where id = $1 for share', [p.agent_id])
+      if (!a || a.status !== 'active') return `the agent is ${a?.status ?? 'deleted'}; it may not write`
+      if (!agentCtx || a.active_policy_id !== agentCtx.policyRow.id) return "the agent's authorization changed or ended before the write"
+    }
+    const c = await db.one<{ status: string }>('select status from store_connections where id = $1 for share', [conn.id])
+    if (!c || c.status !== 'active') return `store connection is ${c?.status ?? 'missing'}`
+    const claimed = await db.query(`update executions set status = 'executing', precheck = $2, before_value = $3, qualification = $4 where id = $1 and status = 'prechecking' returning id`,
+      [execId, JSON.stringify(precheck), JSON.stringify(current ?? null), qualification ? JSON.stringify(qualification) : null])
+    return claimed.length ? null : 'the change was stopped before it was written (paused, revoked or already handled)'
   })
+  if (lastGate) {
+    await admin(async db => {
+      await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where id = $1 and status in ('prechecking','queued')`, [execId, lastGate])
+      await audit(db, { orgId: p.org_id, connectionId: p.connection_id, entityType: 'execution', entityId: execId, event: 'execution.blocked', actor: opts.actor, detail: { reason: lastGate, proposal_id: p.id, stage: 'before_write' } })
+    })
+    return { executionId: execId, status: 'blocked', reason: lastGate }
+  }
   let result: ApplyResult
   try {
     result = await connector.applyAction(conn, correction, allowedFields)

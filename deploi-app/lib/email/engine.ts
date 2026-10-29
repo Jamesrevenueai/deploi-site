@@ -175,6 +175,10 @@ const label = (s: EmailStatus) => ({ draft: 'a draft', awaiting_approval: 'await
 export async function sendMessage(messageId: string, opts: { actor: string; now?: Date }): Promise<SendOutcome> {
   const now = opts.now ?? new Date()
   const claim = await admin(async db => {
+    // lock order matches pause/revoke (agent row, then its messages): share-lock the agent first, so a pause either
+    // commits before this claim (and the message is cancelled or seen as paused) or waits until the send is claimed
+    const owner = await db.one<{ agent_id: string | null }>('select agent_id from email_messages where id = $1', [messageId])
+    if (owner?.agent_id) await db.query('select id from agents where id = $1 for share', [owner.agent_id])
     const m = await db.one<EmailMessageRow>('select * from email_messages where id = $1 for update', [messageId])
     if (!m) throw new EngineError('not_found', 'message not found')
     if (m.status !== 'queued') return { kind: 'skip' as const, m }

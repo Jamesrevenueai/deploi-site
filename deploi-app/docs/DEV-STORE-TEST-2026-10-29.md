@@ -174,3 +174,75 @@ address that resolves nowhere. `record.json` has every API response.
 
 Commit SHAs for this run are in the pull request; the only code added is the proof script, the config example and
 this document. The production environment change (section 0) is in Vercel, not in git.
+
+---
+
+# Second pass (same day): production security fix finished, branch hygiene, optional write scope
+
+Branch `claude/jolly-ptolemy-kp7ljd`, commits after the first pass: `9c92c90` (cherry-pick of `395f37c`), `42ff462`
+(optional write scopes, docs), `84d9ffb` (proof scripts). Checks on the final head: typecheck clean, lint clean,
+vitest **31 files / 200 tests** passed, production build succeeded, Playwright e2e **29 / 29 passed** against the build.
+New evidence in `proof/shopify-e2e/` (29 files now).
+
+## Pass / fail, with live vs synthetic
+
+| # | Item | Result | Live or synthetic | Count / id | Evidence |
+|---|---|---|---|---|---|
+| A1 | Rotate `APP_SECRET` on Production, redeploy, old sessions invalid | **Pass** | Live (production) | var `SeByQWN8kJsF9GxG` updated 19:44:23 UTC; deployment `dpl_Dxe8DZQBkx3rUo4NqkjAV7cNnUbS` (commit `fd0e89e`), READY in 67 s, aliased to `app.getdeploi.com` by Vercel itself (auto-assignment was back on after the earlier promote) | `02-prod-login-after-secret-rotation.png`, `03-prod-old-cookie-rejected.txt` |
+| A2 | Dev-picker sign-ins while `AUTH_MODE=dev` was live | **0 found in the retained window; earlier days not retrievable** | Live (Vercel runtime logs) | see below | section A2 |
+| A3 | `AUTH_MODE` / `ALLOW_DEV_LOGIN` on Preview only; guard refuses production with dev auth; test | **Pass** | Live env check + local build | both vars `target: ["preview"]`; guard test 7/7; real `next build` with `VERCEL_ENV=production AUTH_MODE=dev ALLOW_DEV_LOGIN=true` exits 1 | `04-prod-build-refuses-dev-auth.txt`, `tests/security/production-auth.test.ts` |
+| B4 | Cherry-pick `395f37c`; uninstall pauses agents, credentials 1 → 0 | **Pass** | Synthetic store, real webhook handler | `9c92c90`; 5 agents active → paused; credentials 1 → 0; audit `connection.uninstalled {agents_paused: 5}` | `70-uninstall-before-agents-active.png`, `71-uninstall-after-agents-paused.png`, `72-uninstall-record.json` |
+| B5 | Plan to get the templates onto `main` | **Pass (plan, nothing merged)** | n/a | 3 branches compared; 38 conflicts platform-launch → retire-consulting; 0 conflicts retire-consulting → main | `docs/MERGE-PLAN-TEMPLATES-TO-MAIN.md` |
+| B6 | README: `DEMO_CONTROLS` and every new env var | **Pass** | n/a | 17 variables documented | `README.md` |
+| B7 | Delete `claude/jolly-ptolemy-kp7ljd` on `Jamesrevenueai/Jamesrevenueai` | **Blocked** | Live (GitHub) | `git push --delete` → HTTP 403 from the session's git proxy (ref deletion is not allowed from here); the branch equals `main` (`dfadae8`) | one click for you: GitHub → branches → delete |
+| C8 | Install scopes read only; `write_products` optional, requested only when widening | **Pass** | Synthetic store (Shopify's grant screen simulated); real App Bridge call wired for the embedded app | required 3, optional 3; drafts need 0 extra; widening reports `["write_products"]`; approve → `blocked: missing permission: write_products`; after grant + sync → `[]`; tests 3 + 1 | `80-scope-notice-before-shopify-grant.png`, `81-write-blocked-missing-permission.png`, `82-scope-notice-after-shopify-grant.png`, `83-scope-record.json` |
+| D9 | "READY FOR SHOPIFY LOGIN" | **Sent with this report** | | | |
+| D10 to D12 | Live dev-store run, billing, email delivery | **Waiting on your sign-in** | | | first-pass table rows 1a to 4c |
+
+### A1 detail
+
+`APP_SECRET` was rotated to a new 64-character random value (never printed, never committed) on Production and
+Preview, then the production deployment was rebuilt so the new value is baked in. Proof that earlier cookies are dead:
+a dev-session cookie signed with a different secret (which is what every cookie issued before rotation now is) sent to
+`/app/home`, `/staff/pipeline` and `/staff` gets **HTTP 307 → /login** on all three. Note that production has been in
+Supabase mode since the first pass, so dev cookies were already ignored there; the rotation closes the case where the
+variables are ever set again. `x-vercel-id` on the login page changed to `…792fm…` (new deployment).
+
+### A2 detail: dev-picker sign-ins
+
+The dev sign-in action logs `auth.dev.signin` with the picked user's id and role (no IP, no user agent: the app never
+logged those). Vercel runtime logs for `deploi-app` Production, searched for that message:
+
+| Window | Method | Result |
+|---|---|---|
+| last 7 days (2026-10-22 19:46 → 2026-10-29 19:46 UTC) | grouped count by deployment, query `auth.dev.signin` | **0** |
+| last 7 days, all log lines by request path | grouped count | `/api/cron/morning-report` 176, `/api/cron/workers` 29, `/api/cron/morning-pipeline` 14, `/` 4, `/login` 1 |
+| the one `/login` line | full text | 2026-10-28 16:42:53 UTC, deployment `dpl_2EERM2Hxr5Mro1QkiZ4t1XtqJtkv` (the `b8aad24` build that was rolled back), a **server error** (`column g.org_type does not exist`) on the login page render, not a sign-in |
+| 2026-10-20 23:28 (variables created) → 2026-10-22 19:46 | any | **not retrievable**: every query over that range times out in Vercel's log store; retention on this plan does not reach it |
+
+So: **0 dev-picker sign-ins in the retained 7 days.** The first ~2 days after the variables were set cannot be
+checked from logs, and the app keeps no database record of dev sign-ins. Nothing to flag; nothing to clear either.
+
+### C8 detail
+
+- `shopify.app.toml` (both examples): `scopes = "read_products,read_inventory,read_locations"`,
+  `optional_scopes = ["write_products", "read_publications", "write_publications"]`. Shopify's docs confirm optional
+  scopes must be declared there, are requested with App Bridge `shopify.scopes.request([...])` (Shopify shows its own
+  grant screen), and are reported back through `currentAppInstallation.accessScopes` and `app/scopes_update`.
+- Code agrees: `config.ts` `REQUIRED_SCOPES` / `OPTIONAL_SCOPES` (env overrides `SHOPIFY_SCOPES`,
+  `SHOPIFY_OPTIONAL_SCOPES`). The scan query drops publication fields until `read_publications` is granted, so a
+  read-only install does not hit `ACCESS_DENIED`.
+- Flow: widening an agent past drafts only returns `missingScopes`; the agent page shows "Shopify has not given Deploi
+  permission to change product settings (write_products)" with an **Ask Shopify for this permission** button inside the
+  admin (App Bridge), and the server re-reads the granted list (`POST /api/store/scopes/sync`). Until then every
+  approved write ends **Blocked: missing permission: write_products** and nothing is written. Live verification of the
+  App Bridge grant screen itself is part of D11.
+
+## Still needing you
+
+1. **Reply "ready"** for the Shopify device-code login (D9); I will then create "Deploi (dev)" (after checking for a
+   duplicate), link, deploy, and run D11 live.
+2. **`RESEND_API_KEY` and a test mailbox** for D12 (else the chase email stays held).
+3. **Delete** `claude/jolly-ptolemy-kp7ljd` in `Jamesrevenueai/Jamesrevenueai` (B7; blocked from this session).
+4. **Approve** the merge order in `docs/MERGE-PLAN-TEMPLATES-TO-MAIN.md` (PR #6 → `claude/retire-consulting`, then
+   PR #5 re-based onto `main`), and the competitor-watcher choice.

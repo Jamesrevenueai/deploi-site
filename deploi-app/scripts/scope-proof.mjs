@@ -25,6 +25,8 @@ await Promise.all([page.waitForURL(u => !u.pathname.startsWith('/login')), page.
 const conn = (await api('GET', '/api/store/overview')).json.connections[0]
 await api('POST', '/api/store/demo', { connectionId: conn.id, action: 'reset', clearHistory: true })
 for (const a of (await api('GET', '/api/store/agents')).json.agents.filter(a => /Watcher|Chaser|Health/.test(a.name))) await api('DELETE', `/api/store/agents/${a.id}`)
+// the seeded Stock Guardian also corrects overselling on this store; remove the seeded agents so the watcher's grant is not refused as conflicting
+for (const a of (await api('GET', '/api/store/agents')).json.agents) await api('DELETE', `/api/store/agents/${a.id}`)
 // the store installed with read-only scopes, and Shopify answers the same
 await api('POST', '/api/store/demo', { connectionId: conn.id, action: 'set_scopes', scopes: READ_ONLY })
 note('c8.store-scopes-before-sync', { synthetic: true, shopifyAnswers: READ_ONLY })
@@ -42,9 +44,10 @@ await page.goto(`${BASE}/store/agents/${iw.json.agentId}`)
 await shot('80-scope-notice-before-shopify-grant', '#authorization')
 d = (await api('GET', `/api/store/agents/${iw.json.agentId}`)).json
 const pending = d.policies.find(p => p.status === 'pending_grant')
-await api('POST', `/api/store/agents/${iw.json.agentId}/grant`, { policyId: pending.id, policyHash: pending.policy_hash })
+const g2 = await api('POST', `/api/store/agents/${iw.json.agentId}/grant`, { policyId: pending.id, policyHash: pending.policy_hash })
+note('c8.grant-v2', { status: g2.status, version: g2.json.version, error: g2.json.error ?? null, message: g2.json.message ?? null })
 const run = await api('POST', `/api/store/agents/${iw.json.agentId}/run`, {})
-note('c8.run-after-widening', { awaitingApproval: run.json.counts?.awaitingApproval })
+note('c8.run-after-widening', { status: run.json.status, counts: run.json.counts })
 d = (await api('GET', `/api/store/agents/${iw.json.agentId}`)).json
 const wt = d.waiting[0]
 const approve = await api('POST', `/api/store/proposals/${wt.id}/approve`, { changeHash: wt.change_hash })

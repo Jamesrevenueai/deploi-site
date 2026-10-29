@@ -17,7 +17,7 @@ const q = sql => execFileSync('psql', [DB, '-Atc', sql]).toString().trim()
 const state = () => ({
   connection: q(`select status || ' uninstalled_at=' || coalesce(uninstalled_at::text, '-') from store_connections where external_id = '${SHOP}'`),
   credentials: Number(q(`select count(*) from store_credentials c join store_connections s on s.id = c.connection_id where s.external_id = '${SHOP}'`)),
-  agents: q(`select string_agg(name || ':' || status, ', ' order by name) from agents a join store_connections s on s.id = a.connection_id where s.external_id = '${SHOP}' and a.status <> 'deleted'`),
+  agents: q(`select string_agg(a.name || ':' || a.status, ', ' order by a.name) from agents a join store_connections s on s.id = a.connection_id where s.external_id = '${SHOP}' and a.status <> 'deleted'`),
   activeAgents: Number(q(`select count(*) from agents a join store_connections s on s.id = a.connection_id where s.external_id = '${SHOP}' and a.status = 'active'`)),
   pausedAgents: Number(q(`select count(*) from agents a join store_connections s on s.id = a.connection_id where s.external_id = '${SHOP}' and a.status = 'paused'`)),
 })

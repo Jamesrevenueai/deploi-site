@@ -67,6 +67,8 @@ const titleDraft = q.actions.find(x => x.action_type === 'draft_title') ?? q.act
 if (titleDraft) await a('POST', `/api/store/library/actions/${titleDraft.id}/approve`, {})
 await a('POST', '/api/store/library/listing_writer/permission', { level: 'act' })
 await a('POST', '/api/store/library/listing_writer/grant', { actionType: 'draft_description', maxPerDay: 10 })
+const team0 = await (await a('GET', '/api/store/library')).json()
+for (const c of team0.buildYourOwn?.agents ?? []) await a('DELETE', `/api/store/library/custom/${c.id}`)
 await a('POST', '/api/store/library/custom', { name: 'Late order nudger', job: 'Every morning, tell me which orders are late and draft a note to each customer.', permission: 'draft' })
 await a('POST', '/api/store/onboarding', {})
 

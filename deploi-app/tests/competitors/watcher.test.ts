@@ -227,3 +227,17 @@ describe.skipIf(!ready)('Competitor & Trend Watcher', () => {
     expect(e2.expansion).toContain('more competitor stores watched')
   })
 })
+
+describe.skipIf(!ready)('plan limits are enforced on the server', () => {
+  beforeEach(async () => { process.env.AGENT_MAIL_DOMAIN = DOMAIN; await resetMerchant(NW, { ruleOn: false }) })
+  afterEach(() => { delete process.env.PLAN_MAX_COMPETITOR_STORES; delete process.env.PLAN_MAX_AGENTS; delete process.env.AGENT_MAIL_DOMAIN })
+  it('watched stores across the organization and the number of agents are capped', async () => {
+    const actor = await merchantActor(NW)
+    process.env.PLAN_MAX_COMPETITOR_STORES = '3'
+    await expect(watcher(actor)).rejects.toThrow(/allows 3 watched competitor stores/)
+    delete process.env.PLAN_MAX_COMPETITOR_STORES
+    process.env.PLAN_MAX_AGENTS = '1'
+    await watcher(actor)
+    await expect(watcher(actor)).rejects.toThrow(/allows 1 agents/)
+  })
+})

@@ -208,3 +208,13 @@ describe('insights state their basis and limits, and patterns are about followed
     expect(out).toEqual([])
   })
 })
+
+describe('plan entitlements (free beta)', () => {
+  it('defaults to an unpriced free beta with configurable limits', async () => {
+    const { entitlements } = await import('../../lib/plans/entitlements')
+    expect(entitlements()).toMatchObject({ plan: 'beta_free', priced: false, maxAgents: 10, maxCompetitorStores: 25 })
+    process.env.PLAN_MAX_AGENTS = '3'
+    expect(entitlements().maxAgents).toBe(3)
+    delete process.env.PLAN_MAX_AGENTS
+  })
+})

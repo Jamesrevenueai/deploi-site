@@ -80,7 +80,6 @@ test('agent dashboard: chat runs the agent, drafts wait in the queue, approving 
   await page.getByRole('tab', { name: 'Activity' }).click()
   await expect(page.locator('.au-log-row[data-kind="action"]').filter({ hasText: title ?? '' }).first()).toContainText(/Done|Approved/)
   await expect(page.locator('.au-proof').first()).toBeVisible()
-  await page.getByLabel('Message').fill("what's waiting?")
   await page.getByRole('tab', { name: 'Chat' }).click()
   await page.getByLabel('Message').fill("what's waiting?")
   await page.getByRole('button', { name: 'Send' }).click()

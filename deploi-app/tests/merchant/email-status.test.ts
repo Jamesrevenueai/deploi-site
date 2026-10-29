@@ -41,7 +41,8 @@ describe('truthful merchant email status labels', () => {
   })
 
   it('keeps the browser copies of email tasks and permissions in step with the policy', () => {
-    expect([...AGENT_EMAIL_TASKS]).toEqual([...EMAIL_TASKS])
+    // competitor_alert belongs to the Competitor & Trend Watcher only and is not offered in the general agent form
+    expect([...AGENT_EMAIL_TASKS, 'competitor_alert']).toEqual([...EMAIL_TASKS])
     expect(AGENT_EMAIL_TASK_LABEL).toEqual(EMAIL_TASK_LABEL)
     expect([...AGENT_EMAIL_PERMISSIONS]).toEqual([...EMAIL_PERMISSIONS])
     expect(AGENT_EMAIL_PERMISSION_LABEL).toEqual(EMAIL_PERMISSION_LABEL)

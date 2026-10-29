@@ -62,16 +62,18 @@ export type { AgentListItem, TaskDraft, AgentPolicy, AgentRunCounts }
 
 export type AuthorizationSummary = { grants: string[]; limits: string[]; never: string[] }
 
-export type AgentTemplateView = { key: string; name: string; job: string; tools: ('shopify' | 'email')[]; mailbox: boolean; needs: string[]; minutesPerItem: number }
+export type AgentTemplateView = { key: string; name: string; job: string; tools: ('shopify' | 'email' | 'web')[]; mailbox: boolean; needs: string[]; minutesPerItem: number }
 export type AgentsResponse = { ok: true; agents: AgentListItem[]; templates?: AgentTemplateView[] }
 export type WeeklyResponse = {
   ok: true
-  facts: { orgName: string; weekStart: string; weekEnd: string; agents: { agentId: string; name: string; status: string; runs: number; verified: number; drafted: number; failed: number; emailsAccepted: number; emailsDrafted: number; tasksDone: number }[]
-    attention: { kind: string; count: number; label: string }[]; estimate: { minutes: number; formula: string; label: 'Estimate' } }
+  facts: { orgName: string; weekStart: string; weekEnd: string; agents: { agentId: string; name: string; status: string; runs: number; verified: number; drafted: number; failed: number; emailsAccepted: number; emailsDrafted: number; tasksDone: number; findings?: number; meaningfulFindings?: number }[]
+    attention: { kind: string; count: number; label: string }[]; competitor?: { agent: string; headline: string; basis: string }[]; estimate: { minutes: number; formula: string; label: 'Estimate' } }
   rendered: { subject: string; text: string; html?: string }
   from?: string
   last: { week_start: string; status: string; status_reason: string | null; sent_at: string | null } | null
   liveSends: 'off' | 'allowlist' | 'all'
+  /** whether this environment would actually send the summary, and why not */
+  sendable?: { ok: boolean; reason: string | null }
 }
 export type ParseResponse = { ok: true; draft: TaskDraft }
 export type CreateAgentResponse = { ok: true; agentId: string; policyId: string; policyHash: string; summary: AuthorizationSummary; mailbox?: { id: string; address: string } | null }

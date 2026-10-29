@@ -194,8 +194,9 @@ export const APPROVAL_MODE_LABEL: Record<string, string> = { draft: 'Drafts only
 
 /** Per-tool permission level in a few words, for badges ("Shopify: drafts only", "Email: after my approval"). */
 export const EMAIL_PERMISSION_SHORT: Record<string, string> = { draft: 'drafts only', send_approved: 'after my approval', send_autonomous: 'without asking, within limits' }
-export function toolBadges(p: { approvalMode?: string | null; correctionTypes?: string[]; emailPermission?: string | null }): string[] {
+export function toolBadges(p: { approvalMode?: string | null; correctionTypes?: string[]; emailPermission?: string | null; competitor?: boolean }): string[] {
   const out: string[] = []
+  if (p.competitor) out.push('Public web pages: read only')
   if (p.approvalMode && p.correctionTypes?.length) out.push(`Shopify: ${(APPROVAL_MODE_LABEL[p.approvalMode] ?? p.approvalMode).toLowerCase()}`)
   if (p.emailPermission) out.push(`Email: ${EMAIL_PERMISSION_SHORT[p.emailPermission] ?? p.emailPermission}`)
   return out

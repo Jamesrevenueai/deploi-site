@@ -102,7 +102,7 @@ describe.skipIf(!ready)('Competitor & Trend Watcher', () => {
     expect(ins.find(i => i.kind === 'bestseller_entries')!.products.map(p => p.title)).toEqual(['Leather wallet'])
     // beta failed once: no findings about its products, and not yet an outage note
     expect(ins.filter(i => i.kind === 'delisted')).toEqual([])
-    const beta = (await competitorOverview(actor, agentId)).stores.find((s: { domain: string }) => s.domain === 'beta-goods.example.net') as { status: string; last_success_at: string; consecutive_failures: number }
+    const beta = (await competitorOverview(actor, agentId)).stores.find(s => s.domain === 'beta-goods.example.net') as unknown as { status: string; last_success_at: string; consecutive_failures: number }
     expect(beta.status).toBe('error')
     expect(beta.consecutive_failures).toBe(1)
     expect(new Date(beta.last_success_at).toISOString()).toBe('2026-10-01T06:30:00.000Z')
@@ -135,7 +135,7 @@ describe.skipIf(!ready)('Competitor & Trend Watcher', () => {
     await runAgent(agentId, { trigger: 'test', actor: actor.label, now: at('2026-10-03T06:30:00Z') })
     const list = await competitorProducts(actor, agentId, { q: 'wallet' }) as { id: string; currency: string; price_min: string }[]
     expect(list).toHaveLength(1)
-    const h = await competitorProductHistory(actor, agentId, list[0].id) as { history: { price_min: string; observed_at: string; last_confirmed_at: string }[] }
+    const h = await competitorProductHistory(actor, agentId, list[0].id) as unknown as { history: { price_min: string; observed_at: string; last_confirmed_at: string }[] }
     // change-only: two observations (40, then 30 confirmed on day 3)
     expect(h.history.map(x => Number(x.price_min))).toEqual([30, 40])
     expect(new Date(h.history[0].last_confirmed_at).toISOString()).toBe('2026-10-03T06:30:00.000Z')

@@ -19,7 +19,7 @@ export function WeeklyScreen() {
     <>
       {header}
       <Section id="in-app" title="In the app"><WeeklyPreview /></Section>
-      <Section id="email" title="The email" sub={d.liveSends === 'off' ? 'Email sending is off in this environment: this is exactly what would be sent, but nothing is sent.' : 'Sent on Mondays to the people in your organization.'}>
+      <Section id="email" title="The email" sub={d.sendable?.ok ? 'Sent on Mondays to the people in your organization.' : `Not sent from this environment (${d.sendable?.reason ?? 'email sending is off'}): this is exactly what would be sent.`}>
         <Panel>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-[14px]">
             <dt className="text-grey-h">From</dt><dd className="m-0 break-all text-ink">{d.from ?? 'Deploi AI'}</dd>

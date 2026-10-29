@@ -18,11 +18,15 @@ export type AgentWeek = {
   agentId: string; name: string; status: string
   runs: number; verified: number; drafted: number; failed: number
   emailsAccepted: number; emailsDrafted: number; tasksDone: number
+  /** Competitor & Trend Watcher findings this week (baselines excluded); not counted in the time estimate */
+  findings?: number; meaningfulFindings?: number
 }
 export type Attention = { kind: string; count: number; label: string }
 export type WeeklyFacts = {
   orgName: string; weekStart: string; weekEnd: string
   agents: AgentWeek[]; attention: Attention[]
+  /** the week's meaningful competitor findings, with their basis (observed / inferred) */
+  competitor?: { agent: string; headline: string; basis: string }[]
   estimate: { minutes: number; formula: string; label: 'Estimate' }
 }
 
@@ -52,7 +56,9 @@ export async function weeklyFacts(db: Db, orgId: string, weekStart: Date): Promi
        (select count(*)::int from executions e where e.agent_id = a.id and e.status in ('failed','verification_failed') and e.finished_at >= $2 and e.finished_at < $3) as failed,
        (select count(*)::int from email_messages m where m.agent_id = a.id and m.status = 'accepted' and m.accepted_at >= $2 and m.accepted_at < $3) as "emailsAccepted",
        (select count(*)::int from email_messages m where m.agent_id = a.id and m.status = 'draft' and m.created_at >= $2 and m.created_at < $3) as "emailsDrafted",
-       (select count(*)::int from agent_tasks t where t.agent_id = a.id and t.status = 'done' and t.finished_at >= $2 and t.finished_at < $3) as "tasksDone"
+       (select count(*)::int from agent_tasks t where t.agent_id = a.id and t.status = 'done' and t.finished_at >= $2 and t.finished_at < $3) as "tasksDone",
+       (select count(*)::int from competitor_insights ci where ci.agent_id = a.id and ci.kind <> 'baseline' and ci.created_at >= $2 and ci.created_at < $3) as findings,
+       (select count(*)::int from competitor_insights ci where ci.agent_id = a.id and ci.meaningful and ci.created_at >= $2 and ci.created_at < $3) as "meaningfulFindings"
      from agents a where a.org_id = $1 and a.status <> 'deleted' order by a.name`, [orgId, from, to])
   const n = async (sql: string) => Number((await db.one<{ n: string }>(sql, [orgId]))?.n ?? 0)
   const attention: Attention[] = [
@@ -65,14 +71,20 @@ export async function weeklyFacts(db: Db, orgId: string, weekStart: Date): Promi
     { kind: 'expiring', count: await n(`select count(*)::text as n from agent_policies p join agents a on a.active_policy_id = p.id where p.org_id = $1 and a.status = 'active'
         and least(nullif(p.policy->>'validUntil', '')::timestamptz, nullif(p.policy->'email'->>'validUntil', '')::timestamptz) < now() + interval '14 days'`), label: 'authorization(s) ending within 14 days' },
   ].filter(a => a.count > 0)
-  return { orgName: org?.name ?? 'your store', weekStart: from.slice(0, 10), weekEnd: new Date(weekStart.getTime() + 6 * 864e5).toISOString().slice(0, 10), agents, attention, estimate: estimateMinutes(agents) }
+  const competitor = await db.query<{ agent: string; headline: string; basis: string }>(
+    `select a.name as agent, ci.headline, ci.basis from competitor_insights ci join agents a on a.id = ci.agent_id
+     where ci.org_id = $1 and ci.meaningful and ci.status <> 'dismissed' and ci.created_at >= $2 and ci.created_at < $3 order by ci.created_at desc limit 8`, [orgId, from, to])
+  return { orgName: org?.name ?? 'your store', weekStart: from.slice(0, 10), weekEnd: new Date(weekStart.getTime() + 6 * 864e5).toISOString().slice(0, 10), agents, attention, competitor, estimate: estimateMinutes(agents) }
 }
+
+const BASIS_WORD: Record<string, string> = { observed: 'Observed', inferred: 'Inferred', unavailable: 'Unavailable' }
 
 export function renderWeekly(f: WeeklyFacts, appUrl: string): { subject: string; text: string } {
   const lines = [
     `Your Deploi agents, week of ${f.weekStart} to ${f.weekEnd}`, '',
     'What each agent did:',
-    ...(f.agents.length ? f.agents.map(a => `- ${a.name} (${a.status}): ${a.runs} run(s), ${a.verified} change(s) verified, ${a.drafted} change(s) drafted, ${a.failed} failed, ${a.emailsAccepted} email(s) sent, ${a.emailsDrafted} email draft(s), ${a.tasksDone} task(s) done`) : ['- No agents yet.']),
+    ...(f.agents.length ? f.agents.map(a => `- ${a.name} (${a.status}): ${a.runs} run(s), ${a.verified} change(s) verified, ${a.drafted} change(s) drafted, ${a.failed} failed, ${a.emailsAccepted} email(s) sent, ${a.emailsDrafted} email draft(s), ${a.tasksDone} task(s) done${a.findings ? `, ${a.findings} finding(s) at stores you follow (${a.meaningfulFindings ?? 0} meaningful)` : ''}`) : ['- No agents yet.']),
+    ...((f.competitor ?? []).length ? ['', 'At the stores you follow (from their public pages; sales are not visible there):', ...(f.competitor ?? []).map(c => `- [${BASIS_WORD[c.basis] ?? c.basis}] ${c.headline}`)] : []),
     '', 'Needs your attention:',
     ...(f.attention.length ? f.attention.map(a => `- ${a.count} ${a.label}`) : ['- Nothing is waiting for you.']),
     '', `Estimated time saved: about ${f.estimate.minutes} minutes. This is an estimate, not a measurement: ${f.estimate.formula}.`,
@@ -87,7 +99,8 @@ const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g,
 export function renderWeeklyHtml(f: WeeklyFacts, appUrl: string): string {
   // one block per agent rather than a wide table: readable at any width, no media queries (many mail clients ignore them)
   const n = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`
-  const rows = f.agents.map(a => `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222"><strong>${esc(a.name)}</strong> <span style="color:#777;font-size:12px">${esc(a.status)}</span><br><span style="color:#444;font-size:13px">${[n(a.runs, 'run', 'runs'), `${a.verified} verified`, `${a.drafted} drafted`, n(a.emailsAccepted, 'email sent', 'emails sent'), n(a.emailsDrafted, 'email draft', 'email drafts'), n(a.tasksDone, 'task done', 'tasks done')].join(' · ')}</span></td></tr>`).join('')
+  const rows = f.agents.map(a => `<tr><td style="padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222"><strong>${esc(a.name)}</strong> <span style="color:#777;font-size:12px">${esc(a.status)}</span><br><span style="color:#444;font-size:13px">${[n(a.runs, 'run', 'runs'), `${a.verified} verified`, `${a.drafted} drafted`, n(a.emailsAccepted, 'email sent', 'emails sent'), n(a.emailsDrafted, 'email draft', 'email drafts'), n(a.tasksDone, 'task done', 'tasks done'), ...(a.findings ? [`${n(a.findings, 'finding', 'findings')} (${a.meaningfulFindings ?? 0} meaningful)`] : [])].join(' · ')}</span></td></tr>`).join('')
+  const comp = (f.competitor ?? []).length ? `<tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">At the stores you follow</td></tr><tr><td><ul style="margin:8px 0 0;padding-left:20px;color:#222;font-size:14px;line-height:1.6">${(f.competitor ?? []).map(c => `<li><span style="display:inline-block;border:1px solid #ccc;border-radius:4px;padding:0 5px;font-size:11px;color:#444">${esc(BASIS_WORD[c.basis] ?? c.basis)}</span> ${esc(c.headline)}</li>`).join('')}</ul><p style="margin:6px 0 0;font-size:12px;color:#666">From their public pages. Sales, revenue and units are not visible there.</p></td></tr>` : ''
   const attention = f.attention.length ? `<ul style="margin:8px 0 0;padding-left:20px;color:#222;font-size:14px;line-height:1.6">${f.attention.map(a => `<li><strong>${a.count}</strong> ${esc(a.label)}</li>`).join('')}</ul>` : '<p style="margin:8px 0 0;font-size:14px;color:#222">Nothing is waiting for you.</p>'
   const link = `${esc(appUrl.replace(/\/$/, ''))}/store/agents`
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f4f4;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
@@ -99,6 +112,7 @@ export function renderWeeklyHtml(f: WeeklyFacts, appUrl: string): string {
 <tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">What each agent did</td></tr>
 <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px;border-collapse:collapse">
 ${rows || '<tr><td style="padding:10px 0;font-size:14px;color:#222">No agents yet.</td></tr>'}</table></td></tr>
+${comp}
 <tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">Needs your attention</td></tr>
 <tr><td>${attention}</td></tr>
 <tr><td style="padding-top:20px"><div style="background:#fff8e6;border:1px solid #f0d58a;border-radius:8px;padding:12px;font-size:14px;color:#222"><strong>Estimated time saved: about ${f.estimate.minutes} minutes.</strong> <span style="display:inline-block;background:#f0d58a;border-radius:4px;padding:1px 6px;font-size:12px">Estimate</span><br><span style="font-size:12px;color:#555">This is an estimate, not a measurement: ${esc(f.estimate.formula)}.</span></div></td></tr>
@@ -151,5 +165,10 @@ export async function weeklyPreview(actor: Actor, orgId: string, now = new Date(
   const facts = await withActor(actor, db => weeklyFacts(db, orgId, weekStartOf(now)))
   const last = await withActor(actor, db => db.one<{ week_start: string; status: string; status_reason: string | null; sent_at: string | null }>(
     'select week_start::text, status, status_reason, sent_at from weekly_summaries where org_id = $1 order by week_start desc limit 1', [orgId]))
-  return { facts, rendered: { ...renderWeekly(facts, env.appUrl), html: renderWeeklyHtml(facts, env.appUrl) }, last, liveSends: emailConfig.liveSends, from: `${COMPANY_NAME} <${COMPANY_EMAIL}>` }
+  // the same checks sendWeeklySummary makes, so the page never says "sent on Mondays" when it would not be
+  const recipients = await admin(db => db.query<{ email: string }>(`select lower(email) as email from profiles where agency_id = $1 and role = 'client'`, [orgId]))
+  const sendable = !recipients.length ? { ok: false, reason: 'no merchant user to send to' }
+    : !emailConfig.resendKey ? { ok: false, reason: 'no email provider is configured in this environment' }
+    : (() => { const l = liveSendAllowed(recipients.map(r => r.email)); return l.ok ? { ok: true, reason: null } : { ok: false, reason: l.reason } })()
+  return { facts, rendered: { ...renderWeekly(facts, env.appUrl), html: renderWeeklyHtml(facts, env.appUrl) }, last, liveSends: emailConfig.liveSends, sendable, from: `${COMPANY_NAME} <${COMPANY_EMAIL}>` }
 }

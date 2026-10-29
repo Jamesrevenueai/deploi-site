@@ -18,6 +18,7 @@ import { AgentPolicyForm, formFromPolicy, policyFromForm, type AgentFormState } 
 import { AuthorizationSummaryView, BackToAgents, StatusBadge, countsInWords, useStoreBasics } from './Agents'
 import { AgentEmailSections } from './AgentEmail'
 import { AgentWorkSections } from './AgentWork'
+import { CompetitorSections } from './Competitors'
 import {
   AGENT_CORRECTION_LABEL, TRIGGER_LABEL, toolBadges, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
   proposalWords, runWords, scheduleLabel,
@@ -138,6 +139,8 @@ export function AgentDetailScreen({ id }: { id: string }) {
 
   const isActive = agent.status === 'active', isPaused = agent.status === 'paused'
   const draftsOnly = (active ?? latest)?.policy.approvalMode === 'draft'
+  // a Competitor & Trend Watcher has no store changes: its own sections replace waiting changes, items for a person and results
+  const competitorPolicy = (active ?? latest)?.policy.competitor ? (active ?? latest)!.policy : null
   return (
     <>
       <BackToAgents />
@@ -152,7 +155,8 @@ export function AgentDetailScreen({ id }: { id: string }) {
             </Button>
             {isActive && <Button size="sm" variant="ghost" onClick={() => setDialog('pause')} disabled={busy !== null}>Pause</Button>}
             {isPaused && <Button size="sm" variant="ghost" onClick={resume} disabled={busy !== null}>{busy === 'resume' ? 'Resuming…' : 'Resume'}</Button>}
-            <Button size="sm" variant="ghost" onClick={startEdit} disabled={busy !== null || !latest}><Icon name="edit" size={15} />Edit</Button>
+            {!competitorPolicy && <Button size="sm" variant="ghost" onClick={startEdit} disabled={busy !== null || !latest}><Icon name="edit" size={15} />Edit</Button>}
+            {competitorPolicy && <Button size="sm" variant="ghost" href="#competitors"><Icon name="edit" size={15} />Edit stores</Button>}
             {(isActive || isPaused || agent.status === 'draft') && <Button size="sm" variant="ghost" onClick={() => setDialog('revoke')} disabled={busy !== null}>Revoke</Button>}
             <Button size="sm" variant="danger" onClick={() => setDialog('delete')} disabled={busy !== null}>Delete</Button>
           </>
@@ -160,7 +164,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
       />
       <div className="-mt-2 mb-5 flex flex-wrap items-center gap-2">
         <StatusBadge w={w} />
-        {latest && toolBadges({ approvalMode: latest.policy.approvalMode, correctionTypes: latest.policy.correctionTypes, emailPermission: latest.policy.email?.permission ?? null }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
+        {latest && toolBadges({ approvalMode: latest.policy.approvalMode, correctionTypes: latest.policy.correctionTypes, emailPermission: latest.policy.email?.permission ?? null, competitor: Boolean(latest.policy.competitor) }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
         <Badge tone="muted">{scheduleLabel(agent.schedule)}</Badge>
         {active && <span className="text-[13px] text-grey-h">Authorization version {active.version}</span>}
         {isActive && agent.next_run_at && <span className="text-[13px] text-grey-h">Next run {fmtTime(agent.next_run_at)}</span>}
@@ -209,10 +213,13 @@ export function AgentDetailScreen({ id }: { id: string }) {
         </div>
       </Section>
 
+      {competitorPolicy && <CompetitorSections agentId={agent.id} policy={competitorPolicy} canEdit={agent.status === 'active' || isPaused || agent.status === 'draft'} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />}
+
       <AgentWorkSections agentId={agent.id} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
 
       <AgentEmailSections agentId={agent.id} policy={latest?.policy ?? null} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
 
+      {!competitorPolicy && <>
       <Section id="waiting" title={draftsOnly ? 'Drafted changes (not made)' : 'Waiting for your approval'} sub={draftsOnly ? 'This agent is drafts only: these are the exact changes it would make. It cannot make them, and they cannot be approved here. To let it make changes you approve, edit it and grant the wider version.' : 'Exact changes this agent found but may not make on its own. Approving runs the change now: Deploi re-reads the record, writes it, and confirms it with a fresh read.'}>
         {waiting.length === 0 ? <Empty title="Nothing waiting">{draftsOnly ? 'No drafted changes right now.' : 'No changes are waiting for your approval.'}</Empty> : (
           <ul className="flex flex-col gap-3">
@@ -243,6 +250,8 @@ export function AgentDetailScreen({ id }: { id: string }) {
           <ul className="flex flex-col gap-2">{executions.map(e => <ResultItem key={e.id} e={e} />)}</ul>
         )}
       </Section>
+
+      </>}
 
       <Section id="runs" title="Runs">
         {runs.length === 0 ? <Empty title="Not run yet">{isActive ? 'Press Run now, or wait for its schedule.' : 'The agent runs once it is active.'}</Empty> : (

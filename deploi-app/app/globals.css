@@ -110,7 +110,7 @@ button { font: inherit; }
 .dg-table td { padding: 12px; border-bottom: 1px solid var(--dg-line); color: var(--dg-grey-body); vertical-align: top; }
 .dg-table td.ink, .dg-table td strong { color: #fff; font-weight: 500; }
 .dg-table tr:hover td { background: #0A0A0A; }
-.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--dg-line); border-radius: 16px; }
+.table-wrap { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--dg-line); border-radius: 16px; }
 
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; border: 1px solid var(--dg-line-ghost); color: #fff; white-space: nowrap; }
 .badge.ok { color: var(--color-ok); border-color: #1f3a2a; }

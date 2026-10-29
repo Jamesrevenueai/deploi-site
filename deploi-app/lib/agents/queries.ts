@@ -10,6 +10,8 @@ export type AgentListItem = {
   schedule: unknown; next_run_at: string | null; last_run_at: string | null
   active_version: number | null; approval_mode: string | null; email_permission: string | null; correction_types: string[]; summary: unknown
   pending_version: number | null; awaiting_approval: number; needs_person: number
+  /** template-shaped capabilities of the active authorization (for the UI): a competitor watcher, a supplier chaser */
+  is_competitor: boolean; is_supplier_chaser: boolean
   last_run: { status: string; counts: Record<string, unknown>; finished_at: string | null; status_reason: string | null } | null
 }
 
@@ -18,6 +20,7 @@ export async function listAgents(actor: Actor, connectionId?: string | null): Pr
     `select a.id, a.name, a.status, a.task_text, a.connection_id, coalesce(c.display_name, c.external_id) as store, a.schedule, a.next_run_at, a.last_run_at,
        ap.version as active_version, ap.policy->>'approvalMode' as approval_mode, ap.policy->'email'->>'permission' as email_permission,
        coalesce((select array_agg(x) from jsonb_array_elements_text(ap.policy->'correctionTypes') x), '{}') as correction_types, ap.summary,
+       coalesce(ap.policy ? 'competitor', false) as is_competitor, coalesce(ap.policy->'email'->'supplierReorder' is not null, false) as is_supplier_chaser,
        (select max(version) from agent_policies pp where pp.agent_id = a.id and pp.status = 'pending_grant') as pending_version,
        (select count(*)::int from proposals p where p.agent_id = a.id and p.status = 'pending_approval' and coalesce(p.status_reason, '') not like 'draft:%') as awaiting_approval,
        (select count(*)::int from issues i where i.agent_id = a.id and i.kind = 'needs_person' and i.status in ('open','needs_review')) as needs_person,

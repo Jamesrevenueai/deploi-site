@@ -40,6 +40,11 @@ export function countsInWords(c: Partial<AgentRunCounts> | null | undefined): st
     add(e.emailUnknown, 'email with delivery unknown', 'emails with delivery unknown')
     add(e.emailFailed, 'email failed', 'emails failed')
   }
+  const cw = c.competitor
+  if (cw) {
+    const failed = cw.storesFailed ? ` · ${cw.storesFailed} could not be read` : ''
+    return `${cw.storesComplete + cw.storesPartial} store${cw.storesComplete + cw.storesPartial === 1 ? '' : 's'} checked${cw.storesPartial ? ` (${cw.storesPartial} partially)` : ''}${failed} · ${cw.insightsCreated} finding${cw.insightsCreated === 1 ? '' : 's'}${cw.meaningful ? ` (${cw.meaningful} meaningful)` : ''}${parts.length ? ` · ${parts.join(' · ')}` : ''}`
+  }
   return parts.length ? parts.join(' · ') : 'no problems found'
 }
 
@@ -121,7 +126,7 @@ function AgentCard({ a }: { a: AgentListItem }) {
             <Link href={`${base}/agents/${a.id}`} className="text-[1.1rem] font-medium text-ink underline-offset-4 hover:underline">{a.name}</Link>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <StatusBadge w={w} />
-              {toolBadges({ approvalMode: a.approval_mode, correctionTypes: a.correction_types, emailPermission: a.email_permission }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
+              {toolBadges({ approvalMode: a.approval_mode, correctionTypes: a.correction_types, emailPermission: a.email_permission, competitor: a.is_competitor }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
               {a.pending_version !== null && <Badge tone="warn">Version {a.pending_version} waiting for your grant</Badge>}
             </div>
           </div>
@@ -149,8 +154,8 @@ function Templates({ templates }: { templates: AgentTemplateView[] }) {
   return (
     <section aria-labelledby="templates-h" className="mb-6">
       <h2 id="templates-h" className="mb-1 text-[1.1rem]">Start from a template</h2>
-      <p className="mb-3 text-[14px] text-grey-h">Every template starts at drafts only for every tool and gets its own email address. You still read and grant its authorization before it does anything.</p>
-      <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <p className="mb-3 text-[14px] text-grey-h">Every template starts at drafts only for every tool; templates that send email get their own address. You still read and grant its authorization before it does anything.</p>
+      <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {templates.map(t => (
           <li key={t.key}>
             <Panel className="h-full">
@@ -158,7 +163,7 @@ function Templates({ templates }: { templates: AgentTemplateView[] }) {
                 <h3 className="text-[1.05rem]">{t.name}</h3>
                 <p className="text-[14px] text-grey">{t.job}</p>
                 <div className="flex flex-wrap gap-2">
-                  {t.tools.map(x => <Badge key={x} tone="muted">{x === 'shopify' ? 'Shopify' : 'Email'}: drafts only</Badge>)}
+                  {t.tools.map(x => <Badge key={x} tone="muted">{x === 'shopify' ? 'Shopify: drafts only' : x === 'web' ? 'Public web pages: read only' : 'Email: drafts only'}</Badge>)}
                 </div>
                 <p className="text-[13px] text-grey-h">You add: {t.needs.join('; ')}.</p>
                 <div className="mt-auto pt-1"><Button size="sm" variant="ghost" href={`${base}/agents/new?template=${t.key}`}>Use this template<Icon name="arrow-right" size={14} /></Button></div>

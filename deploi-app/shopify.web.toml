@@ -1,0 +1,8 @@
+# Tells `shopify app dev` how to run this Next.js app. The CLI sets PORT, SHOPIFY_API_KEY, SHOPIFY_API_SECRET,
+# SCOPES and SHOPIFY_APP_URL (the tunnel) for the process; .env.local supplies the rest (database, encryption key).
+name = "deploi-app"
+roles = ["frontend", "backend"]
+
+[commands]
+# the production build (`npm run build`) must exist; `next start` serves it on the port the CLI picks
+dev = "npx next start -p $PORT"

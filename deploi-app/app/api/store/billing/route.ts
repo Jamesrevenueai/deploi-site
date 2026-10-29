@@ -28,6 +28,11 @@ export async function GET(req: Request) {
       try {
         const r = await admin(db => syncSubscription(db, conn, { force: q.get('refresh') === '1', actor: actor.label }))
         active = r.active; planHandle = r.planHandle
+        // the change engine also accepts a free early-access grant (staff-granted, no Shopify charge); match it
+        if (!active) {
+          const early = await admin(db => db.one<{ plan_key: string }>(`select plan_key from app_subscriptions where connection_id = $1 and provider = 'early_access' and status = 'active' limit 1`, [conn.id]))
+          if (early) { active = true; planHandle = early.plan_key }
+        }
       } catch (e) {
         checkFailed = true
         log.warn('billing.sync_failed', { error: (e as Error).message.slice(0, 160) })

@@ -9,6 +9,8 @@ import { currentAccessToken } from '../../lib/connectors/shopify/client'
 import { storeCredential, loadCredential } from '../../lib/connectors/credentials'
 import { loadConnection } from '../../lib/engine/scan'
 import { GET as listIssuesRoute } from '../../app/api/store/issues/route'
+import { GET as billingRoute } from '../../app/api/store/billing/route'
+import { signSessionToken } from '../../lib/connectors/shopify/auth'
 import { frameAncestors } from '../../middleware'
 import { appBridgeFirst } from '../../lib/shopify/head'
 import { NW, resetMerchant } from './helpers'
@@ -117,6 +119,23 @@ describe.skipIf(!ready)('App Store behaviours against the database', () => {
     expect(await admin(db => syncSubscription(db, conn, { fetchImpl: f.fn, force: true }))).toEqual({ active: false, planHandle: null, checked: true })
     const row = await admin(db => db.one<{ status: string; plan_key: string }>(`select status, plan_key from app_subscriptions where provider = 'shopify_billing' and external_id = $1`, [`app_pricing:${NW.domain}`]))
     expect(row).toEqual({ status: 'cancelled', plan_key: 'standard' })
+  })
+
+  it('the plan banner agrees with the change engine: an early-access grant counts as active; without it a plan is required', async () => {
+    process.env.BILLING_REQUIRED = 'true'
+    const auth = { authorization: `Bearer ${signSessionToken({ dest: `https://${NW.domain}`, sub: '7' }, process.env.SHOPIFY_API_SECRET!, process.env.SHOPIFY_API_KEY!)}` }
+    const get = async () => (await (await billingRoute(new Request(`http://localhost/api/store/billing?connection=${NW.conn}`, { headers: auth }))).json()).billing
+    try {
+      await admin(db => db.query(`update app_subscriptions set status = 'active' where connection_id = $1 and provider = 'early_access'`, [NW.conn]))
+      expect(await get()).toMatchObject({ required: true, active: true, planHandle: 'early_access' })
+      await admin(db => db.query(`update app_subscriptions set status = 'cancelled' where connection_id = $1 and provider = 'early_access'`, [NW.conn]))
+      expect(await get()).toMatchObject({ required: true, active: false, plansUrl: null })
+      delete process.env.BILLING_REQUIRED
+      expect(await get()).toMatchObject({ required: false, active: true })
+    } finally {
+      delete process.env.BILLING_REQUIRED
+      await admin(db => db.query(`update app_subscriptions set status = 'active' where connection_id = $1 and provider = 'early_access'`, [NW.conn]))
+    }
   })
 
   it('a refused refresh token removes the stored credential so the next app open re-runs token exchange', async () => {

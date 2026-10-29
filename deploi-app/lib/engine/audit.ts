@@ -4,7 +4,7 @@ import { log } from '../log'
 export type AuditEntry = {
   orgId: string | null
   connectionId?: string | null
-  entityType: 'connection' | 'credential' | 'rule' | 'scan' | 'issue' | 'proposal' | 'approval' | 'execution' | 'webhook' | 'subscription' | 'agent' | 'policy' | 'run' | 'reference'
+  entityType: 'connection' | 'credential' | 'rule' | 'scan' | 'issue' | 'proposal' | 'approval' | 'execution' | 'webhook' | 'subscription' | 'agent' | 'policy' | 'run' | 'reference' | 'access'
   entityId?: string | null
   event: string
   actor: string

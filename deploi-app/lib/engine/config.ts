@@ -11,16 +11,4 @@ export const engineConfig = {
   get verifyDelayMs() { return Number(e('VERIFY_DELAY_MS') || 400) },
   /** when true, corrections only run for organizations with an active subscription */
   get billingRequired() { return e('BILLING_REQUIRED') === 'true' },
-  /**
-   * Writes to real (non-synthetic) stores are refused unless the store is listed here
-   * (comma-separated external ids, e.g. a development store) or LIVE_WRITES=all.
-   */
-  get liveWriteStores() { return e('LIVE_WRITE_STORES').split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },
-  get liveWritesAll() { return e('LIVE_WRITES') === 'all' },
-}
-
-export function liveWritesAllowed(externalId: string, isSynthetic: boolean): boolean {
-  if (isSynthetic) return true
-  if (engineConfig.liveWritesAll) return true
-  return engineConfig.liveWriteStores.includes(externalId.toLowerCase())
 }

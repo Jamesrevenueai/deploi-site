@@ -13,6 +13,7 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/staff/economics', label: 'Economics', icon: 'dollar' },
   { href: '/staff/audit', label: 'Audit', icon: 'list' },
   { href: '/staff/emails/preview', label: 'Emails', icon: 'mail' },
+  { href: '/staff/store-access', label: 'Store access', icon: 'shield' },
   { href: '/staff/setup', label: 'Setup', icon: 'spark' },
 ]
 

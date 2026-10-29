@@ -189,14 +189,14 @@ describe.skipIf(!ready)('merchant engine: detect, propose, approve, execute, ver
     await runScan(NW.conn, { trigger: 'test' })
     const actor = await merchantActor(NW)
     const before = await writes()
-    // a non-synthetic connection is a real store: writes are refused unless explicitly allowed
+    // a non-synthetic connection is a real store: writes are refused until the store is enabled (beta access)
     const { syntheticTransport } = await import('../../lib/connectors/shopify/synthetic')
     setTransportOverride(conn => syntheticTransport(conn.id))
     try {
       await admin(db => db.query('update store_connections set is_synthetic = false where id = $1', [NW.conn]))
       let p = (await proposalFor(V(2001)))!
       await approveProposal(actor, p.id, p.change_hash)
-      expect(await executeProposal(p.id, { actor: actor.label })).toMatchObject({ status: 'blocked', reason: 'writes to this live store are disabled in this environment' })
+      expect(await executeProposal(p.id, { actor: actor.label })).toMatchObject({ status: 'blocked', reason: 'this store is not enabled for changes yet (beta access)' })
       await admin(db => db.query(`update store_connections set is_synthetic = true, scopes = '{read_products,read_inventory}' where id = $1`, [NW.conn]))
       p = (await proposalFor(V(2003)))!
       await approveProposal(actor, p.id, p.change_hash)

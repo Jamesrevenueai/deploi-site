@@ -196,7 +196,7 @@ describe.skipIf(!ready)('merchant engine: detect, propose, approve, execute, ver
       await admin(db => db.query('update store_connections set is_synthetic = false where id = $1', [NW.conn]))
       let p = (await proposalFor(V(2001)))!
       await approveProposal(actor, p.id, p.change_hash)
-      expect(await executeProposal(p.id, { actor: actor.label })).toMatchObject({ status: 'blocked', reason: 'writes to this live store are disabled in this environment' })
+      expect(await executeProposal(p.id, { actor: actor.label })).toMatchObject({ status: 'blocked', reason: expect.stringMatching(/changes to this store are not enabled yet/) })
       await admin(db => db.query(`update store_connections set is_synthetic = true, scopes = '{read_products,read_inventory}' where id = $1`, [NW.conn]))
       p = (await proposalFor(V(2003)))!
       await approveProposal(actor, p.id, p.change_hash)

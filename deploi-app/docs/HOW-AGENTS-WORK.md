@@ -4,7 +4,7 @@ One page, in plain English. Screens for every step are in `proof/screens/index.h
 
 ## From a job description to the first piece of work
 
-1. **You describe the job.** Either pick a template (Inventory Watcher, Supplier Chaser, Store Health Checker) or write the job in your own words, for example "Every 6 hours, stop products selling when they are out of stock, except anything tagged pre-order."
+1. **You describe the job.** Either pick a template (Inventory Watcher, Supplier Chaser, Store Health Checker, Competitor & Trend Watcher) or write the job in your own words, for example "Every 6 hours, stop products selling when they are out of stock, except anything tagged pre-order."
 2. **Deploi turns your words into a form.** It shows what it understood ("overselling", "every 6 hours", "except pre-order"), what is still missing, and anything it cannot do. Your sentence grants nothing. The form is what counts, and you can change every choice in it.
 3. **You choose the tools and the permission level for each tool.** The tools are your store and, if you want, email. Every tool starts at **drafts only**.
 4. **You read the rules.** Deploi writes the rules out in full: what the agent may do, its limits, and a list of things it never does.
@@ -43,3 +43,10 @@ The level is checked at the moment of each action, not only when the agent start
 - **Inventory Watcher.** Every day at 7:00 it finds the Ceramic Pour-Over Set selling at −2 available, with "Continue selling when out of stock" on. It drafts the change from On to Off and emails you an alert draft. Pre-order and backorder products are skipped. At drafts only, nothing is changed and nothing is sent.
 - **Supplier Chaser.** Every day it finds products with 2 or fewer available and writes a restock request to your supplier from its own address, for example `supplier-chaser.ab12cd@agents.getdeploi.com`. At "after my approval" the request waits in Approvals; you approve it and it is sent. The supplier's reply ("We can ship Friday") appears under the request. If there is no reply after 3 days, it drafts one follow-up in the same thread.
 - **Store Health Checker.** Once a week it checks the whole store for oversold products and products that keep selling when out of stock, and writes you a report: 5 problems found, 1 needs a person. It changes nothing. The report is a draft, or waits for your approval if you allowed sending.
+- **Competitor & Trend Watcher.** You list a few competitor stores. It reads only their public pages, the same ones any visitor sees, and never touches your store.
+  - **First check:** it records a starting point. Nothing on it is called new.
+  - **Next morning:** it reports, for example, "Price down 16.9% on linen-and-loom.example: Linen Throw Blanket, 89.00 → 74.00", with the page address and the time it was seen.
+  - **Across stores:** when similar oil pourers turn up as new or featured on three stores and you sell nothing like them, it suggests a possible opportunity, clearly labelled an inference.
+  - **Never:** it never claims to know their sales or revenue. Those are not public.
+
+  Details are in `COMPETITOR-WATCHER.md`.

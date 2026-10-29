@@ -71,6 +71,6 @@ describe('agent form: email section', () => {
   })
 
   it('still refuses an agent with neither corrections nor email', () => {
-    expect(policyFromForm({ ...emptyForm(CONN), scopeMode: 'all', approvalMode: 'review' }, 'UTC').problems).toContain('Choose at least one correction type or check, or turn on email.')
+    expect(policyFromForm({ ...emptyForm(CONN), scopeMode: 'all', approvalMode: 'review' }, 'UTC').problems).toContain('Choose at least one correction type or check, turn on email, or add competitor stores.')
   })
 })

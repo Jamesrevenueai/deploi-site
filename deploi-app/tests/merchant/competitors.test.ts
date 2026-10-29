@@ -14,7 +14,7 @@ import './env'
 import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
-import { createAgent, editAgent, grantPolicy, pauseAgent } from '../../lib/agents/lifecycle'
+import { createAgent, deleteAgent, editAgent, grantPolicy, pauseAgent } from '../../lib/agents/lifecycle'
 import { runAgent } from '../../lib/agents/run'
 import { parsePolicy, expansionReasons, summarizePolicy } from '../../lib/agents/policy'
 import { templatePolicy, TEMPLATES } from '../../lib/agents/templates'
@@ -236,6 +236,9 @@ describe.skipIf(!ready)('Competitor & Trend Watcher end to end (synthetic stores
     await expect(competitorView(await merchantActor(HB), c.agentId)).rejects.toMatchObject({ code: 'not_found' })
     await expect(setFindingsStatus(await merchantActor(HB), c.agentId, 'seen', null)).rejects.toMatchObject({ code: 'not_found' })
     expect(await setFindingsStatus(actor, c.agentId, 'seen', null)).toBe(0) // the baseline is never "new"
+    await deleteAgent(actor, c.agentId)
+    const left = await admin(db => db.one<{ n: number }>(`select (select count(*) from competitor_sources where agent_id = $1) + (select count(*) from competitor_findings where agent_id = $1) + (select count(*) from competitor_products where agent_id = $1) as n`, [c.agentId]))
+    expect(Number(left!.n)).toBe(0) // deleting the agent removes what it recorded about other stores
   })
 
   it('the work log shows each store checked or skipped, why, and which authorization allowed it', async () => {

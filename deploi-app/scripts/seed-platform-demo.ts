@@ -54,7 +54,7 @@ async function remove() {
     await db.query('delete from executions where agent_id = any($1::uuid[])', [ids])
     await db.query('delete from approvals where proposal_id in (select id from proposals where agent_id = any($1::uuid[]))', [ids])
     await db.query('delete from proposals where agent_id = any($1::uuid[])', [ids])
-    await db.query('update issues set agent_id = null where agent_id = any($1::uuid[])', [ids])
+    await db.query('delete from issues where agent_id = any($1::uuid[])', [ids])
     await db.query('update agents set active_policy_id = null where id = any($1::uuid[])', [ids])
     await db.query('delete from agent_policies where agent_id = any($1::uuid[])', [ids])
     await db.query('delete from agents where id = any($1::uuid[])', [ids])

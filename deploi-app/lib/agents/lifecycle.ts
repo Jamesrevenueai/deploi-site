@@ -227,5 +227,11 @@ async function revokeInTx(db: Db, orgId: string, agentId: string, actor: string,
 /** Delete: revoke and hide. History (issues, executions, audit) is kept for the record. */
 export async function deleteAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
-  return admin(db => revokeInTx(db, a0.org_id, agentId, actor.label, 'agent deleted', 'deleted'))
+  return admin(async db => {
+    const r = await revokeInTx(db, a0.org_id, agentId, actor.label, 'agent deleted', 'deleted')
+    // what it recorded about other stores goes with it (the audit trail keeps what was done)
+    await db.query('delete from competitor_findings where agent_id = $1', [agentId])
+    await db.query('delete from competitor_sources where agent_id = $1', [agentId])
+    return r
+  })
 }

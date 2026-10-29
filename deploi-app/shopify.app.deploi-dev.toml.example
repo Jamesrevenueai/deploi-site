@@ -1,0 +1,40 @@
+# "Deploi (dev)": the development-store app, kept separate from any future production app.
+# Create it once with the CLI, which writes the real file from the Dev Dashboard record:
+#   shopify app config link --client-id <client id from Dev Dashboard, org "deploi ai"> --file-name shopify.app.deploi-dev.toml
+# Then: shopify app dev --config deploi-dev --store james-jwtftl1e.myshopify.com
+# Never commit shopify.app.deploi-dev.toml itself (it carries the live client_id) or the client secret.
+client_id = "<SHOPIFY_API_KEY of Deploi (dev)>"
+name = "Deploi (dev)"
+handle = "deploi-dev"
+application_url = "https://<tunnel or app host>/shopify"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "james-jwtftl1e.myshopify.com"
+
+[access_scopes]
+# Only what the three starter templates need (docs/DEV-STORE-TEST-2026-10-29.md, section 1):
+#   read_products, read_inventory, read_locations  Inventory Watcher, Supplier Chaser, Store Health Checker (reads)
+#   write_products                                 Inventory Watcher only, and only once widened past "drafts only"
+#                                                  ("Continue selling when out of stock" On -> Off is productVariantsBulkUpdate.inventoryPolicy)
+# No customer, order, report, publication or inventory-write scopes.
+scopes = "read_products,read_inventory,read_locations,write_products"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = ["https://<tunnel or app host>/api/shopify/auth/callback"]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled", "app/scopes_update", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
+  uri = "/api/shopify/webhooks"
+
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "/api/shopify/webhooks"
+
+[pos]
+embedded = false

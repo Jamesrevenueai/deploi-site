@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Tests the launch migrations (20261028000028..20261029000033) and their rollback on a COPY of a database in the
-# state production is in today (migrations up to 20261021000027 plus existing care-agency data).
+# state production is in today. Production's runtime logs show it is older than 20261021000022 (job_runs and
+# delivery_status are missing), so the default base is migrations up to 20261021000021 plus care-agency data.
+# Set BASE_CUT=20261021000027 to test from the full consulting schema instead.
 # Never touches production. Needs a local Postgres reachable as $PGURL (default postgres:postgres@127.0.0.1).
 #
 #   bash scripts/test-launch-migrations.sh
@@ -12,12 +14,13 @@ BASE=launch_base COPY=launch_copy
 psqlq() { psql -q -v ON_ERROR_STOP=1 "$@"; }
 step() { printf '\n== %s\n' "$*"; }
 
-step "1. build a database shaped like production today (migrations up to 027, plus data)"
+BASE_CUT=${BASE_CUT:-20261021000021}
+step "1. build a database shaped like production today (migrations up to $BASE_CUT, plus data)"
 psqlq "$PGURL/postgres" -c "drop database if exists $COPY" -c "drop database if exists $BASE" -c "create database $BASE"
 psqlq "$PGURL/$BASE" -f supabase/local/0000_auth_shim.sql >/dev/null
 psqlq "$PGURL/$BASE" -c "create table _migrations (name text primary key, applied_at timestamptz default now())"
 for f in supabase/migrations/*.sql; do
-  n=$(basename "$f"); [[ "$n" > "20261021000027_website.sql" ]] && continue
+  n=$(basename "$f"); [[ "$n" > "${BASE_CUT}_zzz" ]] && continue
   psqlq "$PGURL/$BASE" -1 -f "$f" >/dev/null
   psqlq "$PGURL/$BASE" -c "insert into _migrations (name) values ('$n')"
 done

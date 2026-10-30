@@ -75,7 +75,7 @@ export function EarlyAccessForm() {
       <div className="field-row">
         <div className="field">
           <label htmlFor="ea-company">Store or company name</label>
-          <input id="ea-company" name="agency_name" type="text" autoComplete="organization" required />
+          <input id="ea-company" name="store_name" type="text" autoComplete="organization" required />
         </div>
         <div className="field">
           <label htmlFor="ea-url">Store URL</label>

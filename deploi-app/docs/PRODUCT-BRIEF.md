@@ -2,9 +2,8 @@
 
 Adopted 2026-10-28 (second revision). This brief overrides every conflicting earlier instruction,
 including the first revision's single-workflow launch and its rule that every action needs separate
-approval when an explicit standing authorization covers it. The home-care service documents
-(`BUILD-REPORT-2.md`, `CURRENT-STATE.md`, `OPERATING-CHECKLISTS.md`) describe code that still exists but
-no longer describe what Deploi sells.
+approval when an explicit standing authorization covers it. The earlier home-care consulting service
+has been removed from the code (2026-10-29); only its database tables remain, untouched (see `DEPLOY.md`).
 
 ## Product
 

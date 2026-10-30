@@ -17,8 +17,6 @@
     "db:migrate:prod": "tsx scripts/migrate-prod.ts"
   },
   "dependencies": {
-    "@react-email/components": "^1.0.12",
-    "@react-pdf/renderer": "^4.9.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "date-fns": "^4.4.0",
@@ -27,9 +25,6 @@
     "papaparse": "^5.7.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-email": "^6.11.3",
-    "resend": "^6.34.1",
-    "twilio": "^6.2.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

@@ -32,7 +32,7 @@ export function decodeDevSession(v: string | undefined): Session | null {
 
 export async function profileFor(uid: string): Promise<Session | null> {
   return admin(async db => {
-    const p = await db.one<{ id: string; email: string; role: Role; agency_id: string | null; full_name: string | null; org_type: 'merchant' | 'care_agency' | null }>(
+    const p = await db.one<{ id: string; email: string; role: Role; agency_id: string | null; full_name: string | null; org_type: string | null }>(
       'select p.id, p.email, p.role, p.agency_id, p.full_name, g.org_type from profiles p left join agencies g on g.id = p.agency_id where p.id = $1', [uid])
     if (!p) return null
     return { uid: p.id, email: p.email, role: p.role, agencyId: p.agency_id, fullName: p.full_name, orgType: p.org_type }

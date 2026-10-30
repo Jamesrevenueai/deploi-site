@@ -4,7 +4,7 @@
  *    security is enforced by Postgres exactly as on Supabase (request.jwt.claims
  *    + role authenticated). This is the only way pages and actions should query.
  *  - admin(fn): service role (bypasses RLS). Workers, seeds, auth bootstrap only.
- * Reads of client-side data are audited via auditRead().
+ * Reads of organization data are audited via auditRead().
  */
 import { Pool, type PoolClient } from 'pg'
 import { env } from './env'
@@ -14,7 +14,7 @@ import { log } from './log'
 export type Db = {
   query: <T = Record<string, unknown>>(text: string, params?: unknown[]) => Promise<T[]>
   one: <T = Record<string, unknown>>(text: string, params?: unknown[]) => Promise<T | null>
-  /** write an audit row for a read of client-side data */
+  /** write an audit row for a read of organization data */
   auditRead: (table: string, agencyId: string | null, rowIds?: string[]) => Promise<void>
   raw: PoolClient
 }
@@ -44,12 +44,6 @@ function wrap(client: PoolClient): Db {
     },
   }
 }
-
-const TENANT_TABLES = new Set([
-  'clients','aides','authorizations','shifts','shift_offers','visits','evv_exceptions',
-  'referrals','applicants','proposed_actions','retention_checkins','assessments','trace_steps',
-])
-export const isTenantTable = (t: string) => TENANT_TABLES.has(t)
 
 /** Run `fn` as the signed-in user with RLS enforced. */
 export async function withUser<T>(session: Session, fn: (db: Db) => Promise<T>, opts: { ip?: string | null } = {}): Promise<T> {

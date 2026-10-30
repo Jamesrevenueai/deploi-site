@@ -1,6 +1,17 @@
 -- Early access applications from the website (subscription product). Public intake stays behind a
 -- SECURITY DEFINER function so the anon role never touches tables. A store URL and the platforms
 -- chosen are recorded; applications are tagged "Early Access" plus one tag per platform.
+-- The prospects columns below were first added by the consulting website migration (20261021000027). They are repeated
+-- here, idempotently, so this migration does not depend on it: production is behind 20261021000022 and 027 has not
+-- run there, so without them public_create_early_access() would fail at runtime ("column website_url does not exist").
+alter table prospects add column if not exists service_interest text not null default 'operations';
+alter table prospects add column if not exists tags text[] not null default '{}';
+alter table prospects add column if not exists website_url text;
+alter table prospects add column if not exists website_goal text;
+alter table prospects add column if not exists website_details jsonb not null default '{}'::jsonb;
+create index if not exists prospects_tags_idx on prospects using gin (tags);
+create index if not exists prospects_service_interest_idx on prospects (service_interest);
+
 create or replace function public_create_early_access(
   p_name text, p_email text, p_company text, p_store_url text, p_platforms text[], p_catalog_size text, p_message text
 ) returns uuid language plpgsql security definer set search_path = public as $$

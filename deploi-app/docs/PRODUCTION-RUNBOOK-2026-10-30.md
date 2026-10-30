@@ -1,5 +1,18 @@
 # Production runbook, 2026-10-30
 
+> **Status (2026-10-30, 15:30 UTC): executed, superseded. Do not run Phases A, B or D again.** The cloud session reached production through
+> the Supabase Management API (HTTPS) instead of these `psql`/`pg_dump` scripts. What was done, in order, with evidence and rollback, is in
+> `docs/PRODUCTION-LAUNCH-2026-10-30.md` on `main`. Facts as checked then on `makqaqzlylhckijdbjzi`:
+> - Phase A: a full logical backup was taken at ~14:45 UTC, before any change (58 tables, 3,024 rows, restore check equal), and handed to the owner.
+>   All care data was the synthetic seed of 2026-10-20 (Buckeye Home Care / Scioto Valley, `*.example` addresses).
+> - Phase B: launch migrations 028-034 recorded at 14:57 UTC (ledger 12 -> 20).
+> - Phase D: 15 care tables (622 rows) and `public_create_lead` moved to schema `archive` at 15:11 UTC; anon/authenticated have no access.
+>   The 30-day drop TODO stands (`docs/ARCHIVE-CARE-TABLES.md`).
+> - For a gated HTTPS route on any later run: `launch-migrations.ts --http=<ref>` and `archive-care-tables.ts --http <ref>` (dry run, apply,
+>   rollback that refuses while new tables hold rows; archive dump/apply/verify/restore).
+>
+> The rest of this file is kept as written before the run.
+
 Approved by the owner on 2026-10-30: steps 0 to 5 of `PRODUCTION-MIGRATION-PLAN.md`, plus PRs #4 and #6, in the order below.
 **Stop at the first gate that fails.** Roll back only what that phase changed. Competitor Watcher: #3's engine wins.
 

@@ -39,3 +39,14 @@ describe('install scopes are read only; write scopes are optional and asked for 
     }
   })
 })
+
+describe('authorizeScopes', () => {
+  it('adds only declared optional scopes to the required ones', async () => {
+    const { authorizeScopes } = await import('../../lib/connectors/shopify/scopes')
+    const req = ['read_products', 'read_inventory', 'read_locations']
+    const opt = ['write_products', 'read_publications', 'write_publications']
+    expect(authorizeScopes(null, req, opt)).toEqual(req)
+    expect(authorizeScopes('write_products', req, opt)).toEqual([...req, 'write_products'])
+    expect(authorizeScopes('write_products,write_orders,read_products, write_products', req, opt)).toEqual([...req, 'write_products'])
+  })
+})

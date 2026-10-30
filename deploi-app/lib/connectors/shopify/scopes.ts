@@ -47,3 +47,14 @@ export async function syncScopes(db: Db, conn: ConnectionRow, actor: string): Pr
 
 /** What the merchant can be asked for at runtime (declared as optional_scopes in shopify.app.toml). */
 export const requestableScopes = () => shopifyConfig.optionalScopes
+
+/**
+ * Scopes for an authorization-code request: the required install scopes plus any of the app's declared
+ * optional scopes the merchant asked to grant (`request=write_products`). Anything not declared optional is
+ * ignored, so the link cannot be used to ask for more than the app's own configuration allows.
+ */
+export function authorizeScopes(requested: string | null | undefined, required = shopifyConfig.scopes, optional = shopifyConfig.optionalScopes): string[] {
+  const asked = (requested ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  const extra = asked.filter(s => optional.includes(s) && !required.includes(s))
+  return [...required, ...new Set(extra)]
+}

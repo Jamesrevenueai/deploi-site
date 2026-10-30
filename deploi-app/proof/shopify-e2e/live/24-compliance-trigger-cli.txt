@@ -1,0 +1,15 @@
+== customers/data_request
+│    • App:             Deploi (dev)                                           │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+✅ Success! Webhook has been enqueued for delivery.
+== customers/redact
+│    • App:             Deploi (dev)                                           │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+✅ Success! Webhook has been enqueued for delivery.
+== shop/redact
+│    • App:             Deploi (dev)                                           │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+✅ Success! Webhook has been enqueued for delivery.

@@ -1,0 +1,5 @@
+wh shop/redact processed no data held for this shop 2026-10-30T21:54:18.185Z
+wh customers/redact processed no customer data is stored by this app 2026-10-30T21:54:15.678Z
+wh customers/data_request processed no customer data is stored by this app 2026-10-30T21:54:13.539Z
+wh app/uninstalled processed connection marked uninstalled; credentials deleted 2026-10-30T21:53:21.641Z
+wh products/update processed targeted rescan of 1 record(s) 2026-10-30T21:47:59.368Z

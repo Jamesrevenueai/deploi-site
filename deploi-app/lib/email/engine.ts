@@ -25,6 +25,8 @@ import { qualifyEmail, sendBlockers, type EmailQualification } from './check'
 import { isAddress, newInternetMessageId } from './mime'
 import type { DraftMessage } from './tasks'
 import type { FindResult, MessageContent } from './types'
+import { randomBytes } from 'node:crypto'
+import { replyAddress } from './mailbox'
 
 export type EmailStatus = 'draft' | 'awaiting_approval' | 'queued' | 'sending' | 'accepted' | 'failed' | 'delivery_unknown' | 'cancelled'
 export type EmailMessageRow = {
@@ -36,6 +38,7 @@ export type EmailMessageRow = {
   attempts: number; next_attempt_at: string | null; sending_started_at: string | null; accepted_at: string | null; accepted_evidence: string | null
   provider_message_id: string | null; provider_thread_id: string | null; failure_code: string | null; reconcile_checks: number
   reply_seen_at: string | null; reply_count: number; meta: Record<string, unknown>; created_at: string; updated_at: string
+  in_reply_to: string | null; reply_token: string | null
 }
 export type SendOutcome = { messageId: string; status: EmailStatus; reason?: string | null; duplicate?: boolean }
 
@@ -76,11 +79,14 @@ export async function createAgentMessages(input: { agentId: string; runId: strin
       if (!to.length) { skipped++; continue }
       const from = account?.address ?? 'unknown@invalid'
       const hash = contentHash({ from, to, cc, content: d.content })
+      // agent mailboxes route replies back to this exact message through a tagged Reply-To address
+      const agentMailbox = account?.provider === 'deploi'
       const row = await db.one<{ id: string }>(`insert into email_messages (org_id, agent_id, run_id, account_id, policy_id, policy_version, task_key, dedupe_key, status, from_address, to_addresses, cc_addresses,
-          attachment_count, attachment_bytes, key_id, content_ciphertext, content_hash, internet_message_id, meta)
-        values ($1,$2,$3,$4,$5,$6,$7,$8,'draft',$9,$10,$11,$12,$13,'pending','pending',$14,$15,$16) on conflict (agent_id, dedupe_key) do nothing returning id`,
+          attachment_count, attachment_bytes, key_id, content_ciphertext, content_hash, internet_message_id, meta, in_reply_to, reply_token)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,'draft',$9,$10,$11,$12,$13,'pending','pending',$14,$15,$16,$17,$18) on conflict (agent_id, dedupe_key) do nothing returning id`,
         [org!.org_id, input.agentId, input.runId, e.accountId, ctx.policyId, ctx.policyVersion, d.taskKey, d.dedupeKey, from, to, cc,
-          d.content.attachments.length, attachmentBytes(d.content), hash, newInternetMessageId(), JSON.stringify(d.meta)])
+          d.content.attachments.length, attachmentBytes(d.content), hash, newInternetMessageId(agentMailbox ? emailConfig.agentMailDomain || undefined : undefined), JSON.stringify(d.meta),
+          d.inReplyTo ?? null, agentMailbox ? randomBytes(16).toString('hex') : null])
       if (!row) { skipped++; continue }
       const enc = encryptSecret(JSON.stringify(d.content), `email-message:${row.id}`)
       let status: EmailStatus, reason: string, q: EmailQualification | null = null
@@ -182,7 +188,7 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
     if (!account || account.status === 'disconnected') return stop('cancelled', 'the email account was disconnected')
     if (account.status !== 'active' || !account.can_send) return stop('failed', 'the email account needs to be reconnected before it can send', { failure_code: 'account' })
     if (m.approved_hash !== m.content_hash) return stop('awaiting_approval', 'the message changed after approval; approve the new version')
-    const base = sendBlockers({ agentStatus: ctx.agentStatus, policyStatus: ctx.policyStatus, policy: ctx.policy, account, message: { from: m.from_address } as never })
+    const base = sendBlockers({ agentStatus: ctx.agentStatus, policyStatus: ctx.policyStatus, policy: ctx.policy, account, message: { from: m.from_address, to: m.to_addresses, cc: m.cc_addresses } as never })
     if (base.length) return stop('awaiting_approval', `cannot send: ${base.join('; ')}`)
     let qualification = m.qualification
     if (m.approval_kind === 'standing') {
@@ -217,7 +223,8 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
     return { messageId, status: 'failed', reason: auth ? 'reconnect the account' : 'authorization unavailable' }
   }
   const content = decryptContent(m.id, m.key_id, m.content_ciphertext)
-  const result = await adapter.send(accountRef(account), token, { internetMessageId: m.internet_message_id, from: account.address, fromName: account.display_name, to: m.to_addresses, cc: m.cc_addresses, content, deploiId: m.id })
+  const result = await adapter.send(accountRef(account), token, { internetMessageId: m.internet_message_id, from: account.address, fromName: account.display_name, to: m.to_addresses, cc: m.cc_addresses, content, deploiId: m.id,
+    inReplyTo: m.in_reply_to, references: m.in_reply_to ? [m.in_reply_to] : [], replyTo: account.provider === 'deploi' && m.reply_token ? replyAddress(account.address, m.reply_token) : null })
   if (result.outcome === 'accepted') {
     await finish(m, 'accepted', null, opts.actor, { accepted_at: new Date().toISOString(), accepted_evidence: result.evidence, provider_message_id: result.providerMessageId, provider_thread_id: result.providerThreadId, failure_code: null })
     return { messageId, status: 'accepted' }

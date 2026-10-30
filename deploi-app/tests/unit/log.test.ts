@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { redact } from '../../lib/log'
 
-describe('PHI-safe logger', () => {
+describe('privacy-safe logger', () => {
   it('redacts person-identifying keys and keeps ids/counts', () => {
     const out = redact({ client_name: 'Jane', email: 'j@x.com', phone: '614', client_id: 'abc', count: 3, nested: { notes: 'secret', status: 'open' } }) as Record<string, unknown>
     expect(out.client_name).toBe('[redacted]')

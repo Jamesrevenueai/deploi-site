@@ -95,11 +95,14 @@ test('create an email-only agent in the wizard, grant it, and run it', async ({ 
   await page.getByRole('button', { name: 'Draft it' }).click()
   await expect(page.getByRole('heading', { name: 'Review the structured task' })).toBeVisible()
 
-  // prefilled from the text: email on, both tasks, send-approved; the address is only a suggestion
+  // prefilled from the text: email on, both tasks; the permission stays drafts only (the default) and the
+  // text's "ask me before sending" is shown as a suggestion the merchant must choose; the address is only a suggestion
   await expect(page.getByRole('checkbox', { name: 'Let this agent use email' })).toBeChecked()
   await expect(page.getByRole('checkbox', { name: /^Ask a supplier to confirm restock/ })).toBeChecked()
   await expect(page.getByRole('checkbox', { name: /^Send a summary of each run/ })).toBeChecked()
-  await expect(page.getByRole('radio', { name: /^Send messages you approve one by one/ })).toBeChecked()
+  await expect(page.getByRole('radio', { name: /^Create drafts for review/ })).toBeChecked()
+  await expect(page.getByText(/Your task asked for: send messages you approve one by one/)).toBeVisible()
+  await page.getByRole('radio', { name: /^Send messages you approve one by one/ }).check()
   await expect(page.getByText('found in your text: confirm').last()).toBeVisible()
 
   await page.getByLabel('Send from').selectOption({ label: `${MAILBOX} · Synthetic mailbox (test only)` })

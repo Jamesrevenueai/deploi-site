@@ -10,7 +10,7 @@ import { homeFor, type Role } from '@/lib/session'
 export async function devSignIn(formData: FormData) {
   if (env.authMode !== 'dev') redirect('/login?error=dev-auth-disabled')
   const email = String(formData.get('email') ?? '').trim().toLowerCase()
-  const p = await admin(db => db.one<{ id: string; email: string; role: Role; agency_id: string | null; org_type: 'merchant' | 'care_agency' | null }>(
+  const p = await admin(db => db.one<{ id: string; email: string; role: Role; agency_id: string | null; org_type: string | null }>(
     'select p.id, p.email, p.role, p.agency_id, g.org_type from profiles p left join agencies g on g.id = p.agency_id where lower(p.email) = $1', [email]))
   if (!p) redirect('/login?error=unknown-user')
   const store = await cookies()

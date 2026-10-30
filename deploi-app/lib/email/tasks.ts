@@ -7,9 +7,9 @@ import type { EmailPolicy } from '../agents/policy'
 import type { ResourceRecord } from '../engine/types'
 import type { MessageContent } from './types'
 
-export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown> }
+export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder' | 'supplier_followup'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown>; inReplyTo?: string | null }
 
-// eslint-disable-next-line no-control-regex
+ 
 const clean = (s: unknown, max = 200) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
 const stamp = (d: Date) => d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
 
@@ -30,7 +30,28 @@ export function runReport(e: EmailPolicy, f: RunFacts): DraftMessage {
     `Purpose of these emails: ${clean(e.purpose, 300)}`,
   ]
   return { taskKey: 'run_report', dedupeKey: `run_report:${f.runId}`, to: [...e.notify], cc: [], meta: { run_id: f.runId },
-    content: { subject: clean(`Deploi: ${f.agentName}: ${c.verified} verified, ${c.awaitingApproval} waiting, ${c.needsPerson} need a person`, 180), bodyText: lines.join('\n'), attachments: [] } }
+    content: { subject: clean(`Deploi: ${f.agentName}: ${c.verified} verified, ${c.awaitingApproval} waiting, ${c.needsPerson} for a person`, 180), bodyText: lines.join('\n'), attachments: [] } }
+}
+
+export type CompetitorFindingLine = { basis: 'observed' | 'inference'; title: string; summary: string; url: string | null }
+
+/** The run summary for a competitor watcher: this run's findings, each marked observed or inference. */
+export function competitorReport(e: EmailPolicy, f: { runId: string; agentId: string; agentName: string; at: Date; appUrl: string; stores: { checked: number; skipped: number }; findings: CompetitorFindingLine[] }): DraftMessage | null {
+  // nothing new, nothing to write: skipped stores are shown in the app, not mailed every day
+  if (!f.findings.length) return null
+  const observed = f.findings.filter(x => x.basis === 'observed'), inferred = f.findings.filter(x => x.basis === 'inference')
+  const line = (x: CompetitorFindingLine) => `- ${clean(x.title, 160)}: ${clean(x.summary, 400)}${x.url ? ` (${clean(x.url, 200)})` : ''}`
+  const lines = [
+    'Hello,', '',
+    `This is an automatic summary from the Deploi agent "${clean(f.agentName, 80)}", run at ${stamp(f.at)}. It read the public pages of ${f.stores.checked} store${f.stores.checked === 1 ? '' : 's'}${f.stores.skipped ? `; ${f.stores.skipped} could not be checked (see the agent page)` : ''}.`, '',
+    ...(observed.length ? ['Observed on public pages (with the page and time seen):', ...observed.slice(0, 40).map(line), ...(observed.length > 40 ? [`- and ${observed.length - 40} more`] : []), ''] : []),
+    ...(inferred.length ? ["Deploi's inferences from those listings (not facts about anyone's sales):", ...inferred.slice(0, 20).map(line), ''] : []),
+    'Deploi cannot see any store\'s sales, revenue, units sold or conversion, and does not estimate them.', '',
+    `Details and evidence: ${f.appUrl}/store/agents/${f.agentId}#competitors`, '',
+    `Purpose of these emails: ${clean(e.purpose, 300)}`,
+  ]
+  return { taskKey: 'run_report', dedupeKey: `run_report:${f.runId}`, to: [...e.notify], cc: [], meta: { run_id: f.runId },
+    content: { subject: clean(`Deploi: ${f.agentName}: ${observed.length} change${observed.length === 1 ? '' : 's'} seen, ${inferred.length} trend${inferred.length === 1 ? '' : 's'} to look at`, 180), bodyText: lines.join('\n'), attachments: [] } }
 }
 
 export type PersonItem = { id: string; label: string; summary: string; humanAction: string | null }
@@ -44,7 +65,7 @@ export function needsPersonAlert(e: EmailPolicy, f: { runId: string; agentId: st
     '', `Details: ${f.appUrl}/store/agents/${f.agentId}`, '', `Purpose of these emails: ${clean(e.purpose, 300)}`,
   ]
   return { taskKey: 'needs_person_alert', dedupeKey: `needs_person:${f.runId}`, to: [...e.notify], cc: [], meta: { issue_ids: f.items.map(i => i.id) },
-    content: { subject: clean(`Deploi: ${f.items.length} item${f.items.length === 1 ? '' : 's'} need a person in ${f.storeName}`, 180), bodyText: lines.join('\n'), attachments: [] } }
+    content: { subject: clean(`Deploi: ${f.items.length} ${f.items.length === 1 ? 'item needs' : 'items need'} a person in ${f.storeName}`, 180), bodyText: lines.join('\n'), attachments: [] } }
 }
 
 export type ReorderItem = { variantId: string; sku: string | null; label: string; available: number }
@@ -65,10 +86,28 @@ export function supplierReorder(e: EmailPolicy, f: { runId: string; agentName: s
     ...(f.items.length > 100 ? [`- and ${f.items.length - 100} more`] : []),
     '', `This message was prepared by the store's Deploi agent "${clean(f.agentName, 80)}".`,
   ]
+  // the subject (counts only, no product data) is kept in meta so a follow-up can reply in the same thread
+  const subject = clean(`Restock request from ${f.storeName}: ${f.items.length} product${f.items.length === 1 ? '' : 's'}`, 180)
   const csv = ['sku,product,available', ...f.items.map(i => [i.sku ?? '', i.label, String(i.available)].map(v => `"${v.replace(/"/g, '""')}"`).join(','))].join('\r\n') + '\r\n'
   return {
-    taskKey: 'supplier_reorder', dedupeKey: `supplier_reorder:${f.runId}`, to: [s.supplierAddress], cc: [], meta: { variant_ids: f.items.map(i => i.variantId) },
-    content: { subject: clean(`Restock request from ${f.storeName}: ${f.items.length} product${f.items.length === 1 ? '' : 's'}`, 180), bodyText: lines.join('\n'),
+    taskKey: 'supplier_reorder', dedupeKey: `supplier_reorder:${f.runId}`, to: [s.supplierAddress], cc: [], meta: { variant_ids: f.items.map(i => i.variantId), subject },
+    content: { subject, bodyText: lines.join('\n'),
       attachments: e.allowAttachments ? [{ filename: 'restock-request.csv', contentType: 'text/csv', contentBase64: Buffer.from(csv, 'utf8').toString('base64') }] : [] },
   }
+}
+
+export type FollowupTarget = { messageId: string; internetMessageId: string; to: string[]; subject: string; sentAt: string; variantIds: string[] }
+/** One follow-up in the same thread when a supplier request has had no reply. Never more than one per request (dedupe key). */
+export function supplierFollowup(e: EmailPolicy, f: { agentName: string; storeName: string; target: FollowupTarget }): DraftMessage | null {
+  const s = e.supplierReorder
+  if (!s || !f.target.to.length) return null
+  const subject = /^re:/i.test(f.target.subject) ? f.target.subject : `Re: ${f.target.subject}`
+  const lines = [
+    'Hello,', '',
+    `Following up on the restock request ${clean(f.storeName, 120)} sent on ${stamp(new Date(f.target.sentAt))}. Could you confirm availability and lead time for the products listed there?`, '',
+    'If you have already replied, please ignore this message.', '',
+    `This message was prepared by the store's Deploi agent "${clean(f.agentName, 80)}".`,
+  ]
+  return { taskKey: 'supplier_followup', dedupeKey: `supplier_followup:${f.target.messageId}`, to: [...f.target.to], cc: [], inReplyTo: f.target.internetMessageId,
+    meta: { follows_message_id: f.target.messageId, variant_ids: f.target.variantIds }, content: { subject: clean(subject, 180), bodyText: lines.join('\n'), attachments: [] } }
 }

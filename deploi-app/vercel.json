@@ -1,20 +1,13 @@
 {
+  "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- .",
   "crons": [
-    {
-      "path": "/api/cron/morning-pipeline",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/morning-report",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/workers",
-      "schedule": "0 6 * * *"
-    },
     {
       "path": "/api/cron/agents",
       "schedule": "7 * * * *"
+    },
+    {
+      "path": "/api/cron/weekly-summary",
+      "schedule": "13 13 * * 1"
     }
   ]
 }

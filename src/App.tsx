@@ -19,7 +19,7 @@ export default function App() {
 
 /**
  * Routes from earlier versions of the site. They all go to the homepage so old links never 404.
- * /website, /evv and /baa belonged to the retired consulting offer.
+ * Pages from before the agent product (/website, /evv, /baa) send old links to the home page.
  */
 export const LEGACY_REDIRECTS: Record<string, string> = {
   '/website': '/',

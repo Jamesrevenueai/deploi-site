@@ -3,7 +3,8 @@
  * OAuth, identity, sending and, when the merchant granted it, reading. The engine owns everything
  * else: who may send what, approvals, queueing, duplicate prevention, reconciliation and statuses.
  */
-export type EmailProvider = 'gmail' | 'microsoft' | 'synthetic'
+/** deploi: the agent's own mailbox on Deploi's domain (no OAuth, no Gmail restricted scopes) */
+export type EmailProvider = 'gmail' | 'microsoft' | 'synthetic' | 'deploi'
 
 export type TokenSet = { accessToken: string; refreshToken: string | null; expiresIn: number | null; scopes: string[] }
 export type Identity = { address: string; displayName: string | null }
@@ -22,6 +23,11 @@ export type OutgoingMessage = {
   content: MessageContent
   /** Deploi message id, also sent as an X-Deploi-Message header */
   deploiId: string
+  /** threading: the Message-ID this replies to, and the chain before it */
+  inReplyTo?: string | null
+  references?: string[]
+  /** where replies go (agent mailboxes: a tagged address that routes the reply back to this thread) */
+  replyTo?: string | null
 }
 
 export type SendResult =

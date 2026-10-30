@@ -75,12 +75,13 @@ describe('Home', () => {
     expect(CHECKS).toHaveLength(4)
     for (const c of CHECKS) expect(screen.getAllByText(c.title).length).toBeGreaterThan(0)
     expect(screen.getByText(`Example: ${EXAMPLE_AGENT.name}`)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Review each change' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Authorized to act within limits' })).toBeInTheDocument()
+    for (const t of ['Drafts only', 'After your approval', 'Without asking, within limits']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
+    for (const t of ['Inventory Watcher', 'Supplier Chaser', 'Store Health Checker', 'Competitor & Trend Watcher']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
+    expect(screen.getByText(/time saved clearly labelled as an estimate/)).toBeInTheDocument()
     expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
   })
 
-  it('shows the agent illustrations with alt text, and only roles the product can do today', () => {
+  it('shows the agent illustrations with alt text, only roles the product can do today, and each agent once', () => {
     render(<MemoryRouter><Home /></MemoryRouter>)
     expect(AGENT_ROLES.map(r => r.title)).toEqual(['Store Health Checker', 'Inventory Watcher', 'Approval Inbox', 'Supplier Chaser', 'Weekly Summary'])
     for (const r of AGENT_ROLES) {
@@ -89,7 +90,10 @@ describe('Home', () => {
       expect(img).toHaveAttribute('loading', 'lazy')
       expect(r.alt.startsWith('Illustration:')).toBe(true)
     }
-    expect(screen.queryByText(/competitor/i)).not.toBeInTheDocument()
+    // the one agent without an illustration is listed as a template, and never claims competitors' sales
+    expect(screen.getByRole('heading', { level: 3, name: 'Competitor & Trend Watcher' })).toBeInTheDocument()
+    expect(screen.getByText(/Never their sales, which are not public\./)).toBeInTheDocument()
+    expect(screen.getByText(/Inventory Watcher, Supplier Chaser and Store Health Checker above/)).toBeInTheDocument()
     expect(screen.getByText(/Illustrations\. The names, products and numbers in them are examples\./)).toBeInTheDocument()
   })
 

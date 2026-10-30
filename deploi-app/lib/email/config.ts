@@ -17,6 +17,16 @@ export const emailConfig = {
   get testRecipients() { return e('EMAIL_TEST_RECIPIENTS').split(',').map(x => x.trim().toLowerCase()).filter(Boolean) },
   /** synthetic accounts can be connected (demo and tests); never in production unless demo controls are on */
   get syntheticAllowed() { return e('NODE_ENV') !== 'production' || e('DEMO_CONTROLS') === 'true' || e('VERCEL_ENV') === 'preview' },
+  /**
+   * Gmail and Microsoft 365 connectors are kept in the code but are NOT live-verified and are off by
+   * default: they appear only when EMAIL_OAUTH_PROVIDERS=on (and their OAuth clients are configured).
+   */
+  get oauthProvidersEnabled() { return e('EMAIL_OAUTH_PROVIDERS') === 'on' },
+  /** Agent mailboxes: each agent gets <name>.<code>@AGENT_MAIL_DOMAIN, sent through Resend. */
+  get agentMailDomain() { return e('AGENT_MAIL_DOMAIN').toLowerCase().replace(/^@/, '') },
+  get resendKey() { return e('RESEND_API_KEY') },
+  /** svix signing secret of the Resend webhook that delivers email.received for the agent mail domain */
+  get agentMailWebhookSecret() { return e('AGENT_MAIL_WEBHOOK_SECRET') },
   maxMessageBytes: 3_000_000,
   maxAttempts: 4,
   reconcileWindowMs: 30 * 60e3,

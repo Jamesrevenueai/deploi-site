@@ -94,6 +94,10 @@ export const PRIVACY: LegalSection[] = [
     body: <>You connect a mailbox through Google&rsquo;s or Microsoft&rsquo;s own sign-in; we never ask for your mailbox password. We keep the access tokens <strong>encrypted at rest</strong>, your address and display name, and the permissions you granted. No agent can use the account until you grant that agent permission. For messages an agent drafts or sends, we keep the sender, recipients, subject, body and attachments (content encrypted at rest), your approvals and the provider&rsquo;s response. We read your mailbox only if you grant read access for a task that needs it, and then only to notice that a reply arrived to a message the agent sent; we do not keep reply content. You can disconnect at any time, which deletes the tokens and cancels unsent messages.</>,
   },
   {
+    title: 'Agent email addresses',
+    body: <>An agent can have its own email address on our domain. Messages it sends from there go through our email provider (Resend). Mail sent to that address, including threads you forward or copy to it and replies from your suppliers, is <strong>stored encrypted at rest</strong> with its sender, recipients, subject and text so you can read it in Deploi. Incoming mail never changes what an agent is allowed to do. Mail from senders outside the agent&rsquo;s allowed list, or that fails sender checks, is kept separately as quarantined. Deleting the agent closes its address.</>,
+  },
+  {
     title: 'Your store\u2019s customers',
     body: <>The app does not read, receive or store information about your customers or their orders, and it adds nothing to your storefront: no scripts, cookies or tracking for your shoppers.</>,
   },

@@ -15,7 +15,7 @@ import { EngineError } from './errors'
 import { loadConnection, withOwner } from './scan'
 import { legacyPlan, buildStoreContext, detectWithPlan, lookupKeysFor } from './plan'
 import { loadAgentContext, qualifies, type Qualification } from '../agents/plan'
-import { ACTION_FIELD, writableFields } from '../agents/policy'
+import { actionField, writableFields } from '../agents/policy'
 import { invalidateProposal, type ProposalRow } from './proposals'
 import { assertMerchant, withActor, type Actor } from './actor'
 import type { ApplyResult, ConnectionRow, Correction, ResourceRecord } from './types'
@@ -154,16 +154,18 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
   // ---- gates: anything here blocks without touching the store
   const required = connector.requiredScopes.actions[p.action_key] ?? []
   const missing = required.filter(s => !conn.scopes.includes(s))
-  const field = ACTION_FIELD[p.action_key]
+  // unknown action keys have no registered field and are always refused
+  const field = actionField(p.action_key) ?? ''
   const agentBlock = !p.agent_id ? null
     : ctx.agentStatus !== 'active' ? `the agent is ${ctx.agentStatus ?? 'deleted'}; it may not write`
     : !agentCtx ? 'the agent has no active authorization'
     : (p.policy_version ?? null) !== agentCtx.policyRow.version ? null // handled as stale below (recompute)
-    : !writableFields(agentCtx.policy).includes(field) ? `field "${field}" is not writable for this agent`
+    : !writableFields(agentCtx.policy, conn.platform).includes(field) ? `field "${field}" is not writable for this agent`
     : standing && (ctx.approval.policy_id !== agentCtx.policyRow.id || ctx.approval.policy_version !== agentCtx.policyRow.version) ? 'the standing authorization that covered this change was changed or revoked'
     : null
   const block =
-    conn.status !== 'active' ? `store connection is ${conn.status}`
+    !field ? `no connector declares the action ${p.action_key}`
+    : conn.status !== 'active' ? `store connection is ${conn.status}`
     : !connector.operational ? `${conn.platform} connector is not operational`
     : missing.length ? `missing permission: ${missing.join(', ')}`
     : engineConfig.billingRequired && !ctx.hasSubscription ? 'no active subscription'
@@ -231,7 +233,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
       return { executionId: execId, status: 'blocked', reason }
     }
   }
-  const allowedFields = agentCtx ? writableFields(agentCtx.policy) : [field]
+  const allowedFields = agentCtx ? writableFields(agentCtx.policy, conn.platform) : [field]
 
   // ---- write
   await admin(async db => {

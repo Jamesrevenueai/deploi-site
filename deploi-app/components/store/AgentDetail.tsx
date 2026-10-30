@@ -17,8 +17,10 @@ import { ErrorState, Facts, Loading, Panel, Section, SeverityBadge, useStore } f
 import { AgentPolicyForm, formFromPolicy, policyFromForm, type AgentFormState } from './AgentForm'
 import { AuthorizationSummaryView, BackToAgents, StatusBadge, countsInWords, useStoreBasics } from './Agents'
 import { AgentEmailSections } from './AgentEmail'
+import { AgentWorkSections } from './AgentWork'
+import { CompetitorSections } from './Competitors'
 import {
-  AGENT_CORRECTION_LABEL, APPROVAL_MODE_LABEL, TRIGGER_LABEL, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
+  AGENT_CORRECTION_LABEL, TRIGGER_LABEL, toolBadges, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
   proposalWords, runWords, scheduleLabel,
 } from './format'
 import type {
@@ -125,7 +127,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
           </div>
         </Panel>
         <div className="mt-4">
-          <AgentPolicyForm value={editing.form} onChange={form => setEditing({ ...editing, form })} connections={basics.data?.connections ?? []} timezone={timezone} lockConnection showProblems={editing.showProblems} />
+          <AgentPolicyForm value={editing.form} onChange={form => setEditing({ ...editing, form })} connections={basics.data?.connections ?? []} timezone={timezone} lockConnection showProblems={editing.showProblems} agentId={agent.id} />
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button onClick={saveEdit} disabled={busy !== null || (editing.showProblems && !check.policy)}><Icon name="check" size={16} />{busy === 'edit' ? 'Saving…' : 'Save changes'}</Button>
@@ -136,6 +138,10 @@ export function AgentDetailScreen({ id }: { id: string }) {
   }
 
   const isActive = agent.status === 'active', isPaused = agent.status === 'paused'
+  const draftsOnly = (active ?? latest)?.policy.approvalMode === 'draft'
+  // an agent that only watches competitors never changes the store: the change sections would always be empty
+  const shown = (active ?? latest)?.policy
+  const storeWork = !shown?.competitors || shown.correctionTypes.length > 0 || shown.watch.length > 0 || waiting.length > 0 || executions.length > 0
   return (
     <>
       <BackToAgents />
@@ -158,7 +164,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
       />
       <div className="-mt-2 mb-5 flex flex-wrap items-center gap-2">
         <StatusBadge w={w} />
-        {latest && <Badge tone="muted">{APPROVAL_MODE_LABEL[latest.policy.approvalMode]}</Badge>}
+        {latest && toolBadges({ approvalMode: latest.policy.approvalMode, correctionTypes: latest.policy.correctionTypes, emailPermission: latest.policy.email?.permission ?? null, competitors: Boolean(latest.policy.competitors) }).map(b => <Badge key={b} tone="muted">{b}</Badge>)}
         <Badge tone="muted">{scheduleLabel(agent.schedule)}</Badge>
         {active && <span className="text-[13px] text-grey-h">Authorization version {active.version}</span>}
         {isActive && agent.next_run_at && <span className="text-[13px] text-grey-h">Next run {fmtTime(agent.next_run_at)}</span>}
@@ -207,12 +213,17 @@ export function AgentDetailScreen({ id }: { id: string }) {
         </div>
       </Section>
 
+      {latest?.policy.competitors && <CompetitorSections agentId={agent.id} refreshKey={`${emailRefresh}`} />}
+
+      <AgentWorkSections agentId={agent.id} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
+
       <AgentEmailSections agentId={agent.id} policy={latest?.policy ?? null} agentActive={isActive} refreshKey={`${emailRefresh}`} onChanged={reload} />
 
-      <Section id="waiting" title="Waiting for your approval" sub="Exact changes this agent found but may not make on its own. Approving runs the change now: Deploi re-reads the record, writes it, and confirms it with a fresh read.">
-        {waiting.length === 0 ? <Empty title="Nothing waiting">No changes are waiting for your approval.</Empty> : (
+      {storeWork && <>
+      <Section id="waiting" title={draftsOnly ? 'Drafted changes (not made)' : 'Waiting for your approval'} sub={draftsOnly ? 'This agent is drafts only: these are the exact changes it would make. It cannot make them, and they cannot be approved here. To let it make changes you approve, edit it and grant the wider version.' : 'Exact changes this agent found but may not make on its own. Approving runs the change now: Deploi re-reads the record, writes it, and confirms it with a fresh read.'}>
+        {waiting.length === 0 ? <Empty title="Nothing waiting">{draftsOnly ? 'No drafted changes right now.' : 'No changes are waiting for your approval.'}</Empty> : (
           <ul className="flex flex-col gap-3">
-            {waiting.map(wt => <WaitingItem key={wt.id} wt={wt} review={latest?.policy.approvalMode === 'review'} busy={busy} onApprove={() => approve(wt)} canAct={isActive} />)}
+            {waiting.map(wt => <WaitingItem key={wt.id} wt={wt} review={latest?.policy.approvalMode === 'review'} draftOnly={draftsOnly} busy={busy} onApprove={() => approve(wt)} canAct={isActive} />)}
           </ul>
         )}
       </Section>
@@ -239,6 +250,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
           <ul className="flex flex-col gap-2">{executions.map(e => <ResultItem key={e.id} e={e} />)}</ul>
         )}
       </Section>
+      </>}
 
       <Section id="runs" title="Runs">
         {runs.length === 0 ? <Empty title="Not run yet">{isActive ? 'Press Run now, or wait for its schedule.' : 'The agent runs once it is active.'}</Empty> : (
@@ -278,7 +290,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
 
       <Sheet open={dialog === 'pause'} onClose={() => setDialog(null)} title="Pause this agent?">
         <div className="flex flex-col gap-4">
-          <p className="text-[15px] text-grey">While paused, the agent does not run and writes nothing. Changes waiting for approval or already queued are cancelled. Its authorization is kept, so you can resume it later without granting again.</p>
+          <p className="text-[15px] text-grey">While paused, the agent does not run, reads nothing and writes nothing. Changes waiting for approval or already queued are cancelled. Its authorization is kept, so you can resume it later without granting again.</p>
           <Button onClick={pause} disabled={busy !== null}>{busy === 'pause' ? 'Pausing…' : 'Pause agent'}</Button>
         </div>
       </Sheet>
@@ -311,27 +323,30 @@ function ChangeBox({ field, from, to }: { field: string; from: unknown; to: unkn
   )
 }
 
-function WaitingItem({ wt, review, busy, onApprove, canAct }: { wt: AgentWaitingRow; review: boolean; busy: string | null; onApprove: () => void; canAct: boolean }) {
+function WaitingItem({ wt, review, draftOnly, busy, onApprove, canAct }: { wt: AgentWaitingRow; review: boolean; draftOnly: boolean; busy: string | null; onApprove: () => void; canAct: boolean }) {
   const { base } = useStore()
-  const why = wt.status_reason?.replace(/^waiting for your approval: /, '') || (review ? 'this agent is in review mode: you approve each change' : 'not covered by the standing authorization')
+  const why = draftOnly ? 'drafts only: this agent may show this change but not make it'
+    : wt.status_reason?.replace(/^waiting for your approval: /, '') || (review ? 'this agent is in review mode: you approve each change' : 'not covered by the standing authorization')
   const label = wt.target_label ?? 'this record'
   const expired = new Date(wt.expires_at).getTime() <= Date.now()
   const cw = changeInWords(wt.change)
   return (
     <li>
       <Panel>
-        <div className="flex flex-wrap items-center gap-2"><StatusBadge w={proposalWords(wt.status)} /><SeverityBadge severity={wt.severity} /><span className="min-w-0 text-ink font-medium break-words">{label}</span></div>
+        <div className="flex flex-wrap items-center gap-2">{draftOnly ? <Badge tone="muted">Draft: not made</Badge> : <StatusBadge w={proposalWords(wt.status)} />}<SeverityBadge severity={wt.severity} /><span className="min-w-0 text-ink font-medium break-words">{label}</span></div>
         {wt.summary && <p className="pt-2 text-[15px] text-grey">{wt.summary}</p>}
         <div className="mt-3"><ChangeBox field={wt.change.field} from={wt.change.from} to={wt.change.to} /></div>
-        <p className="pt-2 text-[14px] text-grey"><span className="text-grey-h">Why it waits: </span>{why}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        <p className="pt-2 text-[14px] text-grey"><span className="text-grey-h">{draftOnly ? 'Why it is only a draft: ' : 'Why it waits: '}</span>{why}</p>
+        {draftOnly ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-[13px] text-grey-h"><span>Not made. Copy it into your store yourself, or widen the agent.</span><Link href={`${base}/issues/${wt.issue_id}`} className="text-ink underline">Evidence</Link></div>
+        ) : <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button size="sm" onClick={onApprove} disabled={busy !== null || expired || !canAct} aria-label={`Approve change for ${label}: ${cw.label} ${cw.from} to ${cw.to}`}>
             <Icon name="check" size={15} />{busy === `approve:${wt.id}` ? 'Running: re-read, write, verify…' : 'Approve'}
           </Button>
           <span className="text-[13px] text-grey-h">{expired ? 'Expired: run the agent again for a fresh proposal.' : `Expires ${fmtUntil(wt.expires_at)}`}</span>
           <Link href={`${base}/issues/${wt.issue_id}`} className="text-[13px] text-ink underline">Evidence</Link>
-        </div>
-        {!canAct && <p className="pt-2 text-[13px] text-grey-h">The agent is not active, so its changes cannot run.</p>}
+        </div>}
+        {!canAct && !draftOnly && <p className="pt-2 text-[13px] text-grey-h">The agent is not active, so its changes cannot run.</p>}
       </Panel>
     </li>
   )

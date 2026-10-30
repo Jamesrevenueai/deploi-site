@@ -190,7 +190,34 @@ export const AGENT_CORRECTION_HELP: Record<AgentCorrectionType, string> = {
   sku: 'Fills in (and, if you allow it, corrects) SKUs from your mapping when the match is unambiguous. Never generates a SKU.',
 }
 
-export const APPROVAL_MODE_LABEL: Record<string, string> = { review: 'Review each change', autonomous: 'Authorized to act within limits' }
+export const APPROVAL_MODE_LABEL: Record<string, string> = { draft: 'Drafts only', review: 'After my approval', autonomous: 'Without asking, within limits' }
+
+/** Per-tool permission level in a few words, for badges ("Shopify: drafts only", "Email: after my approval"). */
+export const EMAIL_PERMISSION_SHORT: Record<string, string> = { draft: 'drafts only', send_approved: 'after my approval', send_autonomous: 'without asking, within limits' }
+export function toolBadges(p: { approvalMode?: string | null; correctionTypes?: string[]; emailPermission?: string | null; competitors?: boolean }): string[] {
+  const out: string[] = []
+  if (p.competitors) out.push('Public web: read only')
+  if (p.approvalMode && p.correctionTypes?.length) out.push(`Shopify: ${(APPROVAL_MODE_LABEL[p.approvalMode] ?? p.approvalMode).toLowerCase()}`)
+  if (p.emailPermission) out.push(`Email: ${EMAIL_PERMISSION_SHORT[p.emailPermission] ?? p.emailPermission}`)
+  return out
+}
+
+/** A template's tools as badges: public web is always read only; every other tool starts at drafts only. */
+export const templateToolWords = (t: string, opts: { optionalEmail?: boolean } = {}) =>
+  t === 'public_web' ? 'Public web: read only' : t === 'shopify' ? 'Shopify: drafts only' : opts.optionalEmail ? 'Email summary: optional, drafts only' : 'Email: drafts only'
+
+export const COMPETITOR_ALERTS = ['launches', 'price_changes', 'discounts', 'availability', 'bestsellers', 'featured', 'trends'] as const
+export type CompetitorAlertKey = typeof COMPETITOR_ALERTS[number]
+/** Kept in step with COMPETITOR_ALERT_LABEL in lib/agents/policy.ts (server-only). */
+export const COMPETITOR_ALERT_WORDS: Record<CompetitorAlertKey, string> = {
+  launches: 'New products',
+  price_changes: 'Price changes',
+  discounts: 'Advertised discounts starting or ending',
+  availability: 'Sold out or back in stock',
+  bestsellers: 'Changes in public best-seller lists',
+  featured: 'Newly featured or promoted products',
+  trends: 'Similar products on several stores, and possible opportunities',
+}
 
 export const TRIGGER_LABEL: Record<string, string> = { manual: 'Run now', schedule: 'Schedule', webhook: 'Store update', test: 'Test' }
 
@@ -230,20 +257,22 @@ export const EMAIL_STATUS_WORDS: Record<string, StatusWords> = {
 export const emailWords = (status: string): StatusWords => EMAIL_STATUS_WORDS[status] ?? unknownWords(status)
 
 /** Kept in step with EMAIL_TASKS / EMAIL_TASK_LABEL / EMAIL_PERMISSIONS / EMAIL_PERMISSION_LABEL in lib/agents/policy.ts (server-only). */
-export const AGENT_EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder'] as const
+export const AGENT_EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup'] as const
 export type AgentEmailTask = typeof AGENT_EMAIL_TASKS[number]
 export const AGENT_EMAIL_TASK_LABEL: Record<AgentEmailTask, string> = {
   run_report: 'Send a summary of each run',
   needs_person_alert: 'Alert people about problems that need a person',
   supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
+  supplier_followup: 'Follow up once, in the same thread, when a supplier has not replied',
 }
 export const AGENT_EMAIL_TASK_HELP: Record<AgentEmailTask, string> = {
   run_report: 'After each run, a short summary of what the agent found, changed and left for you goes to the people on the notify list.',
   needs_person_alert: 'When the agent finds a problem it cannot correct safely, the people on the notify list get one alert per problem.',
   supplier_reorder: 'Lists products in scope at or below your threshold and asks your supplier to confirm a restock. It never changes stock quantities and never places an order.',
+  supplier_followup: 'One polite reminder in the same email thread when the supplier has not replied after the days you choose. Needs the restock task and permission to notice replies; never more than one follow-up per request.',
 }
 /** Short names for a message's task, in lists */
-export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request' }
+export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request', supplier_followup: 'Supplier follow-up' }
 
 export const AGENT_EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
 export type AgentEmailPermission = typeof AGENT_EMAIL_PERMISSIONS[number]
@@ -273,3 +302,17 @@ export const EMAIL_PROVIDER_STATUS_WORDS: Record<string, StatusWords> = {
   not_configured: { label: 'Not available yet', tone: 'muted', hint: 'Not available yet (needs setup)' },
   test_only: { label: 'Test only', tone: 'warn', hint: 'Synthetic mailbox: test only, nothing is ever emailed' },
 }
+
+/** Plain-language task statuses: honest, and "Done" only with a finished run as proof */
+export const TASK_STATUS_WORDS: Record<string, StatusWords> = {
+  queued: { label: 'Queued', tone: 'muted', hint: 'Within the rules; it runs when the agent is active.' },
+  running: { label: 'Running', tone: 'muted', hint: 'Running now.' },
+  done: { label: 'Done', tone: 'ok', hint: 'Finished, with the run as proof.' },
+  waiting_on_you: { label: 'Waiting on you', tone: 'warn', hint: 'The run finished, and items wait for you.' },
+  needs_approval: { label: 'Needs your approval', tone: 'warn', hint: "Outside the agent's rules: widening them needs a new grant." },
+  refused: { label: 'Refused', tone: 'danger', hint: 'Nothing will run.' },
+  failed: { label: 'Failed', tone: 'danger', hint: 'The run did not finish cleanly.' },
+  cancelled: { label: 'Cancelled', tone: 'muted', hint: 'Cancelled before it ran.' },
+}
+export const taskWords = (s: string): StatusWords => TASK_STATUS_WORDS[s] ?? unknownWords(s)
+export const INBOUND_CLASS_LABEL: Record<string, string> = { reply: 'Reply', merchant_forward: 'Forwarded by you', merchant_cc: 'Copied by you', other: 'Other sender' }

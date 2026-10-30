@@ -4,6 +4,8 @@ import { grantPolicy, pauseAgent, resumeAgent, revokeAgent } from '@/lib/agents/
 import { runAgent } from '@/lib/agents/run'
 import { assertMerchant, withActor } from '@/lib/engine/actor'
 import { EngineError } from '@/lib/engine/errors'
+import { assignTask, cancelTask, runTask } from '@/lib/agents/tasks'
+import { createAgentMailbox } from '@/lib/email/mailbox'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -12,6 +14,10 @@ export const maxDuration = 300
  * grant { policyId, policyHash }: grant the exact authorization version reviewed.
  * pause | resume | revoke { reason? }: pause and revoke stop all writes, including queued ones.
  * run: run the agent now (only an active agent; writes only what its authorization covers).
+ * task { text }: assign a plain-language task. Within the granted rules it runs now; outside them it waits
+ *   for approval (a new grant); anything Deploi cannot do is refused. Returns the task with its honest status.
+ * cancel-task { taskId }: cancel a task that has not started.
+ * mailbox: give the agent its own address on Deploi's domain (authorizes nothing by itself).
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string; action: string }> }) {
   try {
@@ -33,6 +39,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
         assertMerchant(actor, a.org_id)
         const r = await runAgent(id, { trigger: 'manual', actor: actor.label })
         return NextResponse.json({ ok: true, ...r })
+      }
+      case 'task': {
+        const t = await assignTask(actor, id, String(body.text ?? ''))
+        const task = t.status === 'queued' ? await runTask(t.id, { actor: actor.label }) : t
+        return NextResponse.json({ ok: true, task })
+      }
+      case 'cancel-task': {
+        if (typeof body.taskId !== 'string') throw new HttpError(400, 'invalid_input', 'taskId is required')
+        await cancelTask(actor, body.taskId)
+        return NextResponse.json({ ok: true })
+      }
+      case 'mailbox': {
+        const m = await createAgentMailbox(actor, id)
+        return NextResponse.json({ ok: true, mailbox: { id: m.id, address: m.address } })
       }
       default: throw new HttpError(404, 'not_found', 'unknown action')
     }

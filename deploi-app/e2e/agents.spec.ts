@@ -71,7 +71,7 @@ test('Stock Guardian (authorized to act within limits) runs and its results are 
   await expect(page.getByRole('link', { name: 'SKU Filler' })).toBeVisible()
   await page.getByRole('link', { name: 'Stock Guardian' }).click()
   await expect(page).toHaveURL(new RegExp(`/store/agents/${stockGuardianId}$`))
-  await expect(page.getByText('Authorized to act within limits').first()).toBeVisible()
+  await expect(page.getByText('Without asking, within limits').first()).toBeVisible()
 
   await page.getByRole('button', { name: 'Run now' }).click()
   await expect(page.getByText('Run finished.')).toBeVisible({ timeout: 60_000 })
@@ -88,7 +88,7 @@ test('Stock Guardian (authorized to act within limits) runs and its results are 
 test('Price Keeper (review each change) waits; approving one change ends Verified', async ({ page }) => {
   await signIn(page, NORTHWIND)
   await page.goto(`/store/agents/${priceKeeperId}`)
-  await expect(page.getByText('Review each change').first()).toBeVisible()
+  await expect(page.getByText('After my approval').first()).toBeVisible()
   await page.getByRole('button', { name: 'Run now' }).click()
   await expect(page.getByText('Run finished.')).toBeVisible({ timeout: 60_000 })
 
@@ -132,7 +132,7 @@ test('the wizard refuses a vague task, then creates a review-mode agent that is 
   await page.getByRole('checkbox', { name: /^Overselling configuration/ }).check()
   await page.getByRole('checkbox', { name: /^Prices/ }).check()
   await page.getByRole('radio', { name: 'All products in the store' }).check()
-  await page.getByRole('radio', { name: /^Review each change/ }).check()
+  await page.getByRole('radio', { name: /^After my approval/ }).check()
 
   // upload a price list inline; one bad row is reported, not guessed
   await page.getByText('Upload a price list (CSV)').click()

@@ -25,9 +25,12 @@ export function providers() {
   })
 }
 
-export async function listAccounts(actor: Actor, opts: { includeDisconnected?: boolean } = {}) {
+/** The organization's connected accounts. Agent mailboxes belong to one agent: listed only when `agentId` names that agent. */
+export async function listAccounts(actor: Actor, opts: { includeDisconnected?: boolean; agentId?: string | null } = {}) {
+  const agentId = opts.agentId && /^[0-9a-f-]{36}$/i.test(opts.agentId) ? opts.agentId : null
   const accounts = await withActor(actor, db => db.query<EmailAccountRow>(
-    `select ${ACCOUNT_COLS} from email_accounts where ${orgFilter(actor)} ${opts.includeDisconnected ? '' : `and status <> 'disconnected'`} order by connected_at`))
+    `select ${ACCOUNT_COLS} from email_accounts where ${orgFilter(actor)} ${opts.includeDisconnected ? '' : `and status <> 'disconnected'`}
+     and (provider <> 'deploi' or agent_id = $1::uuid) order by connected_at`, [agentId]))
   if (!accounts.length) return []
   const usage = await withActor(actor, db => db.query<{ account_id: string; agents: string; sent_today: string; failed_7d: string; unknown: string; awaiting: string }>(
     `select a.id as account_id,

@@ -30,11 +30,16 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
     }
     if (p.agent_id) {
       // an agent's proposal can be approved only while the agent is active under the same authorization version
-      const agent = await db.one<{ status: string; version: number | null }>(
-        `select a.status, ap.version from agents a left join agent_policies ap on ap.id = a.active_policy_id and ap.status = 'active' where a.id = $1`, [p.agent_id])
+      const agent = await db.one<{ status: string; version: number | null; mode: string | null }>(
+        `select a.status, ap.version, ap.policy->>'approvalMode' as mode from agents a left join agent_policies ap on ap.id = a.active_policy_id and ap.status = 'active' where a.id = $1`, [p.agent_id])
       if (!agent || agent.status !== 'active') {
         await invalidateProposal(db, p, 'blocked', `the agent is ${agent?.status ?? 'deleted'}`, actor.label)
         throw new EngineError('agent_inactive', `the agent is ${agent?.status ?? 'deleted'}; resume it to approve its changes`)
+      }
+      if (agent.mode !== 'review' && agent.mode !== 'autonomous') {
+        // drafts only (or anything unrecognised): approving would make a change the grant does not allow
+        await audit(db, { orgId: p.org_id, connectionId: p.connection_id, entityType: 'proposal', entityId: p.id, event: 'approval.refused', actor: actor.label, detail: { reason: 'drafts_only' } })
+        throw new EngineError('forbidden', 'this agent is drafts only: it may show changes but not make them. Give it permission to make changes you approve (a new grant) first')
       }
       if (agent.version !== p.policy_version) {
         await invalidateProposal(db, p, 'stale', "the agent's authorization changed after this proposal was made", actor.label)

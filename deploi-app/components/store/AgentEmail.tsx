@@ -40,7 +40,7 @@ export function AgentEmailSections({ agentId, policy, agentActive, refreshKey, o
 }) {
   const { data, error, loading, reload } = useLoad(async () => {
     const [accounts, list] = await Promise.all([
-      storeFetch<EmailAccountsResponse>('/api/store/email/accounts').catch(() => null),
+      storeFetch<EmailAccountsResponse>(`/api/store/email/accounts?agent=${encodeURIComponent(agentId)}`).catch(() => null),
       storeFetch<EmailMessagesResponse>(`/api/store/email/messages?agent=${encodeURIComponent(agentId)}`),
     ])
     const open = list.messages.filter(m => m.status === 'awaiting_approval' || m.status === 'draft').slice(0, 25)

@@ -38,3 +38,11 @@ export function installPreviewBypass() {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => original(input, withPreviewBypass(input, init, window.location.origin, bypass))
   installed = true
 }
+
+/**
+ * Cookies on the app's own embedded API calls. Production keeps 'omit' (the Shopify session token is the
+ * only credential). Vercel preview builds send same-origin cookies so Vercel's bypass cookie, which the
+ * launch URL sets and which the page's scripts already load with, reaches the API too. A bearer token
+ * still decides who the caller is: the server checks it first and rejects an invalid one outright.
+ */
+export const embeddedCredentials: RequestCredentials = process.env.NEXT_PUBLIC_DEPLOI_PREVIEW_BUILD === '1' ? 'same-origin' : 'omit'

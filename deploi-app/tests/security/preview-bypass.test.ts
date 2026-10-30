@@ -22,3 +22,11 @@ describe('preview bypass header', () => {
     expect(withPreviewBypass('https://admin.shopify.com/x', other, O, V)).toBe(other)
   })
 })
+
+describe('embedded API credentials', () => {
+  it('omit cookies outside Vercel preview builds', async () => {
+    const { embeddedCredentials } = await import('../../lib/client/preview-bypass')
+    expect(process.env.NEXT_PUBLIC_DEPLOI_PREVIEW_BUILD ?? '').not.toBe('1')
+    expect(embeddedCredentials).toBe('omit')
+  })
+})

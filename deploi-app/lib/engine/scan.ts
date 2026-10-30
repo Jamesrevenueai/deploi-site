@@ -170,16 +170,31 @@ async function upsertProposal(db: Db, conn: ConnectionRow, issue: IssueRow, f: F
     [conn.id, c.actionKey, c.targetId, [...LIVE_PROPOSAL]])
   if (live) {
     if (live.change_hash === hash) return
-    if ((live.agent_id ?? null) !== input.plan.agentId) {
-      // another agent (or the store's own rules) already has a live change on this record: never race it
+    const liveOwner = live.agent_id ?? null
+    const mine = input.plan.agentId
+    // Precedence when an agent and the store's own check find the same problem: the agent acts first and
+    // its draft is the one the merchant sees; the store check is the backup for records no agent covers.
+    if (liveOwner === null && mine !== null && live.status === 'pending_approval') {
+      // the store check drafted first and nobody has approved it yet: the agent takes the record over
+      if (await invalidateProposal(db, live, 'superseded', 'an agent covering this record drafted the change', input.actor)) counts.proposalsInvalidated++
+    } else if (liveOwner === null && mine !== null) {
+      // the merchant already approved the store check's change (or it is being made): let it finish
+      return
+    } else if (liveOwner !== null && mine === null) {
+      // an agent already has this change in hand: the store check stands back and stays quiet
+      return
+    } else if (liveOwner !== mine) {
+      // two agents (or an approved store-check change) on the same record: never race, ask a person
       if (issue.status !== 'needs_review' || issue.status_reason !== 'conflicting_agent') {
         await db.query(`update issues set status = 'needs_review', status_reason = 'conflicting_agent' where id = $1`, [issue.id])
         await audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'issue', entityId: issue.id, event: 'issue.conflicting_agent', actor: input.actor, detail: { other_proposal: live.id, other_agent: live.agent_id } })
       }
       return
+    } else {
+      // same owner: replace its own draft when the records or rule changed
+      if (live.status === 'executing' || live.status === 'applied') return
+      if (await invalidateProposal(db, live, 'superseded', 'records or rule changed since this proposal was made', input.actor)) counts.proposalsInvalidated++
     }
-    if (live.status === 'executing' || live.status === 'applied') return
-    if (await invalidateProposal(db, live, 'superseded', 'records or rule changed since this proposal was made', input.actor)) counts.proposalsInvalidated++
   }
   // Loop guard: Deploi already made this change on this target recently and it has been changed back.
   // Re-proposing would fight whoever changed it (the merchant, staff or another app); ask a person instead.

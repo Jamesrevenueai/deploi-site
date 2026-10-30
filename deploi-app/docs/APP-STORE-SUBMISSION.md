@@ -50,7 +50,8 @@ code goes in the testing instructions).
    `handle`, then `shopify app deploy`.
 2. App URL `https://app.getdeploi.com/shopify` (no "shopify" or "example" in the host).
 3. Compliance webhooks: all three topics → `https://app.getdeploi.com/api/shopify/webhooks` (declared in TOML).
-4. App icon 1200 × 1200 PNG/JPEG: no text, screenshots or Shopify marks (**to be designed**).
+4. App icon 1200 × 1200 PNG/JPEG: no text, screenshots or Shopify marks. **Draft:** `docs/app-store/icon-1200.jpg`
+   (source `docs/app-store/icon.svg`): the glass agent cube from the website illustrations. Needs your sign-off.
 5. API contact email without "Shopify"; emergency developer contact (email **and phone**) (**you**).
 6. Protected customer data: **not requested** (the app reads no customer or order data).
 7. Distribution: **public**. It cannot be changed after it is chosen. If a live pilot store must run before
@@ -58,7 +59,9 @@ code goes in the testing instructions).
 
 ## 3. Listing draft (English only; no statistics, superlatives, testimonials or prices in text or images)
 
-- **App name:** Deploi AI. It must match the TOML `name`. Uniqueness on the App Store is not yet checked.
+- **App name:** Deploi AI. It must match the TOML `name`. A web search on 2026-10-29 found no App Store app named
+  "Deploi" or "Deploi AI". The nearest is "Deployify" (a theme-deploy tool), which is similar in spelling but
+  different. This is not a trademark search.
 - **Subtitle / tagline:** Named agents that fix store data you authorize
 - **Introduction:** Deploi finds overselling settings, prices, SKUs and channel listings that don't match your
   rules, and changes them only within the authority you grant.
@@ -157,10 +160,10 @@ Before pasting:
 | 6 | Pricing decision. If paid: plans in Shopify App Pricing, a Partner API token, `SHOPIFY_PARTNER_ID`, `SHOPIFY_PARTNER_APP_ID` | you | undecided; "free during early access" is the draft |
 | 7 | Live checks on a development store (each marked UNVERIFIED in the research): whether SKU writes need `write_inventory`; publication read-back; the `partnerDevelopment` value on dev stores; the token refresh cycle; webhook delivery | me, after 2 | open |
 | 8 | Gmail / Microsoft for reviewers: OAuth clients, a test mailbox exempt from 2FA, the Google test-user list (or verification) | you | not started. The synthetic mailbox is not available in production. Email is optional; without this, reviewers cannot test it |
-| 9 | App icon 1200 × 1200, final screenshots from a dev store, demo screencast | you or a designer; I can script the shots | drafts only |
+| 9 | App icon 1200 × 1200, final screenshots from a dev store, demo screencast | you or a designer; I can script the shots | icon draft ready for sign-off; screenshots are synthetic drafts; no screencast |
 | 10 | Emergency developer contact (email and phone), API contact email, confirmed support mailbox | you | not set |
 | 11 | Legal review of the privacy policy and terms; the legal entity name in the terms (`VITE_LEGAL_ENTITY`) | you | drafts pending review |
-| 12 | App name uniqueness on the App Store | you (search) | unchecked |
+| 12 | App name uniqueness on the App Store | you | no exact match in a web search (closest: "Deployify"); no trademark search done |
 | 13 | Shopify's review itself: automated checks, then manual review | Shopify | not submitted; no official timeline |
 
 Known review risks, beyond the blockers:

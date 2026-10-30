@@ -22,7 +22,7 @@ describe.skipIf(!ready)('the on/off switch for engine-backed agents and the sche
     expect(policy.policy.approvalMode).toBe('draft')
     expect(policy.policy.email).toMatchObject({ permission: 'draft', notify: [NW.email] })
     // a run uses the engine and records its counts as proof, and the library view also drafts
-    const r = await runLibraryAgent({ orgId: NW.org, agentKey: 'inventory_watcher', trigger: 'test', actor: actor.label, now: NOW })
+    const r = await runLibraryAgent({ orgId: NW.org, agentKey: 'inventory_watcher', trigger: 'test', actor: actor.label, now: new Date() }) // the engine expires proposals against the real clock
     expect(r.engine).toMatchObject({ status: 'completed' })
     expect((r.engine as { counts: { drafted: number } }).counts.drafted).toBeGreaterThan(0)
     await setSwitch(actor, 'inventory_watcher', false)

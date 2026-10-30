@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
 import { sendWeeklySummaries } from '@/lib/agents/weekly'
 import { cronAuthorized } from '@/lib/cron-auth'
 

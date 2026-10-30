@@ -90,6 +90,7 @@ describe('EarlyAccessForm', () => {
       catalog_size: '1000_10000',
       message: 'Variants keep selling after they run out',
       website: '',
+      elapsed_ms: expect.any(Number),
     })
   })
 

@@ -90,6 +90,7 @@ describe('EarlyAccessForm', () => {
       catalog_size: '1000_10000',
       message: 'Variants keep selling after they run out',
       website: '',
+      elapsed_ms: expect.any(Number),
     })
   })
 
@@ -100,7 +101,7 @@ describe('EarlyAccessForm', () => {
     fireEvent.click(screen.getByRole('button', { name: CTA }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body))
-    expect(Object.keys(body).sort()).toEqual(['email', 'name', 'platforms', 'service_interest', 'source', 'store_name', 'store_url', 'website'])
+    expect(Object.keys(body).sort()).toEqual(['elapsed_ms', 'email', 'name', 'platforms', 'service_interest', 'source', 'store_name', 'store_url', 'website'])
     expect(body.platforms).toEqual(['shopify'])
   })
 

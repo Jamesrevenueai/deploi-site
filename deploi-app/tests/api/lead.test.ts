@@ -10,7 +10,7 @@ const post = async (body: unknown, origin = 'https://getdeploi.com') => {
   const r = await POST(new Request('http://localhost/api/public/lead', { method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify(body) }))
   return { status: r.status, json: await r.json() as { ok: boolean; id: string | null }, headers: r.headers }
 }
-const EMAILS = ['early-access@example.com', 'early-old-field@example.com', 'early-secret@example.com', 'old-consulting@example.com']
+const EMAILS = ['fast-bot@timing.example', 'person@timing.example', 'early-access@example.com', 'early-old-field@example.com', 'early-secret@example.com', 'old-consulting@example.com']
 const cleanup = (email: string) => admin(db => db.query('delete from prospects where lower(email) = lower($1)', [email]))
 const body = { name: 'Early Tester', email: 'early-access@example.com', store_name: 'Early Test Store', source: 'site', service_interest: 'early_access',
   store_url: 'https://early-test-store.example', platforms: ['shopify', 'amazon'], catalog_size: '100_1000', message: 'Variants keep selling at zero', website: '' }
@@ -60,5 +60,13 @@ describe.skipIf(!ready)('POST /api/public/lead (early access applications only)'
     const { OPTIONS } = await import('../../app/api/public/lead/route')
     const pre = await OPTIONS(new Request('http://localhost/api/public/lead', { method: 'OPTIONS', headers: { origin: 'https://evil.example' } }))
     expect(pre.headers.get('access-control-allow-origin')).not.toBe('https://evil.example')
+  })
+
+  it('time-trap: a form submitted within 2.5 s is answered as accepted but not stored; a normal pace is stored', async () => {
+    const fast = await post({ ...body, email: 'fast-bot@timing.example', elapsed_ms: 400 })
+    expect(fast.status).toBe(200)
+    expect(fast.json.id).toBeNull()
+    const human = await post({ ...body, email: 'person@timing.example', elapsed_ms: 12000 })
+    expect(human.json.id).toBeTruthy()
   })
 })

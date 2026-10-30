@@ -39,6 +39,8 @@ export type LeadPayload = {
   message?: string
   /** Honeypot. Humans never see the field; a filled value marks the lead as a bot. */
   website: string
+  /** Milliseconds the form was open before submitting; a near-instant submission marks a bot. */
+  elapsed_ms?: number
 }
 
 export type LeadTarget = { kind: 'app'; url: string } | { kind: 'formspree'; url: string } | { kind: 'none' }

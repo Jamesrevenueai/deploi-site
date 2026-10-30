@@ -77,7 +77,8 @@ export function useStoreBasics() {
     const o = await storeFetch<OverviewResponse>('/api/store/overview')
     const conns = o.connections.filter(c => c.status === 'active')
     const tz = conns[0]?.timezone ?? o.org?.timezone ?? 'UTC'
-    return { connections: conns.length ? conns : o.connections, timezone: tz, orgName: o.org?.name ?? null, canApprove: o.actor.canApprove }
+    // only connected stores: an uninstalled store is shown as "no store", never offered in a form that will fail
+    return { connections: conns, timezone: tz, orgName: o.org?.name ?? null, canApprove: o.actor.canApprove, hadStore: o.connections.length > 0 }
   }, 'basics')
 }
 

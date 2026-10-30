@@ -30,7 +30,7 @@ export function InboxScreen() {
 
   async function act(key: string, fn: () => Promise<string>) {
     setBusy(key); setErr(null); setNote(null)
-    try { setNote({ ok: true, text: await fn() }) } catch (e) { setErr(asApiError(e)) } finally { setBusy(null); await reload() }
+    try { const text = await fn(); setNote({ ok: /^(Approved: .*(Verified|accepted by the provider)|Rejected:)/.test(text), text }) } catch (e) { setErr(asApiError(e)) } finally { setBusy(null); await reload() }
   }
   const approveChange = (c: Change) => act(`a:${c.id}`, async () => { const r = await storeFetch<{ status: string }>(`/api/store/proposals/${c.id}/approve`, { method: 'POST', body: { changeHash: c.change_hash } }); return `Approved: ${c.target_label ?? 'change'} ended ${r.status === 'verified' ? 'Verified (confirmed by a fresh read)' : r.status}.` })
   const rejectChange = (c: Change) => act(`r:${c.id}`, async () => { await storeFetch(`/api/store/issues/${c.issue_id}/dismiss`, { method: 'POST', body: { note: 'rejected in the approval inbox' } }); return `Rejected: ${c.target_label ?? 'change'} will not be made.` })
@@ -53,7 +53,7 @@ export function InboxScreen() {
         <Badge tone="muted">{drafts.length + emailDrafts.length} draft{drafts.length + emailDrafts.length === 1 ? '' : 's'}</Badge>
       </div>
       <div aria-live="polite" className="mb-3 flex flex-col gap-3">
-        {note && <Banner icon="check">{note.text}</Banner>}
+        {note && <Banner tone={note.ok ? 'info' : 'warn'} icon={note.ok ? 'check' : 'alert'}>{note.text}</Banner>}
         {err && <ErrorState error={err} />}
       </div>
 

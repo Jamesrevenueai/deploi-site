@@ -29,9 +29,10 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
   const { data, error, loading, reload } = useLoad(async () => {
     const [work, mail] = await Promise.all([
       storeFetch<WorkResponse>(`/api/store/agents/${encodeURIComponent(agentId)}/worklog`),
-      storeFetch<MailResponse>(`/api/store/agents/${encodeURIComponent(agentId)}/mail`).catch(() => null),
+      // a failed mailbox load is shown as such, never as an empty mailbox
+      storeFetch<MailResponse>(`/api/store/agents/${encodeURIComponent(agentId)}/mail`).then(m => ({ m, e: null as StoreApiError | null }), e => ({ m: null, e: asApiError(e) })),
     ])
-    return { ...work, mail }
+    return { ...work, mail: mail.m, mailError: mail.e }
   }, `work:${agentId}:${refreshKey}`)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -105,6 +106,7 @@ export function AgentWorkSections({ agentId, agentActive, refreshKey, onChanged 
             </div>
           )}
         </Panel>
+        {d.mailError && <div className="mt-3"><ErrorState error={d.mailError} onRetry={reload} /></div>}
         {d.mail && (d.mail.threads.length > 0 || d.mail.other.length > 0) && <MailThreads mail={d.mail} />}
       </Section>
 

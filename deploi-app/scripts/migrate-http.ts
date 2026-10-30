@@ -1,11 +1,14 @@
 /**
  * Applies supabase/migrations to the Supabase project over HTTPS and (with --seed) runs the seed.
  *   npx tsx scripts/migrate-http.ts [--seed]
+ * Like scripts/migrate.ts, the retired consulting migrations are never run. For production use
+ * `launch-migrations.ts --http=<ref>`, which runs only the launch list behind its gates.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { managementQuery, HttpSqlClient } from './supabase-http'
 import { seed } from './seed'
+import { RETIRED_MIGRATIONS } from './retired-migrations'
 
 async function main() {
   await managementQuery('create table if not exists _migrations (name text primary key, applied_at timestamptz default now())')
@@ -14,6 +17,7 @@ async function main() {
   let applied = 0
   for (const f of readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) {
     if (done.has(f)) { console.log('present', f); continue }
+    if (RETIRED_MIGRATIONS.includes(f)) { console.log('skipped (retired consulting migration)', f); continue }
     const sql = readFileSync(join(dir, f), 'utf8')
     await managementQuery(`begin;\n${sql}\ninsert into _migrations (name) values ('${f}');\ncommit;`)
     applied++; console.log('applied', f)

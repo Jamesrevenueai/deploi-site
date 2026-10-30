@@ -1,12 +1,17 @@
 /**
- * Launch migrations 20261028000028 .. 20261029000034 (merchant engine, early access, agents, email,
- * agent platform, store access, competitor watch, agent library), and their rollback. Each file runs in its own transaction and is recorded in
+ * Launch migrations 20261028000028 .. 20261030000035 (merchant engine, early access, agents, email,
+ * agent platform, store access, competitor watch, agent library, role switch grants), and their rollback. Each file runs in its own transaction and is recorded in
  * _migrations, exactly like scripts/migrate.ts.
  *
  *   npx tsx scripts/launch-migrations.ts status   --db <url>
  *   npx tsx scripts/launch-migrations.ts dry-run  --db <url>   # apply all in ONE transaction, then roll it back
  *   npx tsx scripts/launch-migrations.ts apply    --db <url>
  *   npx tsx scripts/launch-migrations.ts rollback --db <url> [--discard-data]
+ *
+ * Where Postgres ports are unreachable, the same commands run over the Supabase Management API (HTTPS) with
+ * --http=<project-ref> in place of --db (SUPABASE_ACCESS_TOKEN, or a proxy that adds it). Each step is one request, so a
+ * dry run, an apply and a rollback are each one transaction there. Only this LAUNCH list runs: never the retired
+ * consulting migrations, and never the consulting migrations 017-027 a plain migrate would add.
  *
  * Fail closed:
  *  - the target is never taken from the environment; --db is required;
@@ -22,7 +27,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Client } from 'pg'
 
-export const LAUNCH = ['20261028000028_merchant_engine.sql', '20261028000029_early_access_leads.sql', '20261028000030_agents.sql', '20261028000031_email.sql', '20261028000032_agent_platform.sql', '20261029000032_store_access.sql', '20261029000033_competitor_watch.sql', '20261029000034_agent_library.sql']
+export const LAUNCH = ['20261028000028_merchant_engine.sql', '20261028000029_early_access_leads.sql', '20261028000030_agents.sql', '20261028000031_email.sql', '20261028000032_agent_platform.sql', '20261029000032_store_access.sql', '20261029000033_competitor_watch.sql', '20261029000034_agent_library.sql', '20261030000035_role_switch_grants.sql']
 const PREREQ = '20261020000016_service_role_auth_users.sql'
 const ROOT = join(__dirname, '..', 'supabase')
 
@@ -93,8 +98,60 @@ export async function rollback(url: string, opts: { discardData?: boolean } = {}
   } finally { await c.end() }
 }
 
+/** Runs one SQL text as one Management API request (the whole text is one transaction when it says so). */
+export type SqlRunner = (sql: string) => Promise<Record<string, unknown>[]>
+
+const ledger = 'create table if not exists _migrations (name text primary key, applied_at timestamptz default now());'
+const record = (f: string) => `insert into _migrations (name) values ('${f.replace(/'/g, "''")}');`
+
+export async function statusHttp(run: SqlRunner) {
+  const a = new Set((await run(`${ledger} select name from _migrations`)).map(r => String(r.name)))
+  return { prerequisite: a.has(PREREQ), launch: LAUNCH.map(f => ({ file: f, applied: a.has(f) })) }
+}
+
+export async function applyHttp(run: SqlRunner, opts: { dryRun?: boolean } = {}) {
+  const st = await statusHttp(run)
+  if (!st.prerequisite) throw new Error(`${PREREQ} is not applied: run the earlier migrations first`)
+  const todo = st.launch.filter(l => !l.applied).map(l => l.file)
+  const body = (f: string) => `${readFileSync(join(ROOT, 'migrations', f), 'utf8')}\n;${record(f)}`
+  if (opts.dryRun) {
+    // everything in one transaction, rolled back; a probe row proves the statements ran before the rollback
+    const rows = todo.length ? await run(`begin;\n${todo.map(body).join('\n')}\nselect count(*)::int as recorded from _migrations;\nrollback;`).catch(async e => { await run('rollback').catch(() => {}); throw e }) : []
+    return { applied: todo, dryRun: true, probe: rows }
+  }
+  for (const f of todo) {
+    try { await run(`begin;\n${body(f)}\ncommit;`) } catch (e) { await run('rollback').catch(() => {}); throw new Error(`${f}: ${(e as Error).message}`) }
+  }
+  return { applied: todo, dryRun: false }
+}
+
+export async function rollbackHttp(run: SqlRunner, opts: { discardData?: boolean } = {}) {
+  const st = await statusHttp(run)
+  const undo = [...st.launch].reverse().filter(l => l.applied).map(l => l.file)
+  if (!undo.length) return { rolledBack: [] }
+  const guard = readFileSync(join(ROOT, 'rollback', '_guard.sql'), 'utf8')
+  const steps = undo.map(f => `${readFileSync(join(ROOT, 'rollback', f.replace(/\.sql$/, '.down.sql')), 'utf8')}\n;delete from _migrations where name = '${f}';`)
+  try { await run(`begin;\n${opts.discardData ? "set local deploi.rollback_discard_data = 'on';\n" : ''}${guard}\n${steps.join('\n')}\ncommit;`) }
+  catch (e) { await run('rollback').catch(() => {}); throw e }
+  return { rolledBack: undo }
+}
+
+async function mainHttp(cmd: string, ref: string) {
+  const confirm = process.argv.find(a => a.startsWith('--confirm-production='))?.split('=')[1]
+  if (confirm !== ref) throw new Error(`refusing to touch Supabase project ${ref} without --confirm-production=${ref} (owner approval required)`)
+  const { managementQueryFor } = await import('./supabase-http')
+  const run: SqlRunner = sql => managementQueryFor(ref, sql)
+  if (cmd === 'status') console.table((await statusHttp(run)).launch)
+  else if (cmd === 'dry-run') console.log(await applyHttp(run, { dryRun: true }))
+  else if (cmd === 'apply') console.log(await applyHttp(run))
+  else if (cmd === 'rollback') console.log(await rollbackHttp(run, { discardData: process.argv.includes('--discard-data') }))
+  else throw new Error(`unknown command ${cmd}`)
+}
+
 async function main() {
   const [cmd] = process.argv.slice(2)
+  const http = process.argv.find(a => a.startsWith('--http='))?.slice(7)
+  if (http) return mainHttp(cmd, http)
   const db = process.argv.find(a => a.startsWith('--db='))?.slice(5) ?? process.argv[process.argv.indexOf('--db') + 1]
   if (!cmd || !db || db.startsWith('--')) throw new Error('usage: launch-migrations.ts <status|dry-run|apply|rollback> --db <url>')
   assertTargetAllowed(db, process.argv)

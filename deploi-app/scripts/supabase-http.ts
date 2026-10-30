@@ -6,16 +6,22 @@
 import { config } from 'dotenv'
 config({ quiet: true }); config({ path: '.env.local', override: true, quiet: true })
 
-const token = () => { const t = process.env.SUPABASE_ACCESS_TOKEN; if (!t) throw new Error('SUPABASE_ACCESS_TOKEN missing'); return t }
+// Without a token the request goes out unauthenticated, for a network proxy that adds the header itself.
+const authHeader = (): Record<string, string> => process.env.SUPABASE_ACCESS_TOKEN ? { authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}` } : {}
 export const projectRef = () => (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/^https?:\/\//, '').split('.')[0]
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 /** One request per call; retries on 429/5xx with backoff (the API allows roughly one request per second). */
 export async function managementQuery<T = Record<string, unknown>>(sql: string): Promise<T[]> {
+  return managementQueryFor<T>(projectRef(), sql)
+}
+
+export async function managementQueryFor<T = Record<string, unknown>>(ref: string, sql: string): Promise<T[]> {
+  if (!/^[a-z0-9]{20}$/.test(ref)) throw new Error(`not a Supabase project ref: ${ref}`)
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef()}/database/query`, {
-      method: 'POST', headers: { authorization: `Bearer ${token()}`, 'content-type': 'application/json' }, body: JSON.stringify({ query: sql }),
+    const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { ...authHeader(), 'content-type': 'application/json' }, body: JSON.stringify({ query: sql }),
     })
     const text = await res.text()
     if (res.ok) { try { const j = JSON.parse(text); return Array.isArray(j) ? j : [] } catch { return [] } }

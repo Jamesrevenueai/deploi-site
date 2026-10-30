@@ -33,7 +33,7 @@ All optional; empty means "off" or "synthetic". `.env.example` lists every name.
 | `SHOPIFY_SCOPES` | Scopes installed with the app. Default `read_products,read_inventory,read_locations` (read only); must equal `[access_scopes].scopes` in `shopify.app.toml`. |
 | `SHOPIFY_OPTIONAL_SCOPES` | Scopes asked for at runtime when an agent is widened past drafts only. Default `write_products,read_publications,write_publications`; must equal `optional_scopes` in the TOML. |
 | `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_KEY_ID` | AES-256-GCM key (base64 of 32 random bytes) and its id for store and mailbox tokens at rest. |
-| `LIVE_WRITES` | Writes to real stores are governed by store access (`lib/engine/access.ts`: open mode, a development store, a redeemed beta invite or staff approval). `LIVE_WRITES=off` pauses writes to every real store (incident switch). The old `LIVE_WRITE_STORES` allowlist is gone. |
+| `STORE_ACCESS_MODE`, `LIVE_WRITES` | `beta` (default): only development stores, invited or staff-approved stores may be written to; `open`: every installed store. Writes are governed by store access (`lib/engine/access.ts`: open mode, a development store, a redeemed beta invite or staff approval). `LIVE_WRITES=off` pauses writes to every real store (incident switch). The old `LIVE_WRITE_STORES` allowlist is gone. |
 | `BILLING_REQUIRED` | `true` makes corrections require an active Shopify subscription. Off during early access. |
 | `RESEND_API_KEY` | Resend key for agent mail and the weekly summary. Empty: an in-process fake accepts sends and nothing leaves the machine. |
 | `AGENT_MAIL_DOMAIN` | Domain for agent mailboxes (`<name>.<code>@<domain>`). Templates can give an agent its own address only when set; use `agents.getdeploi.test` locally. |

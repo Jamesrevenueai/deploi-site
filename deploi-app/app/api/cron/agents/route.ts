@@ -4,14 +4,14 @@ import '@/lib/connectors'
 import { runDueAgents } from '@/lib/agents/run'
 import { processQueue, reconcileOpen } from '@/lib/email/engine'
 import { runQueuedTasks } from '@/lib/agents/tasks'
+import { cronAuthorized } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 /** Runs agents whose schedule is due. Each agent is claimed under a row lock, so overlapping calls never run one agent twice. */
 export async function GET(req: Request) {
-  const auth = req.headers.get('authorization') ?? ''
-  const cronOk = env.cronSecret ? auth === `Bearer ${env.cronSecret}` : !env.isProd
+  const cronOk = cronAuthorized(req)
   if (!cronOk) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
   const results = await runDueAgents()
   // plain-language tasks left queued (for example while their agent was paused)

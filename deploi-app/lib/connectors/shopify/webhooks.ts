@@ -42,7 +42,10 @@ export async function handleShopifyWebhook(req: Request, defer: (fn: () => Promi
 
   const conn = await admin(db => db.one<{ id: string; org_id: string; status: string }>(`select id, org_id, status from store_connections where platform = 'shopify' and external_id = $1`, [shop]))
   const receipt = await admin(db => db.one<{ id: string }>(
-    `insert into webhook_receipts (platform, delivery_id, topic, connection_id) values ('shopify',$1,$2,$3) on conflict (platform, delivery_id) do nothing returning id`, [webhookId, topic, conn?.id ?? null]))
+    `insert into webhook_receipts (platform, delivery_id, topic, connection_id) values ('shopify',$1,$2,$3)
+     on conflict (platform, delivery_id) do update set status = 'accepted', note = 'retry after failure', processed_at = null
+     where webhook_receipts.status = 'failed' returning id`, [webhookId, topic, conn?.id ?? null]))
+  // a delivery already processed (or in progress) is acknowledged once; one that failed is processed again on Shopify's retry
   if (!receipt) return NextResponse.json({ ok: true, duplicate: true })
 
   const done = (status: 'processed' | 'ignored', note: string) => admin(db => db.query(`update webhook_receipts set status = $2, note = $3, processed_at = now() where id = $1`, [receipt.id, status, note]))

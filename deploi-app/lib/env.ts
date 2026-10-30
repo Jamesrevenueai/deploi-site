@@ -12,7 +12,8 @@ export const env = {
   /** The dev role picker only exists when ALLOW_DEV_LOGIN=true (default off), and never in production (lib/auth-guard.ts). */
   get allowDevLogin() { return e('ALLOW_DEV_LOGIN') === 'true' },
   get authMode(): 'supabase' | 'dev' { return resolveAuthMode(process.env) },
-  get appSecret() { return e('APP_SECRET', 'dev-secret') },
+  /** No default: dev sessions refuse to sign or verify without a strong APP_SECRET (lib/auth.ts). */
+  get appSecret() { return e('APP_SECRET') },
   get staffEmails() { return e('STAFF_EMAILS').split(',').map(s => s.trim().toLowerCase()).filter(Boolean) },
   get appUrl() { return e('NEXT_PUBLIC_APP_URL', 'http://localhost:3000') },
   get siteUrl() { return e('NEXT_PUBLIC_SITE_URL', 'https://getdeploi.com') },

@@ -103,13 +103,22 @@ export function AgentsScreen() {
     <>
       {header}
       {error && <div className="mb-4"><ErrorState error={error} onRetry={reload} /></div>}
-      {(data?.templates?.length ?? 0) > 0 && <Templates templates={data!.templates!} />}
       {agents.length === 0 ? (
-        <Empty title="No agents yet">Create an agent, describe its task in plain English, review exactly what it may change, then grant it. <Link href={`${base}/agents/new`}><span className="text-ink underline">Create agent</span></Link></Empty>
+        <>
+          {(data?.templates?.length ?? 0) > 0 && <Templates templates={data!.templates!} />}
+          <Empty title="No agents yet">Create an agent, describe its task in plain English, review exactly what it may change, then grant it. <Link href={`${base}/agents/new`}><span className="text-ink underline">Create agent</span></Link></Empty>
+        </>
       ) : (
-        <ul className="flex flex-col gap-3" aria-label="Agents">
-          {agents.map(a => <AgentCard key={a.id} a={a} />)}
-        </ul>
+        <>
+          {/* Your own agents come first; templates are for adding more. */}
+          <section aria-labelledby="your-agents-h" className="mb-6">
+            <h2 id="your-agents-h" className="mb-3 text-[1.1rem]">Your agents</h2>
+            <ul className="flex flex-col gap-3" aria-label="Agents">
+              {agents.map(a => <AgentCard key={a.id} a={a} />)}
+            </ul>
+          </section>
+          {(data?.templates?.length ?? 0) > 0 && <Templates templates={data!.templates!} />}
+        </>
       )}
       <WeeklyPreview />
       <div className="mt-6"><Banner icon="shield">Agents only change what their authorization covers, re-read every record just before writing, and count a change as done only when a fresh read shows it (Verified). Store content and uploaded files are treated as data, never as instructions.</Banner></div>

@@ -26,6 +26,7 @@ export function Footer() {
             <ul>
               <li><Link to="/privacy">Privacy Policy</Link></li>
               <li><Link to="/terms">Terms of Service</Link></li>
+              <li><Link to="/support">Support</Link></li>
               <li><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></li>
             </ul>
           </div>

@@ -14,6 +14,8 @@ import { ErrorState, Facts, Loading, NoStore, Panel, Section, SyntheticBadge, us
 import { CONNECTION_STATUS_LABEL, PLATFORM_LABEL, fmtAgo, fmtTime, planLabel, runWords } from './format'
 import { OVERSELL_CHECK, type AgentListItem, type AgentRunCounts, type AgentsResponse, type EmailAccountView, type EmailAccountsResponse, type OverviewResponse, type RulesResponse, type ScanResult, type Connection } from './types'
 import { countsInWords } from './Agents'
+import { StoreAccessCard } from './StoreAccess'
+import { BillingBanner } from './Billing'
 
 const SETUP_HIDDEN_KEY = 'deploi.store.setupHidden'
 
@@ -84,6 +86,8 @@ export function OverviewScreen() {
           </Button>
         ) : undefined}
       />
+      {conn && !conn.is_synthetic && conn.status === 'active' && <StoreAccessCard connectionId={conn.id} canAct={o.actor.canApprove} />}
+      {conn && conn.platform === 'shopify' && conn.status === 'active' && <BillingBanner connectionId={conn.id} canAct={o.actor.canApprove} />}
 
       <div aria-live="polite">
         {scan.kind === 'running' && <div className="mb-4"><Banner icon="clock"><strong>Scanning.</strong> Reading every product and variant from the store. This can take a minute on a large catalogue.</Banner></div>}

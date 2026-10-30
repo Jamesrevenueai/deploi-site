@@ -1,7 +1,8 @@
 /**
  * Applies supabase/migrations/*.sql in order to DATABASE_URL, tracking what ran
  * in _migrations. Idempotent. On plain Postgres (no auth schema) the local auth
- * shim is applied first so the same RLS policies run unchanged.
+ * shim is applied first so the same RLS policies run unchanged. The retired consulting migrations
+ * (scripts/retired-migrations.ts) are skipped unless a database already has them.
  *
  *   npm run db:migrate
  */
@@ -9,6 +10,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Client } from 'pg'
 import 'dotenv/config'
+import { RETIRED_MIGRATIONS } from './retired-migrations'
 
 export async function migrate(url = process.env.DATABASE_URL) {
   if (!url) throw new Error('DATABASE_URL is required')
@@ -23,10 +25,11 @@ export async function migrate(url = process.env.DATABASE_URL) {
   await c.query('create table if not exists _migrations (name text primary key, applied_at timestamptz default now())')
   const dir = join(process.cwd(), 'supabase/migrations')
   const files = readdirSync(dir).filter(f => f.endsWith('.sql')).sort()
-  let applied = 0
+  let applied = 0, retired = 0
   for (const f of files) {
     const done = await c.query('select 1 from _migrations where name = $1', [f])
     if (done.rowCount) continue
+    if (RETIRED_MIGRATIONS.includes(f)) { retired++; console.log('skipped (retired consulting migration)', f); continue }
     await c.query('begin')
     try {
       await c.query(readFileSync(join(dir, f), 'utf8'))
@@ -39,7 +42,7 @@ export async function migrate(url = process.env.DATABASE_URL) {
       throw e
     }
   }
-  console.log(`migrations: ${applied} applied, ${files.length - applied} already present`)
+  console.log(`migrations: ${applied} applied, ${retired} retired and not run, ${files.length - applied - retired} already present`)
   await c.end()
 }
 if (process.argv[1] && /migrate\.ts$/.test(process.argv[1])) {

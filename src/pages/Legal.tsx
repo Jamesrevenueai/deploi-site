@@ -7,7 +7,7 @@ import { useSeo } from '../hooks/useSeo'
 type LegalKind = 'terms' | 'privacy'
 type LegalSection = { title: string; body: ReactNode }
 
-const LEGAL_UPDATED = 'October 28, 2026'
+const LEGAL_UPDATED = 'October 29, 2026'
 
 const mail = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
 
@@ -98,8 +98,16 @@ export const PRIVACY: LegalSection[] = [
     body: <>An agent can have its own email address on our domain. Messages it sends from there go through our email provider (Resend). Mail sent to that address, including threads you forward or copy to it and replies from your suppliers, is <strong>stored encrypted at rest</strong> with its sender, recipients, subject and text so you can read it in Deploi. Incoming mail never changes what an agent is allowed to do. Mail from senders outside the agent&rsquo;s allowed list, or that fails sender checks, is kept separately as quarantined. Deleting the agent closes its address.</>,
   },
   {
-    title: 'What we keep',
-    body: <>The issues found in your store, the evidence for each, the fixes proposed, your approvals, the changes made and their verification results. This activity history is kept so you can see what happened and why.</>,
+    title: 'Your store\u2019s customers',
+    body: <>The app does not read, receive or store information about your customers or their orders, and it adds nothing to your storefront: no scripts, cookies or tracking for your shoppers.</>,
+  },
+  {
+    title: 'Information you give us',
+    body: <>When you use the app we record who approved or changed what (the Shopify staff user ID or your Deploi sign-in email), your settings, agents and their authorizations, and, during the beta, whether your store is enabled for changes and any access request or invite code you used (codes are stored only in hashed form). If you contact support we keep the email conversation.</>,
+  },
+  {
+    title: 'What we keep, and for how long',
+    body: <>The issues found in your store, the evidence for each, the fixes proposed, your approvals, the changes made and their verification results. This activity history is kept while the app is installed so you can see what happened and why. Server logs contain no access tokens, passwords or message content and are kept for up to 30 days. When your store&rsquo;s data is deleted after uninstall (below), this history is deleted with it.</>,
   },
   {
     title: 'How access tokens are protected',
@@ -119,7 +127,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'Sharing',
-    body: <>We do not sell personal information. We share information only with service providers who help us run the service (for example hosting, database and email delivery) under confidentiality obligations, or where the law requires it.</>,
+    body: <>We do not sell personal information. We share information only with service providers who help us run the service (for example hosting, database and email delivery) under confidentiality obligations, or where the law requires it. Those providers may process data outside your country; where the law requires it, we rely on appropriate safeguards for those transfers.</>,
   },
   {
     title: 'Security',
@@ -127,7 +135,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'Your choices',
-    body: <>You can ask to see, correct or delete the information we hold about you or your store at any time by emailing {mail}.</>,
+    body: <>You can ask to see, correct or delete the information we hold about you or your store at any time by emailing {mail}. Depending on where you live you may have further rights, such as objecting to processing or complaining to a data protection authority; contact us and we will help.</>,
   },
   {
     title: 'Contact',

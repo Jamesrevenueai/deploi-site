@@ -59,7 +59,7 @@ export const Q_ACCESS_SCOPES = /* GraphQL */ `
 
 export const Q_SHOP = /* GraphQL */ `
   query DeploiShop {
-    shop { name myshopifyDomain ianaTimezone currencyCode }
+    shop { id name myshopifyDomain ianaTimezone currencyCode plan { publicDisplayName partnerDevelopment } }
   }
 `
 

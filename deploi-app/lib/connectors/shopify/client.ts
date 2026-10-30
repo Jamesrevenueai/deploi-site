@@ -6,8 +6,8 @@
  */
 import { admin } from '../../db'
 import { assertApprovedHost } from '../../net/outbound'
-import { loadCredential, storeCredential } from '../credentials'
-import { refreshAccessToken } from './auth'
+import { loadCredential, storeCredential, deleteCredential } from '../credentials'
+import { refreshAccessToken, TokenRequestError } from './auth'
 import type { ConnectionRow } from '../../engine/types'
 import { syntheticTransport } from './synthetic'
 import { shopifyConfig } from './config'
@@ -51,12 +51,18 @@ export async function currentAccessToken(conn: ConnectionRow, now = new Date()):
   if (!cred) throw new ShopifyApiError('no access token stored for this store', 'auth')
   const fresh = !cred.expiresAt || new Date(cred.expiresAt).getTime() - now.getTime() > 120_000
   if (fresh) return cred.secret
-  return admin(async db => {
+  const r = await admin(async db => {
     await db.query('select id from store_credentials where connection_id = $1 for update', [conn.id])
     const again = await loadCredential(db, conn.id)
     if (again?.expiresAt && new Date(again.expiresAt).getTime() - Date.now() > 120_000) return again.secret
     if (!again?.refreshSecret) throw new ShopifyApiError('access token expired and no refresh token is stored; the merchant must reopen the app', 'auth')
-    const t = await refreshAccessToken(conn.external_id, again.refreshSecret)
+    let t
+    try { t = await refreshAccessToken(conn.external_id, again.refreshSecret) } catch (e) {
+      if (!(e instanceof TokenRequestError && e.terminal)) throw e
+      // A refused refresh token is final: drop the credential (committed, not thrown) so the next app open re-runs token exchange.
+      await deleteCredential(db, conn.id, conn.org_id, 'system:token-refresh', `refresh refused (HTTP ${e.status}); the merchant must reopen the app`)
+      return null
+    }
     await storeCredential(db, {
       connectionId: conn.id, orgId: conn.org_id, secret: t.accessToken, scopes: t.scope.length ? t.scope : again.scopes,
       expiresAt: t.expiresIn ? new Date(Date.now() + t.expiresIn * 1000) : null,
@@ -65,6 +71,8 @@ export async function currentAccessToken(conn: ConnectionRow, now = new Date()):
     })
     return t.accessToken
   })
+  if (r === null) throw new ShopifyApiError('the store connection needs to be renewed: open Deploi from the Shopify admin', 'auth')
+  return r
 }
 
 type GqlResponse<T> = { data?: T; errors?: { message: string; extensions?: { code?: string } }[]; extensions?: unknown }

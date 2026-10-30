@@ -19,6 +19,7 @@ import { parsePolicy, permissionRank, type AgentPolicy } from '../agents/policy'
 import { emailAdapter } from './adapters'
 import { accessToken, accountRef, EmailAuthError, markAccountAuthFailure, type EmailAccountRow } from './accounts'
 import { emailConfig, liveSendAllowed } from './config'
+import { emailBlockReason } from '../engine/access'
 import { attachmentBytes, contentHash, decryptContent } from './content'
 import { qualifyEmail, sendBlockers, type EmailQualification } from './check'
 import { isAddress, newInternetMessageId } from './mime'
@@ -203,6 +204,8 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
     if (!account.is_synthetic) {
       const live = liveSendAllowed([...m.to_addresses, ...m.cc_addresses])
       if (!live.ok) return stop('failed', live.reason, { failure_code: 'live_sends_disabled' })
+      const access = await emailBlockReason(db, m.org_id)
+      if (access) return stop('failed', access, { failure_code: 'store_access' })
     }
     if (m.attempts >= emailConfig.maxAttempts) return stop('failed', `gave up after ${m.attempts} attempts`, { failure_code: 'attempts' })
     await db.query(`update email_messages set status = 'sending', status_reason = null, attempts = attempts + 1, sending_started_at = now(), policy_id = $2, policy_version = $3, qualification = $4 where id = $1`,

@@ -1,6 +1,6 @@
 /**
  * Launch migrations 20261028000028 .. 20261029000033 (merchant engine, early access, agents, email,
- * agent platform, competitor watch), and their rollback. Each file runs in its own transaction and is recorded in
+ * agent platform, store access, competitor watch), and their rollback. Each file runs in its own transaction and is recorded in
  * _migrations, exactly like scripts/migrate.ts.
  *
  *   npx tsx scripts/launch-migrations.ts status   --db <url>
@@ -12,7 +12,9 @@
  *  - the target is never taken from the environment; --db is required;
  *  - a Supabase host (or DEPLOI_ENV=production) is refused unless --confirm-production=<project-ref>
  *    names that exact project: production needs the owner's explicit approval;
- *  - apply needs 20261021000027 already applied (the schema these build on);
+ *  - apply needs 20261020000016 already applied (the foundation: organizations, profiles, audit, sign-in bootstrap).
+ *    It does NOT need the consulting migrations 20261021000017..027: the launch migrations apply on the foundation alone
+ *    (tested for every cut-off from 20261020000001 to 20261021000027), and production's logs show it is behind 022;
  *  - rollback runs in ONE transaction and refuses to drop tables holding rows unless --discard-data is
  *    given; a refusal leaves every launch migration in place.
  */
@@ -20,8 +22,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Client } from 'pg'
 
-export const LAUNCH = ['20261028000028_merchant_engine.sql', '20261028000029_early_access_leads.sql', '20261028000030_agents.sql', '20261028000031_email.sql', '20261028000032_agent_platform.sql', '20261029000033_competitor_watch.sql']
-const PREREQ = '20261021000027_website.sql'
+export const LAUNCH = ['20261028000028_merchant_engine.sql', '20261028000029_early_access_leads.sql', '20261028000030_agents.sql', '20261028000031_email.sql', '20261028000032_agent_platform.sql', '20261029000032_store_access.sql', '20261029000033_competitor_watch.sql']
+const PREREQ = '20261020000016_service_role_auth_users.sql'
 const ROOT = join(__dirname, '..', 'supabase')
 
 export function productionRef(url: string): string | null {

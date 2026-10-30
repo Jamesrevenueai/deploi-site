@@ -13,7 +13,7 @@ import { Banner } from '@/components/ui/Banner'
 import { Icon } from '@/components/ui/Icon'
 import { setEmbeddedTokenSource } from './api'
 import { StoreProvider } from './bits'
-import { installPreviewBypass } from '@/lib/client/preview-bypass'
+import { embeddedCredentials, installPreviewBypass } from '@/lib/client/preview-bypass'
 
 // Preview deployments only: carry the Vercel bypass from the launch URL on same-origin calls.
 installPreviewBypass()
@@ -59,7 +59,7 @@ export function ShopifyFrame({ configured, children }: { configured: boolean; ch
       if (!bridge) { setState({ kind: 'outside', why: 'no_app_bridge' }); return }
       const token = () => withTimeout(bridge.idToken(), 10_000, 'Shopify session token')
       try {
-        const res = await fetch('/api/shopify/session', { method: 'POST', headers: { authorization: `Bearer ${await token()}`, accept: 'application/json' }, credentials: 'omit', cache: 'no-store' })
+        const res = await fetch('/api/shopify/session', { method: 'POST', headers: { authorization: `Bearer ${await token()}`, accept: 'application/json' }, credentials: embeddedCredentials, cache: 'no-store' })
         let json: { ok?: boolean; error?: string; message?: string } | null = null
         try { json = await res.json() } catch { json = null }
         if (cancelled) return

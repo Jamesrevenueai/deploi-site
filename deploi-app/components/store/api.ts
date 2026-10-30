@@ -5,6 +5,8 @@
  *  - embedded: every request carries `Authorization: Bearer <App Bridge id token>` (a fresh token per call).
  * Bodies are sent as JSON. `{ ok:false, error, message }` responses become a typed StoreApiError.
  */
+import { embeddedCredentials } from '@/lib/client/preview-bypass'
+
 export class StoreApiError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); this.name = 'StoreApiError' }
 }
@@ -26,7 +28,7 @@ export async function storeFetch<T = Record<string, unknown>>(path: string, init
   if (tokenSource) headers.set('authorization', `Bearer ${await tokenSource()}`)
   let res: Response
   try {
-    res = await fetch(path, { ...init, body, headers, credentials: tokenSource ? 'omit' : 'same-origin', cache: 'no-store' })
+    res = await fetch(path, { ...init, body, headers, credentials: tokenSource ? embeddedCredentials : 'same-origin', cache: 'no-store' })
   } catch {
     throw new StoreApiError(0, 'network', 'Could not reach Deploi. Check your connection and try again.')
   }

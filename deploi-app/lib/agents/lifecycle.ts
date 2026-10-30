@@ -9,6 +9,7 @@ import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { invalidateProposal, type ProposalRow } from '../engine/proposals'
 import { expansionReasons, parsePolicy, policyHash, summarizePolicy, type AgentPolicy } from './policy'
+import { missingScopesForPolicy } from '../connectors/shopify/scopes'
 import { nextRunAt } from './schedule'
 import type { AgentRow, PolicyRow } from './plan'
 import { randomUUID } from 'node:crypto'
@@ -124,8 +125,11 @@ export async function editAgent(actor: Actor, agentId: string, input: { name?: s
       await db.query('update agents set active_policy_id = $2, schedule = $3, next_run_at = $4 where id = $1', [agentId, pr!.id, JSON.stringify(policy.schedule), nextRunAt(policy.schedule, new Date())?.toISOString() ?? null])
       await retireAgentProposals(db, agentId, 'stale', 'the agent\'s authorization was narrowed; changes will be recomputed', actor.label)
     }
-    await audit(db, { orgId: a0.org_id, entityType: 'policy', entityId: pr!.id, event: requiresGrant ? 'policy.awaiting_grant' : 'policy.applied_without_grant', actor: actor.label, detail: { agent_id: agentId, version, expansion: reasons } })
-    return { policyId: pr!.id, version, requiresGrant, expansion: reasons, policyHash: policyHash(policy), summary }
+    // Shopify permission is separate from Deploi's grant: a version that may write needs the store to have granted the write scope too
+    const storeConn = await db.one<{ platform: string; scopes: string[] }>('select platform, scopes from store_connections where id = $1', [policy.connectionId])
+    const missingScopes = storeConn ? missingScopesForPolicy(storeConn, policy) : []
+    await audit(db, { orgId: a0.org_id, entityType: 'policy', entityId: pr!.id, event: requiresGrant ? 'policy.awaiting_grant' : 'policy.applied_without_grant', actor: actor.label, detail: { agent_id: agentId, version, expansion: reasons, missing_scopes: missingScopes } })
+    return { policyId: pr!.id, version, requiresGrant, expansion: reasons, policyHash: policyHash(policy), summary, missingScopes }
   })
 }
 
@@ -180,8 +184,8 @@ export async function grantPolicy(actor: Actor, agentId: string, policyId: strin
 async function retireAgentProposals(db: Db, agentId: string, status: 'stale' | 'blocked', reason: string, actor: string) {
   const live = await db.query<ProposalRow>(`select * from proposals where agent_id = $1 and status in ('pending_approval','approved')`, [agentId])
   for (const p of live) await invalidateProposal(db, p, status, reason, actor)
-  // queued writes never start: the execution is closed as blocked before any request is sent
-  await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where agent_id = $1 and status = 'queued'`, [agentId, reason])
+  // queued writes never start, and one still prechecking (reading the record) stops at its last gate before writing
+  await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where agent_id = $1 and status in ('queued','prechecking')`, [agentId, reason])
   return live.length
 }
 

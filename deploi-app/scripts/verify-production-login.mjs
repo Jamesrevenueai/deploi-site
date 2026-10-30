@@ -50,7 +50,7 @@ for (const path of ['/staff', '/store']) {
   check(`${path} with a forged dev cookie redirects to /login`, toLogin(r) || r.status === 404, r.status === 404 ? 'page not in this deployment' : `status ${r.status} → ${r.headers.get('location') ?? '-'}`)
 }
 if (process.env.DEV_TEST_SECRET && process.env.DEV_TEST_UID) {
-  const p = Buffer.from(JSON.stringify({ uid: process.env.DEV_TEST_UID, email: STAFF_EMAILS[0], role: 'staff', agencyId: null })).toString('base64url')
+  const p = Buffer.from(JSON.stringify({ uid: process.env.DEV_TEST_UID, email: STAFF_EMAILS[0], role: 'staff', agencyId: null, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')
   const signed = `${p}.${createHmac('sha256', process.env.DEV_TEST_SECRET).update(p).digest('base64url')}`
   const r = await get('/staff', { cookie: `${DEV_COOKIE}=${signed}` })
   check('/staff with a correctly signed dev cookie redirects to /login', toLogin(r), `status ${r.status} → ${r.headers.get('location') ?? '-'}`)

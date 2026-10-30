@@ -20,11 +20,35 @@ Sign in as `owner@northwind-goods.example` for the merchant area (`/store`), or 
 for staff (`/staff`: early access applications, store access and the audit log). For a fuller demo, run
 `npx tsx --env-file=.env.local scripts/seed-platform-demo.ts` (and `--remove` to undo it).
 
+## Environment variables introduced by the Shopify and agent-platform work
+
+All optional; empty means "off" or "synthetic". `.env.example` lists every name.
+
+| Variable | What it does |
+|---|---|
+| `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET` | Client credentials of the Shopify app (Dev Dashboard). Without both, every `/api/shopify/*` route answers 503 and the embedded app says "open this app from your Shopify admin". Preview and local only until launch; never commit them. |
+| `SHOPIFY_API_VERSION` | Admin GraphQL version, default `2026-10`. |
+| `SHOPIFY_APP_URL` | Public URL of the app (the CLI tunnel during `shopify app dev`); falls back to `NEXT_PUBLIC_APP_URL`. |
+| `SHOPIFY_APP_HANDLE` | App handle from the Dev Dashboard; used for the Shopify-hosted pricing page URL. |
+| `SHOPIFY_SCOPES` | Scopes installed with the app. Default `read_products,read_inventory,read_locations` (read only); must equal `[access_scopes].scopes` in `shopify.app.toml`. |
+| `SHOPIFY_OPTIONAL_SCOPES` | Scopes asked for at runtime when an agent is widened past drafts only. Default `write_products,read_publications,write_publications`; must equal `optional_scopes` in the TOML. |
+| `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_KEY_ID` | AES-256-GCM key (base64 of 32 random bytes) and its id for store and mailbox tokens at rest. |
+| `STORE_ACCESS_MODE`, `LIVE_WRITES` | `beta` (default): only development stores, invited or staff-approved stores may be written to; `open`: every installed store. Writes are governed by store access (`lib/engine/access.ts`: open mode, a development store, a redeemed beta invite or staff approval). `LIVE_WRITES=off` pauses writes to every real store (incident switch). The old `LIVE_WRITE_STORES` allowlist is gone. |
+| `BILLING_REQUIRED` | `true` makes corrections require an active Shopify subscription. Off during early access. |
+| `RESEND_API_KEY` | Resend key for agent mail and the weekly summary. Empty: an in-process fake accepts sends and nothing leaves the machine. |
+| `AGENT_MAIL_DOMAIN` | Domain for agent mailboxes (`<name>.<code>@<domain>`). Templates can give an agent its own address only when set; use `agents.getdeploi.test` locally. |
+| `AGENT_MAIL_WEBHOOK_SECRET` | svix secret of the Resend `email.received` webhook; inbound mail is refused without it. |
+| `EMAIL_LIVE_SENDS` | `off` (default): approved sends are held and marked failed with the reason. `allowlist`: only `EMAIL_TEST_RECIPIENTS` may receive. `all`: production, after review. |
+| `EMAIL_TEST_RECIPIENTS` | Comma-separated addresses or `@domains` allowed under `allowlist`. |
+| `EMAIL_OAUTH_PROVIDERS` | `on` shows the Gmail / Microsoft connectors (not live-verified). |
+| `DEMO_CONTROLS` | `true` enables `POST /api/store/demo` (reset, external change, fault, scope changes) on SYNTHETIC stores under `NODE_ENV=production`. **Required for the Playwright e2e run against `npm run build && npm run start`**; never set it on a real deployment. |
+| `CRON_SECRET` | Bearer token Vercel sends to `/api/cron/agents` and `/api/cron/weekly-summary`; both refuse everything else. |
+
 ## Checks
 
 ```bash
 npm run typecheck && npm run lint && npm run test   # vitest, includes the RLS suite against DATABASE_URL
-npm run build && npm run test:e2e                    # Playwright against the production build
+DEMO_CONTROLS=true npm run build && DEMO_CONTROLS=true npm run test:e2e   # Playwright against the production build (demo controls are needed for the resets)
 ```
 
 ## Safety

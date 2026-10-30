@@ -2,6 +2,7 @@
 import { withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { expansionReasons, parsePolicy } from './policy'
+import { missingScopesForPolicy, requestableScopes } from '../connectors/shopify/scopes'
 
 const orgFilter = (actor: Actor, col = 'org_id') => (actor.kind === 'staff' ? 'true' : `${col} = current_org_id()`)
 
@@ -54,7 +55,11 @@ export async function agentDetail(actor: Actor, agentId: string) {
     if (pending) {
       try { pendingExpansion = active ? expansionReasons(parsePolicy(active.policy), parsePolicy(pending.policy)) : ['first authorization'] } catch { pendingExpansion = null }
     }
-    return { agent, policies, runs, executions, waiting, needsPerson, pendingExpansion }
+    // Shopify scopes the store has not granted for what each version may write (empty at drafts only)
+    const storeConn = await db.one<{ platform: string; scopes: string[] }>('select platform, scopes from store_connections where id = $1', [agent.connection_id])
+    const withScopes: (Record<string, unknown> & { missing_scopes: string[] })[] = (policies as Record<string, unknown>[]).map(p => { let missing_scopes: string[] = []; try { missing_scopes = storeConn ? missingScopesForPolicy(storeConn, parsePolicy(p.policy)) : [] } catch { missing_scopes = [] }; return { ...p, missing_scopes } })
+    const storeScopes = { granted: storeConn?.scopes ?? [], requestable: storeConn?.platform === 'shopify' ? requestableScopes() : [] }
+    return { agent, policies: withScopes, runs, executions, waiting, needsPerson, pendingExpansion, storeScopes }
   })
 }
 

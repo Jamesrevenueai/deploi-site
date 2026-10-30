@@ -24,7 +24,7 @@ const WHAT: Record<string, string> = {
   'execution.verification_failed': 'Change did not stick (failed verification)', 'execution.blocked': 'Change blocked before anything was written', 'execution.stale': 'Change skipped: the record changed first',
   'execution.unknown': 'Change outcome unknown', 'execution.retry': 'Change retried',
   'email.draft': 'Email drafted (not sent)', 'email.awaiting_approval': 'Email waiting for your approval', 'email.queued': 'Email queued to send', 'email.sending': 'Email sending',
-  'email.accepted': 'Email accepted by the provider (not proof of delivery)', 'email.failed': 'Email failed: nothing was sent', 'email.delivery_unknown': 'Email outcome unknown: not resent automatically',
+  'email.accepted': 'Email accepted by the provider (not proof of delivery)', 'email.failed': 'Email failed: nothing was sent', 'email.bounced': 'Email bounced: the receiving server refused it after sending', 'email.delivery_reported': 'Receiving server reported the email delivered', 'email.delivery_unknown': 'Email outcome unknown: not resent automatically',
   'email.cancelled': 'Email cancelled: not sent', 'email.approved': 'You approved an email', 'email.edited': 'Email edited (approval cleared)', 'email.declined': 'You declined an email',
   'email.reply_seen': 'Reply noticed (content not acted on)', 'email.inbound.accepted': 'Email received from an allowed sender', 'email.inbound.quarantined': 'Email received and quarantined',
   'scan.completed': 'Store read and checked', 'scan.failed': 'Store could not be read', 'proposal.created': 'Exact change recorded',

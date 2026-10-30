@@ -250,7 +250,7 @@ export const EMAIL_STATUS_WORDS: Record<string, StatusWords> = {
   queued: { label: 'Queued', tone: 'muted', hint: 'Approved and waiting to be handed to the provider. Pausing or revoking the agent, or disconnecting the account, cancels it.' },
   sending: { label: 'Sending', tone: 'muted', hint: 'Being handed to the provider now.' },
   accepted: { label: 'Accepted by provider', tone: 'ok', hint: EMAIL_ACCEPTED_EXPLAINER },
-  failed: { label: 'Failed', tone: 'danger', hint: 'The provider refused it or it could not be sent. Nothing was sent.' },
+  failed: { label: 'Failed', tone: 'danger', hint: 'The provider refused it or it could not be sent, or it bounced after sending. The reason says which.' },
   delivery_unknown: { label: 'Delivery unknown', tone: 'warn', hint: 'The provider gave no definite answer, so this message may or may not have gone out. Deploi will not send it again on its own.' },
   cancelled: { label: 'Cancelled', tone: 'muted', hint: 'Not sent: declined, or cancelled because the agent was paused or revoked or the account was disconnected.' },
 }

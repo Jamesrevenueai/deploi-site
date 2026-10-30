@@ -97,7 +97,11 @@ export async function admin<T>(fn: (db: Db) => Promise<T>, opts: { actorId?: str
     const claims = JSON.stringify({ sub: opts.actorId ?? null, role: 'service_role' })
     await client.query("select set_config('request.jwt.claims', $1, true), set_config('app.ip', $2, true)", [claims, opts.ip ?? ''])
     // On managed Postgres the connection role is a plain login role; service_role carries BYPASSRLS.
-    await client.query('set local role service_role').catch(() => {})
+    // A failed role switch must not poison the transaction: try it inside a savepoint.
+    await client.query('savepoint role_switch')
+    await client.query('set local role service_role')
+      .then(() => client.query('release savepoint role_switch'))
+      .catch(() => client.query('rollback to savepoint role_switch'))
     const out = await fn(wrap(client))
     await client.query('commit')
     return out

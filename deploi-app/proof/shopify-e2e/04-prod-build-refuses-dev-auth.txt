@@ -1,0 +1,6 @@
+=== A3: a production build with dev auth configured must fail (VERCEL_ENV=production)
+ ⨯ Failed to load next.config.ts, see more info here https://nextjs.org/docs/messages/next-config-error
+
+> Build error occurred
+Error [ProductionAuthError]: Refusing to run: AUTH_MODE=dev and ALLOW_DEV_LOGIN=true set in a production environment. Remove them from the Production environment variables and redeploy. Dev sign-in lets anyone pick a user without a password.
+exit=1

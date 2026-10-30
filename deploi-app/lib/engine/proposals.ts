@@ -8,6 +8,7 @@ export type ProposalRow = {
   change: { field: string; from: unknown; to: unknown }; preconditions: { path: string; equals: unknown; description: string }[]
   rule_version: number | null; change_hash: string; status: string; status_reason: string | null
   expires_at: string; decided_at: string | null; created_at: string; updated_at: string
+  agent_id?: string | null; policy_id?: string | null; policy_version?: number | null
 }
 
 export const LIVE_PROPOSAL = ['pending_approval', 'approved', 'executing', 'applied'] as const

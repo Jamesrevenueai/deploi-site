@@ -4,7 +4,8 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { Nav, NAV_LINKS } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import Legal, { PRIVACY, termsSections } from '../pages/Legal'
-import Home, { FAQ, FAQS, FLOW, PLATFORM_CARDS, SHOPIFY_STATUS_LINE } from '../pages/Home'
+import Support, { SUPPORT_FAQ } from '../pages/Support'
+import Home, { FAQ, FAQS, FLOW, CHECKS, PLATFORM_CARDS, SHOPIFY_STATUS_LINE, EXAMPLE_AGENT, AGENT_ROLES } from '../pages/Home'
 import { AppRoutes, Shell } from '../App'
 import { CONTACT_EMAIL } from '../lib/brand'
 
@@ -20,7 +21,7 @@ describe('Nav', () => {
     render(<MemoryRouter><Nav /></MemoryRouter>)
     expect(screen.getByLabelText('Deploi AI home')).toHaveTextContent('deploi ai')
     for (const l of NAV_LINKS) expect(screen.getAllByText(l.label).length).toBeGreaterThan(0)
-    expect(NAV_LINKS.every(l => l.to.startsWith('/#'))).toBe(true)
+    expect(NAV_LINKS.map(l => l.to)).toEqual(['/agents', '/pricing', '/#how', '/#shopify', '/#controls', '/#faq'])
     const ctas = screen.getAllByRole('link', { name: 'Apply for Early Access' })
     expect(ctas.length).toBeGreaterThan(0)
     for (const a of ctas) expect(a).toHaveAttribute('href', '/#early-access')
@@ -33,6 +34,7 @@ describe('Footer', () => {
     const { container } = render(<MemoryRouter><Footer /></MemoryRouter>)
     expect(screen.getByText('Privacy Policy')).toHaveAttribute('href', '/privacy')
     expect(screen.getByText('Terms of Service')).toHaveAttribute('href', '/terms')
+    expect(screen.getByText('Support')).toHaveAttribute('href', '/support')
     expect(screen.getByText(CONTACT_EMAIL)).toHaveAttribute('href', `mailto:${CONTACT_EMAIL}`)
     expect(container.querySelector('a[href="/website"], a[href="/evv"], a[href="/baa"]')).toBeNull()
     expect(container.textContent).not.toMatch(CONSULTING)
@@ -58,7 +60,7 @@ describe('Home', () => {
     expect(within(byName('Amazon Seller Central')).getByText('Planned')).toBeInTheDocument()
     expect(PLATFORM_CARDS.filter(p => p.status === 'planned').map(p => p.name)).toEqual(['WooCommerce', 'Amazon Seller Central'])
     expect(container.textContent).toMatch(/not partnerships/)
-    expect(container.querySelectorAll('img')).toHaveLength(0) // no vendor logos
+    for (const c of cards) expect(c.querySelectorAll('img')).toHaveLength(0) // no vendor logos
   })
 
   it('contains no consulting terms anywhere on the rendered home page', () => {
@@ -66,20 +68,40 @@ describe('Home', () => {
     expect(container.textContent).not.toMatch(CONSULTING)
   })
 
-  it('renders the six-step flow and both Shopify checks', () => {
+  it('renders the five-step flow, the agent library and all four Shopify corrections', () => {
     render(<MemoryRouter><Home /></MemoryRouter>)
-    expect(FLOW.map(f => f.title)).toEqual(['Detect', 'Evidence', 'Proposed fix', 'Your approval', 'Change made', 'Verified'])
+    expect(FLOW.map(f => f.title)).toEqual(['Connect your store', 'Switch on agents', 'Approve their work', 'Agents earn auto-run', 'Weekly summary'])
     for (const f of FLOW) expect(screen.getByRole('heading', { level: 3, name: f.title })).toBeInTheDocument()
-    expect(screen.getAllByText('Selling with no stock against your rule').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Oversold while set to stop selling').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Should products stop selling when they run out/)).toBeInTheDocument()
+    expect(CHECKS).toHaveLength(4)
+    for (const c of CHECKS) expect(screen.getAllByText(c.title).length).toBeGreaterThan(0)
+    expect(screen.getByText(`Example: ${EXAMPLE_AGENT.name}`)).toBeInTheDocument()
+    for (const t of ['Drafts only', 'After your approval', 'Without asking, within limits']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
+    // the three illustrated agents also appear in the library grid, so a name can head two cards
+    for (const t of ['Inventory Watcher', 'Supplier Chaser', 'Store Health Checker', 'Order Tracker', 'Returns', 'Listing Writer', 'Customer Care', 'Campaign', 'Promo Manager', 'Weekly Insights', 'Payout and Fees Checker', 'AI Visibility']) expect(screen.getAllByRole('heading', { level: 3, name: t }).length).toBeGreaterThan(0)
+    expect(screen.getByText(/time saved clearly labelled as an estimate/)).toBeInTheDocument()
+    expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
+  })
+
+  it('shows the agent illustrations with alt text, only roles the product can do today, and each agent once', () => {
+    render(<MemoryRouter><Home /></MemoryRouter>)
+    expect(AGENT_ROLES.map(r => r.title)).toEqual(['Store Health Checker', 'Inventory Watcher', 'Approval Inbox', 'Supplier Chaser', 'Weekly Summary'])
+    for (const r of AGENT_ROLES) {
+      const img = screen.getByAltText(r.alt)
+      expect(img).toHaveAttribute('src', `/agents/${r.key}-640.webp`)
+      expect(img).toHaveAttribute('loading', 'lazy')
+      expect(r.alt.startsWith('Illustration:')).toBe(true)
+    }
+    // the competitor watcher is not one of the twelve library agents; it stays available as an app template, and never claims competitors' sales
+    expect(screen.getByText(/Competitor & Trend Watcher template/)).toBeInTheDocument()
+    expect(screen.getByText(/Never their sales, which are not public\./)).toBeInTheDocument()
+    expect(screen.getByText(/Illustrations\. The names, products and numbers in them are examples\./)).toBeInTheDocument()
   })
 
   it('answers the FAQ without inventing a price', () => {
     const { container } = render(<MemoryRouter><FAQ /></MemoryRouter>)
     for (const f of FAQS) expect(screen.getByText(f.q)).toBeInTheDocument()
     const text = container.textContent ?? ''
-    expect(text).toContain('Pricing will be published before general availability.')
+    expect(text).toContain('Prices are coming soon; early access is free.')
     expect(text).not.toMatch(/\$\d/)
   })
 })
@@ -117,7 +139,7 @@ describe('Legal', () => {
   it('describes what the Shopify app reads, token protection, deletion and no analytics', () => {
     const { container } = render(<MemoryRouter><Legal kind="privacy" /></MemoryRouter>)
     const text = container.textContent ?? ''
-    expect(text).toMatch(/Products, product variants, inventory levels and locations/)
+    expect(text).toMatch(/Products, product variants \(including prices, SKUs and barcodes\), inventory levels and locations/)
     expect(text).toMatch(/does not read customer or order data/)
     expect(text).toMatch(/encrypted at rest/)
     expect(text).toMatch(/never shown in the browser/)
@@ -126,5 +148,27 @@ describe('Legal', () => {
     expect(text).not.toMatch(/We use basic cookies and analytics/i)
     expect(text).not.toMatch(CONSULTING)
     expect(PRIVACY[PRIVACY.length - 1].title).toBe('Contact')
+  })
+})
+
+describe('Support', () => {
+  it('gives the support email, install and uninstall answers, data deletion and beta access, with no invented promises', () => {
+    const { container } = render(<MemoryRouter><Support /></MemoryRouter>)
+    const text = container.textContent ?? ''
+    expect(screen.getAllByText(CONTACT_EMAIL)[0]).toHaveAttribute('href', `mailto:${CONTACT_EMAIL}`)
+    expect(SUPPORT_FAQ.length).toBeGreaterThanOrEqual(6)
+    expect(text).toMatch(/You never type your store address into Deploi/)
+    expect(text).toMatch(/delete your store.s data/)
+    expect(text).toMatch(/invite code/)
+    expect(text).not.toMatch(/guarantee|within \d+ (hours|minutes)|24\/7/i)
+    expect(text).not.toMatch(CONSULTING)
+  })
+
+  it('the privacy policy covers customers, retention and transfers', () => {
+    const { container } = render(<MemoryRouter><Legal kind="privacy" /></MemoryRouter>)
+    const text = container.textContent ?? ''
+    expect(text).toMatch(/does not read, receive or store information about your customers/)
+    expect(text).toMatch(/kept for up to 30 days/)
+    expect(text).toMatch(/outside your country/)
   })
 })

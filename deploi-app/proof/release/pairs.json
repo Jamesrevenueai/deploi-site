@@ -1,0 +1,44 @@
+[
+  {
+    "id": "01-site-home",
+    "caption": "Website home.",
+    "after": "http://localhost:4173/",
+    "before": "https://getdeploi.com/"
+  },
+  {
+    "id": "02-site-agents",
+    "caption": "Website agents page, from the shared library config.",
+    "after": "http://localhost:4173/agents",
+    "before": "https://getdeploi.com/agents"
+  },
+  {
+    "id": "03-site-pricing",
+    "caption": "Website pricing page: three tiers, prices coming soon.",
+    "after": "http://localhost:4173/pricing",
+    "before": "https://getdeploi.com/pricing"
+  },
+  {
+    "id": "04-app-landing",
+    "caption": "App landing (sign-in).",
+    "after": "http://localhost:3000/login",
+    "before": "https://app.getdeploi.com/login"
+  },
+  {
+    "id": "05-roster",
+    "caption": "Agent roster: twelve drawn bots, switches, locks with Upgrade.",
+    "after": "http://localhost:3000/store/team",
+    "before": null
+  },
+  {
+    "id": "06-agent-dashboard",
+    "caption": "One agent dashboard: status, chat with voice, standing instructions.",
+    "after": "http://localhost:3000/store/team/order_tracker",
+    "before": null
+  },
+  {
+    "id": "07-approvals",
+    "caption": "Approvals: each draft with its evidence and the exact change.",
+    "after": "http://localhost:3000/store/team/order_tracker",
+    "before": null
+  }
+]

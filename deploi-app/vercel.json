@@ -1,7 +1,17 @@
 {
+  "ignoreCommand": "P=${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}; git cat-file -e \"$P^{commit}\" 2>/dev/null || exit 1; git diff --quiet \"$P\" HEAD -- .",
   "crons": [
-    { "path": "/api/cron/morning-pipeline", "schedule": "0 * * * *" },
-    { "path": "/api/cron/morning-report", "schedule": "0 * * * *" },
-    { "path": "/api/cron/workers", "schedule": "0 6 * * *" }
+    {
+      "path": "/api/cron/agents",
+      "schedule": "7 * * * *"
+    },
+    {
+      "path": "/api/cron/weekly-summary",
+      "schedule": "13 13 * * 1"
+    },
+    {
+      "path": "/api/cron/library",
+      "schedule": "23 * * * *"
+    }
   ]
 }

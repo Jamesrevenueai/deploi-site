@@ -19,10 +19,10 @@ export async function prepareDb() {
   return true
 }
 
-export const AGENCY_A = uuidFrom('agency:buckeye')
-export const AGENCY_B = uuidFrom('agency:scioto')
-export const SESSIONS: Record<'staff' | 'clientA' | 'clientB', Session> = {
+export const ORG_NW = uuidFrom('merchant:northwind')
+export const ORG_HB = uuidFrom('merchant:harbor')
+export const SESSIONS: Record<'staff' | 'northwind' | 'harbor', Session> = {
   staff: { uid: uuidFrom('user:hello'), email: 'hello@getdeploi.com', role: 'staff', agencyId: null },
-  clientA: { uid: uuidFrom('user:buckeye-admin'), email: 'admin@buckeyehomecare.example', role: 'client', agencyId: AGENCY_A },
-  clientB: { uid: uuidFrom('user:scioto-admin'), email: 'admin@sciotovalley.example', role: 'client', agencyId: AGENCY_B },
+  northwind: { uid: uuidFrom('user:merchant:northwind'), email: 'owner@northwind-goods.example', role: 'client', agencyId: ORG_NW, orgType: 'merchant' },
+  harbor: { uid: uuidFrom('user:merchant:harbor'), email: 'owner@harbor-supply.example', role: 'client', agencyId: ORG_HB, orgType: 'merchant' },
 }

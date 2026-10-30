@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200">
+  <!-- Deploi app icon (draft): a glass agent cube with a glowing core. No text, no Shopify marks. -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0" stop-color="#101a3a"/>
+      <stop offset="0.55" stop-color="#05070f"/>
+      <stop offset="1" stop-color="#000000"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#9db5ff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#4D7CFF" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.5" stop-color="#8fa9ff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#4D7CFF" stop-opacity="0.9"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.18" stop-color="#cfe0ff"/>
+      <stop offset="0.45" stop-color="#4D7CFF"/>
+      <stop offset="1" stop-color="#4D7CFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#4D7CFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#4D7CFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="18"/></filter>
+  </defs>
+  <rect width="1200" height="1200" fill="url(#bg)"/>
+  <circle cx="600" cy="600" r="520" fill="url(#halo)"/>
+  <!-- glass body -->
+  <rect x="170" y="170" width="860" height="860" rx="230" fill="url(#glass)" stroke="url(#rim)" stroke-width="14"/>
+  <rect x="222" y="222" width="756" height="756" rx="190" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="5"/>
+  <!-- broken rings around the core: the agent watching, with a gap where it acts -->
+  <g fill="none" stroke-linecap="round">
+    <circle cx="600" cy="600" r="300" stroke="#9db5ff" stroke-opacity="0.55" stroke-width="10" stroke-dasharray="1300 585" transform="rotate(-70 600 600)"/>
+    <circle cx="600" cy="600" r="225" stroke="#cfe0ff" stroke-opacity="0.7" stroke-width="10" stroke-dasharray="820 594" transform="rotate(110 600 600)"/>
+  </g>
+  <!-- core -->
+  <circle cx="600" cy="600" r="260" fill="url(#core)" filter="url(#soft)"/>
+  <circle cx="600" cy="600" r="92" fill="#ffffff"/>
+  <!-- highlight -->
+  <path d="M265 420 C 290 320, 370 268, 480 255" fill="none" stroke="#ffffff" stroke-opacity="0.75" stroke-width="16" stroke-linecap="round"/>
+</svg>

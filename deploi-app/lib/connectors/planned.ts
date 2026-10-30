@@ -10,7 +10,6 @@ function planned(platform: Platform, read: string[], actions: Record<string, str
     platform,
     operational: false,
     requiredScopes: { read, actions },
-    // eslint-disable-next-line require-yield
     async *listResources() { throw new NotOperational(platform) },
     async readResources() { throw new NotOperational(platform) },
     async applyAction() { throw new NotOperational(platform) },

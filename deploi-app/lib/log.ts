@@ -1,8 +1,8 @@
 /**
- * PHI-safe structured logger. Anything that could carry a person's details is
+ * Privacy-safe structured logger. Anything that could carry a person's details is
  * redacted by key name before it is written. Log ids, counts and outcomes, not people.
  */
-const REDACT = /name|email|phone|dob|birth|ssn|address|medicaid|notes?|body|message|answers|client|aide|applicant|referr|subject/i
+const REDACT = /name|email|phone|dob|birth|ssn|address|notes?|body|message|answers|subject/i
 
 type Level = 'info' | 'warn' | 'error'
 

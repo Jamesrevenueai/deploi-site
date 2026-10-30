@@ -12,7 +12,7 @@ import {
 const valid: LeadPayload = {
   name: 'Pat Example',
   email: 'pat@example-store.test',
-  agency_name: 'Example Store',
+  store_name: 'Example Store',
   source: 'site',
   service_interest: 'early_access',
   store_url: 'https://example-store.test',
@@ -42,7 +42,7 @@ describe('validateLead', () => {
   it('requires name, a valid email and the store or company name', () => {
     expect(validateLead({ ...valid, name: ' ' })).toMatch(/name/)
     expect(validateLead({ ...valid, email: 'nope' })).toMatch(/email/)
-    expect(validateLead({ ...valid, agency_name: '' })).toMatch(/store or company name/)
+    expect(validateLead({ ...valid, store_name: '' })).toMatch(/store or company name/)
   })
   it('requires an http(s) store URL', () => {
     expect(validateLead({ ...valid, store_url: '' })).toMatch(/store URL/)
@@ -75,7 +75,7 @@ describe('earlyAccessPayload', () => {
     const fd = new FormData()
     fd.set('name', ' Pat ')
     fd.set('email', 'pat@x.test')
-    fd.set('agency_name', 'X Store')
+    fd.set('store_name', 'X Store')
     fd.set('store_url', 'https://x.test')
     fd.append('platforms', 'amazon')
     fd.append('platforms', 'shopify')
@@ -86,7 +86,7 @@ describe('earlyAccessPayload', () => {
     expect(earlyAccessPayload(fd)).toEqual({
       name: 'Pat',
       email: 'pat@x.test',
-      agency_name: 'X Store',
+      store_name: 'X Store',
       source: 'site',
       service_interest: 'early_access',
       store_url: 'https://x.test',

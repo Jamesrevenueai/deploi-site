@@ -1,0 +1,45 @@
+# Shopify app configuration (copy to shopify.app.toml, or run `shopify app config link` and merge;
+# release with `shopify app deploy`). Values in <> come from the Dev Dashboard / Partner Dashboard.
+# Never commit the client secret: it lives only in the hosting environment (SHOPIFY_API_SECRET).
+client_id = "<SHOPIFY_API_KEY>"
+# must match (or be very close to) the name in the App Store submission form
+name = "Deploi AI"
+# also the <app-handle> in Shopify's plan page URL (SHOPIFY_APP_HANDLE)
+handle = "<app-handle>"
+# the embedded admin UI; must not contain "shopify" or "example" in the host
+application_url = "https://app.getdeploi.com/shopify"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[access_scopes]
+# Installed with the app: read only. Enough for every template at "drafts only" (lib/connectors/shopify/config.ts REQUIRED_SCOPES).
+scopes = "read_products,read_inventory,read_locations"
+# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant widens an agent past drafts only:
+#   write_products        Inventory Watcher after "after my approval" / "without asking" ("Continue selling when out of stock" On -> Off), price and SKU corrections
+#   read_publications,    publication correction only (which sales channels a product is on; publish / unpublish)
+#   write_publications
+# Must match OPTIONAL_SCOPES in config.ts. No customer, order, report or inventory-write scope anywhere.
+optional_scopes = ["write_products", "read_publications", "write_publications"]
+# `use_legacy_install_flow` is deliberately omitted: Shopify managed installation grants the scopes above at install,
+# then the app exchanges the ID token for an expiring offline token.
+
+[auth]
+# only the non-embedded fallback (authorization-code grant) uses this; managed installation does not
+redirect_urls = ["https://app.getdeploi.com/api/shopify/auth/callback"]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled", "app/scopes_update", "products/create", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
+  uri = "https://app.getdeploi.com/api/shopify/webhooks"
+
+  # mandatory privacy compliance topics (configurable only here or in the Dev Dashboard)
+  [[webhooks.subscriptions]]
+  compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+  uri = "https://app.getdeploi.com/api/shopify/webhooks"
+
+[pos]
+embedded = false

@@ -1,7 +1,7 @@
 # Deploying deploi-app
 
 ## 1. Supabase project "deploi-prod"
-1. supabase.com → New project → name `deploi-prod`, region us-east (Ohio latency), strong DB password.
+1. supabase.com → New project → name `deploi-prod`, region us-east, strong DB password.
 2. Project Settings → Database → Connection string → **Transaction pooler** URI → `DATABASE_URL`.
 3. Project Settings → API → Project URL → `NEXT_PUBLIC_SUPABASE_URL`; anon key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`; service_role key → `SUPABASE_SERVICE_ROLE_KEY`.
 4. Authentication → URL configuration: Site URL `https://app.getdeploi.com`, redirect `https://app.getdeploi.com/auth/callback`.
@@ -9,9 +9,9 @@
 5. Apply the schema: `DATABASE_URL=<direct connection string> npm run db:migrate` (or `supabase db push` with the CLI; the folder follows its convention).
 6. Tell Postgres who is staff (used by the profile trigger):
    `alter database postgres set app.staff_emails = 'hello@getdeploi.com,<your email>';`
-7. Optional demo data: `DATABASE_URL=... NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run seed`
-   (creates the seeded auth users through the admin API; idempotent).
-8. Storage: bucket `reports` (private) is created on first PDF upload by the service key.
+7. Staff logins: `DATABASE_URL=... NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run seed`
+   (creates the staff auth users through the admin API; idempotent). It also adds two synthetic merchants;
+   skip it on production if you do not want them, and create staff users in Supabase Auth instead.
 
 ## 2. Vercel project "deploi-app" (team james-ai)
 1. Vercel → Add New → Project → import the `deploi-site` GitHub repository → **Root Directory: `deploi-app`** → Framework Next.js → name `deploi-app`.
@@ -20,15 +20,24 @@
    `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
    `AUTH_MODE=supabase`, `APP_SECRET`, `STAFF_EMAILS`, `NEXT_PUBLIC_APP_URL=https://app.getdeploi.com`,
    `PUBLIC_API_ALLOWED_ORIGINS=https://getdeploi.com,https://www.getdeploi.com`, `CRON_SECRET`,
-   `RESEND_API_KEY`, `STAFF_NOTIFY_EMAIL`, `BOOKING_URL`.
-   Twilio, Smartlead, Ollama/cloud LLM keys can be added later; adapters mock until then.
-4. Crons come from `vercel.json` (hourly morning emails gated by local time; nightly workers 06:00 UTC).
+   `RESEND_API_KEY`, `AGENT_MAIL_DOMAIN`, `AGENT_MAIL_WEBHOOK_SECRET`, the `SHOPIFY_*` keys,
+   `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_KEY_ID`. Keep `EMAIL_LIVE_SENDS=off` and `STORE_ACCESS_MODE=beta`
+   until launch is approved (`docs/LAUNCH-STEPS.md`).
+4. Crons come from `vercel.json`: agent runs hourly at minute 7, the weekly summary Mondays 13:13 UTC.
    The Hobby plan allows only daily crons; use Pro or change the schedules.
-5. Ollama: the `local` lane needs a reachable Ollama host (`OLLAMA_URL`). Vercel functions cannot run Ollama;
-   point it at a private host (VPN/tunnel) or leave `LLM_MOCK=1` until one exists. Nothing PHI-adjacent
-   ever uses a cloud provider regardless.
 
 ## 3. deploi-site (marketing)
 Set `VITE_APP_API_URL=https://app.getdeploi.com`, `VITE_BOOKING_URL`, `VITE_LEGAL_ENTITY`, `VITE_LEGAL_REVIEWED`
 on the existing `deploi-site` project. Note: the Vercel project currently serves `gotdeploi.com`;
 `getdeploi.com` is registered on the team but not attached to the project.
+
+## 4. Tables left from the home-care consulting service
+The consulting code was removed on 2026-10-29. Its 34 tables and 8 database functions are still in the production schema
+and may still hold data. Nothing in the app reads or writes them. They are to be **archived, not dropped**:
+`docs/ARCHIVE-CARE-TABLES.md` (tool, rehearsal results, the 30-day drop TODO) and `docs/PRODUCTION-MIGRATION-PLAN.md`
+(the order, the backup and the rollback). Neither has been run on production. `agencies` is not one of them: it is the
+organization table for merchants (`org_type = 'merchant'`), and `prospects` and `touches` hold early access applications.
+
+Production's database is behind the consulting schema (its logs show missing `job_runs` and `delivery_status`), so do **not** run
+`npm run db:migrate:prod` there: it applies every pending migration without the production confirmation that
+`scripts/launch-migrations.ts` requires (and `--seed` writes demo data). Use `launch-migrations.ts`.

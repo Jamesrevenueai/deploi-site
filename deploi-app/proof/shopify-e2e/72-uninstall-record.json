@@ -1,0 +1,29 @@
+{
+  "shop": "northwind-goods-demo.myshopify.com",
+  "before": {
+    "connection": "active uninstalled_at=2026-10-29 19:59:15.237051+00",
+    "credentials": 1,
+    "agents": "Channel Keeper:active, Guard:active, Price Keeper:active, SKU Filler:active, Stock Guardian:active",
+    "activeAgents": 5,
+    "pausedAgents": 0
+  },
+  "webhook": {
+    "status": 200,
+    "body": "{\"ok\":true}"
+  },
+  "after": {
+    "connection": "uninstalled uninstalled_at=2026-10-29 20:00:47.855265+00",
+    "credentials": 0,
+    "agents": "Channel Keeper:paused, Guard:paused, Price Keeper:paused, SKU Filler:paused, Stock Guardian:paused",
+    "activeAgents": 0,
+    "pausedAgents": 5
+  },
+  "audit": [
+    "agent.paused {\"reason\": \"app uninstalled\"}",
+    "agent.paused {\"reason\": \"app uninstalled\"}",
+    "agent.paused {\"reason\": \"app uninstalled\"}",
+    "agent.paused {\"reason\": \"app uninstalled\"}",
+    "agent.paused {\"reason\": \"app uninstalled\"}",
+    "connection.uninstalled {\"agents_paused\": 5, \"emails_cancelled\": 0}"
+  ]
+}

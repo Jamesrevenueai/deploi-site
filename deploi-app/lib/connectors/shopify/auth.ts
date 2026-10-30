@@ -94,11 +94,17 @@ function parseTokenResponse(d: Record<string, unknown>): AccessToken {
   }
 }
 
+/** A token endpoint refusal. 400/401 are final for the token presented (re-run token exchange); 429/5xx may be retried. */
+export class TokenRequestError extends Error {
+  constructor(public status: number) { super(`token request failed: HTTP ${status}`); this.name = 'TokenRequestError' }
+  get terminal() { return this.status === 400 || this.status === 401 }
+}
+
 async function postToken(shop: string, body: Record<string, string>, fetchImpl: typeof fetch): Promise<AccessToken> {
   const url = `https://${shop}/admin/oauth/access_token`
   assertApprovedHost(url, 'shopify')
   const res = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`token request failed: HTTP ${res.status}`)
+  if (!res.ok) throw new TokenRequestError(res.status)
   return parseTokenResponse(await res.json() as Record<string, unknown>)
 }
 
@@ -116,9 +122,9 @@ export function exchangeSessionToken(shop: string, idToken: string, opts: { expi
   }, opts.fetchImpl ?? fetch)
 }
 
-/** Non-embedded fallback: authorization code grant. */
+/** Non-embedded fallback: authorization code grant. Also expiring (public apps may not hold non-expiring offline tokens). */
 export function exchangeAuthorizationCode(shop: string, code: string, opts: { fetchImpl?: typeof fetch } = {}): Promise<AccessToken> {
-  return postToken(shop, { client_id: shopifyConfig.apiKey, client_secret: shopifyConfig.apiSecret, code }, opts.fetchImpl ?? fetch)
+  return postToken(shop, { client_id: shopifyConfig.apiKey, client_secret: shopifyConfig.apiSecret, code, expiring: '1' }, opts.fetchImpl ?? fetch)
 }
 
 /** Refresh an expiring offline token. */

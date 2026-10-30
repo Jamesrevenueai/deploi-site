@@ -1,0 +1,31 @@
+== before
+connection: active|-
+credentials rows for shop: 1
+active agents for shop: 8
+== webhooks (signed with the server's SHOPIFY_API_SECRET; unsigned/forged must be 401)
+unsigned customers/redact       -> HTTP 401 {"ok":false,"error":"invalid hmac"}
+forged   shop/redact            -> HTTP 401 {"ok":false,"error":"invalid hmac"}
+signed   app/uninstalled        -> HTTP 200 {"ok":true}
+signed   customers/data_request -> HTTP 200 {"ok":true}
+signed   customers/redact       -> HTTP 200 {"ok":true}
+signed   shop/redact            -> HTTP 200 {"ok":true}
+signed   app/uninstalled        -> HTTP 200 {"ok":true}
+signed   app/uninstalled        -> HTTP 200 {"ok":true,"duplicate":true}
+{"unsigned customers/redact":401,"forged shop/redact":401,"signed app/uninstalled":200,"signed customers/data_request":200,"signed customers/redact":200,"signed shop/redact":200,"duplicate app/uninstalled":200}
+== after
+connection: 
+credentials rows for shop: 0
+connection rows for shop after shop/redact: 0
+webhook receipts:
+app/uninstalled|processed|connection marked uninstalled; credentials deleted
+shop/redact|processed|shop data erased with its organization
+customers/redact|processed|no customer data is stored by this app
+customers/data_request|processed|no customer data is stored by this app
+app/uninstalled|processed|connection marked uninstalled; credentials deleted
+shop/redact|processed|shop data erased with its organization
+app/uninstalled|processed|connection marked uninstalled; credentials deleted
+products/update|processed|targeted rescan of 1 record(s)
+customers/data_request|processed|no customer data is stored by this app
+customers/redact|processed|no customer data is stored by this app
+customers/data_request|processed|no customer data is stored by this app
+audit events:

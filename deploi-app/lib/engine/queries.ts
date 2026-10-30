@@ -6,7 +6,7 @@ import { withActor, type Actor } from './actor'
 import { getCheck } from './registry'
 import { executionOutcome, proposalOutcome, type Outcome } from './outcomes'
 
-export type ConnectionView = { id: string; platform: string; external_id: string; display_name: string | null; status: string; scopes: string[]; is_synthetic: boolean; installed_at: string | null; last_scan_at: string | null }
+export type ConnectionView = { id: string; platform: string; external_id: string; display_name: string | null; status: string; scopes: string[]; api_version: string | null; timezone: string | null; is_synthetic: boolean; installed_at: string | null; last_scan_at: string | null }
 export type IssueView = {
   id: string; connection_id: string; platform: string; check_key: string; check_title: string; kind: 'correctable' | 'needs_person'
   resource_type: string; resource_id: string; resource_label: string | null; severity: 'high' | 'medium' | 'low'
@@ -35,14 +35,14 @@ function toProposal(r: Omit<ProposalView, 'outcome'>): ProposalView { return { .
 
 export async function listConnections(actor: Actor): Promise<ConnectionView[]> {
   return withActor(actor, db => db.query<ConnectionView>(
-    `select id, platform, external_id, display_name, status, scopes, is_synthetic, installed_at, last_scan_at from store_connections ${actor.kind === 'staff' ? '' : 'where org_id = current_org_id()'} order by created_at`))
+    `select id, platform, external_id, display_name, status, scopes, api_version, timezone, is_synthetic, installed_at, last_scan_at from store_connections ${actor.kind === 'staff' ? '' : 'where org_id = current_org_id()'} order by created_at`))
 }
 
 export async function overview(actor: Actor) {
   return withActor(actor, async db => {
     const scope = actor.kind === 'staff' ? 'true' : 'org_id = current_org_id()'
     const issues = await db.query<{ status: string; kind: string; severity: string; n: string }>(`select status, kind, severity, count(*)::text as n from issues where ${scope} and status in ('open','needs_review') group by 1,2,3`)
-    const proposals = await db.query<{ status: string; n: string }>(`select status, count(*)::text as n from proposals where ${scope} group by 1`)
+    const proposals = await db.query<{ status: string; n: string }>(`select case when status = 'pending_approval' and coalesce(status_reason, '') like 'draft:%' then 'draft' else status end as status, count(*)::text as n from proposals where ${scope} group by 1`)
     const execs = await db.query<{ status: string; n: string }>(`select status, count(*)::text as n from executions where ${scope} and started_at > now() - interval '30 days' group by 1`)
     const lastScan = await db.one<{ id: string; status: string; started_at: string; finished_at: string | null; resources_scanned: number; issues_opened: number; issues_resolved: number; error: string | null }>(
       `select id, status, started_at, finished_at, resources_scanned, issues_opened, issues_resolved, error from scans where ${scope} order by started_at desc limit 1`)

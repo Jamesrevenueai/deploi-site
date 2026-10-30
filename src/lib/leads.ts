@@ -28,8 +28,8 @@ export const CATALOG_SIZES: { value: CatalogSize; label: string }[] = [
 export type LeadPayload = {
   name: string
   email: string
-  /** The store or company name. The API keeps the historical field name. */
-  agency_name: string
+  /** The store or company name. */
+  store_name: string
   source: LeadSource
   service_interest: ServiceInterest
   store_url: string
@@ -39,6 +39,8 @@ export type LeadPayload = {
   message?: string
   /** Honeypot. Humans never see the field; a filled value marks the lead as a bot. */
   website: string
+  /** Milliseconds the form was open before submitting; a near-instant submission marks a bot. */
+  elapsed_ms?: number
 }
 
 export type LeadTarget = { kind: 'app'; url: string } | { kind: 'formspree'; url: string } | { kind: 'none' }
@@ -77,7 +79,7 @@ export function isCatalogSize(v: string): v is CatalogSize {
 export function validateLead(p: LeadPayload): string | null {
   if (!p.name.trim()) return 'Please enter your name.'
   if (!EMAIL_RE.test(p.email.trim())) return 'Please enter a valid work email.'
-  if (!p.agency_name.trim()) return 'Please enter your store or company name.'
+  if (!p.store_name.trim()) return 'Please enter your store or company name.'
   if (!p.store_url.trim()) return 'Please enter your store URL.'
   if (!isHttpUrl(p.store_url)) return 'Please enter a full store URL starting with http:// or https://.'
   if (p.platforms.length === 0) return 'Please choose at least one platform.'
@@ -95,7 +97,7 @@ export function earlyAccessPayload(fd: FormData): LeadPayload {
   return {
     name: str('name'),
     email: str('email'),
-    agency_name: str('agency_name'),
+    store_name: str('store_name'),
     source: 'site',
     service_interest: 'early_access',
     store_url: str('store_url'),
@@ -114,7 +116,7 @@ export function leadMailBody(p: LeadPayload): string {
   return [
     `Name: ${p.name}`,
     `Work email: ${p.email}`,
-    `Store or company: ${p.agency_name}`,
+    `Store or company: ${p.store_name}`,
     `Store URL: ${p.store_url}`,
     `Platforms: ${platformLabels.join(', ')}`,
     `Approximate number of products: ${size}`,

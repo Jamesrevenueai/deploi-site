@@ -7,7 +7,7 @@ import { useSeo } from '../hooks/useSeo'
 type LegalKind = 'terms' | 'privacy'
 type LegalSection = { title: string; body: ReactNode }
 
-const LEGAL_UPDATED = 'October 28, 2026'
+const LEGAL_UPDATED = 'October 29, 2026'
 
 const mail = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
 
@@ -79,7 +79,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'What the Shopify app reads',
-    body: <>Products, product variants, inventory levels and locations, plus your shop&rsquo;s name, domain and timezone. <strong>The app does not read customer or order data.</strong> It asks Shopify for permission to read products, inventory and locations, and to write products, which it needs to change a variant&rsquo;s out-of-stock setting.</>,
+    body: <>Products, product variants (including prices, SKUs and barcodes), inventory levels and locations, the sales channels a product is published on, and fixed prices on Markets or B2B price lists, plus your shop&rsquo;s name, domain, timezone and currency. <strong>The app does not read customer or order data.</strong> It asks Shopify for permission to read products, inventory, locations and publications, to write products (a variant&rsquo;s out-of-stock setting, price, compare-at price or SKU) and to write publications (publishing or unpublishing a product on the sales channel you authorize). Reference files you upload (price lists, SKU mappings, publication lists) are stored with your account and used only to compare against your store.</>,
   },
   {
     title: 'Why it reads that data',
@@ -87,11 +87,31 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'What the app changes',
-    body: <>Only the change you approve: a variant&rsquo;s setting from &ldquo;Continue selling when out of stock&rdquo; to &ldquo;Stop selling when out of stock&rdquo;. The app does not change stock counts.</>,
+    body: <>Only what you approve, or what an agent&rsquo;s authorization you granted explicitly covers: a variant&rsquo;s out-of-stock setting, whether a product is published on the one sales channel you choose, a variant&rsquo;s price or compare-at price from your price list, and a variant&rsquo;s SKU from your mapping. The app does not change stock counts or product status.</>,
   },
   {
-    title: 'What we keep',
-    body: <>The issues found in your store, the evidence for each, the fixes proposed, your approvals, the changes made and their verification results. This activity history is kept so you can see what happened and why.</>,
+    title: 'If you connect an email account',
+    body: <>You connect a mailbox through Google&rsquo;s or Microsoft&rsquo;s own sign-in; we never ask for your mailbox password. We keep the access tokens <strong>encrypted at rest</strong>, your address and display name, and the permissions you granted. No agent can use the account until you grant that agent permission. For messages an agent drafts or sends, we keep the sender, recipients, subject, body and attachments (content encrypted at rest), your approvals and the provider&rsquo;s response. We read your mailbox only if you grant read access for a task that needs it, and then only to notice that a reply arrived to a message the agent sent; we do not keep reply content. You can disconnect at any time, which deletes the tokens and cancels unsent messages.</>,
+  },
+  {
+    title: 'If you use the Competitor & Trend Watcher',
+    body: <>It reads only the public pages of the stores you list (their product feed, prices, availability as shown, and their own bestseller collection), obeying each store&rsquo;s robots.txt, waiting between requests and never signing in or working around a block. We keep what those pages showed, with the time we saw it, so you can compare over time. It collects no personal data about anyone and does not read or change your own store. It cannot see other stores&rsquo; sales, and does not claim to.</>,
+  },
+  {
+    title: 'Agent email addresses',
+    body: <>An agent can have its own email address on our domain. Messages it sends from there go through our email provider (Resend). Mail sent to that address, including threads you forward or copy to it and replies from your suppliers, is <strong>stored encrypted at rest</strong> with its sender, recipients, subject and text so you can read it in Deploi. Incoming mail never changes what an agent is allowed to do. Mail from senders outside the agent&rsquo;s allowed list, or that fails sender checks, is kept separately as quarantined. Deleting the agent closes its address.</>,
+  },
+  {
+    title: 'Your store\u2019s customers',
+    body: <>The app does not read, receive or store information about your customers or their orders, and it adds nothing to your storefront: no scripts, cookies or tracking for your shoppers.</>,
+  },
+  {
+    title: 'Information you give us',
+    body: <>When you use the app we record who approved or changed what (the Shopify staff user ID or your Deploi sign-in email), your settings, agents and their authorizations, and, during the beta, whether your store is enabled for changes and any access request or invite code you used (codes are stored only in hashed form). If you contact support we keep the email conversation.</>,
+  },
+  {
+    title: 'What we keep, and for how long',
+    body: <>The issues found in your store, the evidence for each, the fixes proposed, your approvals, the changes made and their verification results. This activity history is kept while the app is installed so you can see what happened and why. Server logs contain no access tokens, passwords or message content and are kept for up to 30 days. When your store&rsquo;s data is deleted after uninstall (below), this history is deleted with it.</>,
   },
   {
     title: 'How access tokens are protected',
@@ -111,7 +131,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'Sharing',
-    body: <>We do not sell personal information. We share information only with service providers who help us run the service (for example hosting, database and email delivery) under confidentiality obligations, or where the law requires it.</>,
+    body: <>We do not sell personal information. We share information only with service providers who help us run the service (for example hosting, database and email delivery) under confidentiality obligations, or where the law requires it. Those providers may process data outside your country; where the law requires it, we rely on appropriate safeguards for those transfers.</>,
   },
   {
     title: 'Security',
@@ -119,7 +139,7 @@ export const PRIVACY: LegalSection[] = [
   },
   {
     title: 'Your choices',
-    body: <>You can ask to see, correct or delete the information we hold about you or your store at any time by emailing {mail}.</>,
+    body: <>You can ask to see, correct or delete the information we hold about you or your store at any time by emailing {mail}. Depending on where you live you may have further rights, such as objecting to processing or complaining to a data protection authority; contact us and we will help.</>,
   },
   {
     title: 'Contact',

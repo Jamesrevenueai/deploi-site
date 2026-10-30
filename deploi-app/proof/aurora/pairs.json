@@ -1,0 +1,104 @@
+[
+  {
+    "id": "01-team-dashboard",
+    "caption": "Team dashboard: twelve agents with characters and switches, locks with Upgrade, this week, usage meter, build your own.",
+    "afterPath": "/store/team",
+    "beforePath": null
+  },
+  {
+    "id": "02-team-dashboard-starter-locks",
+    "caption": "Team dashboard on the Starter tier: eight locked agents with the tier that unlocks them.",
+    "afterPath": "/store/team",
+    "beforePath": null
+  },
+  {
+    "id": "03-agent-chat",
+    "caption": "Agent dashboard, chat tab: text and voice (the mic button), replies from the agent’s own log; a spoken instruction became a standing instruction.",
+    "afterPath": "/store/team/order_tracker",
+    "beforePath": null
+  },
+  {
+    "id": "04-agent-approvals",
+    "caption": "Agent dashboard, approval queue: each draft with its evidence, the exact change or message, and why it waits.",
+    "afterPath": "/store/team/order_tracker",
+    "beforePath": null
+  },
+  {
+    "id": "05-agent-activity-log",
+    "caption": "Agent dashboard, activity log: every action with its status, the permission that allowed it, and the proof (fresh read after the write).",
+    "afterPath": "/store/team/listing_writer",
+    "beforePath": null
+  },
+  {
+    "id": "06-agent-instructions",
+    "caption": "Agent dashboard, standing instructions and settings.",
+    "afterPath": "/store/team/order_tracker",
+    "beforePath": null
+  },
+  {
+    "id": "07-agent-auto-run",
+    "caption": "Agent dashboard, auto-run grants per action type: one granted with a daily cap; money actions marked approval-only.",
+    "afterPath": "/store/team/listing_writer",
+    "beforePath": null
+  },
+  {
+    "id": "08-agent-locked",
+    "caption": "A locked agent’s dashboard on Starter: the switch is replaced by the tier and an Upgrade link.",
+    "afterPath": "/store/team/customer_care",
+    "beforePath": null
+  },
+  {
+    "id": "09-plan",
+    "caption": "Plan and usage: the three tiers with their agents and allowance, prices as “coming soon”, this month’s usage.",
+    "afterPath": "/store/plan",
+    "beforePath": null
+  },
+  {
+    "id": "10-onboarding",
+    "caption": "Private-beta onboarding: connect, choose a plan to trial, switch on agents, done.",
+    "afterPath": "/store/onboarding",
+    "beforePath": null
+  },
+  {
+    "id": "11-feedback",
+    "caption": "The feedback button and its sheet (bottom right on every merchant screen).",
+    "afterPath": "/store/team",
+    "beforePath": null
+  },
+  {
+    "id": "12-weekly-summary",
+    "caption": "Weekly summary: the team section with actions per agent and the time and money saved (estimates with formula).",
+    "afterPath": "/store/weekly",
+    "beforePath": "/store/weekly"
+  },
+  {
+    "id": "13-overview",
+    "caption": "Overview in the Aurora theme (same screen, before and after).",
+    "afterPath": "/store",
+    "beforePath": "/store"
+  },
+  {
+    "id": "14-agents-engine",
+    "caption": "The correction-engine agents page in the Aurora theme (same screen, before and after).",
+    "afterPath": "/store/agents",
+    "beforePath": "/store/agents"
+  },
+  {
+    "id": "15-site-home",
+    "caption": "Website home: Aurora theme, the five-step “How it works”, the twelve-agent library.",
+    "afterPath": "/",
+    "beforePath": "/"
+  },
+  {
+    "id": "16-site-agents",
+    "caption": "Website /agents: all twelve agents with character, plain-English description, example task and tier.",
+    "afterPath": "/agents",
+    "beforePath": null
+  },
+  {
+    "id": "17-site-pricing",
+    "caption": "Website /pricing: three tiers, allowance, overage, comparison table, prices “coming soon”.",
+    "afterPath": "/pricing",
+    "beforePath": null
+  }
+]

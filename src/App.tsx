@@ -5,7 +5,10 @@ import { Footer } from './components/Footer'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import Home from './pages/Home'
 // Secondary routes load on demand so the homepage bundle stays small.
+const Agents = lazy(() => import('./pages/Agents'))
+const Pricing = lazy(() => import('./pages/Pricing'))
 const Legal = lazy(() => import('./pages/Legal'))
+const Support = lazy(() => import('./pages/Support'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 export default function App() {
@@ -18,7 +21,7 @@ export default function App() {
 
 /**
  * Routes from earlier versions of the site. They all go to the homepage so old links never 404.
- * /website, /evv and /baa belonged to the retired consulting offer.
+ * Pages from before the agent product (/website, /evv, /baa) send old links to the home page.
  */
 export const LEGACY_REDIRECTS: Record<string, string> = {
   '/website': '/',
@@ -42,8 +45,11 @@ export function AppRoutes() {
         {Object.entries(LEGACY_REDIRECTS).map(([from, to]) => (
           <Route key={from} path={from} element={<Navigate to={to} replace />} />
         ))}
+        <Route path="/agents" element={<Agents />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="/terms" element={<Legal kind="terms" />} />
         <Route path="/privacy" element={<Legal kind="privacy" />} />
+        <Route path="/support" element={<Support />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

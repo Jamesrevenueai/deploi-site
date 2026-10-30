@@ -1,0 +1,91 @@
+/**
+ * Email step of an agent run: build this run's messages from the authorized tasks, decide each one
+ * (draft, awaiting approval or queued under the standing authorization), send what is queued, and
+ * note replies when the agent may read them. Called by runAgent after the corrections.
+ */
+import { admin } from '../db'
+import { env } from '../env'
+import { inScope, type AgentPolicy } from '../agents/policy'
+import type { ResourceRecord } from '../engine/types'
+import { checkReplies, createAgentMessages, processQueue } from './engine'
+import { competitorReport, needsPersonAlert, reorderCandidates, runReport, supplierFollowup, supplierReorder, type DraftMessage, type FollowupTarget, type PersonItem } from './tasks'
+
+export type EmailRunCounts = { emailDrafted: number; emailAwaiting: number; emailAccepted: number; emailFailed: number; emailUnknown: number; emailSkipped: number }
+
+export async function runEmailStep(input: {
+  agentId: string; agentName: string; runId: string; policy: AgentPolicy; storeName: string; records: ResourceRecord[] | null; actor: string; now: Date
+  run: { verified: number; awaitingApproval: number; needsPerson: number; failed: number; blocked: number }
+  competitors?: { storesChecked: number; storesSkipped: number }
+}): Promise<EmailRunCounts> {
+  const e = input.policy.email!
+  const out: EmailRunCounts = { emailDrafted: 0, emailAwaiting: 0, emailAccepted: 0, emailFailed: 0, emailUnknown: 0, emailSkipped: 0 }
+  const appUrl = (env.appUrl || 'http://localhost:3000').replace(/\/$/, '')
+  const drafts: DraftMessage[] = []
+  // replies first, so a supplier who answered is never chased
+  if (e.read.enabled) await checkReplies(input.agentId, { actor: input.actor })
+
+  if (e.tasks.includes('needs_person_alert')) {
+    // only items not already included in an earlier alert from this agent
+    const items = await admin(db => db.query<PersonItem>(
+      `select i.id, coalesce(i.resource_label, i.resource_id) as label, i.evidence->>'summary' as summary, i.evidence->>'humanAction' as "humanAction" from issues i
+       where i.agent_id = $1 and i.kind = 'needs_person' and i.status in ('open','needs_review')
+         and not exists (select 1 from email_messages m where m.agent_id = $1 and m.task_key = 'needs_person_alert' and m.status not in ('cancelled','failed') and m.meta->'issue_ids' ? i.id::text)
+       order by i.severity = 'high' desc, i.first_detected_at`, [input.agentId]))
+    const d = needsPersonAlert(e, { runId: input.runId, agentId: input.agentId, agentName: input.agentName, storeName: input.storeName, appUrl, items })
+    if (d) drafts.push(d)
+  }
+  const sr = e.supplierReorder
+  if (e.tasks.includes('supplier_reorder') && sr && input.records) {
+    const recent = await admin(db => db.query<{ v: string }>(
+      `select jsonb_array_elements_text(meta->'variant_ids') as v from email_messages where agent_id = $1 and task_key = 'supplier_reorder'
+       and status not in ('cancelled','failed') and created_at > $2`, [input.agentId, new Date(input.now.getTime() - sr.cooldownDays * 864e5).toISOString()]))
+    const skip = new Set(recent.map(r => r.v))
+    const items = reorderCandidates(input.records, sr.thresholdAvailable, r => inScope(input.policy, String(r.productId ?? ''), Array.isArray(r.productTags) ? (r.productTags as string[]) : []))
+      .filter(i => !skip.has(i.variantId))
+    const d = supplierReorder(e, { runId: input.runId, agentName: input.agentName, storeName: input.storeName, at: input.now, items })
+    if (d) drafts.push(d)
+  }
+
+  if (e.tasks.includes('supplier_followup') && sr && e.read.enabled) {
+    // sent restock requests with no reply after followupDays, and no follow-up yet (the dedupe key also guarantees one)
+    const due = await admin(db => db.query<FollowupTarget>(
+      `select m.id as "messageId", m.internet_message_id as "internetMessageId", m.to_addresses as "to", m.meta->>'subject' as subject, m.accepted_at as "sentAt",
+              coalesce(array(select jsonb_array_elements_text(m.meta->'variant_ids')), '{}') as "variantIds"
+       from email_messages m where m.agent_id = $1 and m.task_key = 'supplier_reorder' and m.status = 'accepted' and m.reply_count = 0
+         and m.accepted_at <= $2 and m.accepted_at > $3
+         and not exists (select 1 from email_messages f where f.agent_id = $1 and f.dedupe_key = 'supplier_followup:' || m.id::text)
+       order by m.accepted_at limit 20`,
+      [input.agentId, new Date(input.now.getTime() - sr.followupDays * 864e5).toISOString(), new Date(input.now.getTime() - 30 * 864e5).toISOString()]))
+    for (const t of due) {
+      const d = supplierFollowup(e, { agentName: input.agentName, storeName: input.storeName, target: { ...t, subject: t.subject || `Restock request from ${input.storeName}` } })
+      if (d) drafts.push(d)
+    }
+  }
+
+  // the run summary comes last: it reports on everything above
+  if (e.tasks.includes('run_report') && input.policy.competitors) {
+    const rows = await admin(db => db.query<{ basis: 'observed' | 'inference'; title: string; summary: string; url: string | null }>(
+      `select basis, title, summary, evidence->0->>'url' as url from competitor_findings where run_id = $1 and kind <> 'baseline' order by basis, created_at`, [input.runId]))
+    const d = competitorReport(e, { runId: input.runId, agentId: input.agentId, agentName: input.agentName, at: input.now, appUrl, findings: rows,
+      stores: { checked: input.competitors?.storesChecked ?? 0, skipped: input.competitors?.storesSkipped ?? 0 } })
+    if (d) drafts.push(d)
+  } else if (e.tasks.includes('run_report')) {
+    const verified = await admin(db => db.query<{ target_label: string; change: { field: string; from: unknown; to: unknown } }>(
+      `select p.target_label, p.change from executions e join proposals p on p.id = e.proposal_id where e.agent_id = $1 and e.status = 'verified' and e.finished_at >= $2`, [input.agentId, input.now.toISOString()]))
+    drafts.push(runReport(e, { runId: input.runId, agentId: input.agentId, agentName: input.agentName, storeName: input.storeName, at: input.now, appUrl, counts: input.run,
+      verified: verified.map(v => ({ label: v.target_label, field: v.change.field, from: v.change.from, to: v.change.to })) }))
+  }
+  const created = await createAgentMessages({ agentId: input.agentId, runId: input.runId, drafts, actor: input.actor, now: input.now })
+  out.emailSkipped = created.skipped
+  for (const c of created.created) {
+    if (c.status === 'draft') out.emailDrafted++
+    else if (c.status === 'awaiting_approval') out.emailAwaiting++
+  }
+  for (const r of await processQueue({ agentId: input.agentId, actor: input.actor, now: input.now })) {
+    if (r.status === 'accepted') out.emailAccepted++
+    else if (r.status === 'failed') out.emailFailed++
+    else if (r.status === 'delivery_unknown') out.emailUnknown++
+    else if (r.status === 'awaiting_approval') out.emailAwaiting++
+  }
+  return out
+}

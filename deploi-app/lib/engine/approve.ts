@@ -28,11 +28,30 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
       await audit(db, { orgId: p.org_id, connectionId: p.connection_id, entityType: 'proposal', entityId: p.id, event: 'approval.refused', actor: actor.label, detail: { reason: 'hash_mismatch' } })
       throw new EngineError('hash_mismatch', 'the change you approved is not the current proposal; reload and review it again')
     }
-    const issue = await db.one<{ check_key: string; status: string }>('select check_key, status from issues where id = $1', [p.issue_id])
-    const rule = await db.one<{ version: number; enabled: boolean }>('select version, enabled from merchant_rules where connection_id = $1 and check_key = $2', [p.connection_id, issue?.check_key])
-    if (!rule || !rule.enabled || rule.version !== p.rule_version) {
-      await invalidateProposal(db, p, 'stale', 'the rule changed after this proposal was made', actor.label)
-      throw new EngineError('rule_changed', 'the rule changed after this proposal was made; run a new scan')
+    if (p.agent_id) {
+      // an agent's proposal can be approved only while the agent is active under the same authorization version
+      const agent = await db.one<{ status: string; version: number | null; mode: string | null }>(
+        `select a.status, ap.version, ap.policy->>'approvalMode' as mode from agents a left join agent_policies ap on ap.id = a.active_policy_id and ap.status = 'active' where a.id = $1`, [p.agent_id])
+      if (!agent || agent.status !== 'active') {
+        await invalidateProposal(db, p, 'blocked', `the agent is ${agent?.status ?? 'deleted'}`, actor.label)
+        throw new EngineError('agent_inactive', `the agent is ${agent?.status ?? 'deleted'}; resume it to approve its changes`)
+      }
+      if (agent.mode !== 'review' && agent.mode !== 'autonomous') {
+        // drafts only (or anything unrecognised): approving would make a change the grant does not allow
+        await audit(db, { orgId: p.org_id, connectionId: p.connection_id, entityType: 'proposal', entityId: p.id, event: 'approval.refused', actor: actor.label, detail: { reason: 'drafts_only' } })
+        throw new EngineError('forbidden', 'this agent is drafts only: it may show changes but not make them. Give it permission to make changes you approve (a new grant) first')
+      }
+      if (agent.version !== p.policy_version) {
+        await invalidateProposal(db, p, 'stale', "the agent's authorization changed after this proposal was made", actor.label)
+        throw new EngineError('rule_changed', "the agent's authorization changed after this proposal was made; run the agent again")
+      }
+    } else {
+      const issue = await db.one<{ check_key: string; status: string }>('select check_key, status from issues where id = $1', [p.issue_id])
+      const rule = await db.one<{ version: number; enabled: boolean }>('select version, enabled from merchant_rules where connection_id = $1 and check_key = $2', [p.connection_id, issue?.check_key])
+      if (!rule || !rule.enabled || rule.version !== p.rule_version) {
+        await invalidateProposal(db, p, 'stale', 'the rule changed after this proposal was made', actor.label)
+        throw new EngineError('rule_changed', 'the rule changed after this proposal was made; run a new scan')
+      }
     }
     const a = await db.one<{ id: string }>(
       `insert into approvals (org_id, proposal_id, change_hash, approved_by, approver_kind, approved_at) values ($1,$2,$3,$4,$5,$6) returning id`,

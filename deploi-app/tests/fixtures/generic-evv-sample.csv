@@ -1,4 +1,0 @@
-Visit ID,Patient,Caregiver,Procedure Code,Planned Start,Planned End,Clock In,Clock Out,EVV Status,GPS In,GPS Out
-GEN-1,Avery Okafor,Avery Okafor,T1019,2026-10-15T08:00:00-04:00,2026-10-15T10:00:00-04:00,2026-10-15T08:00:00-04:00,2026-10-15T10:00:00-04:00,Complete,true,true
-GEN-2,Jordan Lindqvist,Jordan Lindqvist,T1019,2026-10-15T11:00:00-04:00,2026-10-15T13:00:00-04:00,2026-10-15T11:00:00-04:00,,Incomplete,true,
-GEN-3,Riley Baptiste,Riley Baptiste,S5125,2026-10-16T08:00:00-04:00,2026-10-16T10:00:00-04:00,2026-10-16T08:00:00-04:00,2026-10-16T09:10:00-04:00,Complete,false,true

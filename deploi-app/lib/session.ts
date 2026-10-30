@@ -6,12 +6,12 @@ export type Session = {
   role: Role
   agencyId: string | null
   fullName?: string | null
-  /** 'merchant' for subscription-product customers; 'care_agency' for the earlier service clients */
-  orgType?: 'merchant' | 'care_agency' | null
+  /** 'merchant' for store owners; anything else is an account with no store (it sees /no-store) */
+  orgType?: string | null
 }
 
 /** Where a signed-in user lands. */
 export function homeFor(s: Pick<Session, 'role' | 'orgType'>): string {
-  if (s.role === 'staff') return '/staff/pipeline'
-  return s.orgType === 'merchant' ? '/store' : '/app/home'
+  if (s.role === 'staff') return '/staff/early-access'
+  return s.orgType === 'merchant' ? '/store' : '/no-store'
 }

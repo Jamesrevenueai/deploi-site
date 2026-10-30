@@ -13,6 +13,10 @@ import { Banner } from '@/components/ui/Banner'
 import { Icon } from '@/components/ui/Icon'
 import { setEmbeddedTokenSource } from './api'
 import { StoreProvider } from './bits'
+import { installPreviewBypass } from '@/lib/client/preview-bypass'
+
+// Preview deployments only: carry the Vercel bypass from the launch URL on same-origin calls.
+installPreviewBypass()
 
 type State = { kind: 'checking' } | { kind: 'outside'; why: 'not_configured' | 'no_app_bridge' } | { kind: 'error'; message: string } | { kind: 'ready' }
 

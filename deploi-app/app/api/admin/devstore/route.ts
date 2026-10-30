@@ -32,6 +32,7 @@ import { M_CREATE_SUBSCRIPTION, Q_ACTIVE_SUBSCRIPTIONS } from '@/lib/connectors/
 import { recordSubscription } from '@/lib/connectors/shopify/billing'
 import { syncScopes } from '@/lib/connectors/shopify/scopes'
 import { shopifyConfig } from '@/lib/connectors/shopify/config'
+import { signSessionToken } from '@/lib/connectors/shopify/auth'
 import { migrate } from '../../../../scripts/migrate'
 import '@/lib/connectors'
 
@@ -91,6 +92,13 @@ export async function POST(req: Request) {
     if (!conn) return NextResponse.json({ ok: false, error: 'not_installed', message: `no connection for ${shop}; install the app first` }, { status: 409 })
     const actor = actorFor(conn.org_id, shop)
     switch (action) {
+      // A short-lived session token in the shape App Bridge issues, so a test browser can open the embedded app
+      // as the store's admin would. Signed here with the app's own secret; never available in production.
+      case 'session-token': {
+        const now = new Date()
+        const token = signSessionToken({ dest: `https://${shop}`, sub: 'devstore-harness', exp: Math.floor(now.getTime() / 1000) + 600 }, shopifyConfig.apiSecret, shopifyConfig.apiKey, now)
+        return NextResponse.json({ ok: true, token, expiresInSec: 600 })
+      }
       case 'products': {
         const row = await admin(db => loadConnection(db, conn.id))
         if (!row) throw new Error('connection not loadable')

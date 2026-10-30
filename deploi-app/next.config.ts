@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   outputFileTracingRoot: path.join(__dirname),
   serverExternalPackages: ['pg', '@react-pdf/renderer'],
+  // the dev-store harness runs the migration files from inside the function (non-production only)
+  outputFileTracingIncludes: { '/api/admin/devstore': ['./supabase/**/*.sql'] },
   experimental: { serverActions: { bodySizeLimit: '8mb' } },
   headers: async () => [{
     // Every page except the embedded Shopify app refuses framing. /shopify must load inside the Shopify

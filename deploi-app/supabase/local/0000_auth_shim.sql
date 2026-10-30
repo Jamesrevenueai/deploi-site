@@ -5,6 +5,14 @@ do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
   if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
 end $$;
+-- Postgres 16+: the creator holds ADMIN but not SET on these roles; let the connection role switch into them.
+do $$ declare r text; begin
+  foreach r in array array['anon', 'authenticated', 'service_role'] loop
+    if pg_has_role(current_user, r, 'SET') then continue; end if;
+    begin execute format('grant %I to %I with set true, inherit false', r, current_user);
+    exception when others then raise notice 'role switch grant for % skipped: %', r, sqlerrm; end;
+  end loop;
+end $$;
 create schema if not exists auth;
 create table if not exists auth.users (
   id uuid primary key,

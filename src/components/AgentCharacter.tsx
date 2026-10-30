@@ -1,10 +1,10 @@
 import type { CSSProperties } from 'react'
+import { botSvg } from '../../deploi-app/lib/library/bot-svg'
 
-/** The agent's bot character: its emoji in an aurora-lit blob tinted with its own hue (the same character the app shows). */
-export function AgentCharacter({ emoji, hue, shape, size = 'md', label }: { emoji: string; hue: number; shape: 'round' | 'square'; size?: 'md' | 'lg'; label: string }) {
+/** The agent's drawn bot: the same drawing the app shows, from the same shared file. */
+export function AgentCharacter({ agentKey, hue, shape, size = 'md', label }: { agentKey: string; hue: number; shape: 'round' | 'square'; size?: 'md' | 'lg'; label: string }) {
   return (
-    <span className={`au-character ${shape} ${size}`} style={{ '--au-h': hue } as CSSProperties} role="img" aria-label={label}>
-      <span aria-hidden="true">{emoji}</span>
-    </span>
+    <span className={`au-bot ${size === 'md' ? '' : size}`} style={{ '--au-h': hue } as CSSProperties} role="img" aria-label={label}
+      data-bot={agentKey} dangerouslySetInnerHTML={{ __html: botSvg({ key: agentKey, hue, shape }) }} />
   )
 }

@@ -31,7 +31,7 @@ export default function Agents() {
             return (
               <li key={a.key} className="agent-card reveal" data-agent={a.key}>
                 <div className="agent-card-head">
-                  <AgentCharacter emoji={a.character.emoji} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
+                  <AgentCharacter agentKey={a.key} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
                   <div>
                     <h2>{a.name}</h2>
                     <p className="agent-tag">{a.tagline}</p>

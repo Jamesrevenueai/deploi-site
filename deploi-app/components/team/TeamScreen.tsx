@@ -92,33 +92,25 @@ export function TeamScreen() {
       </section>
 
       <section aria-label="Agent library" className="mt-6">
-        <ul className="au-grid">
+        <ul className="au-roster">
           {data.agents.map(a => (
             <li key={a.key}>
-              <div className={`au-panel au-agent-card ${a.locked ? 'locked' : ''} ${a.enabled ? 'glow' : ''}`} data-agent={a.key} data-locked={a.locked} data-enabled={a.enabled}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Character emoji={a.character.emoji} hue={a.character.hue} shape={a.character.shape} off={!a.enabled} label={`${a.name} character`} />
-                    <div className="min-w-0">
-                      <Link href={`${base}/team/${a.key}`} className="name hover:underline underline-offset-4">{a.name}</Link>
-                      <div className="tag">{a.tagline}</div>
-                    </div>
+              <div className={`au-panel au-roster-row ${a.locked ? 'locked' : ''} ${a.enabled ? 'glow' : ''}`} data-agent={a.key} data-locked={a.locked} data-enabled={a.enabled}>
+                <Link href={`${base}/team/${a.key}`} aria-label={`Open ${a.name}`} tabIndex={-1}><Character agentKey={a.key} hue={a.character.hue} shape={a.character.shape} off={!a.enabled} label={`${a.name} character`} /></Link>
+                <div className="min-w-0">
+                  <Link href={`${base}/team/${a.key}`} className="name hover:underline underline-offset-4">{a.name}</Link>
+                  <div className="tag line-clamp-1" title={a.tagline}>{a.tagline}</div>
+                  <div className="meta">
+                    {a.locked ? <Link href={`${base}/plan?upgrade=${a.upgradeTo ?? ''}`} className="au-lock" data-upgrade={a.key}><Icon name="shield" size={12} />Upgrade to {a.upgradeTo ? TIER_NAME[a.upgradeTo] : 'unlock'}</Link> : <>
+                      <Badge tone="muted">{LEVEL_SHORT[a.permission]}</Badge>
+                      {a.waiting > 0 && <Link href={`${base}/team/${a.key}#queue`} className="badge warn" style={{ padding: '4px 10px' }}>{a.waiting} waiting</Link>}
+                      {a.grants.length > 0 && <Badge tone="muted">{a.grants.length} auto-run</Badge>}
+                      <span className="text-grey-h self-center">{a.lastRunAt ? `ran ${fmtAgo(a.lastRunAt)}` : 'not run yet'}</span>
+                    </>}
                   </div>
-                  {a.locked ? <span className="au-lock"><Icon name="shield" size={12} />{a.upgradeTo ? TIER_NAME[a.upgradeTo] : 'Locked'}</span>
-                    : <Switch on={a.enabled} disabled={busy === a.key || !data.store.connected} onChange={on => flip(a, on)} label={`Switch ${a.name} ${a.enabled ? 'off' : 'on'}`} />}
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-[12px]">
-                  {a.locked ? <Badge tone="muted">Included from {a.upgradeTo ? TIER_NAME[a.upgradeTo] : '—'}</Badge> : <>
-                    <Badge tone={a.enabled ? 'ok' : 'muted'}>{a.enabled ? 'On' : 'Off'}</Badge>
-                    <Badge tone="muted">{LEVEL_SHORT[a.permission]}</Badge>
-                    {a.waiting > 0 && <Link href={`${base}/team/${a.key}#queue`} className="badge warn" style={{ padding: '4px 10px' }}>{a.waiting} waiting</Link>}
-                    {a.grants.length > 0 && <Badge tone="muted">{a.grants.length} auto-run</Badge>}
-                  </>}
-                </div>
-                <div className="mt-auto flex flex-wrap items-center justify-between gap-2 text-[12px] text-grey-h">
-                  <span>{a.locked ? `${a.actionTypes.length} action type${a.actionTypes.length === 1 ? '' : 's'}` : a.lastRunAt ? `last run ${fmtAgo(a.lastRunAt)} · ${a.lastRunStatus}` : 'not run yet'}</span>
-                  {a.locked ? <Link href={`${base}/plan?upgrade=${a.upgradeTo ?? ''}`} className="btn ghost xs" data-upgrade={a.key}>Upgrade<Icon name="arrow-right" size={12} /></Link> : <Link href={`${base}/team/${a.key}`} className="btn ghost xs">Open<Icon name="arrow-right" size={12} /></Link>}
-                </div>
+                {a.locked ? <span className="sr-only">Locked</span>
+                  : <Switch on={a.enabled} disabled={busy === a.key || !data.store.connected} onChange={on => flip(a, on)} label={`Switch ${a.name} ${a.enabled ? 'off' : 'on'}`} />}
               </div>
             </li>
           ))}
@@ -135,7 +127,7 @@ export function TeamScreen() {
             {data.buildYourOwn.agents.map(c => (
               <li key={c.id}><div className={`au-panel au-agent-card ${c.enabled ? 'glow' : ''}`} data-custom={c.id}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0"><Character emoji="🛠️" hue={60} shape="square" off={!c.enabled} /><div className="min-w-0"><div className="name">{c.name}</div><div className="tag line-clamp-2">{c.job}</div></div></div>
+                  <div className="flex items-center gap-3 min-w-0"><Character agentKey="custom" hue={60} shape="square" off={!c.enabled} /><div className="min-w-0"><div className="name">{c.name}</div><div className="tag line-clamp-2">{c.job}</div></div></div>
                   <Switch on={c.enabled} disabled={busy === c.id} onChange={on => toggleCustom(c.id, on)} label={`Switch ${c.name} ${c.enabled ? 'off' : 'on'}`} />
                 </div>
                 <div className="flex flex-wrap gap-2 text-[12px]"><Badge tone="muted">{LEVEL_SHORT[c.permission]}</Badge>{c.capabilities.length ? c.capabilities.map(k => <Badge key={k} tone="muted">{data.agents.find(a => a.key === k)?.name ?? k}</Badge>) : <Badge tone="warn">No matching capability yet</Badge>}</div>

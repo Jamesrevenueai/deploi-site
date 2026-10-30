@@ -221,3 +221,73 @@ body { background: var(--au-ground); background-image: var(--au-glow); backgroun
 .au-kv dd { margin: 0; color: #fff; }
 .au-proof { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(46, 230, 168, 0.07); border: 1px solid rgba(46, 230, 168, 0.25); font-size: 13px; color: var(--dg-grey-nav); white-space: pre-wrap; word-break: break-word; }
 .au-draft { margin-top: 8px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--dg-line); font-size: 14px; color: var(--dg-grey-nav); white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; }
+
+/* ------------------------------------------------------------------ aurora v2: white surfaces on the glow */
+.au-panel, .au-tile, .au-plan, .au-log-row, .au-surface {
+  --dg-white: #0B1020; --dg-grey-headline: #5B6476; --dg-grey-body: #3A4256; --dg-grey-nav: #1F2636;
+  --dg-line: #E7E9F1; --dg-line-ghost: #D3D8E4;
+  --color-ok: #047857; --color-warn: #B45309; --color-danger: #C81E1E;
+  background: #fff; color: var(--dg-grey-body); border-color: var(--au-panel-border); box-shadow: var(--au-shadow);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.au-panel h1, .au-panel h2, .au-panel h3, .au-panel h4, .au-plan h2, .au-plan h3 { color: #0B1020; }
+.au-tile .v, .au-plan .price, .au-agent-card .name, .au-kv dd, .au-step .n { color: #0B1020; }
+.au-panel .badge, .au-plan .badge, .au-log-row .badge { color: #0B1020; background: #F5F6FA; }
+.au-panel .badge.ok, .au-plan .badge.ok, .au-log-row .badge.ok { color: #047857; border-color: #A7E3C9; background: #ECFDF5; }
+.au-panel .badge.warn, .au-plan .badge.warn, .au-log-row .badge.warn { color: #B45309; border-color: #F6D69B; background: #FFFBEB; }
+.au-panel .badge.danger, .au-plan .badge.danger, .au-log-row .badge.danger { color: #C81E1E; border-color: #F5B5B5; background: #FEF2F2; }
+.au-panel .badge.muted, .au-plan .badge.muted { color: #5B6476; }
+.au-panel .btn, .au-plan .btn { background: #0B1020; color: #fff; }
+.au-panel .btn:hover, .au-plan .btn:hover { background: #222a44; }
+.au-panel .btn.ghost, .au-plan .btn.ghost, .au-log-row .btn.ghost { background: #fff; color: #0B1020; border-color: #D3D8E4; }
+.au-panel .btn.ghost:hover, .au-plan .btn.ghost:hover { background: #F5F6FA; border-color: #B7BECE; }
+.au-panel .banner, .au-plan .banner { background: #F7F8FB; border-color: #E7E9F1; color: #3A4256; }
+.au-panel .banner strong { color: #0B1020; }
+.au-panel input, .au-panel textarea, .au-panel select { background: #fff; color: #0B1020; border-color: #C9CFDC; }
+.au-panel .field label { color: #0B1020; }
+.au-panel.glow::before { opacity: 0.9; }
+.au-panel.glow { box-shadow: var(--au-shadow), 0 0 0 1px rgba(240, 86, 158, 0.12), 0 12px 44px -16px rgba(240, 86, 158, 0.45); }
+.au-eyebrow { background: var(--au-text-glow); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.au-switch { background: #E3E6EE; border-color: #D3D8E4; }
+.au-switch::after { background: #fff; box-shadow: 0 1px 3px rgba(5, 6, 13, 0.25); }
+.au-switch[aria-checked="true"] { background: linear-gradient(90deg, var(--au-blue), var(--au-pink), var(--au-orange)); }
+.au-lock { color: #B45309; border-color: #F6D69B; background: #FFFBEB; }
+.au-meter { background: #EEF0F6; }
+.au-meter > span { background: linear-gradient(90deg, var(--au-blue), var(--au-pink), var(--au-orange)); }
+.au-meter.over > span { background: linear-gradient(90deg, var(--au-orange), #C81E1E); }
+.au-tab[aria-selected="true"] { color: #fff; }
+.au-bubble.merchant { background: linear-gradient(135deg, var(--au-blue), #6B5CFF); border: 0; color: #fff; }
+.au-bubble.agent { background: #F3F4F8; border: 1px solid #E7E9F1; color: #1F2636; }
+.au-bubble .via { color: inherit; opacity: 0.7; }
+.au-mic { background: #F3F4F8; border-color: #D3D8E4; color: #0B1020; }
+.au-mic.listening { background: linear-gradient(135deg, var(--au-pink), var(--au-orange)); color: #fff; }
+.au-level { background: #F3F4F8; border-color: #E7E9F1; }
+.au-level button { color: #3A4256; }
+.au-level button[aria-pressed="true"] { color: #fff; background: linear-gradient(90deg, var(--au-blue), var(--au-pink)); }
+.au-step .n { background: #F3F4F8; border-color: #E7E9F1; }
+.au-step.done .n { background: linear-gradient(135deg, var(--au-blue), var(--au-pink)); color: #fff; }
+.au-plan.current { border-color: rgba(240, 86, 158, 0.6); box-shadow: var(--au-shadow), 0 0 0 3px var(--au-rose-soft); }
+.au-proof { background: #ECFDF5; border-color: #A7E3C9; color: #064E3B; }
+.au-draft { background: #F7F8FB; border-color: #E7E9F1; color: #1F2636; }
+.au-feedback { background: #fff; color: #0B1020; border-color: transparent; box-shadow: var(--au-shadow); }
+.au-log-row { border: 1px solid var(--au-panel-border); }
+
+/* drawn bot characters */
+.au-bot { position: relative; display: inline-grid; place-items: center; flex: none; width: 56px; height: 56px; border-radius: 18px; background: radial-gradient(120% 120% at 30% 15%, hsl(var(--au-h) 95% 96%), hsl(var(--au-h) 85% 88%)); box-shadow: inset 0 0 0 1px hsl(var(--au-h) 70% 80%); }
+.au-bot svg { width: 86%; height: 86%; overflow: visible; }
+.au-bot.lg { width: 88px; height: 88px; border-radius: 26px; }
+.au-bot.sm { width: 36px; height: 36px; border-radius: 12px; }
+.au-bot.off { filter: grayscale(0.9) opacity(0.65); }
+@media (prefers-reduced-motion: no-preference) { .au-bot:not(.off) .eye { animation: auBlink 5s infinite; transform-origin: center; transform-box: fill-box; } }
+@keyframes auBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+
+/* compact roster */
+.au-roster { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 720px) { .au-roster { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1280px) { .au-roster { grid-template-columns: repeat(3, 1fr); } }
+.au-roster-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 14px; }
+.au-roster-row .name { color: #0B1020; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+.au-roster-row .tag { color: #5B6476; font-size: 13px; line-height: 1.35; }
+.au-roster-row .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 12px; }
+.au-roster-row.locked { background: #FAFAFC; }
+.au-roster-row.locked .name { color: #5B6476; }

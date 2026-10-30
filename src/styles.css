@@ -659,3 +659,25 @@ section.alt { background: rgba(11, 15, 26, 0.75); }
 .status-line + .lead, .pricing-page .lead { color: var(--dg-grey-body); }
 .timeline { grid-template-columns: repeat(5, 1fr); }
 @media (max-width: 959px) { .timeline { grid-template-columns: 1fr; } .timeline::before { display: none; } }
+
+/* ------------------------------------------------------------------ aurora v2: white surfaces on the glow (same look as the app) */
+.agent-card, .tier-mini, .plan-card, .table-wrap {
+  --dg-white: #0B1020; --dg-grey-headline: #5B6476; --dg-grey-body: #3A4256; --dg-grey-nav: #1F2636;
+  --dg-line: #E7E9F1; --dg-line-ghost: #D3D8E4;
+  background: #fff; color: var(--dg-grey-body); border-color: var(--au-panel-border); box-shadow: var(--au-shadow);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.agent-card h2, .agent-card h3, .plan-card h2, .plan-card h3, .tier-mini h3 { color: #0B1020; }
+.agent-example { background: #F7F8FB; border-color: #E7E9F1; }
+.plan-card .btn { background: #0B1020; color: #fff; }
+.plan-card .btn.ghost, .plan-card .btn-ghost { background: #fff; color: #0B1020; border: 1px solid #D3D8E4; }
+.plan-card.featured { border-color: rgba(240, 86, 158, 0.55); box-shadow: var(--au-shadow), 0 0 0 3px rgba(240, 86, 158, 0.14), 0 24px 64px -16px rgba(240, 86, 158, 0.45); }
+.tier-starter { color: #1D4ED8; border-color: #BFD0FF; background: #EEF3FF; }
+.tier-growth { color: #BE185D; border-color: #F9C2DA; background: #FDF0F6; }
+.tier-pro { color: #C2410C; border-color: #FFD2B3; background: #FFF4EC; }
+.compare-table td .yes { color: #047857; }
+.au-bot { position: relative; display: inline-grid; place-items: center; flex: none; width: 56px; height: 56px; border-radius: 18px; background: radial-gradient(120% 120% at 30% 15%, hsl(var(--au-h) 95% 96%), hsl(var(--au-h) 85% 88%)); box-shadow: inset 0 0 0 1px hsl(var(--au-h) 70% 80%); }
+.au-bot svg { width: 86%; height: 86%; overflow: visible; }
+.au-bot.lg { width: 88px; height: 88px; border-radius: 26px; }
+@media (prefers-reduced-motion: no-preference) { .au-bot .eye { animation: auBlink 5s infinite; transform-origin: center; transform-box: fill-box; } }
+@keyframes auBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }

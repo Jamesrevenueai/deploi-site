@@ -248,7 +248,7 @@ export function Agents() {
             return (
               <li key={a.key} className="agent-card reveal">
                 <div className="agent-card-head">
-                  <AgentCharacter emoji={a.character.emoji} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
+                  <AgentCharacter agentKey={a.key} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
                   <div><h3>{a.name}</h3><p className="agent-tag">{a.tagline}</p></div>
                 </div>
                 <div className="agent-foot"><span className={`tier-pill tier-${tier?.key ?? 'pro'}`}>From {tier?.name ?? 'Pro'}</span></div>

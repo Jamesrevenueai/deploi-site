@@ -53,7 +53,7 @@ export function AgentScreen({ agentKey }: { agentKey: string }) {
       <div className="au-panel glow p-4 md:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
-            <Character emoji={a.character.emoji} hue={a.character.hue} shape={a.character.shape} size="lg" off={!a.enabled} label={`${a.name} character`} />
+            <Character agentKey={a.key} hue={a.character.hue} shape={a.character.shape} size="lg" off={!a.enabled} label={`${a.name} character`} />
             <div className="min-w-0">
               <span className="au-eyebrow">{custom ? 'Your own agent' : a.status === 'existing' ? 'Agent' : 'Agent · new'}</span>
               <h1 className="text-[1.6rem] leading-tight">{a.name}</h1>

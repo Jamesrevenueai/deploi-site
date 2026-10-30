@@ -1,0 +1,2 @@
+{"ok":true,"subscription":null,"confirmationUrl":null,"userErrors":[{"field":null,"message":"Apps without a public distribution cannot use the Billing API"}]}
+HTTP 200

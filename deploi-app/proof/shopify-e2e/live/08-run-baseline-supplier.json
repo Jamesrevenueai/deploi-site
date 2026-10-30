@@ -1,0 +1,2 @@
+{"ok":true,"runId":"635e546a-59e8-4bd9-8c51-efbd2a41e345","status":"completed","counts":{"issuesFound":0,"needsPerson":0,"proposed":0,"drafted":0,"autoApproved":0,"awaitingApproval":0,"verified":0,"failed":0,"blocked":0,"stale":0,"unconfirmed":0,"missingSources":[],"email":{"emailDrafted":1,"emailAwaiting":0,"emailAccepted":0,"emailFailed":0,"emailUnknown":0,"emailSkipped":0}},"executions":[]}
+HTTP 200

@@ -21,7 +21,7 @@ describe('Nav', () => {
     render(<MemoryRouter><Nav /></MemoryRouter>)
     expect(screen.getByLabelText('Deploi AI home')).toHaveTextContent('deploi ai')
     for (const l of NAV_LINKS) expect(screen.getAllByText(l.label).length).toBeGreaterThan(0)
-    expect(NAV_LINKS.every(l => l.to.startsWith('/#'))).toBe(true)
+    expect(NAV_LINKS.map(l => l.to)).toEqual(['/agents', '/pricing', '/#how', '/#shopify', '/#controls', '/#faq'])
     const ctas = screen.getAllByRole('link', { name: 'Apply for Early Access' })
     expect(ctas.length).toBeGreaterThan(0)
     for (const a of ctas) expect(a).toHaveAttribute('href', '/#early-access')
@@ -68,15 +68,16 @@ describe('Home', () => {
     expect(container.textContent).not.toMatch(CONSULTING)
   })
 
-  it('renders the six-step flow, the agent section and all four Shopify corrections', () => {
+  it('renders the five-step flow, the agent library and all four Shopify corrections', () => {
     render(<MemoryRouter><Home /></MemoryRouter>)
-    expect(FLOW.map(f => f.title)).toEqual(['Name and instruct', 'Authorize', 'Detect with evidence', 'Exact change', 'Checked, then made', 'Verified'])
+    expect(FLOW.map(f => f.title)).toEqual(['Connect your store', 'Switch on agents', 'Approve their work', 'Agents earn auto-run', 'Weekly summary'])
     for (const f of FLOW) expect(screen.getByRole('heading', { level: 3, name: f.title })).toBeInTheDocument()
     expect(CHECKS).toHaveLength(4)
     for (const c of CHECKS) expect(screen.getAllByText(c.title).length).toBeGreaterThan(0)
     expect(screen.getByText(`Example: ${EXAMPLE_AGENT.name}`)).toBeInTheDocument()
     for (const t of ['Drafts only', 'After your approval', 'Without asking, within limits']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
-    for (const t of ['Inventory Watcher', 'Supplier Chaser', 'Store Health Checker', 'Competitor & Trend Watcher']) expect(screen.getByRole('heading', { level: 3, name: t })).toBeInTheDocument()
+    // the three illustrated agents also appear in the library grid, so a name can head two cards
+    for (const t of ['Inventory Watcher', 'Supplier Chaser', 'Store Health Checker', 'Order Tracker', 'Returns', 'Listing Writer', 'Customer Care', 'Campaign', 'Promo Manager', 'Weekly Insights', 'Payout and Fees Checker', 'AI Visibility']) expect(screen.getAllByRole('heading', { level: 3, name: t }).length).toBeGreaterThan(0)
     expect(screen.getByText(/time saved clearly labelled as an estimate/)).toBeInTheDocument()
     expect(screen.getAllByText(/fix my store/).length).toBeGreaterThan(0)
   })
@@ -90,10 +91,9 @@ describe('Home', () => {
       expect(img).toHaveAttribute('loading', 'lazy')
       expect(r.alt.startsWith('Illustration:')).toBe(true)
     }
-    // the one agent without an illustration is listed as a template, and never claims competitors' sales
-    expect(screen.getByRole('heading', { level: 3, name: 'Competitor & Trend Watcher' })).toBeInTheDocument()
+    // the competitor watcher is not one of the twelve library agents; it stays available as an app template, and never claims competitors' sales
+    expect(screen.getByText(/Competitor & Trend Watcher template/)).toBeInTheDocument()
     expect(screen.getByText(/Never their sales, which are not public\./)).toBeInTheDocument()
-    expect(screen.getByText(/Inventory Watcher, Supplier Chaser and Store Health Checker above/)).toBeInTheDocument()
     expect(screen.getByText(/Illustrations\. The names, products and numbers in them are examples\./)).toBeInTheDocument()
   })
 
@@ -101,7 +101,7 @@ describe('Home', () => {
     const { container } = render(<MemoryRouter><FAQ /></MemoryRouter>)
     for (const f of FAQS) expect(screen.getByText(f.q)).toBeInTheDocument()
     const text = container.textContent ?? ''
-    expect(text).toContain('Pricing will be published before general availability.')
+    expect(text).toContain('Prices are coming soon; early access is free.')
     expect(text).not.toMatch(/\$\d/)
   })
 })

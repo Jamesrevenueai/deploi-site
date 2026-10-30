@@ -1,0 +1,3715 @@
+{
+  "startedAt": "2026-10-29T19:11:09.922Z",
+  "base": "http://localhost:3000",
+  "steps": [
+    {
+      "step": "0.signin",
+      "store": "northwind-goods-demo.myshopify.com",
+      "synthetic": true,
+      "connectionId": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a"
+    },
+    {
+      "step": "3a.create",
+      "status": 200,
+      "agentId": "351d5302-5500-40e8-a75f-b69859eab218"
+    },
+    {
+      "step": "3a.grant-v1-drafts-only",
+      "status": 200
+    },
+    {
+      "step": "3a.drop-stock",
+      "status": 200,
+      "variant": "Walnut Serving Board NW-WSB-01",
+      "available": -2,
+      "policy": "CONTINUE"
+    },
+    {
+      "step": "3a.run",
+      "status": 200,
+      "result": {
+        "ok": true,
+        "runId": "041e0a07-2eb8-46b1-9b6b-63a78ca67ae9",
+        "status": "completed",
+        "counts": {
+          "issuesFound": 6,
+          "needsPerson": 1,
+          "proposed": 5,
+          "drafted": 5,
+          "autoApproved": 0,
+          "awaitingApproval": 0,
+          "verified": 0,
+          "failed": 0,
+          "blocked": 0,
+          "stale": 0,
+          "unconfirmed": 0,
+          "missingSources": [],
+          "email": {
+            "emailDrafted": 1,
+            "emailAwaiting": 0,
+            "emailAccepted": 0,
+            "emailFailed": 0,
+            "emailUnknown": 0,
+            "emailSkipped": 0
+          }
+        },
+        "executions": []
+      }
+    },
+    {
+      "step": "3a.alert-emails",
+      "count": 1,
+      "messages": [
+        {
+          "task": "needs_person_alert",
+          "to": [
+            "test-mailbox@northwind-supplier.example"
+          ],
+          "status": "draft",
+          "subject": "Deploi: 1 item needs a person in Northwind Goods (synthetic)"
+        }
+      ]
+    },
+    {
+      "step": "3a.out-of-grant-task",
+      "status": 200,
+      "taskStatus": "needs_approval",
+      "reason": "Outside the agent's granted rules: correcting price is not in the agent's rules; the task asks to act without asking; the agent is drafts only. Widen the agent (a new grant) or cancel the task."
+    },
+    {
+      "step": "3a.impossible-task",
+      "status": 200,
+      "taskStatus": "refused",
+      "reason": "Deploi cannot do this: deleting products"
+    },
+    {
+      "step": "3a.widen-needs-grant",
+      "status": 200,
+      "requiresGrant": true,
+      "expansion": [
+        "new writable fields",
+        "may now make changes you approve (was drafts only)"
+      ]
+    },
+    {
+      "step": "3a.no-approve-button-at-drafts-only",
+      "approveButtons": 0
+    },
+    {
+      "step": "3b.create+grant",
+      "agentId": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+      "supplier": "test-mailbox@northwind-supplier.example"
+    },
+    {
+      "step": "3b.widen-email",
+      "status": 200,
+      "requiresGrant": true,
+      "expansion": [
+        "may now send approved email"
+      ]
+    },
+    {
+      "step": "3b.grant-v2",
+      "status": 200,
+      "version": 2
+    },
+    {
+      "step": "3b.run",
+      "status": 200,
+      "result": {
+        "ok": true,
+        "runId": "7798f2ff-4047-4e10-9563-dfcd95336047",
+        "status": "completed",
+        "counts": {
+          "issuesFound": 0,
+          "needsPerson": 0,
+          "proposed": 0,
+          "drafted": 0,
+          "autoApproved": 0,
+          "awaitingApproval": 0,
+          "verified": 0,
+          "failed": 0,
+          "blocked": 0,
+          "stale": 0,
+          "unconfirmed": 0,
+          "missingSources": [],
+          "email": {
+            "emailDrafted": 0,
+            "emailAwaiting": 1,
+            "emailAccepted": 0,
+            "emailFailed": 0,
+            "emailUnknown": 0,
+            "emailSkipped": 0
+          }
+        },
+        "executions": []
+      }
+    },
+    {
+      "step": "3b.chase-email",
+      "count": 1,
+      "messages": [
+        {
+          "id": "3df79c9c-fca0-4bc2-923f-47f45d99a42d",
+          "task": "supplier_reorder",
+          "from": "supplier-chaser.8367dd@agents.getdeploi.test",
+          "to": [
+            "test-mailbox@northwind-supplier.example"
+          ],
+          "status": "awaiting_approval",
+          "subject": "Restock request from Northwind Goods (synthetic): 10 products"
+        }
+      ]
+    },
+    {
+      "step": "3b.approve-held-sends-off",
+      "status": "failed",
+      "reason": "real email sending is turned off in this environment (EMAIL_LIVE_SENDS)"
+    },
+    {
+      "step": "3b.other-address-blocked",
+      "status": 200,
+      "taskStatus": "needs_approval",
+      "reason": "Outside the agent's granted rules: someone-else@elsewhere.example is not an allowed recipient. Widen the agent (a new grant) or cancel the task. Left out (Deploi cannot do it): changing stock quantities (Deploi never guesses or sets physical stock).",
+      "outside": [
+        "someone-else@elsewhere.example is not an allowed recipient"
+      ]
+    },
+    {
+      "step": "3c.run",
+      "status": 200,
+      "result": {
+        "ok": true,
+        "runId": "8064285b-a342-4908-8a60-61b9d44b85ae",
+        "status": "completed",
+        "counts": {
+          "issuesFound": 6,
+          "needsPerson": 1,
+          "proposed": 0,
+          "drafted": 0,
+          "autoApproved": 0,
+          "awaitingApproval": 0,
+          "verified": 0,
+          "failed": 0,
+          "blocked": 0,
+          "stale": 0,
+          "unconfirmed": 0,
+          "missingSources": [],
+          "email": {
+            "emailDrafted": 1,
+            "emailAwaiting": 0,
+            "emailAccepted": 0,
+            "emailFailed": 0,
+            "emailUnknown": 0,
+            "emailSkipped": 0
+          }
+        },
+        "executions": []
+      }
+    },
+    {
+      "step": "3c.report",
+      "count": 1,
+      "messages": [
+        {
+          "task": "run_report",
+          "from": "store-health-checker.1fe1cd@agents.getdeploi.test",
+          "to": [
+            "test-mailbox@northwind-supplier.example"
+          ],
+          "status": "draft",
+          "subject": "Deploi: Store Health Checker: 0 verified, 0 waiting, 1 for a person",
+          "body": ""
+        }
+      ]
+    },
+    {
+      "step": "3c.worklog",
+      "entries": [
+        {
+          "at": "2026-10-29T19:11:28.583Z",
+          "what": "Email drafted (not sent): run report to 1 recipient(s)",
+          "why": null,
+          "permission": "authorization v1 (email: Drafts only)",
+          "event": "email.draft",
+          "actor": "agent:Store Health Checker@v1",
+          "ref": {
+            "type": "execution",
+            "id": "7c641510-6b37-48f0-aba5-b6106e8fb944"
+          }
+        },
+        {
+          "at": "2026-10-29T19:11:28.572Z",
+          "what": "Store read and checked",
+          "why": null,
+          "permission": "read access under the agent's grant (nothing changed)",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "ref": {
+            "type": "scan",
+            "id": "294ac5c1-9f19-4d2c-bb26-0cec322bcbad"
+          }
+        },
+        {
+          "at": "2026-10-29T19:11:28.528Z",
+          "what": "Run started",
+          "why": "trigger: manual",
+          "permission": "authorization v1 (store: Drafts only)",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "ref": {
+            "type": "run",
+            "id": "8064285b-a342-4908-8a60-61b9d44b85ae"
+          }
+        },
+        {
+          "at": "2026-10-29T19:11:28.507Z",
+          "what": "Rules granted",
+          "why": null,
+          "permission": "you (user:owner@northwind-goods.example)",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "ref": {
+            "type": "policy",
+            "id": "afb46129-4fb0-4526-84d2-43dcf5317029"
+          }
+        },
+        {
+          "at": "2026-10-29T19:11:28.481Z",
+          "what": "Agent created (nothing granted yet)",
+          "why": null,
+          "permission": "you (user:owner@northwind-goods.example)",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "ref": {
+            "type": "agent",
+            "id": "123cc5b4-bbf5-485b-8aa1-c4ea54141fcd"
+          }
+        },
+        {
+          "at": "2026-10-29T19:11:28.481Z",
+          "what": "Agent mailbox created",
+          "why": null,
+          "permission": "you (user:owner@northwind-goods.example)",
+          "event": "mailbox.created",
+          "actor": "user:owner@northwind-goods.example",
+          "ref": {
+            "type": "credential",
+            "id": "c8ccf390-7763-4efd-9572-a423e9dd6c84"
+          }
+        }
+      ]
+    },
+    {
+      "step": "3d.weekly-preview",
+      "weekly": {
+        "ok": true,
+        "facts": {
+          "orgName": "Northwind Goods (synthetic)",
+          "weekStart": "2026-10-26",
+          "weekEnd": "2026-11-01",
+          "agents": [
+            {
+              "agentId": "a1e6cf42-4056-51b7-b836-f2e76704e369",
+              "name": "Channel Keeper",
+              "status": "active",
+              "runs": 0,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 0,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "81bf99ab-ef1e-4a78-9823-f20c1fd144e1",
+              "name": "Guard",
+              "status": "active",
+              "runs": 0,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 0,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "351d5302-5500-40e8-a75f-b69859eab218",
+              "name": "Inventory Watcher",
+              "status": "active",
+              "runs": 1,
+              "verified": 0,
+              "drafted": 5,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 1,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+              "name": "Price Keeper",
+              "status": "active",
+              "runs": 0,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 0,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "9795cee0-e7f8-5a65-a2ca-5e22dbaedbec",
+              "name": "SKU Filler",
+              "status": "active",
+              "runs": 0,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 0,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+              "name": "Stock Guardian",
+              "status": "active",
+              "runs": 0,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 0,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "123cc5b4-bbf5-485b-8aa1-c4ea54141fcd",
+              "name": "Store Health Checker",
+              "status": "active",
+              "runs": 1,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 1,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            },
+            {
+              "agentId": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+              "name": "Supplier Chaser",
+              "status": "active",
+              "runs": 1,
+              "verified": 0,
+              "drafted": 0,
+              "failed": 0,
+              "emailsAccepted": 0,
+              "emailsDrafted": 0,
+              "tasksDone": 0,
+              "competitorObserved": 0,
+              "competitorInferences": 0
+            }
+          ],
+          "attention": [
+            {
+              "kind": "person",
+              "count": 2,
+              "label": "problem(s) that need a person"
+            },
+            {
+              "kind": "tasks",
+              "count": 2,
+              "label": "task(s) outside an agent's rules"
+            }
+          ],
+          "estimate": {
+            "minutes": 11,
+            "formula": "0 verified change(s) × 3 min + 5 drafted change(s) × 1 min + 0 email(s) sent × 5 min + 2 email draft(s) × 3 min + 0 task(s) done × 2 min",
+            "label": "Estimate"
+          }
+        },
+        "rendered": {
+          "subject": "Deploi weekly summary: 0 verified, 4 waiting for you",
+          "text": "Your Deploi agents, week of 2026-10-26 to 2026-11-01\n\nWhat each agent did:\n- Channel Keeper (active): 0 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 0 email draft(s), 0 task(s) done\n- Guard (active): 0 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 0 email draft(s), 0 task(s) done\n- Inventory Watcher (active): 1 run(s), 0 change(s) verified, 5 change(s) drafted, 0 failed, 0 email(s) sent, 1 email draft(s), 0 task(s) done\n- Price Keeper (active): 0 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 0 email draft(s), 0 task(s) done\n- SKU Filler (active): 0 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 0 email draft(s), 0 task(s) done\n- Stock Guardian (active): 0 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 0 email draft(s), 0 task(s) done\n- Store Health Checker (active): 1 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 1 email draft(s), 0 task(s) done\n- Supplier Chaser (active): 1 run(s), 0 change(s) verified, 0 change(s) drafted, 0 failed, 0 email(s) sent, 0 email draft(s), 0 task(s) done\n\nNeeds your attention:\n- 2 problem(s) that need a person\n- 2 task(s) outside an agent's rules\n\nEstimated time saved: about 11 minutes. This is an estimate, not a measurement: 0 verified change(s) × 3 min + 5 drafted change(s) × 1 min + 0 email(s) sent × 5 min + 2 email draft(s) × 3 min + 0 task(s) done × 2 min.\n\nOpen Deploi: http://localhost:3000/store/agents",
+          "html": "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head><body style=\"margin:0;background:#f4f4f4;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f4f4f4;padding:16px 8px\"><tr><td align=\"center\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;background:#ffffff;border-radius:12px;padding:20px\">\n<tr><td style=\"font-size:20px;font-weight:700;color:#000\">deploi <span style=\"color:#888\">ai</span></td></tr>\n<tr><td style=\"padding-top:16px;font-size:18px;font-weight:600;color:#111\">Your agents, week of 2026-10-26 to 2026-11-01</td></tr>\n<tr><td style=\"padding-top:4px;font-size:13px;color:#666\">Northwind Goods (synthetic)</td></tr>\n<tr><td style=\"padding-top:20px;font-size:15px;font-weight:600;color:#111\">What each agent did</td></tr>\n<tr><td><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:4px;border-collapse:collapse\">\n<tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Channel Keeper</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">0 runs · 0 verified · 0 drafted · 0 emails sent · 0 email drafts · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Guard</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">0 runs · 0 verified · 0 drafted · 0 emails sent · 0 email drafts · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Inventory Watcher</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">1 run · 0 verified · 5 drafted · 0 emails sent · 1 email draft · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Price Keeper</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">0 runs · 0 verified · 0 drafted · 0 emails sent · 0 email drafts · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>SKU Filler</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">0 runs · 0 verified · 0 drafted · 0 emails sent · 0 email drafts · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Stock Guardian</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">0 runs · 0 verified · 0 drafted · 0 emails sent · 0 email drafts · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Store Health Checker</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">1 run · 0 verified · 0 drafted · 0 emails sent · 1 email draft · 0 tasks done</span></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #e6e6e6;font-size:14px;color:#222\"><strong>Supplier Chaser</strong> <span style=\"color:#777;font-size:12px\">active</span><br><span style=\"color:#444;font-size:13px\">1 run · 0 verified · 0 drafted · 0 emails sent · 0 email drafts · 0 tasks done</span></td></tr></table></td></tr>\n<tr><td style=\"padding-top:20px;font-size:15px;font-weight:600;color:#111\">Needs your attention</td></tr>\n<tr><td><ul style=\"margin:8px 0 0;padding-left:20px;color:#222;font-size:14px;line-height:1.6\"><li><strong>2</strong> problem(s) that need a person</li><li><strong>2</strong> task(s) outside an agent's rules</li></ul></td></tr>\n<tr><td style=\"padding-top:20px\"><div style=\"background:#fff8e6;border:1px solid #f0d58a;border-radius:8px;padding:12px;font-size:14px;color:#222\"><strong>Estimated time saved: about 11 minutes.</strong> <span style=\"display:inline-block;background:#f0d58a;border-radius:4px;padding:1px 6px;font-size:12px\">Estimate</span><br><span style=\"font-size:12px;color:#555\">This is an estimate, not a measurement: 0 verified change(s) × 3 min + 5 drafted change(s) × 1 min + 0 email(s) sent × 5 min + 2 email draft(s) × 3 min + 0 task(s) done × 2 min.</span></div></td></tr>\n<tr><td style=\"padding-top:20px\"><a href=\"http://localhost:3000/store/agents\" style=\"display:inline-block;background:#000;color:#fff;text-decoration:none;border-radius:999px;padding:10px 18px;font-size:14px\">Open Deploi</a></td></tr>\n<tr><td style=\"padding-top:20px;font-size:12px;color:#888\">You receive this because you use Deploi agents. Agents only act within the permissions you granted.</td></tr>\n</table></td></tr></table></body></html>"
+        },
+        "last": null,
+        "liveSends": "off",
+        "from": "Deploi AI <hello@getdeploi.com>"
+      }
+    }
+  ],
+  "healthChecker": {
+    "execBefore": {
+      "ok": true,
+      "executions": [],
+      "blockedProposals": []
+    },
+    "auditBefore": {
+      "ok": true,
+      "events": [
+        {
+          "id": "1295",
+          "entity_type": "agent",
+          "entity_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+          "event": "task.needs_approval",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Outside the agent's granted rules: someone-else@elsewhere.example is not an allowed recipient. Widen the agent (a new grant) or cancel the task. Left out (Deploi cannot do it): changing stock quantities (Deploi never guesses or sets physical stock).",
+            "task_id": "87ce3a72-d8c2-45e9-aab3-4fc51f8ffb28",
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "outside_rules": [
+              "someone-else@elsewhere.example is not an allowed recipient"
+            ],
+            "policy_version": 2
+          },
+          "at": "2026-10-29T19:11:27.264Z"
+        },
+        {
+          "id": "1294",
+          "entity_type": "execution",
+          "entity_id": "3df79c9c-fca0-4bc2-923f-47f45d99a42d",
+          "event": "email.failed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "code": "live_sends_disabled",
+            "reason": "real email sending is turned off in this environment (EMAIL_LIVE_SENDS)",
+            "email_message": true
+          },
+          "at": "2026-10-29T19:11:23.361Z"
+        },
+        {
+          "id": "1293",
+          "entity_type": "approval",
+          "entity_id": "3df79c9c-fca0-4bc2-923f-47f45d99a42d",
+          "event": "email.approved",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "content_hash": "77bffa7634536fc70b2162992c6b1b4ee9c5e84b2ab28f629885af4492d15d9e",
+            "email_message": true,
+            "policy_version": 2
+          },
+          "at": "2026-10-29T19:11:23.353Z"
+        },
+        {
+          "id": "1292",
+          "entity_type": "run",
+          "entity_id": "7798f2ff-4047-4e10-9563-dfcd95336047",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "email": {
+                "emailFailed": 0,
+                "emailDrafted": 0,
+                "emailSkipped": 0,
+                "emailUnknown": 0,
+                "emailAccepted": 0,
+                "emailAwaiting": 1
+              },
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 0,
+              "proposed": 0,
+              "verified": 0,
+              "issuesFound": 0,
+              "needsPerson": 0,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:11:21.925Z"
+        },
+        {
+          "id": "1291",
+          "entity_type": "execution",
+          "entity_id": "3df79c9c-fca0-4bc2-923f-47f45d99a42d",
+          "event": "email.awaiting_approval",
+          "actor": "agent:Supplier Chaser@v2",
+          "detail": {
+            "task": "supplier_reorder",
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "blockers": [],
+            "recipients": 1,
+            "email_message": true,
+            "policy_version": 2
+          },
+          "at": "2026-10-29T19:11:21.919Z"
+        },
+        {
+          "id": "1290",
+          "entity_type": "scan",
+          "entity_id": "8ceff336-7e96-4825-8056-c2a72dd56705",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "issuesOpened": 0,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:11:21.908Z"
+        },
+        {
+          "id": "1289",
+          "entity_type": "run",
+          "entity_id": "7798f2ff-4047-4e10-9563-dfcd95336047",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "policy_version": 2
+          },
+          "at": "2026-10-29T19:11:21.890Z"
+        },
+        {
+          "id": "1288",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.external_change",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true
+          },
+          "at": "2026-10-29T19:11:21.875Z"
+        },
+        {
+          "id": "1287",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.external_change",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true
+          },
+          "at": "2026-10-29T19:11:21.857Z"
+        },
+        {
+          "id": "1286",
+          "entity_type": "policy",
+          "entity_id": "0c49dc3d-dfe0-47a4-894c-63d3699320d7",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 2,
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "warnings": [],
+            "policy_hash": "a2161421885e147b05638b14e3138d647ebfdee7532dbee7b9f69394da912c6f",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:11:21.830Z"
+        },
+        {
+          "id": "1285",
+          "entity_type": "policy",
+          "entity_id": "0c49dc3d-dfe0-47a4-894c-63d3699320d7",
+          "event": "policy.awaiting_grant",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 2,
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "expansion": [
+              "may now send approved email"
+            ]
+          },
+          "at": "2026-10-29T19:11:21.783Z"
+        },
+        {
+          "id": "1284",
+          "entity_type": "policy",
+          "entity_id": "5a1d7393-795f-451c-9ba9-a843536e000e",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+            "warnings": [],
+            "policy_hash": "cbdcc6fe51af6cca1ca0b917b7b370efe3272b4be5e8620177802f2d00e64200",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:11:21.705Z"
+        },
+        {
+          "id": "1283",
+          "entity_type": "agent",
+          "entity_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "name": "Supplier Chaser",
+            "mailbox": "supplier-chaser.8367dd@agents.getdeploi.test",
+            "template": "supplier_chaser",
+            "policy_id": "5a1d7393-795f-451c-9ba9-a843536e000e",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:21.495Z"
+        },
+        {
+          "id": "1282",
+          "entity_type": "credential",
+          "entity_id": "3a06579f-7dcf-438b-a4fa-2caedd74348e",
+          "event": "mailbox.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "address": "supplier-chaser.8367dd@agents.getdeploi.test",
+            "agent_id": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3"
+          },
+          "at": "2026-10-29T19:11:21.495Z"
+        },
+        {
+          "id": "1281",
+          "entity_type": "policy",
+          "entity_id": "9556f68e-22ca-46f6-add0-4cb2ecfa3c2f",
+          "event": "policy.awaiting_grant",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 2,
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "expansion": [
+              "new writable fields",
+              "may now make changes you approve (was drafts only)"
+            ]
+          },
+          "at": "2026-10-29T19:11:19.139Z"
+        },
+        {
+          "id": "1280",
+          "entity_type": "agent",
+          "entity_id": "351d5302-5500-40e8-a75f-b69859eab218",
+          "event": "task.refused",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Deploi cannot do this: deleting products",
+            "task_id": "04df3bff-6004-465d-be37-67c153697f3b",
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "outside_rules": [],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:17.933Z"
+        },
+        {
+          "id": "1279",
+          "entity_type": "agent",
+          "entity_id": "351d5302-5500-40e8-a75f-b69859eab218",
+          "event": "task.needs_approval",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Outside the agent's granted rules: correcting price is not in the agent's rules; the task asks to act without asking; the agent is drafts only. Widen the agent (a new grant) or cancel the task.",
+            "task_id": "74ce4575-6ce2-4d69-9ec5-7f7b04436dd9",
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "outside_rules": [
+              "correcting price is not in the agent's rules",
+              "the task asks to act without asking; the agent is drafts only"
+            ],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:17.911Z"
+        },
+        {
+          "id": "1278",
+          "entity_type": "run",
+          "entity_id": "041e0a07-2eb8-46b1-9b6b-63a78ca67ae9",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "email": {
+                "emailFailed": 0,
+                "emailDrafted": 1,
+                "emailSkipped": 0,
+                "emailUnknown": 0,
+                "emailAccepted": 0,
+                "emailAwaiting": 0
+              },
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 5,
+              "proposed": 5,
+              "verified": 0,
+              "issuesFound": 6,
+              "needsPerson": 1,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:11:16.406Z"
+        },
+        {
+          "id": "1277",
+          "entity_type": "execution",
+          "entity_id": "82ab58a6-68e6-49b8-85fd-739a8468b7a7",
+          "event": "email.draft",
+          "actor": "agent:Inventory Watcher@v1",
+          "detail": {
+            "task": "needs_person_alert",
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "blockers": [],
+            "recipients": 1,
+            "email_message": true,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.393Z"
+        },
+        {
+          "id": "1276",
+          "entity_type": "scan",
+          "entity_id": "fc91abd5-0962-4550-8efd-1154a6dd2fb8",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "issuesOpened": 6,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 5,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:11:16.376Z"
+        },
+        {
+          "id": "1275",
+          "entity_type": "proposal",
+          "entity_id": "4e964396-4224-41ee-b1c2-e0630fdd770c",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "target_id": "gid://shopify/ProductVariant/2013",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "286bc0d6fdd398c6ae1ce15259bf20b04fce926d68b26e6d6b30f3a4485872d6",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1274",
+          "entity_type": "issue",
+          "entity_id": "f5fc8e46-aff7-4405-82d6-b64b0591a57d",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2013"
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1273",
+          "entity_type": "proposal",
+          "entity_id": "1ff25536-982c-40eb-bdb6-2d808048060c",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "target_id": "gid://shopify/ProductVariant/2011",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "17dae0239b0a1b1ead00974b14d9d476f151e68592b87518c870bb0da8c23330",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1272",
+          "entity_type": "issue",
+          "entity_id": "655a6bf1-7c04-4cad-9da6-b02409cd4668",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2011"
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1271",
+          "entity_type": "issue",
+          "entity_id": "e76eaec6-6b98-4670-a514-ce5c4e4a62a6",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversold_stop_selling",
+            "resource_id": "gid://shopify/ProductVariant/2010"
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1270",
+          "entity_type": "proposal",
+          "entity_id": "122349ec-8ac9-4b5c-9704-2cf0c90b8792",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "target_id": "gid://shopify/ProductVariant/2004",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "1bc1603d1d1b380b021349267c57db2e1dce16b080711d1e12a038d76124fde2",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1269",
+          "entity_type": "issue",
+          "entity_id": "7003c731-f988-47dd-b468-b42c9355aa4c",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2004"
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1268",
+          "entity_type": "proposal",
+          "entity_id": "1cd5daf4-6d42-4caa-bf6d-1bc6f6b1c125",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "target_id": "gid://shopify/ProductVariant/2003",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "8ca87a5ebd20b465209984dfab055fdc8861651d9aa0926bf2416f132573a693",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1267",
+          "entity_type": "issue",
+          "entity_id": "1ab2818d-4735-40f3-ad61-c1ae51e5f16c",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2003"
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1266",
+          "entity_type": "proposal",
+          "entity_id": "9f7f1d28-1ca9-453f-8df2-16ac664db7bb",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "986cfb5c84b34d8c01bfd6049d55759ff257a737778a3656588ea93926f7a156",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1265",
+          "entity_type": "issue",
+          "entity_id": "86297163-843e-4622-a2a8-4fba08cddb8b",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2001"
+          },
+          "at": "2026-10-29T19:11:16.344Z"
+        },
+        {
+          "id": "1264",
+          "entity_type": "run",
+          "entity_id": "041e0a07-2eb8-46b1-9b6b-63a78ca67ae9",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:16.328Z"
+        },
+        {
+          "id": "1263",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.external_change",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true
+          },
+          "at": "2026-10-29T19:11:16.310Z"
+        },
+        {
+          "id": "1262",
+          "entity_type": "policy",
+          "entity_id": "ec5d45ff-c6e6-440f-be35-d0f4c10d2525",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218",
+            "warnings": [],
+            "policy_hash": "051251b6aee61bf5107d8be5d7560a7ba1873cf47ecbc21617c36292c4e02353",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:11:14.924Z"
+        },
+        {
+          "id": "1261",
+          "entity_type": "agent",
+          "entity_id": "351d5302-5500-40e8-a75f-b69859eab218",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "name": "Inventory Watcher",
+            "mailbox": "inventory-watcher.61207f@agents.getdeploi.test",
+            "template": "inventory_watcher",
+            "policy_id": "ec5d45ff-c6e6-440f-be35-d0f4c10d2525",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:11:14.894Z"
+        },
+        {
+          "id": "1260",
+          "entity_type": "credential",
+          "entity_id": "71480bdf-0e78-4d34-930a-8844ecba1991",
+          "event": "mailbox.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "address": "inventory-watcher.61207f@agents.getdeploi.test",
+            "agent_id": "351d5302-5500-40e8-a75f-b69859eab218"
+          },
+          "at": "2026-10-29T19:11:14.894Z"
+        },
+        {
+          "id": "1259",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "agent.deleted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "agent deleted",
+            "mailbox_closed": true,
+            "emails_cancelled": 1,
+            "proposals_blocked": 0
+          },
+          "at": "2026-10-29T19:11:12.673Z"
+        },
+        {
+          "id": "1258",
+          "entity_type": "credential",
+          "entity_id": "4418d2b4-9f9d-4983-9bc3-925ed2dbcbcf",
+          "event": "mailbox.closed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "address": "inventory-watcher.35f8c1@agents.getdeploi.test",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611"
+          },
+          "at": "2026-10-29T19:11:12.673Z"
+        },
+        {
+          "id": "1257",
+          "entity_type": "agent",
+          "entity_id": "4d0d0679-2299-41ee-8436-ebdbac9b7b89",
+          "event": "agent.deleted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "agent deleted",
+            "mailbox_closed": true,
+            "emails_cancelled": 0,
+            "proposals_blocked": 0
+          },
+          "at": "2026-10-29T19:11:12.653Z"
+        },
+        {
+          "id": "1256",
+          "entity_type": "credential",
+          "entity_id": "a2662e9a-afef-4cc0-95c6-773c46e4a5aa",
+          "event": "mailbox.closed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "address": "supplier-chaser.c58b8f@agents.getdeploi.test",
+            "agent_id": "4d0d0679-2299-41ee-8436-ebdbac9b7b89"
+          },
+          "at": "2026-10-29T19:11:12.653Z"
+        },
+        {
+          "id": "1255",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.reset",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true,
+            "clear_email": true,
+            "clear_history": true
+          },
+          "at": "2026-10-29T19:11:12.612Z"
+        },
+        {
+          "id": "1254",
+          "entity_type": "scan",
+          "entity_id": "a9ecfc24-0d41-46ec-8cb2-da8456e81835",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": null,
+            "issuesOpened": 0,
+            "issuesUpdated": 1,
+            "issuesResolved": 3,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 2
+          },
+          "at": "2026-10-29T19:10:44.583Z"
+        },
+        {
+          "id": "1253",
+          "entity_type": "issue",
+          "entity_id": "47dcbf44-2471-4c3d-8cd3-d5bdd46d9239",
+          "event": "issue.resolved",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "rule_off": true,
+            "resolution": "no_longer_detected"
+          },
+          "at": "2026-10-29T19:10:44.559Z"
+        },
+        {
+          "id": "1252",
+          "entity_type": "proposal",
+          "entity_id": "a8660d91-1230-42c6-980d-3f8f7b585e44",
+          "event": "proposal.stale",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "rule turned off"
+          },
+          "at": "2026-10-29T19:10:44.559Z"
+        },
+        {
+          "id": "1251",
+          "entity_type": "issue",
+          "entity_id": "a8307307-8ebd-41f1-8762-dd7cece5038b",
+          "event": "issue.resolved",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "rule_off": true,
+            "resolution": "no_longer_detected"
+          },
+          "at": "2026-10-29T19:10:44.559Z"
+        },
+        {
+          "id": "1250",
+          "entity_type": "proposal",
+          "entity_id": "a8ba5915-7e1a-4444-abd2-86eb7a8b0620",
+          "event": "proposal.stale",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "rule turned off"
+          },
+          "at": "2026-10-29T19:10:44.559Z"
+        },
+        {
+          "id": "1249",
+          "entity_type": "issue",
+          "entity_id": "0fd5be7b-a6f7-4d3f-a95f-0ba71ac9241f",
+          "event": "issue.resolved",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "rule_off": true,
+            "resolution": "no_longer_detected"
+          },
+          "at": "2026-10-29T19:10:44.559Z"
+        },
+        {
+          "id": "1248",
+          "entity_type": "rule",
+          "entity_id": "e012b35b-229e-47b8-a81c-825431a1db4c",
+          "event": "rule.updated",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "config": {
+              "exemptTags": [
+                "preorder",
+                "pre-order",
+                "backorder",
+                "made-to-order",
+                "made to order"
+              ],
+              "exemptProductIds": [],
+              "flagInStockVariants": true
+            },
+            "enabled": false,
+            "check_key": "shopify.oversell_policy",
+            "to_version": 4,
+            "from_version": 3
+          },
+          "at": "2026-10-29T19:10:44.527Z"
+        },
+        {
+          "id": "1247",
+          "entity_type": "execution",
+          "entity_id": "1841af9a-7f17-4b8e-abc5-2cdf5d6ab4da",
+          "event": "execution.verified",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": null,
+            "proposal_id": "af0d8987-229e-4d73-8298-241254fc935f"
+          },
+          "at": "2026-10-29T19:10:40.365Z"
+        },
+        {
+          "id": "1246",
+          "entity_type": "execution",
+          "entity_id": "1841af9a-7f17-4b8e-abc5-2cdf5d6ab4da",
+          "event": "execution.applied",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:10:40.357Z"
+        },
+        {
+          "id": "1245",
+          "entity_type": "execution",
+          "entity_id": "1841af9a-7f17-4b8e-abc5-2cdf5d6ab4da",
+          "event": "execution.retry",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "attempt": 2
+          },
+          "at": "2026-10-29T19:10:40.332Z"
+        },
+        {
+          "id": "1244",
+          "entity_type": "execution",
+          "entity_id": "1841af9a-7f17-4b8e-abc5-2cdf5d6ab4da",
+          "event": "execution.failed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Inventory policy could not be updated (synthetic refusal)",
+            "proposal_id": "af0d8987-229e-4d73-8298-241254fc935f"
+          },
+          "at": "2026-10-29T19:10:40.180Z"
+        },
+        {
+          "id": "1243",
+          "entity_type": "execution",
+          "entity_id": "1841af9a-7f17-4b8e-abc5-2cdf5d6ab4da",
+          "event": "execution.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "attempt": 1,
+            "proposal_id": "af0d8987-229e-4d73-8298-241254fc935f"
+          },
+          "at": "2026-10-29T19:10:40.154Z"
+        },
+        {
+          "id": "1242",
+          "entity_type": "approval",
+          "entity_id": "8a66cd6d-a1a4-410a-b2c6-a52e2ed7a233",
+          "event": "approval.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy",
+              "params": {
+                "productId": "gid://shopify/Product/1010"
+              }
+            },
+            "target_id": "gid://shopify/ProductVariant/2011",
+            "change_hash": "ebf1ad66ca61d3ef9d3dc7b306df173301df79d180290ba970dca61f8c60fc25",
+            "proposal_id": "af0d8987-229e-4d73-8298-241254fc935f"
+          },
+          "at": "2026-10-29T19:10:40.149Z"
+        },
+        {
+          "id": "1241",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.fault",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true
+          },
+          "at": "2026-10-29T19:10:39.547Z"
+        },
+        {
+          "id": "1240",
+          "entity_type": "execution",
+          "entity_id": "feac3e2b-c23e-4d7e-87eb-f9c397013c8b",
+          "event": "execution.stale",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "the check no longer proposes this exact change (records or reference data changed)",
+            "proposal_id": "d5f515bf-bcf0-404a-9abc-0c1fbe86d78a"
+          },
+          "at": "2026-10-29T19:10:38.438Z"
+        },
+        {
+          "id": "1239",
+          "entity_type": "execution",
+          "entity_id": "feac3e2b-c23e-4d7e-87eb-f9c397013c8b",
+          "event": "execution.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "attempt": 1,
+            "proposal_id": "d5f515bf-bcf0-404a-9abc-0c1fbe86d78a"
+          },
+          "at": "2026-10-29T19:10:38.419Z"
+        },
+        {
+          "id": "1238",
+          "entity_type": "approval",
+          "entity_id": "ac875320-a76b-4125-89ca-7faff9fa6b40",
+          "event": "approval.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy",
+              "params": {
+                "productId": "gid://shopify/Product/1002"
+              }
+            },
+            "target_id": "gid://shopify/ProductVariant/2003",
+            "change_hash": "8e7778248066457c7123c619c20e7e5720b24259a8d5de04ee142ce9a5f030f7",
+            "proposal_id": "d5f515bf-bcf0-404a-9abc-0c1fbe86d78a"
+          },
+          "at": "2026-10-29T19:10:38.412Z"
+        },
+        {
+          "id": "1237",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.external_change",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true
+          },
+          "at": "2026-10-29T19:10:38.020Z"
+        },
+        {
+          "id": "1236",
+          "entity_type": "execution",
+          "entity_id": "94374757-1c19-4bfc-a5e5-1a63dbdc23a7",
+          "event": "execution.verified",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": null,
+            "proposal_id": "e74e4b48-1a17-4215-bf71-641afd736bf9"
+          },
+          "at": "2026-10-29T19:10:36.457Z"
+        },
+        {
+          "id": "1235",
+          "entity_type": "execution",
+          "entity_id": "94374757-1c19-4bfc-a5e5-1a63dbdc23a7",
+          "event": "execution.applied",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:10:36.452Z"
+        },
+        {
+          "id": "1234",
+          "entity_type": "execution",
+          "entity_id": "94374757-1c19-4bfc-a5e5-1a63dbdc23a7",
+          "event": "execution.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "attempt": 1,
+            "proposal_id": "e74e4b48-1a17-4215-bf71-641afd736bf9"
+          },
+          "at": "2026-10-29T19:10:36.424Z"
+        },
+        {
+          "id": "1233",
+          "entity_type": "approval",
+          "entity_id": "b5ee7658-0d59-4c96-96cc-91ae1a2b7514",
+          "event": "approval.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy",
+              "params": {
+                "productId": "gid://shopify/Product/1001"
+              }
+            },
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "change_hash": "14ebff806cfcc63e0e3a8eff789ca23e524b242ed4717892b18c5bfd4a0a1c07",
+            "proposal_id": "e74e4b48-1a17-4215-bf71-641afd736bf9"
+          },
+          "at": "2026-10-29T19:10:36.417Z"
+        },
+        {
+          "id": "1232",
+          "entity_type": "scan",
+          "entity_id": "3270f9d5-93ec-4d5a-b872-be47912c9e58",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": null,
+            "issuesOpened": 0,
+            "issuesUpdated": 6,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:10:34.547Z"
+        },
+        {
+          "id": "1231",
+          "entity_type": "scan",
+          "entity_id": "35079d75-1ef9-4cb6-8a2a-d0d58c418f8c",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": null,
+            "issuesOpened": 6,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 5,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:10:34.395Z"
+        },
+        {
+          "id": "1230",
+          "entity_type": "proposal",
+          "entity_id": "a8660d91-1230-42c6-980d-3f8f7b585e44",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": null,
+            "target_id": "gid://shopify/ProductVariant/2013",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "888622d50cfbec541da5646ce96f4acccfb380ed5e9f018b31c9d14d2dc14c83",
+            "rule_version": 3,
+            "policy_version": null
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1229",
+          "entity_type": "issue",
+          "entity_id": "47dcbf44-2471-4c3d-8cd3-d5bdd46d9239",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2013"
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1228",
+          "entity_type": "proposal",
+          "entity_id": "af0d8987-229e-4d73-8298-241254fc935f",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": null,
+            "target_id": "gid://shopify/ProductVariant/2011",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "ebf1ad66ca61d3ef9d3dc7b306df173301df79d180290ba970dca61f8c60fc25",
+            "rule_version": 3,
+            "policy_version": null
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1227",
+          "entity_type": "issue",
+          "entity_id": "5c40d6ad-2ff0-4590-9410-d3c4a32f2040",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2011"
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1226",
+          "entity_type": "issue",
+          "entity_id": "873c7c00-5313-49f2-9d06-38fe49cb6acc",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversold_stop_selling",
+            "resource_id": "gid://shopify/ProductVariant/2010"
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1225",
+          "entity_type": "proposal",
+          "entity_id": "a8ba5915-7e1a-4444-abd2-86eb7a8b0620",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": null,
+            "target_id": "gid://shopify/ProductVariant/2004",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "0d2e39f44d6c41607d1cd6747fc31e5ff7734bc4f2bad12c0d7cdf5c0b2e4a7d",
+            "rule_version": 3,
+            "policy_version": null
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1224",
+          "entity_type": "issue",
+          "entity_id": "a8307307-8ebd-41f1-8762-dd7cece5038b",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2004"
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1223",
+          "entity_type": "proposal",
+          "entity_id": "d5f515bf-bcf0-404a-9abc-0c1fbe86d78a",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": null,
+            "target_id": "gid://shopify/ProductVariant/2003",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "8e7778248066457c7123c619c20e7e5720b24259a8d5de04ee142ce9a5f030f7",
+            "rule_version": 3,
+            "policy_version": null
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1222",
+          "entity_type": "issue",
+          "entity_id": "0fd5be7b-a6f7-4d3f-a95f-0ba71ac9241f",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2003"
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1221",
+          "entity_type": "proposal",
+          "entity_id": "e74e4b48-1a17-4215-bf71-641afd736bf9",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": null,
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "14ebff806cfcc63e0e3a8eff789ca23e524b242ed4717892b18c5bfd4a0a1c07",
+            "rule_version": 3,
+            "policy_version": null
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1220",
+          "entity_type": "issue",
+          "entity_id": "9aace37a-9c46-47b0-bbfc-17c7eb2dbd8e",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2001"
+          },
+          "at": "2026-10-29T19:10:34.360Z"
+        },
+        {
+          "id": "1219",
+          "entity_type": "rule",
+          "entity_id": "e012b35b-229e-47b8-a81c-825431a1db4c",
+          "event": "rule.updated",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "config": {
+              "exemptTags": [
+                "preorder",
+                "pre-order",
+                "backorder",
+                "made-to-order",
+                "made to order"
+              ],
+              "exemptProductIds": [],
+              "flagInStockVariants": true
+            },
+            "enabled": true,
+            "check_key": "shopify.oversell_policy",
+            "to_version": 3,
+            "from_version": 2
+          },
+          "at": "2026-10-29T19:10:34.338Z"
+        },
+        {
+          "id": "1218",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.reset",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true,
+            "clear_history": true
+          },
+          "at": "2026-10-29T19:10:34.322Z"
+        },
+        {
+          "id": "1217",
+          "entity_type": "policy",
+          "entity_id": "8e868e35-35b8-4b74-ac75-c18139201257",
+          "event": "policy.awaiting_grant",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 2,
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "expansion": [
+              "new writable fields",
+              "may now make changes you approve (was drafts only)"
+            ]
+          },
+          "at": "2026-10-29T19:10:25.434Z"
+        },
+        {
+          "id": "1216",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "task.refused",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Deploi could not tell what to do from this text, so nothing will run. Name what to check or correct (for example prices, SKUs, overselling or publication) or the email to draft.",
+            "task_id": "fd726ac2-701c-468f-93a5-9d34217a9f58",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "outside_rules": [],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:22.427Z"
+        },
+        {
+          "id": "1215",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "task.needs_approval",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Outside the agent's granted rules: correcting price is not in the agent's rules; the task asks to act without asking; the agent is drafts only. Widen the agent (a new grant) or cancel the task.",
+            "task_id": "292ee664-1cd9-4c2c-8651-b88fcf74d5da",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "outside_rules": [
+              "correcting price is not in the agent's rules",
+              "the task asks to act without asking; the agent is drafts only"
+            ],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:22.220Z"
+        },
+        {
+          "id": "1214",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "task.waiting_on_you",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "proof": {
+              "email": {
+                "emailFailed": 0,
+                "emailDrafted": 1,
+                "emailSkipped": 0,
+                "emailUnknown": 0,
+                "emailAccepted": 0,
+                "emailAwaiting": 0
+              },
+              "failed": 0,
+              "run_id": "36e1ad37-075d-4d95-84a1-142ae35f28e0",
+              "blocked": 0,
+              "drafted": 5,
+              "verified": 0,
+              "run_status": "completed",
+              "competitors": null,
+              "issues_found": 6,
+              "needs_person": 1,
+              "awaiting_approval": 0
+            },
+            "reason": "Run finished. Waiting on you: 5 drafted change(s) to read, 1 email(s) to review, 1 item(s) that need a person.",
+            "run_id": "36e1ad37-075d-4d95-84a1-142ae35f28e0",
+            "task_id": "cbb026ae-963d-42e6-8033-b0ba3772e110",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:22.023Z"
+        },
+        {
+          "id": "1213",
+          "entity_type": "run",
+          "entity_id": "36e1ad37-075d-4d95-84a1-142ae35f28e0",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "email": {
+                "emailFailed": 0,
+                "emailDrafted": 1,
+                "emailSkipped": 0,
+                "emailUnknown": 0,
+                "emailAccepted": 0,
+                "emailAwaiting": 0
+              },
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 5,
+              "proposed": 5,
+              "verified": 0,
+              "issuesFound": 6,
+              "needsPerson": 1,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:10:22.020Z"
+        },
+        {
+          "id": "1212",
+          "entity_type": "execution",
+          "entity_id": "a768ce40-0e7f-4e0e-bc3a-f724da282dff",
+          "event": "email.draft",
+          "actor": "agent:Inventory Watcher@v1",
+          "detail": {
+            "task": "needs_person_alert",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "blockers": [],
+            "recipients": 1,
+            "email_message": true,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:22.013Z"
+        },
+        {
+          "id": "1211",
+          "entity_type": "scan",
+          "entity_id": "15839810-71c4-40ff-872b-c36c090c4d89",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "issuesOpened": 6,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 5,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:10:21.999Z"
+        },
+        {
+          "id": "1210",
+          "entity_type": "proposal",
+          "entity_id": "04a564be-6316-4932-a965-f0796475ce31",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "target_id": "gid://shopify/ProductVariant/2013",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "c429ae6bf9ffad84ad0259f91ea5804e31e1e11737cd0f4baa09bd1254e861dc",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1209",
+          "entity_type": "issue",
+          "entity_id": "6654d768-b283-4c7d-98b5-6e54904723db",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2013"
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1208",
+          "entity_type": "proposal",
+          "entity_id": "9ae8ef74-a4cb-4cfb-9d28-8702dc80bd96",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "target_id": "gid://shopify/ProductVariant/2011",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "1e5f23ffdf63c6b69e62b73de9dcaff54b9b3066fd8faa24e320d21f41c02bc0",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1207",
+          "entity_type": "issue",
+          "entity_id": "6322728c-864f-4840-8beb-5152475bc4bb",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2011"
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1206",
+          "entity_type": "issue",
+          "entity_id": "139b03d2-e499-496d-a975-785b9b3700d8",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversold_stop_selling",
+            "resource_id": "gid://shopify/ProductVariant/2010"
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1205",
+          "entity_type": "proposal",
+          "entity_id": "106b177b-17e6-4fb4-834e-29ca2c2e4230",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "target_id": "gid://shopify/ProductVariant/2004",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "ae11ee6c9ee31f4c59af91f13de7df7012a0690a20729e13610a5830ac3f5414",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1204",
+          "entity_type": "issue",
+          "entity_id": "23dcd8ac-2a16-4b13-b20c-f329572d0185",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2004"
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1203",
+          "entity_type": "proposal",
+          "entity_id": "a69447f9-c2fd-44b3-ab49-b2a7870f5923",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "target_id": "gid://shopify/ProductVariant/2003",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "eb0cfabec60008c1c56509f84e3842b594f2f8a604bdb4d9b24c8b5d5c4db27a",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1202",
+          "entity_type": "issue",
+          "entity_id": "e0885994-897b-48c7-a40d-283e190cd9ce",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2003"
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1201",
+          "entity_type": "proposal",
+          "entity_id": "c7501833-eb8d-4b8d-9072-cfe4cb076716",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "f49aa0a5110e3f82dbde99c146b6cb4ef6c9d244895186f1beb99f98e7f28fdc",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1200",
+          "entity_type": "issue",
+          "entity_id": "3f7fe0fa-b1fb-4cbc-89dc-7b9a2bc774ac",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2001"
+          },
+          "at": "2026-10-29T19:10:21.974Z"
+        },
+        {
+          "id": "1199",
+          "entity_type": "run",
+          "entity_id": "36e1ad37-075d-4d95-84a1-142ae35f28e0",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.954Z"
+        },
+        {
+          "id": "1198",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "task.running",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "task_id": "cbb026ae-963d-42e6-8033-b0ba3772e110",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.938Z"
+        },
+        {
+          "id": "1197",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "task.queued",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Within the agent's granted rules.",
+            "task_id": "cbb026ae-963d-42e6-8033-b0ba3772e110",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "outside_rules": [],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.931Z"
+        },
+        {
+          "id": "1196",
+          "entity_type": "policy",
+          "entity_id": "c96d2378-5118-4f19-b300-9d0e3016a7fa",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+            "warnings": [],
+            "policy_hash": "b2fbb484053b6ed3ca1a2c028a127f0988b99433dd2b42e3a2aa7b92a8f39f2b",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:10:21.370Z"
+        },
+        {
+          "id": "1195",
+          "entity_type": "agent",
+          "entity_id": "3d522c48-932a-4ffe-b188-e1b43e85a611",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "name": "Inventory Watcher",
+            "mailbox": "inventory-watcher.35f8c1@agents.getdeploi.test",
+            "template": "inventory_watcher",
+            "policy_id": "c96d2378-5118-4f19-b300-9d0e3016a7fa",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:21.328Z"
+        },
+        {
+          "id": "1194",
+          "entity_type": "credential",
+          "entity_id": "4418d2b4-9f9d-4983-9bc3-925ed2dbcbcf",
+          "event": "mailbox.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "address": "inventory-watcher.35f8c1@agents.getdeploi.test",
+            "agent_id": "3d522c48-932a-4ffe-b188-e1b43e85a611"
+          },
+          "at": "2026-10-29T19:10:21.328Z"
+        },
+        {
+          "id": "1193",
+          "entity_type": "policy",
+          "entity_id": "97d51acf-2850-4a67-9d96-76a9dba89f55",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "4d0d0679-2299-41ee-8436-ebdbac9b7b89",
+            "warnings": [],
+            "policy_hash": "6cc39e6881091fb28cce94626b30b227413980ccbb437d42b5db07ef6a83bc4c",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:10:20.399Z"
+        },
+        {
+          "id": "1192",
+          "entity_type": "agent",
+          "entity_id": "4d0d0679-2299-41ee-8436-ebdbac9b7b89",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "name": "Supplier Chaser",
+            "mailbox": "supplier-chaser.c58b8f@agents.getdeploi.test",
+            "template": "supplier_chaser",
+            "policy_id": "97d51acf-2850-4a67-9d96-76a9dba89f55",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:19.568Z"
+        },
+        {
+          "id": "1191",
+          "entity_type": "credential",
+          "entity_id": "a2662e9a-afef-4cc0-95c6-773c46e4a5aa",
+          "event": "mailbox.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "address": "supplier-chaser.c58b8f@agents.getdeploi.test",
+            "agent_id": "4d0d0679-2299-41ee-8436-ebdbac9b7b89"
+          },
+          "at": "2026-10-29T19:10:19.568Z"
+        },
+        {
+          "id": "1190",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "agent.deleted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "agent deleted",
+            "mailbox_closed": false,
+            "emails_cancelled": 0,
+            "proposals_blocked": 0
+          },
+          "at": "2026-10-29T19:10:16.396Z"
+        },
+        {
+          "id": "1189",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.reset",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true,
+            "clear_history": true
+          },
+          "at": "2026-10-29T19:10:16.336Z"
+        },
+        {
+          "id": "1188",
+          "entity_type": "agent",
+          "entity_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+          "event": "agent.deleted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "agent deleted",
+            "mailbox_closed": false,
+            "emails_cancelled": 0,
+            "proposals_blocked": 0
+          },
+          "at": "2026-10-29T19:10:15.473Z"
+        },
+        {
+          "id": "1187",
+          "entity_type": "credential",
+          "entity_id": "b1e6f965-8f06-439a-ab8b-9b8126eb7008",
+          "event": "email_account.disconnected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "provider": "synthetic",
+            "messages_cancelled": 1,
+            "revoked_at_provider": "revoked"
+          },
+          "at": "2026-10-29T19:10:15.038Z"
+        },
+        {
+          "id": "1186",
+          "entity_type": "execution",
+          "entity_id": "4b205c57-5dda-47f0-9b0b-366c5215d87c",
+          "event": "email.accepted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "code": null,
+            "reason": null,
+            "email_message": true
+          },
+          "at": "2026-10-29T19:10:11.108Z"
+        },
+        {
+          "id": "1185",
+          "entity_type": "execution",
+          "entity_id": "4b205c57-5dda-47f0-9b0b-366c5215d87c",
+          "event": "email.sending",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "attempt": 1,
+            "approval_kind": "individual",
+            "email_message": true,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:11.092Z"
+        },
+        {
+          "id": "1184",
+          "entity_type": "approval",
+          "entity_id": "4b205c57-5dda-47f0-9b0b-366c5215d87c",
+          "event": "email.approved",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "content_hash": "729ab86352890b82c7b4d6b016c1063aab7d1fbc8862e68a0a42abc38444835a",
+            "email_message": true,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:11.081Z"
+        },
+        {
+          "id": "1183",
+          "entity_type": "execution",
+          "entity_id": "4b205c57-5dda-47f0-9b0b-366c5215d87c",
+          "event": "email.edited",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "email_message": true,
+            "approval_cleared": false
+          },
+          "at": "2026-10-29T19:10:10.900Z"
+        },
+        {
+          "id": "1182",
+          "entity_type": "run",
+          "entity_id": "d2a7b8ed-f87a-4f3b-b8a9-bf3cb88a44ca",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "email": {
+                "emailFailed": 0,
+                "emailDrafted": 0,
+                "emailSkipped": 0,
+                "emailUnknown": 0,
+                "emailAccepted": 0,
+                "emailAwaiting": 2
+              },
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 0,
+              "proposed": 0,
+              "verified": 0,
+              "issuesFound": 0,
+              "needsPerson": 0,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:10:09.253Z"
+        },
+        {
+          "id": "1181",
+          "entity_type": "execution",
+          "entity_id": "20e09e61-bf3a-4075-9241-a2509f1e5632",
+          "event": "email.awaiting_approval",
+          "actor": "agent:E2E Supplier Mail@v1",
+          "detail": {
+            "task": "run_report",
+            "agent_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+            "blockers": [],
+            "recipients": 1,
+            "email_message": true,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:09.239Z"
+        },
+        {
+          "id": "1180",
+          "entity_type": "execution",
+          "entity_id": "4b205c57-5dda-47f0-9b0b-366c5215d87c",
+          "event": "email.awaiting_approval",
+          "actor": "agent:E2E Supplier Mail@v1",
+          "detail": {
+            "task": "supplier_reorder",
+            "agent_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+            "blockers": [],
+            "recipients": 1,
+            "email_message": true,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:09.239Z"
+        },
+        {
+          "id": "1179",
+          "entity_type": "scan",
+          "entity_id": "8106e2ea-699f-4b45-882d-8ccad9a01ab4",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+            "issuesOpened": 0,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:10:09.218Z"
+        },
+        {
+          "id": "1178",
+          "entity_type": "run",
+          "entity_id": "d2a7b8ed-f87a-4f3b-b8a9-bf3cb88a44ca",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:09.197Z"
+        },
+        {
+          "id": "1177",
+          "entity_type": "policy",
+          "entity_id": "d5b1b2d7-7e57-48ba-8a8e-57cd425ba3bf",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+            "warnings": [],
+            "policy_hash": "a491dc54d6584167da211491e34ab274d3cf82c43016a8dfbb0d14b7645a24df",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:10:08.594Z"
+        },
+        {
+          "id": "1176",
+          "entity_type": "agent",
+          "entity_id": "ac1da76d-8e6e-4b5d-b5c6-156a7741143a",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "name": "E2E Supplier Mail",
+            "mailbox": null,
+            "template": null,
+            "policy_id": "d5b1b2d7-7e57-48ba-8a8e-57cd425ba3bf",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:08.162Z"
+        },
+        {
+          "id": "1175",
+          "entity_type": "credential",
+          "entity_id": "b1e6f965-8f06-439a-ab8b-9b8126eb7008",
+          "event": "email_account.connected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scopes": [
+              "synthetic.send"
+            ],
+            "address": "agent@northwind-goods.example",
+            "can_read": false,
+            "can_send": true,
+            "provider": "synthetic"
+          },
+          "at": "2026-10-29T19:10:05.664Z"
+        },
+        {
+          "id": "1174",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.reset",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true,
+            "clear_email": true,
+            "clear_history": true
+          },
+          "at": "2026-10-29T19:10:04.859Z"
+        },
+        {
+          "id": "1173",
+          "entity_type": "run",
+          "entity_id": "67f0b96c-99ec-490e-ae33-0d6474070338",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 0,
+              "proposed": 0,
+              "verified": 0,
+              "competitors": {
+                "findings": 17,
+                "baselines": 0,
+                "productsSeen": 17,
+                "opportunities": 1,
+                "storesChecked": 3,
+                "storesSkipped": 1
+              },
+              "issuesFound": 0,
+              "needsPerson": 0,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:10:02.036Z"
+        },
+        {
+          "id": "1172",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.trends",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "reason": "similar products found on several monitored stores (inference from public listings)",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 2,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:02.026Z"
+        },
+        {
+          "id": "1171",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.skipped",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://private-label.example",
+            "store": "private-label.example",
+            "reason": "the store's robots.txt does not allow reading its product feed, so it is not checked",
+            "status": "blocked_robots",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "requests": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:02.019Z"
+        },
+        {
+          "id": "1170",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.checked",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://oak-and-ember.example",
+            "store": "oak-and-ember.example",
+            "reason": "3 new finding(s) compared with the previous check",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 3,
+            "requests": 4,
+            "products_seen": 5,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:02.011Z"
+        },
+        {
+          "id": "1169",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.checked",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://harbor-home.example",
+            "store": "harbor-home.example",
+            "reason": "6 new finding(s) compared with the previous check",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 6,
+            "requests": 5,
+            "products_seen": 6,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.998Z"
+        },
+        {
+          "id": "1168",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.checked",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://linen-and-loom.example",
+            "store": "linen-and-loom.example",
+            "reason": "6 new finding(s) compared with the previous check",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 6,
+            "requests": 5,
+            "products_seen": 6,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.976Z"
+        },
+        {
+          "id": "1167",
+          "entity_type": "scan",
+          "entity_id": "741035f0-5cd4-47f8-8b92-e0b5350c2747",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "issuesOpened": 0,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:10:01.963Z"
+        },
+        {
+          "id": "1166",
+          "entity_type": "run",
+          "entity_id": "67f0b96c-99ec-490e-ae33-0d6474070338",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.949Z"
+        },
+        {
+          "id": "1165",
+          "entity_type": "run",
+          "entity_id": "264e747c-ed1b-470f-a1be-1e95bcbee71b",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 0,
+              "proposed": 0,
+              "verified": 0,
+              "competitors": {
+                "findings": 4,
+                "baselines": 3,
+                "productsSeen": 14,
+                "opportunities": 0,
+                "storesChecked": 3,
+                "storesSkipped": 1
+              },
+              "issuesFound": 0,
+              "needsPerson": 0,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:10:01.540Z"
+        },
+        {
+          "id": "1164",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.trends",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "reason": "similar products found on several monitored stores (inference from public listings)",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.536Z"
+        },
+        {
+          "id": "1163",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.skipped",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://private-label.example",
+            "store": "private-label.example",
+            "reason": "the store's robots.txt does not allow reading its product feed, so it is not checked",
+            "status": "blocked_robots",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "requests": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.521Z"
+        },
+        {
+          "id": "1162",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.baseline",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://oak-and-ember.example",
+            "store": "oak-and-ember.example",
+            "reason": "first check: starting point recorded; nothing is reported as new",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 1,
+            "requests": 4,
+            "products_seen": 4,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.512Z"
+        },
+        {
+          "id": "1161",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.baseline",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://harbor-home.example",
+            "store": "harbor-home.example",
+            "reason": "first check: starting point recorded; nothing is reported as new",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 1,
+            "requests": 5,
+            "products_seen": 5,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.505Z"
+        },
+        {
+          "id": "1160",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "competitor.baseline",
+          "actor": "agent:E2E Trend Watcher@v1",
+          "detail": {
+            "url": "https://linen-and-loom.example",
+            "store": "linen-and-loom.example",
+            "reason": "first check: starting point recorded; nothing is reported as new",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "findings": 1,
+            "requests": 5,
+            "products_seen": 5,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.469Z"
+        },
+        {
+          "id": "1159",
+          "entity_type": "scan",
+          "entity_id": "6a623f51-d405-47a0-889e-1cc516665a15",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "issuesOpened": 0,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:10:01.449Z"
+        },
+        {
+          "id": "1158",
+          "entity_type": "run",
+          "entity_id": "264e747c-ed1b-470f-a1be-1e95bcbee71b",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.433Z"
+        },
+        {
+          "id": "1157",
+          "entity_type": "policy",
+          "entity_id": "e416ee27-6b8c-4f61-896e-617bbe8d8fa2",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+            "warnings": [],
+            "policy_hash": "0be340728ca0196b35aa2452cba4943d150f8b6a796804e1d9ebc4285dabe3b6",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:10:01.407Z"
+        },
+        {
+          "id": "1156",
+          "entity_type": "agent",
+          "entity_id": "fa5848db-deb0-4f2b-8d07-7d6364ef3ef9",
+          "event": "agent.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "name": "E2E Trend Watcher",
+            "mailbox": null,
+            "template": "competitor_watcher",
+            "policy_id": "e416ee27-6b8c-4f61-896e-617bbe8d8fa2",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:10:01.350Z"
+        },
+        {
+          "id": "1141",
+          "entity_type": "execution",
+          "entity_id": "5cca0bd1-eda5-4e66-bd85-f3a4db0fd00a",
+          "event": "execution.verified",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": null,
+            "proposal_id": "5429ed4d-d85c-44aa-a9f7-dde6ab10ec40"
+          },
+          "at": "2026-10-29T19:09:52.068Z"
+        },
+        {
+          "id": "1140",
+          "entity_type": "execution",
+          "entity_id": "5cca0bd1-eda5-4e66-bd85-f3a4db0fd00a",
+          "event": "execution.applied",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:09:52.060Z"
+        },
+        {
+          "id": "1139",
+          "entity_type": "execution",
+          "entity_id": "5cca0bd1-eda5-4e66-bd85-f3a4db0fd00a",
+          "event": "execution.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "attempt": 1,
+            "proposal_id": "5429ed4d-d85c-44aa-a9f7-dde6ab10ec40"
+          },
+          "at": "2026-10-29T19:09:52.021Z"
+        },
+        {
+          "id": "1138",
+          "entity_type": "approval",
+          "entity_id": "ee8b7e59-3866-48e8-a6b4-17f43db501e0",
+          "event": "approval.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "89.00",
+              "from": "79.00",
+              "field": "price",
+              "params": {
+                "source": {
+                  "row": 2,
+                  "version": 1,
+                  "sourceId": "3b113558-3ecd-5b17-905f-b490ae41c414"
+                },
+                "agentId": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+                "currency": "USD",
+                "productId": "gid://shopify/Product/1001"
+              }
+            },
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "change_hash": "87739d1cb274a0dc7520008fd98f830105ed4d012d77b9a8c7fcb6e40907a3ae",
+            "proposal_id": "5429ed4d-d85c-44aa-a9f7-dde6ab10ec40"
+          },
+          "at": "2026-10-29T19:09:51.985Z"
+        },
+        {
+          "id": "1137",
+          "entity_type": "run",
+          "entity_id": "1050f697-52a7-4079-8196-3ef61c6ac97f",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 0,
+              "proposed": 3,
+              "verified": 0,
+              "issuesFound": 5,
+              "needsPerson": 2,
+              "unconfirmed": 0,
+              "autoApproved": 0,
+              "missingSources": [],
+              "awaitingApproval": 3
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:09:51.794Z"
+        },
+        {
+          "id": "1136",
+          "entity_type": "scan",
+          "entity_id": "41a36f52-b44a-45e6-9a41-04aabcc96d72",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+            "issuesOpened": 5,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 3,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:09:51.786Z"
+        },
+        {
+          "id": "1135",
+          "entity_type": "issue",
+          "entity_id": "691a31cd-1d20-4108-b063-1040b51a5270",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "low",
+            "check_key": "shopify.price",
+            "resource_id": "gid://shopify/ProductVariant/2013"
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1134",
+          "entity_type": "issue",
+          "entity_id": "ef10e42c-7859-4740-95e2-bdac3d213f80",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "low",
+            "check_key": "shopify.price",
+            "resource_id": "gid://shopify/ProductVariant/2012"
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1133",
+          "entity_type": "proposal",
+          "entity_id": "597709c9-8814-49b5-8cd4-a93c818e96cf",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "65.00",
+              "from": "45.00",
+              "field": "price"
+            },
+            "agent_id": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+            "target_id": "gid://shopify/ProductVariant/2004",
+            "action_key": "shopify.variant.set_price",
+            "change_hash": "ede11eaa11ccd1490e4837a86464c71d5cd9c6efd263a5dc4918d3781d84c85f",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1132",
+          "entity_type": "issue",
+          "entity_id": "c4f3c14a-3709-4348-b90d-7927b9c66754",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.price",
+            "resource_id": "gid://shopify/ProductVariant/2004"
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1131",
+          "entity_type": "proposal",
+          "entity_id": "39732f7c-8c3e-4ed3-b39d-7f65abf04fb3",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "39.50",
+              "from": "42.00",
+              "field": "price"
+            },
+            "agent_id": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+            "target_id": "gid://shopify/ProductVariant/2003",
+            "action_key": "shopify.variant.set_price",
+            "change_hash": "7d054b0f69ef8df584b1175a11915cb9211da8c784370769698c00dd7e867d0c",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1130",
+          "entity_type": "issue",
+          "entity_id": "fa2ee47c-a664-41d2-a1e1-916488cc83b7",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.price",
+            "resource_id": "gid://shopify/ProductVariant/2003"
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1129",
+          "entity_type": "proposal",
+          "entity_id": "5429ed4d-d85c-44aa-a9f7-dde6ab10ec40",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "89.00",
+              "from": "79.00",
+              "field": "price"
+            },
+            "agent_id": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "action_key": "shopify.variant.set_price",
+            "change_hash": "87739d1cb274a0dc7520008fd98f830105ed4d012d77b9a8c7fcb6e40907a3ae",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1128",
+          "entity_type": "issue",
+          "entity_id": "a9c27b1e-3cf5-498c-822f-bbd1897222cf",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.price",
+            "resource_id": "gid://shopify/ProductVariant/2001"
+          },
+          "at": "2026-10-29T19:09:51.755Z"
+        },
+        {
+          "id": "1127",
+          "entity_type": "run",
+          "entity_id": "1050f697-52a7-4079-8196-3ef61c6ac97f",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "df9f44f1-4056-5c55-8b39-6c0a1bbd8ce6",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:51.724Z"
+        },
+        {
+          "id": "1126",
+          "entity_type": "run",
+          "entity_id": "212ccb19-feda-4b2f-bc22-93ed833c35fb",
+          "event": "agent_run.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "counts": {
+              "stale": 0,
+              "failed": 0,
+              "blocked": 0,
+              "drafted": 0,
+              "proposed": 5,
+              "verified": 5,
+              "issuesFound": 5,
+              "needsPerson": 0,
+              "unconfirmed": 0,
+              "autoApproved": 5,
+              "missingSources": [],
+              "awaitingApproval": 0
+            },
+            "reason": null
+          },
+          "at": "2026-10-29T19:09:50.115Z"
+        },
+        {
+          "id": "1125",
+          "entity_type": "execution",
+          "entity_id": "cb1fcf9e-8d6c-4064-afb6-92658ed9a012",
+          "event": "execution.verified",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reason": null,
+            "proposal_id": "3af38e1d-64e7-4f57-aba5-868adc71d3d4"
+          },
+          "at": "2026-10-29T19:09:50.110Z"
+        },
+        {
+          "id": "1124",
+          "entity_type": "execution",
+          "entity_id": "cb1fcf9e-8d6c-4064-afb6-92658ed9a012",
+          "event": "execution.applied",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:09:50.102Z"
+        },
+        {
+          "id": "1123",
+          "entity_type": "execution",
+          "entity_id": "cb1fcf9e-8d6c-4064-afb6-92658ed9a012",
+          "event": "execution.started",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "attempt": 1,
+            "from_queue": true,
+            "proposal_id": "3af38e1d-64e7-4f57-aba5-868adc71d3d4"
+          },
+          "at": "2026-10-29T19:09:50.076Z"
+        },
+        {
+          "id": "1122",
+          "entity_type": "execution",
+          "entity_id": "84fcea63-f03c-4fb7-ab0e-1c0367f311e5",
+          "event": "execution.verified",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reason": null,
+            "proposal_id": "e5bf2ce8-36cb-462d-8739-8ebcc8d91b67"
+          },
+          "at": "2026-10-29T19:09:50.070Z"
+        },
+        {
+          "id": "1121",
+          "entity_type": "execution",
+          "entity_id": "84fcea63-f03c-4fb7-ab0e-1c0367f311e5",
+          "event": "execution.applied",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:09:50.063Z"
+        },
+        {
+          "id": "1120",
+          "entity_type": "execution",
+          "entity_id": "84fcea63-f03c-4fb7-ab0e-1c0367f311e5",
+          "event": "execution.started",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "attempt": 1,
+            "from_queue": true,
+            "proposal_id": "e5bf2ce8-36cb-462d-8739-8ebcc8d91b67"
+          },
+          "at": "2026-10-29T19:09:50.026Z"
+        },
+        {
+          "id": "1119",
+          "entity_type": "execution",
+          "entity_id": "308f5a71-3441-479a-959b-86afc0777f80",
+          "event": "execution.verified",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reason": null,
+            "proposal_id": "ee754328-f349-4163-a6d9-97778b84d756"
+          },
+          "at": "2026-10-29T19:09:50.020Z"
+        },
+        {
+          "id": "1118",
+          "entity_type": "execution",
+          "entity_id": "308f5a71-3441-479a-959b-86afc0777f80",
+          "event": "execution.applied",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:09:50.012Z"
+        },
+        {
+          "id": "1117",
+          "entity_type": "execution",
+          "entity_id": "308f5a71-3441-479a-959b-86afc0777f80",
+          "event": "execution.started",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "attempt": 1,
+            "from_queue": true,
+            "proposal_id": "ee754328-f349-4163-a6d9-97778b84d756"
+          },
+          "at": "2026-10-29T19:09:49.981Z"
+        },
+        {
+          "id": "1116",
+          "entity_type": "execution",
+          "entity_id": "e43cecfd-50e4-4338-b30f-946560589d27",
+          "event": "execution.verified",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reason": null,
+            "proposal_id": "93b47bf5-67f8-4fa7-bf75-90fcb96c5453"
+          },
+          "at": "2026-10-29T19:09:49.976Z"
+        },
+        {
+          "id": "1115",
+          "entity_type": "execution",
+          "entity_id": "e43cecfd-50e4-4338-b30f-946560589d27",
+          "event": "execution.applied",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:09:49.964Z"
+        },
+        {
+          "id": "1114",
+          "entity_type": "execution",
+          "entity_id": "e43cecfd-50e4-4338-b30f-946560589d27",
+          "event": "execution.started",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "attempt": 1,
+            "from_queue": true,
+            "proposal_id": "93b47bf5-67f8-4fa7-bf75-90fcb96c5453"
+          },
+          "at": "2026-10-29T19:09:49.930Z"
+        },
+        {
+          "id": "1113",
+          "entity_type": "execution",
+          "entity_id": "db6c8a08-44b6-4924-b099-5506ea055647",
+          "event": "execution.verified",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reason": null,
+            "proposal_id": "7889f8a1-e54c-48b2-a822-5868f3ac1f7c"
+          },
+          "at": "2026-10-29T19:09:49.923Z"
+        },
+        {
+          "id": "1112",
+          "entity_type": "execution",
+          "entity_id": "db6c8a08-44b6-4924-b099-5506ea055647",
+          "event": "execution.applied",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "error": null
+          },
+          "at": "2026-10-29T19:09:49.913Z"
+        },
+        {
+          "id": "1111",
+          "entity_type": "execution",
+          "entity_id": "db6c8a08-44b6-4924-b099-5506ea055647",
+          "event": "execution.started",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "attempt": 1,
+            "from_queue": true,
+            "proposal_id": "7889f8a1-e54c-48b2-a822-5868f3ac1f7c"
+          },
+          "at": "2026-10-29T19:09:49.875Z"
+        },
+        {
+          "id": "1110",
+          "entity_type": "approval",
+          "entity_id": "951a1d45-1b1c-4ff6-b27e-856ef1180c1f",
+          "event": "approval.standing",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reasons": [
+              "authorized without asking until 2027-10-24",
+              "correction type \"oversell_policy\" is authorized",
+              "field \"inventoryPolicy\" is writable",
+              "the product is inside the agent's scope",
+              "within limits (4/25 this run, 4/100 today)",
+              "authorization version 1"
+            ],
+            "policy_id": "717885f4-108c-5cd5-a7f4-39e8c5c05fe0",
+            "change_hash": "793f6e11a49f4ff0aec1715fa8234220e6d08bdd4c7566823418f44ccd5f0815",
+            "proposal_id": "3af38e1d-64e7-4f57-aba5-868adc71d3d4",
+            "execution_id": "cb1fcf9e-8d6c-4064-afb6-92658ed9a012",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.843Z"
+        },
+        {
+          "id": "1109",
+          "entity_type": "approval",
+          "entity_id": "257377fc-d03a-4a0d-a628-336f490d57b2",
+          "event": "approval.standing",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reasons": [
+              "authorized without asking until 2027-10-24",
+              "correction type \"oversell_policy\" is authorized",
+              "field \"inventoryPolicy\" is writable",
+              "the product is inside the agent's scope",
+              "within limits (3/25 this run, 3/100 today)",
+              "authorization version 1"
+            ],
+            "policy_id": "717885f4-108c-5cd5-a7f4-39e8c5c05fe0",
+            "change_hash": "8e1516fc8c521c6449716b80f40d6b6dbcea3925af0158f61d32391ae1561d6c",
+            "proposal_id": "e5bf2ce8-36cb-462d-8739-8ebcc8d91b67",
+            "execution_id": "84fcea63-f03c-4fb7-ab0e-1c0367f311e5",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.843Z"
+        },
+        {
+          "id": "1108",
+          "entity_type": "approval",
+          "entity_id": "c6f7736f-9e78-4155-b548-a6a468330409",
+          "event": "approval.standing",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reasons": [
+              "authorized without asking until 2027-10-24",
+              "correction type \"oversell_policy\" is authorized",
+              "field \"inventoryPolicy\" is writable",
+              "the product is inside the agent's scope",
+              "within limits (2/25 this run, 2/100 today)",
+              "authorization version 1"
+            ],
+            "policy_id": "717885f4-108c-5cd5-a7f4-39e8c5c05fe0",
+            "change_hash": "36932534d390aac174589fdfec67f90bf6f5a29a4a4232a80edecf3661360f52",
+            "proposal_id": "ee754328-f349-4163-a6d9-97778b84d756",
+            "execution_id": "308f5a71-3441-479a-959b-86afc0777f80",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.843Z"
+        },
+        {
+          "id": "1107",
+          "entity_type": "approval",
+          "entity_id": "fd03a998-acb1-4e3d-91e3-38b32504d853",
+          "event": "approval.standing",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reasons": [
+              "authorized without asking until 2027-10-24",
+              "correction type \"oversell_policy\" is authorized",
+              "field \"inventoryPolicy\" is writable",
+              "the product is inside the agent's scope",
+              "within limits (1/25 this run, 1/100 today)",
+              "authorization version 1"
+            ],
+            "policy_id": "717885f4-108c-5cd5-a7f4-39e8c5c05fe0",
+            "change_hash": "7043de24c3c31f6db218517e43be668165d0c9fd4b32628ad67470cfeb5e26b0",
+            "proposal_id": "93b47bf5-67f8-4fa7-bf75-90fcb96c5453",
+            "execution_id": "e43cecfd-50e4-4338-b30f-946560589d27",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.843Z"
+        },
+        {
+          "id": "1106",
+          "entity_type": "approval",
+          "entity_id": "e89c6fe6-d082-420c-9de7-3902cd82c51e",
+          "event": "approval.standing",
+          "actor": "agent:Stock Guardian@v1",
+          "detail": {
+            "reasons": [
+              "authorized without asking until 2027-10-24",
+              "correction type \"oversell_policy\" is authorized",
+              "field \"inventoryPolicy\" is writable",
+              "the product is inside the agent's scope",
+              "within limits (0/25 this run, 0/100 today)",
+              "authorization version 1"
+            ],
+            "policy_id": "717885f4-108c-5cd5-a7f4-39e8c5c05fe0",
+            "change_hash": "a03331ac402b3d196a3a6089a3295415e01728bab57cfb0d32a065de74a2b367",
+            "proposal_id": "7889f8a1-e54c-48b2-a822-5868f3ac1f7c",
+            "execution_id": "db6c8a08-44b6-4924-b099-5506ea055647",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.843Z"
+        },
+        {
+          "id": "1105",
+          "entity_type": "scan",
+          "entity_id": "752fd4d2-905c-4d03-9a4b-3e6c937a32f0",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "issuesOpened": 5,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 5,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:09:49.839Z"
+        },
+        {
+          "id": "1104",
+          "entity_type": "proposal",
+          "entity_id": "3af38e1d-64e7-4f57-aba5-868adc71d3d4",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "target_id": "gid://shopify/ProductVariant/2013",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "793f6e11a49f4ff0aec1715fa8234220e6d08bdd4c7566823418f44ccd5f0815",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1103",
+          "entity_type": "issue",
+          "entity_id": "63f047fc-7590-45ef-9ea5-16882bc394ef",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2013"
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1102",
+          "entity_type": "proposal",
+          "entity_id": "ee754328-f349-4163-a6d9-97778b84d756",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "target_id": "gid://shopify/ProductVariant/2011",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "36932534d390aac174589fdfec67f90bf6f5a29a4a4232a80edecf3661360f52",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1101",
+          "entity_type": "issue",
+          "entity_id": "539a5720-000e-43bb-96a4-84395e95b0f8",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2011"
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1100",
+          "entity_type": "proposal",
+          "entity_id": "e5bf2ce8-36cb-462d-8739-8ebcc8d91b67",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "target_id": "gid://shopify/ProductVariant/2004",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "8e1516fc8c521c6449716b80f40d6b6dbcea3925af0158f61d32391ae1561d6c",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1099",
+          "entity_type": "issue",
+          "entity_id": "b9df387d-f194-4397-b7ed-fd1e5c7eebe9",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "medium",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2004"
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1098",
+          "entity_type": "proposal",
+          "entity_id": "93b47bf5-67f8-4fa7-bf75-90fcb96c5453",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "target_id": "gid://shopify/ProductVariant/2003",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "7043de24c3c31f6db218517e43be668165d0c9fd4b32628ad67470cfeb5e26b0",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1097",
+          "entity_type": "issue",
+          "entity_id": "5f06fb95-daaf-4657-8a4b-59d750ac1cfa",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2003"
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1096",
+          "entity_type": "proposal",
+          "entity_id": "7889f8a1-e54c-48b2-a822-5868f3ac1f7c",
+          "event": "proposal.created",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "change": {
+              "to": "DENY",
+              "from": "CONTINUE",
+              "field": "inventoryPolicy"
+            },
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "target_id": "gid://shopify/ProductVariant/2001",
+            "action_key": "shopify.variant.set_inventory_policy",
+            "change_hash": "a03331ac402b3d196a3a6089a3295415e01728bab57cfb0d32a065de74a2b367",
+            "rule_version": 1,
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1095",
+          "entity_type": "issue",
+          "entity_id": "57b8e287-1524-450b-a0db-1c4529d3a163",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversell_policy",
+            "resource_id": "gid://shopify/ProductVariant/2001"
+          },
+          "at": "2026-10-29T19:09:49.799Z"
+        },
+        {
+          "id": "1094",
+          "entity_type": "run",
+          "entity_id": "212ccb19-feda-4b2f-bc22-93ed833c35fb",
+          "event": "agent_run.started",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "trigger": "manual",
+            "agent_id": "4e67c084-16b6-51e5-ad83-c5d086c66208",
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:09:49.770Z"
+        },
+        {
+          "id": "1093",
+          "entity_type": "scan",
+          "entity_id": "81919d22-759e-40c3-9ed0-d274a6707d2f",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": null,
+            "issuesOpened": 1,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:09:48.831Z"
+        },
+        {
+          "id": "1092",
+          "entity_type": "issue",
+          "entity_id": "fa605575-3c37-4855-a1dd-194b608c7d54",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversold_stop_selling",
+            "resource_id": "gid://shopify/ProductVariant/2010"
+          },
+          "at": "2026-10-29T19:09:48.822Z"
+        },
+        {
+          "id": "1091",
+          "entity_type": "rule",
+          "entity_id": "e012b35b-229e-47b8-a81c-825431a1db4c",
+          "event": "rule.updated",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "config": {
+              "exemptTags": [
+                "preorder",
+                "pre-order",
+                "backorder",
+                "made-to-order",
+                "made to order"
+              ],
+              "exemptProductIds": [],
+              "flagInStockVariants": true
+            },
+            "enabled": false,
+            "check_key": "shopify.oversell_policy",
+            "to_version": 2,
+            "from_version": 2
+          },
+          "at": "2026-10-29T19:09:48.801Z"
+        },
+        {
+          "id": "1090",
+          "entity_type": "connection",
+          "entity_id": "344f4b0c-4ff1-5478-9f9d-83db9b76a68a",
+          "event": "demo.reset",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "synthetic": true,
+            "clear_history": true
+          },
+          "at": "2026-10-29T19:09:48.761Z"
+        },
+        {
+          "id": "1089",
+          "entity_type": "scan",
+          "entity_id": "ebde3fb7-b85c-4593-bee5-c12fde488b2d",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": null,
+            "issuesOpened": 0,
+            "issuesUpdated": 1,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:07:29.490Z"
+        },
+        {
+          "id": "1088",
+          "entity_type": "rule",
+          "entity_id": "e012b35b-229e-47b8-a81c-825431a1db4c",
+          "event": "rule.updated",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "config": {
+              "exemptTags": [
+                "preorder",
+                "pre-order",
+                "backorder",
+                "made-to-order",
+                "made to order"
+              ],
+              "exemptProductIds": [],
+              "flagInStockVariants": true
+            },
+            "enabled": false,
+            "check_key": "shopify.oversell_policy",
+            "to_version": 2,
+            "from_version": 2
+          },
+          "at": "2026-10-29T19:07:29.459Z"
+        },
+        {
+          "id": "1087",
+          "entity_type": "scan",
+          "entity_id": "06b831a7-0ca3-4310-91ed-ef5addebaa82",
+          "event": "scan.completed",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "scope": "full",
+            "agent_id": null,
+            "issuesOpened": 1,
+            "issuesUpdated": 0,
+            "issuesResolved": 0,
+            "proposalsCreated": 0,
+            "resourcesScanned": 19,
+            "proposalsInvalidated": 0
+          },
+          "at": "2026-10-29T19:06:16.897Z"
+        },
+        {
+          "id": "1086",
+          "entity_type": "issue",
+          "entity_id": "112fab31-7bc2-4e4a-930b-53a96dedce57",
+          "event": "issue.detected",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "severity": "high",
+            "check_key": "shopify.oversold_stop_selling",
+            "resource_id": "gid://shopify/ProductVariant/2010"
+          },
+          "at": "2026-10-29T19:06:16.889Z"
+        },
+        {
+          "id": "1085",
+          "entity_type": "rule",
+          "entity_id": "e012b35b-229e-47b8-a81c-825431a1db4c",
+          "event": "rule.updated",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "config": {
+              "exemptTags": [
+                "preorder",
+                "pre-order",
+                "backorder",
+                "made-to-order",
+                "made to order"
+              ],
+              "exemptProductIds": [],
+              "flagInStockVariants": true
+            },
+            "enabled": false,
+            "check_key": "shopify.oversell_policy",
+            "to_version": 2,
+            "from_version": 1
+          },
+          "at": "2026-10-29T19:06:16.857Z"
+        },
+        {
+          "id": "1084",
+          "entity_type": "agent",
+          "entity_id": "81bf99ab-ef1e-4a78-9823-f20c1fd144e1",
+          "event": "task.queued",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Within the agent's granted rules.",
+            "task_id": "dd5032a0-47f3-4be6-8565-668cea17654b",
+            "agent_id": "81bf99ab-ef1e-4a78-9823-f20c1fd144e1",
+            "outside_rules": [],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:04:02.854Z"
+        },
+        {
+          "id": "1083",
+          "entity_type": "agent",
+          "entity_id": "81bf99ab-ef1e-4a78-9823-f20c1fd144e1",
+          "event": "task.refused",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "reason": "Deploi could not tell what to do from this text, so nothing will run. Name what to check or correct (for example prices, SKUs, overselling or publication) or the email to draft.",
+            "task_id": "b51cd17e-f358-4d56-9519-3fa93d7fba3e",
+            "agent_id": "81bf99ab-ef1e-4a78-9823-f20c1fd144e1",
+            "outside_rules": [],
+            "policy_version": 1
+          },
+          "at": "2026-10-29T19:04:02.844Z"
+        },
+        {
+          "id": "1082",
+          "entity_type": "policy",
+          "entity_id": "59a72c8e-c632-48b7-93ea-27dc908d7c98",
+          "event": "policy.granted",
+          "actor": "user:owner@northwind-goods.example",
+          "detail": {
+            "version": 1,
+            "agent_id": "81bf99ab-ef1e-4a78-9823-f20c1fd144e1",
+            "warnings": [],
+            "policy_hash": "1aa7af7fbaef03f74b472b14acd95ca94f51f12f28735f3292018797fb93e7b4",
+            "tasks_queued": 0,
+            "approval_mode": "draft"
+          },
+          "at": "2026-10-29T19:04:02.829Z"
+        }
+      ]
+    },
+    "stateBefore": "{\"ok\":true,\"issues\":[{\"id\":\"86297163-843e-4622-a2a8-4fba08cddb8b\",\"connection_id\":\"344f4b0c-4ff1-5478-9f9d-83db9b76a68a\",\"platform\":\"shopify\",\"check_key\":\"shopify.oversell_policy\",\"kind\":\"correctable\",\"resource_type\":\"variant\",\"resource_id\":\"gid://shopify/ProductVariant/2001\",\"resource_label\":\"Linen Throw Blanket / Oat (SKU NW-LTB-OAT)\",\"severity\":\"high\",\"status\":\"open\",\"status_reason\":null,\"evidence\":{\"sku\":\"NW-LTB-OAT\",\"rule\":{\"exemptTags\":[\"preorder\",\"pre-order\",\"backorder\",\"made-to-order\",\"made to order\"],\"exemptProductCount\":0},\"levels\":[{\"onHand\":0,\"location\":\"Warehouse\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/101\"},{\"onHand\":0,\"location\":\"Retail shop\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/102\"}],\"summary\":\"Taking orders with 0 available: \\\"Continue selling when out of stock\\\" is on.\",\"tracked\":true,\"fetchedAt\":\"2026-10-29T19:11:16.343Z\",\"productId\":\"gid://shopify/Product/1001\",\"humanAction\":null,\"productTags\":[\"home\"],\"productTitle\":\"Linen Throw Blanket\",\"variantTitle\":\"Oat\",\"oversoldUnits\":0,\"productHandle\":\"linen-throw-blanket\",\"productStatus\":\"ACTIVE\",\"levelsComplete\":true,\"totalAvailable\":0,\"inventoryPolicy\":\"CONTINUE\",\"sellingPlanGroupsCount\":0},\"rule_version\":1,\"first_detected_at\":\"2026-10-29T19:11:16.344Z\",\"last_seen_at\":\"2026-10-29T19:11:16.344Z\",\"resolved_at\":null,\"resolution\":null,\"check_title\":\"Selling with no stock against your rule\",\"proposal\":{\"id\":\"9f7f1d28-1ca9-453f-8df2-16ac664db7bb\",\"issue_id\":\"86297163-843e-4622-a2a8-4fba08cddb8b\",\"action_key\":\"shopify.variant.set_inventory_policy\",\"target_id\":\"gid://shopify/ProductVariant/2001\",\"target_label\":\"Linen Throw Blanket / Oat (SKU NW-LTB-OAT)\",\"change\":{\"to\":\"DENY\",\"from\":\"CONTINUE\",\"field\":\"inventoryPolicy\",\"params\":{\"agentId\":\"351d5302-5500-40e8-a75f-b69859eab218\",\"productId\":\"gid://shopify/Product/1001\"}},\"preconditions\":[{\"path\":\"inventoryPolicy\",\"equals\":\"CONTINUE\",\"description\":\"\\\"Continue selling when out of stock\\\" is still on\"},{\"path\":\"tracked\",\"equals\":true,\"description\":\"inventory is still tracked\"},{\"path\":\"productStatus\",\"equals\":\"ACTIVE\",\"description\":\"the product is still active\"},{\"path\":\"productId\",\"equals\":\"gid://shopify/Product/1001\",\"description\":\"the variant still belongs to the same product\"}],\"rule_version\":1,\"change_hash\":\"986cfb5c84b34d8c01bfd6049d55759ff257a737778a3656588ea93926f7a156\",\"status\":\"pending_approval\",\"status_reason\":\"draft: this agent only shows changes; it may not make them\",\"expires_at\":\"2026-10-30T19:11:16.328Z\",\"created_at\":\"2026-10-29T19:11:16.344Z\",\"decided_at\":null,\"outcome\":\"pending\"}},{\"id\":\"1ab2818d-4735-40f3-ad61-c1ae51e5f16c\",\"connection_id\":\"344f4b0c-4ff1-5478-9f9d-83db9b76a68a\",\"platform\":\"shopify\",\"check_key\":\"shopify.oversell_policy\",\"kind\":\"correctable\",\"resource_type\":\"variant\",\"resource_id\":\"gid://shopify/ProductVariant/2003\",\"resource_label\":\"Ceramic Pour-Over Set (SKU NW-CPO-01)\",\"severity\":\"high\",\"status\":\"open\",\"status_reason\":null,\"evidence\":{\"sku\":\"NW-CPO-01\",\"rule\":{\"exemptTags\":[\"preorder\",\"pre-order\",\"backorder\",\"made-to-order\",\"made to order\"],\"exemptProductCount\":0},\"levels\":[{\"onHand\":0,\"location\":\"Warehouse\",\"available\":-2,\"committed\":2,\"locationId\":\"gid://shopify/Location/101\"},{\"onHand\":0,\"location\":\"Retail shop\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/102\"}],\"summary\":\"Taking orders with -2 available: \\\"Continue selling when out of stock\\\" is on.\",\"tracked\":true,\"fetchedAt\":\"2026-10-29T19:11:16.343Z\",\"productId\":\"gid://shopify/Product/1002\",\"humanAction\":\"Already 2 units oversold. Stopping overselling does not change existing orders: decide how to fulfil or cancel them.\",\"productTags\":[],\"productTitle\":\"Ceramic Pour-Over Set\",\"variantTitle\":\"Default Title\",\"oversoldUnits\":2,\"productHandle\":\"ceramic-pour-over-set\",\"productStatus\":\"ACTIVE\",\"levelsComplete\":true,\"totalAvailable\":-2,\"inventoryPolicy\":\"CONTINUE\",\"sellingPlanGroupsCount\":0},\"rule_version\":1,\"first_detected_at\":\"2026-10-29T19:11:16.344Z\",\"last_seen_at\":\"2026-10-29T19:11:16.344Z\",\"resolved_at\":null,\"resolution\":null,\"check_title\":\"Selling with no stock against your rule\",\"proposal\":{\"id\":\"1cd5daf4-6d42-4caa-bf6d-1bc6f6b1c125\",\"issue_id\":\"1ab2818d-4735-40f3-ad61-c1ae51e5f16c\",\"action_key\":\"shopify.variant.set_inventory_policy\",\"target_id\":\"gid://shopify/ProductVariant/2003\",\"target_label\":\"Ceramic Pour-Over Set (SKU NW-CPO-01)\",\"change\":{\"to\":\"DENY\",\"from\":\"CONTINUE\",\"field\":\"inventoryPolicy\",\"params\":{\"agentId\":\"351d5302-5500-40e8-a75f-b69859eab218\",\"productId\":\"gid://shopify/Product/1002\"}},\"preconditions\":[{\"path\":\"inventoryPolicy\",\"equals\":\"CONTINUE\",\"description\":\"\\\"Continue selling when out of stock\\\" is still on\"},{\"path\":\"tracked\",\"equals\":true,\"description\":\"inventory is still tracked\"},{\"path\":\"productStatus\",\"equals\":\"ACTIVE\",\"description\":\"the product is still active\"},{\"path\":\"productId\",\"equals\":\"gid://shopify/Product/1002\",\"description\":\"the variant still belongs to the same product\"}],\"rule_version\":1,\"change_hash\":\"8ca87a5ebd20b465209984dfab055fdc8861651d9aa0926bf2416f132573a693\",\"status\":\"pending_approval\",\"status_reason\":\"draft: this agent only shows changes; it may not make them\",\"expires_at\":\"2026-10-30T19:11:16.328Z\",\"created_at\":\"2026-10-29T19:11:16.344Z\",\"decided_at\":null,\"outcome\":\"pending\"}},{\"id\":\"7003c731-f988-47dd-b468-b42c9355aa4c\",\"connection_id\":\"344f4b0c-4ff1-5478-9f9d-83db9b76a68a\",\"platform\":\"shopify\",\"check_key\":\"shopify.oversell_policy\",\"kind\":\"correctable\",\"resource_type\":\"variant\",\"resource_id\":\"gid://shopify/ProductVariant/2004\",\"resource_label\":\"Walnut Serving Board (SKU NW-WSB-01)\",\"severity\":\"high\",\"status\":\"open\",\"status_reason\":null,\"evidence\":{\"sku\":\"NW-WSB-01\",\"rule\":{\"exemptTags\":[\"preorder\",\"pre-order\",\"backorder\",\"made-to-order\",\"made to order\"],\"exemptProductCount\":0},\"levels\":[{\"onHand\":0,\"location\":\"Warehouse\",\"available\":-2,\"committed\":2,\"locationId\":\"gid://shopify/Location/101\"},{\"onHand\":0,\"location\":\"Retail shop\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/102\"}],\"summary\":\"Taking orders with -2 available: \\\"Continue selling when out of stock\\\" is on.\",\"tracked\":true,\"fetchedAt\":\"2026-10-29T19:11:16.343Z\",\"productId\":\"gid://shopify/Product/1003\",\"humanAction\":\"Already 2 units oversold. Stopping overselling does not change existing orders: decide how to fulfil or cancel them.\",\"productTags\":[],\"productTitle\":\"Walnut Serving Board\",\"variantTitle\":\"Default Title\",\"oversoldUnits\":2,\"productHandle\":\"walnut-serving-board\",\"productStatus\":\"ACTIVE\",\"levelsComplete\":true,\"totalAvailable\":-2,\"inventoryPolicy\":\"CONTINUE\",\"sellingPlanGroupsCount\":0},\"rule_version\":1,\"first_detected_at\":\"2026-10-29T19:11:16.344Z\",\"last_seen_at\":\"2026-10-29T19:11:16.344Z\",\"resolved_at\":null,\"resolution\":null,\"check_title\":\"Selling with no stock against your rule\",\"proposal\":{\"id\":\"122349ec-8ac9-4b5c-9704-2cf0c90b8792\",\"issue_id\":\"7003c731-f988-47dd-b468-b42c9355aa4c\",\"action_key\":\"shopify.variant.set_inventory_policy\",\"target_id\":\"gid://shopify/ProductVariant/2004\",\"target_label\":\"Walnut Serving Board (SKU NW-WSB-01)\",\"change\":{\"to\":\"DENY\",\"from\":\"CONTINUE\",\"field\":\"inventoryPolicy\",\"params\":{\"agentId\":\"351d5302-5500-40e8-a75f-b69859eab218\",\"productId\":\"gid://shopify/Product/1003\"}},\"preconditions\":[{\"path\":\"inventoryPolicy\",\"equals\":\"CONTINUE\",\"description\":\"\\\"Continue selling when out of stock\\\" is still on\"},{\"path\":\"tracked\",\"equals\":true,\"description\":\"inventory is still tracked\"},{\"path\":\"productStatus\",\"equals\":\"ACTIVE\",\"description\":\"the product is still active\"},{\"path\":\"productId\",\"equals\":\"gid://shopify/Product/1003\",\"description\":\"the variant still belongs to the same product\"}],\"rule_version\":1,\"change_hash\":\"1bc1603d1d1b380b021349267c57db2e1dce16b080711d1e12a038d76124fde2\",\"status\":\"pending_approval\",\"status_reason\":\"draft: this agent only shows changes; it may not make them\",\"expires_at\":\"2026-10-30T19:11:16.328Z\",\"created_at\":\"2026-10-29T19:11:16.344Z\",\"decided_at\":null,\"outcome\":\"pending\"}},{\"id\":\"e76eaec6-6b98-4670-a514-ce5c4e4a62a6\",\"connection_id\":\"344f4b0c-4ff1-5478-9f9d-83db9b76a68a\",\"platform\":\"shopify\",\"check_key\":\"shopify.oversold_stop_selling\",\"kind\":\"needs_person\",\"resource_type\":\"variant\",\"resource_id\":\"gid://shopify/ProductVariant/2010\",\"resource_label\":\"Cotton Napkins (Set of 4) (SKU NW-CN4-01)\",\"severity\":\"high\",\"status\":\"open\",\"status_reason\":null,\"evidence\":{\"sku\":\"NW-CN4-01\",\"levels\":[{\"onHand\":0,\"location\":\"Warehouse\",\"available\":-3,\"committed\":3,\"locationId\":\"gid://shopify/Location/101\"},{\"onHand\":5,\"location\":\"Retail shop\",\"available\":5,\"committed\":0,\"locationId\":\"gid://shopify/Location/102\"}],\"summary\":\"Oversold by 3 at Warehouse even though it is set to stop selling at zero.\",\"tracked\":true,\"fetchedAt\":\"2026-10-29T19:11:16.343Z\",\"productId\":\"gid://shopify/Product/1009\",\"shortUnits\":3,\"humanAction\":\"Count the stock at the listed locations, receive any incoming inventory, or contact the customers whose orders cannot be filled. Deploi does not adjust stock counts.\",\"productTitle\":\"Cotton Napkins (Set of 4)\",\"variantTitle\":\"Default Title\",\"productStatus\":\"ACTIVE\",\"levelsComplete\":true,\"totalAvailable\":2,\"inventoryPolicy\":\"DENY\"},\"rule_version\":1,\"first_detected_at\":\"2026-10-29T19:11:16.344Z\",\"last_seen_at\":\"2026-10-29T19:11:16.344Z\",\"resolved_at\":null,\"resolution\":null,\"check_title\":\"Oversold while set to stop selling\",\"proposal\":null},{\"id\":\"655a6bf1-7c04-4cad-9da6-b02409cd4668\",\"connection_id\":\"344f4b0c-4ff1-5478-9f9d-83db9b76a68a\",\"platform\":\"shopify\",\"check_key\":\"shopify.oversell_policy\",\"kind\":\"correctable\",\"resource_type\":\"variant\",\"resource_id\":\"gid://shopify/ProductVariant/2011\",\"resource_label\":\"Glass Storage Jars / Small (SKU NW-GSJ-S)\",\"severity\":\"high\",\"status\":\"open\",\"status_reason\":null,\"evidence\":{\"sku\":\"NW-GSJ-S\",\"rule\":{\"exemptTags\":[\"preorder\",\"pre-order\",\"backorder\",\"made-to-order\",\"made to order\"],\"exemptProductCount\":0},\"levels\":[{\"onHand\":0,\"location\":\"Warehouse\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/101\"},{\"onHand\":0,\"location\":\"Retail shop\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/102\"}],\"summary\":\"Taking orders with 0 available: \\\"Continue selling when out of stock\\\" is on.\",\"tracked\":true,\"fetchedAt\":\"2026-10-29T19:11:16.343Z\",\"productId\":\"gid://shopify/Product/1010\",\"humanAction\":null,\"productTags\":[],\"productTitle\":\"Glass Storage Jars\",\"variantTitle\":\"Small\",\"oversoldUnits\":0,\"productHandle\":\"glass-storage-jars\",\"productStatus\":\"ACTIVE\",\"levelsComplete\":true,\"totalAvailable\":0,\"inventoryPolicy\":\"CONTINUE\",\"sellingPlanGroupsCount\":0},\"rule_version\":1,\"first_detected_at\":\"2026-10-29T19:11:16.344Z\",\"last_seen_at\":\"2026-10-29T19:11:16.344Z\",\"resolved_at\":null,\"resolution\":null,\"check_title\":\"Selling with no stock against your rule\",\"proposal\":{\"id\":\"1ff25536-982c-40eb-bdb6-2d808048060c\",\"issue_id\":\"655a6bf1-7c04-4cad-9da6-b02409cd4668\",\"action_key\":\"shopify.variant.set_inventory_policy\",\"target_id\":\"gid://shopify/ProductVariant/2011\",\"target_label\":\"Glass Storage Jars / Small (SKU NW-GSJ-S)\",\"change\":{\"to\":\"DENY\",\"from\":\"CONTINUE\",\"field\":\"inventoryPolicy\",\"params\":{\"agentId\":\"351d5302-5500-40e8-a75f-b69859eab218\",\"productId\":\"gid://shopify/Product/1010\"}},\"preconditions\":[{\"path\":\"inventoryPolicy\",\"equals\":\"CONTINUE\",\"description\":\"\\\"Continue selling when out of stock\\\" is still on\"},{\"path\":\"tracked\",\"equals\":true,\"description\":\"inventory is still tracked\"},{\"path\":\"productStatus\",\"equals\":\"ACTIVE\",\"description\":\"the product is still active\"},{\"path\":\"productId\",\"equals\":\"gid://shopify/Product/1010\",\"description\":\"the variant still belongs to the same product\"}],\"rule_version\":1,\"change_hash\":\"17dae0239b0a1b1ead00974b14d9d476f151e68592b87518c870bb0da8c23330\",\"status\":\"pending_approval\",\"status_reason\":\"draft: this agent only shows changes; it may not make them\",\"expires_at\":\"2026-10-30T19:11:16.328Z\",\"created_at\":\"2026-10-29T19:11:16.344Z\",\"decided_at\":null,\"outcome\":\"pending\"}},{\"id\":\"f5fc8e46-aff7-4405-82d6-b64b0591a57d\",\"connection_id\":\"344f4b0c-4ff1-5478-9f9d-83db9b76a68a\",\"platform\":\"shopify\",\"check_key\":\"shopify.oversell_policy\",\"kind\":\"correctable\",\"resource_type\":\"variant\",\"resource_id\":\"gid://shopify/ProductVariant/2013\",\"resource_label\":\"Glass Storage Jars / Large (SKU NW-GSJ-L)\",\"severity\":\"medium\",\"status\":\"open\",\"status_reason\":null,\"evidence\":{\"sku\":\"NW-GSJ-L\",\"rule\":{\"exemptTags\":[\"preorder\",\"pre-order\",\"backorder\",\"made-to-order\",\"made to order\"],\"exemptProductCount\":0},\"levels\":[{\"onHand\":6,\"location\":\"Warehouse\",\"available\":6,\"committed\":0,\"locationId\":\"gid://shopify/Location/101\"},{\"onHand\":0,\"location\":\"Retail shop\",\"available\":0,\"committed\":0,\"locationId\":\"gid://shopify/Location/102\"}],\"summary\":\"Will keep taking orders after the last 6 units sell: \\\"Continue selling when out of stock\\\" is on.\",\"tracked\":true,\"fetchedAt\":\"2026-10-29T19:11:16.343Z\",\"productId\":\"gid://shopify/Product/1010\",\"humanAction\":null,\"productTags\":[],\"productTitle\":\"Glass Storage Jars\",\"variantTitle\":\"Large\",\"oversoldUnits\":0,\"productHandle\":\"glass-storage-jars\",\"productStatus\":\"ACTIVE\",\"levelsComplete\":true,\"totalAvailable\":6,\"inventoryPolicy\":\"CONTINUE\",\"sellingPlanGroupsCount\":0},\"rule_version\":1,\"first_detected_at\":\"2026-10-29T19:11:16.344Z\",\"last_seen_at\":\"2026-10-29T19:11:16.344Z\",\"resolved_at\":null,\"resolution\":null,\"check_title\":\"Selling with no stock against your rule\",\"proposal\":{\"id\":\"4e964396-4224-41ee-b1c2-e0630fdd770c\",\"issue_id\":\"f5fc8e46-aff7-4405-82d6-b64b0591a57d\",\"action_key\":\"shopify.variant.set_inventory_policy\",\"target_id\":\"gid://shopify/ProductVariant/2013\",\"target_label\":\"Glass Storage Jars / Large (SKU NW-GSJ-L)\",\"change\":{\"to\":\"DENY\",\"from\":\"CONTINUE\",\"field\":\"inventoryPolicy\",\"params\":{\"agentId\":\"351d5302-5500-40e8-a75f-b69859eab218\",\"productId\":\"gid://shopify/Product/1010\"}},\"preconditions\":[{\"path\":\"inventoryPolicy\",\"equals\":\"CONTINUE\",\"description\":\"\\\"Continue selling when out of stock\\\" is still on\"},{\"path\":\"tracked\",\"equals\":true,\"description\":\"inventory is still tracked\"},{\"path\":\"productStatus\",\"equals\":\"ACTIVE\",\"description\":\"the product is still active\"},{\"path\":\"productId\",\"equals\":\"gid://shopify/Product/1010\",\"description\":\"the variant still belongs to the same product\"}],\"rule_version\":1,\"change_hash\":\"286bc0d6fdd398c6ae1ce15259bf20b04fce926d68b26e6d6b30f3a4485872d6\",\"status\":\"pending_approval\",\"status_reason\":\"draft: this agent only shows changes; it may not make them\",\"expires_at\":\"2026-10-30T19:11:16.328Z\",\"created_at\":\"2026-10-29T19:11:16.344Z\",\"decided_at\":null,\"outcome\":\"pending\"}}]}"
+  },
+  "agents": {
+    "inventoryWatcher": "351d5302-5500-40e8-a75f-b69859eab218",
+    "supplierChaser": "e9fcedc4-17fc-4b80-a67d-8a5d30e3cee3",
+    "storeHealthChecker": "123cc5b4-bbf5-485b-8aa1-c4ea54141fcd"
+  },
+  "finishedAt": "2026-10-29T19:11:31.124Z"
+}

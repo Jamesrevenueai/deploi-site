@@ -8,6 +8,8 @@ import { StatusBadge, type ProductStatus } from '../components/StatusBadge'
 import { EarlyAccessForm } from '../components/EarlyAccessForm'
 import { art, type ArtTheme } from '../lib/art'
 import { Icon } from '../lib/icons'
+import { AGENTS, TIERS, lowestTierFor } from '../lib/library'
+import { AgentCharacter } from '../components/AgentCharacter'
 
 export const HOME_TITLE = `${BRAND} — Name an agent. Authorize what it may fix. See every change verified.`
 export const HOME_DESCRIPTION =
@@ -69,12 +71,11 @@ function Hero() {
 /*  How it works                                                              */
 /* -------------------------------------------------------------------------- */
 export const FLOW: { title: string; body: string; icon: ReactNode }[] = [
-  { title: 'Name and instruct', icon: <Icon.Pencil />, body: 'Create an agent, name it, and describe its task in plain English. Deploi turns it into a structured task you can read and edit.' },
-  { title: 'Authorize', icon: <Icon.UserCheck />, body: 'Choose the store, the products, the corrections and fields it may change, your rules or reference files, its limits, and whether it asks before each change.' },
-  { title: 'Detect with evidence', icon: <Icon.Search />, body: 'The agent compares your store with your rule or file and records the evidence for every problem it finds.' },
-  { title: 'Exact change', icon: <Icon.Doc />, body: 'Each fix is one exact change: this field, from this value to that one. Anything ambiguous goes to you instead.' },
-  { title: 'Checked, then made', icon: <Icon.Refresh />, body: 'Just before writing, the agent re-reads the record and re-checks its authorization. If anything changed, it stops.' },
-  { title: 'Verified', icon: <Icon.Check />, body: 'A fresh read confirms the change took effect. Each change is shown as Verified, or Failed or Blocked with the reason.' },
+  { title: 'Connect your store', icon: <Icon.Store />, body: 'Install Deploi on your Shopify store. It reads products, inventory and, for the agents you choose, orders and returns. Nothing is changed.' },
+  { title: 'Switch on agents', icon: <Icon.UserCheck />, body: 'Pick from twelve agents, each with one job. Every agent starts in draft-for-approval. Your plan decides which ones you can switch on.' },
+  { title: 'Approve their work', icon: <Icon.Check />, body: 'Each agent drafts what it would do, with the evidence. You approve or decline in its queue. A change is made only after you say so, and a fresh read confirms it.' },
+  { title: 'Agents earn auto-run', icon: <Icon.Refresh />, body: 'Once you trust an agent, grant auto-run for one action type at a time, with a daily cap. Money actions and live publishing always wait for you.' },
+  { title: 'Weekly summary', icon: <Icon.History />, body: 'Every Monday: what each agent did, what needs you, and the time and money saved, labelled as estimates with the formula.' },
 ]
 
 export function HowItWorks() {
@@ -84,8 +85,8 @@ export function HowItWorks() {
         <div className="section-head reveal">
           <span className="eyebrow">How it works</span>
           <h2 className="two-tone">
-            <span className="grey">Six steps.</span><br />
-            <span className="white">Nothing outside what you authorized.</span>
+            <span className="grey">Five steps.</span><br />
+            <span className="white">Nothing outside what you approved.</span>
           </h2>
         </div>
         <ol className="timeline">
@@ -125,13 +126,8 @@ export const APPROVAL_MODES: { title: string; body: string }[] = [
   { title: 'Without asking, within limits', body: 'A standing authorization for the scope, limits and recipients you grant, for at most one year. Anything outside it waits for you, with the reason.' },
 ]
 
-/** Ready-made agents: each starts at drafts only for every tool. The first three are illustrated in AGENT_ROLES. */
-export const TEMPLATES: { name: string; body: string }[] = [
-  { name: 'Inventory Watcher', body: 'Checks your inventory every day, shows you products that are oversold or keep selling at zero, and drafts an alert to you.' },
-  { name: 'Supplier Chaser', body: 'Drafts restock requests to your supplier from its own email address for products running low, and one follow-up in the same thread if the supplier has not replied.' },
-  { name: 'Store Health Checker', body: 'Checks the whole store once a week and drafts a health report for you.' },
-  { name: 'Competitor & Trend Watcher', body: 'Watches the competitor stores you list, using only their public pages: new products, price and discount changes, sell-outs, and what they feature as best sellers. Never their sales, which are not public.' },
-]
+/** The agent library, from the same config the app uses. */
+export const TEMPLATES: { name: string; body: string }[] = AGENTS.map(a => ({ name: a.name, body: a.tagline }))
 
 export const AGENT_ROLES: { key: string; title: string; kind: string; body: string; alt: string }[] = [
   {
@@ -245,20 +241,28 @@ export function Agents() {
             <p>Pausing or revoking stops all writes, including changes already queued. Widening what an agent may do always needs your approval again.</p>
           </div>
         </div>
-        <h3 className="reveal" style={{ marginTop: 32 }}>Start from a template</h3>
-        <p className="reveal">
-          {TEMPLATES.filter(t => AGENT_ROLES.some(r => r.title === t.name)).map(t => t.name).join(', ').replace(/, ([^,]*)$/, ' and $1')} above
-          are ready-made templates. Every template starts at drafts only for every tool.
-        </p>
-        <div className="why-grid controls-grid agents-grid" aria-label="Agent templates">
-          {TEMPLATES.filter(t => !AGENT_ROLES.some(r => r.title === t.name)).map(t => (
-            <div className="why-item reveal" key={t.name}>
-              <span className="ico" aria-hidden="true"><Icon.UserCheck /></span>
-              <h3>{t.name}</h3>
-              <p>{t.body}</p>
-            </div>
-          ))}
+        <h3 className="reveal" style={{ marginTop: 32 }}>The agent library</h3>
+        <ul className="agent-grid home-agents" aria-label="Agent library">
+          {AGENTS.map(a => {
+            const tier = lowestTierFor(a.key)
+            return (
+              <li key={a.key} className="agent-card reveal">
+                <div className="agent-card-head">
+                  <AgentCharacter agentKey={a.key} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
+                  <div><h3>{a.name}</h3><p className="agent-tag">{a.tagline}</p></div>
+                </div>
+                <div className="agent-foot"><span className={`tier-pill tier-${tier?.key ?? 'pro'}`}>From {tier?.name ?? 'Pro'}</span></div>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="page-actions" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link to="/agents" className="btn btn-ghost sm">All twelve agents</Link>
+          <Link to="/pricing" className="btn btn-ghost sm">Plans: {TIERS.map(t => t.name).join(', ')}</Link>
         </div>
+        <p className="muted reveal" style={{ marginTop: 20, maxWidth: 640, marginInline: 'auto' }}>
+          The Competitor &amp; Trend Watcher template from the earlier release stays available in the app. It reads only what anyone can see on competitors&rsquo; public pages. Never their sales, which are not public.
+        </p>
       </div>
     </section>
   )
@@ -528,7 +532,7 @@ export const FAQS: { q: string; a: ReactNode }[] = [
   },
   {
     q: 'What does it cost?',
-    a: <>{BRAND} is a subscription. Pricing will be published before general availability.</>,
+    a: <>{BRAND} is a subscription with three plans (Starter, Growth, Pro), each with a base fee and a monthly action allowance, with paid overage. Prices are coming soon; early access is free. See <Link to="/pricing">pricing</Link>.</>,
   },
   {
     q: 'Is it in the Shopify App Store?',

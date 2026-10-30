@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
 import { admin } from '@/lib/db'
 import { env } from '@/lib/env'
 import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
-import { withActor } from '@/lib/engine/actor'
+import { assertMerchant, withActor } from '@/lib/engine/actor'
 import { audit } from '@/lib/engine/audit'
 import { setSyntheticState, mutateSynthetic, injectFault, type SynthFault } from '@/lib/connectors/shopify/synthetic'
 import { northwindState, harborState, NORTHWIND_DOMAIN } from '@/lib/connectors/shopify/demo-store'
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     const conn = await withActor(actor, db => db.one<{ id: string; org_id: string; external_id: string; is_synthetic: boolean }>(
       `select id, org_id, external_id, is_synthetic from store_connections where id = $1`, [String(body.connectionId ?? '')]))
     if (!conn) throw new HttpError(404, 'not_found', 'connection not found')
+    assertMerchant(actor, conn.org_id)
     if (!conn.is_synthetic) throw new HttpError(403, 'not_synthetic', 'demo controls only work on synthetic stores')
     const action = String(body.action ?? '')
     if (action === 'reset') {
@@ -61,6 +62,11 @@ export async function POST(req: Request) {
         if (body.status === 'ACTIVE' || body.status === 'DRAFT' || body.status === 'ARCHIVED') p.status = body.status
         p.updatedAt = new Date().toISOString()
       })
+    } else if (action === 'set_scopes') {
+      // what the synthetic store answers to currentAppInstallation.accessScopes; the app's own copy follows through /api/store/scopes/sync
+      const scopes = Array.isArray(body.scopes) ? body.scopes.map(String) : null
+      if (!scopes) throw new HttpError(400, 'invalid_input', 'scopes must be a list')
+      await mutateSynthetic(conn.id, s => { s.accessScopes = scopes })
     } else if (action === 'fault') {
       const modes: SynthFault['mode'][] = ['user_error', 'lost_response_applied', 'lost_response_not_applied', 'write_does_not_stick', 'read_error', 'throttle_once']
       const mode = modes.find(m => m === body.mode)

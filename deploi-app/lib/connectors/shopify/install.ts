@@ -14,6 +14,7 @@ import { exchangeSessionToken, type AccessToken } from './auth'
 import { realTransport } from './client'
 import { Q_SHOP } from './queries'
 import { shopifyConfig } from './config'
+import { cancelAgentEmail } from '../../email/engine'
 import { recordShopFacts, loadAccessRow, factsStale } from '../../engine/access'
 import { shopifyGraphql } from './client'
 
@@ -88,7 +89,15 @@ export async function markUninstalled(db: Db, shop: string, actor: string) {
   await deleteCredential(db, c.id, c.org_id, actor, 'app uninstalled')
   const live = await db.query<ProposalRow>(`select * from proposals where connection_id = $1 and status in ('pending_approval','approved')`, [c.id])
   for (const p of live) await invalidateProposal(db, p, 'blocked', 'the app was uninstalled', actor)
-  await audit(db, { orgId: c.org_id, connectionId: c.id, entityType: 'connection', entityId: c.id, event: 'connection.uninstalled', actor })
+  // every agent on this store stops: no runs, no writes, and no email (agent mailboxes do not depend on the store connection)
+  const paused = await db.query<{ id: string }>(`update agents set status = 'paused', next_run_at = null where connection_id = $1 and status = 'active' returning id`, [c.id])
+  await db.query(`update executions set status = 'blocked', status_reason = 'the app was uninstalled', finished_at = now() where connection_id = $1 and status in ('queued','prechecking')`, [c.id])
+  let emailsCancelled = 0
+  for (const a of paused) {
+    emailsCancelled += await cancelAgentEmail(db, a.id, 'the app was uninstalled; queued messages are not sent', false)
+    await audit(db, { orgId: c.org_id, connectionId: c.id, entityType: 'agent', entityId: a.id, event: 'agent.paused', actor, detail: { reason: 'app uninstalled' } })
+  }
+  await audit(db, { orgId: c.org_id, connectionId: c.id, entityType: 'connection', entityId: c.id, event: 'connection.uninstalled', actor, detail: { agents_paused: paused.length, emails_cancelled: emailsCancelled } })
   return c.id
 }
 

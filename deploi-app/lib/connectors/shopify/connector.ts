@@ -6,7 +6,7 @@
  */
 import type { ApplyResult, Connector, ConnectionRow, Correction, LookupKeys } from '../../engine/types'
 import { shopifyGraphql, ShopifyApiError } from './client'
-import { Q_NODES, Q_VARIANTS, M_SET_INVENTORY_POLICY, Q_FIND_VARIANTS, Q_FIND_BY_HANDLE, Q_PUBLICATIONS, M_PUBLISH, M_UNPUBLISH, M_UPDATE_VARIANT, Q_PRICE_OVERRIDES } from './queries'
+import { Q_NODES, Q_VARIANTS, M_SET_INVENTORY_POLICY, Q_FIND_VARIANTS, Q_FIND_BY_HANDLE, Q_PUBLICATIONS, M_PUBLISH, M_UNPUBLISH, M_UPDATE_VARIANT, Q_PRICE_OVERRIDES, docFor } from './queries'
 import { normalizeVariant, type GqlVariant } from './normalize'
 import { ACTION_SCOPES, READ_SCOPES } from './config'
 import { SET_POLICY_ACTION } from './checks'
@@ -80,7 +80,7 @@ export const shopifyConnector: Connector<ShopifyVariantRecord> = {
     let after: string | null = null
     for (let guard = 0; guard < 10000; guard++) {
       const data: { productVariants: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: GqlVariant[] } } =
-        await shopifyGraphql(conn, { query: Q_VARIANTS, operationName: 'DeploiVariants', variables: { first: PAGE, after } })
+        await shopifyGraphql(conn, { query: docFor(Q_VARIANTS, conn.scopes), operationName: 'DeploiVariants', variables: { first: PAGE, after } })
       const fetchedAt = new Date().toISOString()
       yield data.productVariants.nodes.map(v => normalizeVariant(v, fetchedAt))
       if (!data.productVariants.pageInfo.hasNextPage || !data.productVariants.pageInfo.endCursor) return
@@ -94,7 +94,7 @@ export const shopifyConnector: Connector<ShopifyVariantRecord> = {
     for (let i = 0; i < wanted.length; i += 50) {
       const chunk = wanted.slice(i, i + 50)
       const data = await shopifyGraphql<{ nodes: (null | ({ __typename: 'ProductVariant' } & GqlVariant) | { __typename: 'Product' | 'InventoryItem'; id: string; variants: { nodes: GqlVariant[] } })[] }>(
-        conn, { query: Q_NODES, operationName: 'DeploiNodes', variables: { ids: chunk } })
+        conn, { query: docFor(Q_NODES, conn.scopes), operationName: 'DeploiNodes', variables: { ids: chunk } })
       const fetchedAt = new Date().toISOString()
       for (const n of data.nodes) {
         if (!n) continue
@@ -109,12 +109,12 @@ export const shopifyConnector: Connector<ShopifyVariantRecord> = {
     const out = new Map<string, ShopifyVariantRecord>()
     const terms = [...keys.skus.map(v => `sku:${quote(v)}`), ...keys.barcodes.map(v => `barcode:${quote(v)}`)]
     for (let i = 0; i < terms.length; i += 10) {
-      const data = await shopifyGraphql<{ productVariants: { nodes: GqlVariant[] } }>(conn, { query: Q_FIND_VARIANTS, operationName: 'DeploiFindVariants', variables: { query: terms.slice(i, i + 10).join(' OR ') } })
+      const data = await shopifyGraphql<{ productVariants: { nodes: GqlVariant[] } }>(conn, { query: docFor(Q_FIND_VARIANTS, conn.scopes), operationName: 'DeploiFindVariants', variables: { query: terms.slice(i, i + 10).join(' OR ') } })
       const fetchedAt = new Date().toISOString()
       for (const v of data.productVariants.nodes) { const r = normalizeVariant(v, fetchedAt); out.set(r.resourceId, r) }
     }
     for (let i = 0; i < keys.handles.length; i += 10) {
-      const data = await shopifyGraphql<{ products: { nodes: { variants: { nodes: GqlVariant[] } }[] } }>(conn, { query: Q_FIND_BY_HANDLE, operationName: 'DeploiFindByHandle', variables: { query: keys.handles.slice(i, i + 10).map(h => `handle:${quote(h)}`).join(' OR ') } })
+      const data = await shopifyGraphql<{ products: { nodes: { variants: { nodes: GqlVariant[] } }[] } }>(conn, { query: docFor(Q_FIND_BY_HANDLE, conn.scopes), operationName: 'DeploiFindByHandle', variables: { query: keys.handles.slice(i, i + 10).map(h => `handle:${quote(h)}`).join(' OR ') } })
       const fetchedAt = new Date().toISOString()
       for (const p of data.products.nodes) for (const v of p.variants.nodes) { const r = normalizeVariant(v, fetchedAt); out.set(r.resourceId, r) }
     }

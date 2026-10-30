@@ -1,0 +1,111 @@
+{
+  "steps": [
+    {
+      "step": "c8.store-scopes-before-sync",
+      "synthetic": true,
+      "shopifyAnswers": [
+        "read_products",
+        "read_inventory",
+        "read_locations"
+      ]
+    },
+    {
+      "step": "c8.sync-read-only",
+      "status": 200,
+      "granted": [
+        "read_inventory",
+        "read_locations",
+        "read_products"
+      ],
+      "changed": true,
+      "requestable": [
+        "write_products",
+        "read_publications",
+        "write_publications"
+      ]
+    },
+    {
+      "step": "c8.drafts-only-needs-no-write-scope",
+      "missing_scopes": [],
+      "storeScopes": {
+        "granted": [
+          "read_inventory",
+          "read_locations",
+          "read_products"
+        ],
+        "requestable": [
+          "write_products",
+          "read_publications",
+          "write_publications"
+        ]
+      }
+    },
+    {
+      "step": "c8.widen-reports-missing-scope",
+      "requiresGrant": true,
+      "expansion": [
+        "new writable fields",
+        "may now make changes you approve (was drafts only)"
+      ],
+      "missingScopes": [
+        "write_products"
+      ]
+    },
+    {
+      "step": "c8.grant-v2",
+      "status": 200,
+      "version": 2,
+      "error": null,
+      "message": null
+    },
+    {
+      "step": "c8.run-after-widening",
+      "status": "completed",
+      "counts": {
+        "issuesFound": 6,
+        "needsPerson": 1,
+        "proposed": 5,
+        "drafted": 0,
+        "autoApproved": 0,
+        "awaitingApproval": 5,
+        "verified": 0,
+        "failed": 0,
+        "blocked": 0,
+        "stale": 0,
+        "unconfirmed": 0,
+        "missingSources": [],
+        "email": {
+          "emailDrafted": 1,
+          "emailAwaiting": 0,
+          "emailAccepted": 0,
+          "emailFailed": 0,
+          "emailUnknown": 0,
+          "emailSkipped": 0
+        }
+      }
+    },
+    {
+      "step": "c8.approve-blocked-without-write-scope",
+      "status": "blocked",
+      "reason": "missing permission: write_products"
+    },
+    {
+      "step": "c8.sync-after-grant",
+      "granted": [
+        "read_inventory",
+        "read_locations",
+        "read_products",
+        "write_products"
+      ],
+      "changed": true
+    },
+    {
+      "step": "c8.notice-cleared",
+      "missing_scopes": []
+    },
+    {
+      "step": "c8.retry-after-grant",
+      "reason": null
+    }
+  ]
+}

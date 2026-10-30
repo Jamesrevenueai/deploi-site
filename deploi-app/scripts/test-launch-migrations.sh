@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests the launch migrations (20261028000028..20261029000033) and their rollback on a COPY of a database in the
+# Tests the launch migrations (20261028000028..20261029000034) and their rollback on a COPY of a database in the
 # state production is in today. Production's runtime logs show it is older than 20261021000022 (job_runs and
 # delivery_status are missing), so the default base is migrations up to 20261021000021 plus care-agency data.
 # Set BASE_CUT=20261021000027 to test from the full consulting schema instead.
@@ -57,7 +57,7 @@ step "7. rollback refuses while launch tables hold data"
 OUT=$(npx tsx scripts/launch-migrations.ts rollback --db "$PGURL/$COPY" 2>&1 || true)
 if grep -q 'rollback refused' <<<"$OUT"; then echo "refused: $OUT"; else echo "NOT REFUSED: $OUT"; exit 1; fi
 STILL=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261028%' or name like '20261029%'")
-echo "launch migrations still recorded after the refusal: $STILL of 7"; [[ "$STILL" == "7" ]] || { echo "PARTIAL ROLLBACK"; exit 1; }
+echo "launch migrations still recorded after the refusal: $STILL of 8"; [[ "$STILL" == "8" ]] || { echo "PARTIAL ROLLBACK"; exit 1; }
 
 step "8. rollback with --discard-data, then compare the schema with the original"
 npx tsx scripts/launch-migrations.ts rollback --db "$PGURL/$COPY" --discard-data

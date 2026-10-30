@@ -9,12 +9,14 @@ import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { invalidateProposal, type ProposalRow } from '../engine/proposals'
 import { expansionReasons, parsePolicy, policyHash, summarizePolicy, type AgentPolicy } from './policy'
+import { missingScopesForPolicy } from '../connectors/shopify/scopes'
 import { nextRunAt } from './schedule'
 import type { AgentRow, PolicyRow } from './plan'
 import { randomUUID } from 'node:crypto'
 import { cancelAgentEmail } from '../email/engine'
 import { closeAgentMailbox, provisionMailbox } from '../email/mailbox'
 import { recheckTasks } from './tasks'
+import { assertWithinPlan } from '../plans/entitlements'
 
 async function visibleConnection(actor: Actor, connectionId: string) {
   const c = await withActor(actor, db => db.one<{ id: string; org_id: string; display_name: string | null; external_id: string; status: string }>('select id, org_id, display_name, external_id, status from store_connections where id = $1', [connectionId]))
@@ -80,6 +82,7 @@ export async function createAgent(actor: Actor, input: { name: string; taskText:
   const name = input.name.trim()
   if (!name || name.length > 80) throw new EngineError('invalid_input', 'name must be 1 to 80 characters')
   return admin(async db => {
+    await assertWithinPlan(db, conn.org_id, policy, null)
     await db.query(`insert into agents (id, org_id, connection_id, name, task_text, status, schedule, created_by) values ($1,$2,$3,$4,$5,'draft',$6,$7)`,
       [agentId, conn.org_id, conn.id, name, input.taskText.slice(0, 2000), JSON.stringify(policy.schedule), actor.label])
     const mailbox = mailboxId ? await provisionMailbox(db, { id: mailboxId, orgId: conn.org_id, agentId, agentName: name, actor: actor.label }) : null
@@ -104,6 +107,7 @@ export async function editAgent(actor: Actor, agentId: string, input: { name?: s
   return admin(async db => {
     const agent = (await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId]))!
     if (agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
+    await assertWithinPlan(db, a0.org_id, policy, agentId)
     await checkSources(db, a0.org_id, policy, agentId)
     const active = agent.active_policy_id ? await db.one<PolicyRow>(`select * from agent_policies where id = $1 and status = 'active'`, [agent.active_policy_id]) : null
     const latest = await db.one<{ v: number }>('select max(version) as v from agent_policies where agent_id = $1', [agentId])
@@ -121,8 +125,11 @@ export async function editAgent(actor: Actor, agentId: string, input: { name?: s
       await db.query('update agents set active_policy_id = $2, schedule = $3, next_run_at = $4 where id = $1', [agentId, pr!.id, JSON.stringify(policy.schedule), nextRunAt(policy.schedule, new Date())?.toISOString() ?? null])
       await retireAgentProposals(db, agentId, 'stale', 'the agent\'s authorization was narrowed; changes will be recomputed', actor.label)
     }
-    await audit(db, { orgId: a0.org_id, entityType: 'policy', entityId: pr!.id, event: requiresGrant ? 'policy.awaiting_grant' : 'policy.applied_without_grant', actor: actor.label, detail: { agent_id: agentId, version, expansion: reasons } })
-    return { policyId: pr!.id, version, requiresGrant, expansion: reasons, policyHash: policyHash(policy), summary }
+    // Shopify permission is separate from Deploi's grant: a version that may write needs the store to have granted the write scope too
+    const storeConn = await db.one<{ platform: string; scopes: string[] }>('select platform, scopes from store_connections where id = $1', [policy.connectionId])
+    const missingScopes = storeConn ? missingScopesForPolicy(storeConn, policy) : []
+    await audit(db, { orgId: a0.org_id, entityType: 'policy', entityId: pr!.id, event: requiresGrant ? 'policy.awaiting_grant' : 'policy.applied_without_grant', actor: actor.label, detail: { agent_id: agentId, version, expansion: reasons, missing_scopes: missingScopes } })
+    return { policyId: pr!.id, version, requiresGrant, expansion: reasons, policyHash: policyHash(policy), summary, missingScopes }
   })
 }
 
@@ -177,8 +184,8 @@ export async function grantPolicy(actor: Actor, agentId: string, policyId: strin
 async function retireAgentProposals(db: Db, agentId: string, status: 'stale' | 'blocked', reason: string, actor: string) {
   const live = await db.query<ProposalRow>(`select * from proposals where agent_id = $1 and status in ('pending_approval','approved')`, [agentId])
   for (const p of live) await invalidateProposal(db, p, status, reason, actor)
-  // queued writes never start: the execution is closed as blocked before any request is sent
-  await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where agent_id = $1 and status = 'queued'`, [agentId, reason])
+  // queued writes never start, and one still prechecking (reading the record) stops at its last gate before writing
+  await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where agent_id = $1 and status in ('queued','prechecking')`, [agentId, reason])
   return live.length
 }
 

@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/Icon'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field, Textarea, Input } from '@/components/ui/Field'
 import { storeFetch, asApiError, StoreApiError } from './api'
+import { ScopeNotice } from './ScopeNotice'
 import { useLoad } from './useLoad'
 import { ErrorState, Facts, Loading, Panel, Section, SeverityBadge, useStore } from './bits'
 import { AgentPolicyForm, formFromPolicy, policyFromForm, type AgentFormState } from './AgentForm'
@@ -191,6 +192,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
                 </div>
               )}
               <div className="mt-4"><AuthorizationSummaryView summary={pending.summary} /></div>
+              <ScopeNotice missing={pending.missing_scopes ?? []} connectionId={agent.connection_id} version={pending.version} onChanged={reload} />
               <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
                 <Button size="sm" onClick={() => grant(pending)} disabled={busy !== null} aria-label={`Grant authorization version ${pending.version}`}><Icon name="check" size={15} />{busy === 'grant' ? 'Granting…' : 'Grant this authorization'}</Button>
                 <span className="text-[13px] text-grey-h">{active ? `Until you grant it, version ${active.version} keeps running unchanged.` : 'Until you grant it, the agent does nothing.'}</span>
@@ -205,6 +207,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
               </div>
               <p className="pt-1 text-[13px] text-grey-h">Granted {fmtTime(active.granted_at)} by {actorLabel(active.granted_by)} · {active.policy.correctionTypes.length ? `corrects ${active.policy.correctionTypes.map(t => AGENT_CORRECTION_LABEL[t] ?? t).join(', ')}` : 'changes nothing in the store'}{active.policy.email ? ' · uses email' : ''}</p>
               <div className="mt-4"><AuthorizationSummaryView summary={active.summary} /></div>
+              <ScopeNotice missing={active.missing_scopes ?? []} connectionId={agent.connection_id} version={active.version} onChanged={reload} />
             </Panel>
           ) : !pending && (
             <Panel><p className="text-[15px] text-grey">{agent.status === 'revoked' ? 'No authorization is in force: it was revoked. Edit the agent to review and grant a new one.' : 'No authorization is in force.'}</p></Panel>
@@ -385,7 +388,7 @@ function NoticeView({ n }: { n: Notice }) {
   if (n.kind === 'edit') {
     const r = n.r
     return r.requiresGrant
-      ? <Banner tone="warn"><strong>Saved as version {r.version}; it needs your grant.</strong> {r.expansion.length ? `It allows more than before: ${r.expansion.join(', ')}.` : ''} Review it under Authorization and grant it. Until then the current version keeps running unchanged.</Banner>
+      ? <Banner tone="warn"><strong>Saved as version {r.version}; it needs your grant.</strong> {r.expansion.length ? `It allows more than before: ${r.expansion.join(', ')}.` : ''} Review it under Authorization and grant it. Until then the current version keeps running unchanged.{r.missingScopes?.length ? ` Shopify also has to grant the app ${r.missingScopes.join(', ')}; you will be asked under Authorization.` : ''}</Banner>
       : <Banner icon="check"><strong>Saved as version {r.version}; in force now.</strong> It allows nothing new, so no new grant was needed. Changes proposed under the old version are recomputed on the next run.</Banner>
   }
   if (n.kind === 'run') {

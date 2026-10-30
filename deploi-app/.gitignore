@@ -47,3 +47,9 @@ next-env.d.ts
 playwright-report/
 test-results/
 proof/lighthouse/*.json
+
+# Shopify app configs carry the live client_id; only the *.example files are tracked
+shopify.app.*.toml
+shopify.app.toml
+!shopify.app.toml.example
+!shopify.app.deploi-dev.toml.example

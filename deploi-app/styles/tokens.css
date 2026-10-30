@@ -1,11 +1,11 @@
 /* ==========================================================================
-   Deploi — "Black Glass" design tokens
+   Deploi — "Aurora" design tokens (Black Glass base, aurora light)
    Shared verbatim between deploi-site and deploi-app. Edit here, copy there.
    ========================================================================== */
 :root {
   /* Ground */
-  --dg-black: #000000;
-  --dg-black-alt: #0A0A0A;
+  --dg-black: #06080F;
+  --dg-black-alt: #0B0F1A;
 
   /* Type colors */
   --dg-white: #FFFFFF;
@@ -53,4 +53,32 @@
 
   /* Motion */
   --dg-fade-ms: 300ms;
+
+  /* ------------------------------------------------------------------
+     Aurora theme v2 (the only theme): a near-black night ground lit by an
+     aurora glow that runs dark -> blue -> pink -> orange, around white
+     surfaces (panels, tiles, cards) that carry dark text.
+     ------------------------------------------------------------------ */
+  --au-ground: #05060D;
+  --au-ground-alt: #0B0F1A;
+  --au-panel: #FFFFFF;
+  --au-panel-border: rgba(15, 23, 42, 0.08);
+  --au-teal: #10B981;
+  --au-violet: #8B5CF6;
+  --au-blue: #3B6CFF;
+  --au-pink: #F0569E;
+  --au-rose: #F0569E;
+  --au-orange: #FF8A3D;
+  --au-amber: #F59E0B;
+  --au-teal-soft: rgba(16, 185, 129, 0.12);
+  --au-violet-soft: rgba(139, 92, 246, 0.14);
+  --au-blue-soft: rgba(59, 108, 255, 0.12);
+  --au-rose-soft: rgba(240, 86, 158, 0.12);
+  --au-glow: radial-gradient(70% 55% at 0% 0%, rgba(59, 108, 255, 0.55), transparent 62%),
+             radial-gradient(60% 50% at 100% 35%, rgba(240, 86, 158, 0.45), transparent 62%),
+             radial-gradient(70% 55% at 30% 100%, rgba(255, 138, 61, 0.42), transparent 62%),
+             linear-gradient(160deg, #05060D 0%, #0A1030 40%, #1A0B24 70%, #1C0E08 100%);
+  --au-ring: conic-gradient(from 180deg, #3B6CFF, #F0569E, #FF8A3D, #3B6CFF);
+  --au-text-glow: linear-gradient(90deg, #3B6CFF 0%, #F0569E 55%, #FF8A3D 100%);
+  --au-shadow: 0 1px 2px rgba(5, 6, 13, 0.18), 0 18px 48px -18px rgba(5, 6, 13, 0.55);
 }

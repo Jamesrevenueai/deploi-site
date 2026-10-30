@@ -131,3 +131,20 @@ describe.skipIf(!ready)('screens: approval inbox, mailbox conversations, weekly 
     expect(html).toContain('This is an estimate, not a measurement')
   })
 })
+
+describe.skipIf(!ready)('delivery outcomes for agent mail', () => {
+  it('a bounce marks the accepted message failed with the reason; a repeat is a duplicate; "delivered" never changes the status', async () => {
+    const actor = await merchantActor(NW)
+    const sent = await chaserWithSentRequest(actor, NW)
+    const second = await admin(db => db.one<{ id: string }>(`insert into email_messages (org_id, agent_id, account_id, task_key, dedupe_key, status, from_address, to_addresses, key_id, content_ciphertext, content_hash, internet_message_id, provider_message_id)
+      select org_id, agent_id, account_id, task_key, dedupe_key || ':ok', 'accepted', from_address, to_addresses, key_id, content_ciphertext, content_hash, internet_message_id || 'ok', 're_ok_' || id from email_messages where id = $1 returning id`, [sent.msg.id]))
+    const pid = (await admin(db => db.one<{ p: string }>('select provider_message_id as p from email_messages where id = $1', [sent.msg.id])))!.p
+    const evt = (id: string, type: string, emailId: string) => processInbound({ deliveryId: id, type, data: { email_id: emailId, bounce: { message: 'mailbox does not exist' } } }, async () => { throw new Error('no fetch for delivery events') })
+    await evt(`bd1-${sent.msg.id}`, 'email.bounced', pid)
+    expect(await evt(`bd1-${sent.msg.id}`, 'email.bounced', pid)).toEqual({ outcome: 'duplicate' })
+    await evt(`bd2-${sent.msg.id}`, 'email.delivered', `re_ok_${second!.id}`)
+    const rows = await admin(db => db.query<{ id: string; status: string; failure_code: string | null; status_reason: string | null }>('select id, status, failure_code, status_reason from email_messages where id = any($1::uuid[])', [[sent.msg.id, second!.id]]))
+    expect(rows.find(r => r.id === sent.msg.id)).toMatchObject({ status: 'failed', failure_code: 'bounced', status_reason: 'bounced: mailbox does not exist' })
+    expect(rows.find(r => r.id === second!.id)!.status).toBe('accepted')
+  })
+})

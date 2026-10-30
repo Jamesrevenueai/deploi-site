@@ -43,6 +43,26 @@ export async function processInbound(evt: InboundEvent, fetchEmail: (id: string)
 async function handle(evt: InboundEvent, fetchEmail: (id: string) => Promise<ReceivedEmail>): Promise<InboundOutcome> {
   const done = (o: InboundOutcome) => admin(async db => { await db.query(`update inbound_webhook_events set outcome = $2 where provider = 'resend' and delivery_id = $1`, [evt.deliveryId, o.outcome]); return o })
 
+  // delivery outcomes for mail an agent sent: a bounce or complaint is recorded on that message; "delivered"
+  // is noted as evidence but the status stays "Accepted by provider" (the receiving server took it, nothing more)
+  if (/^email\.(bounced|complained|delivered)$/.test(evt.type)) {
+    const providerId = String(evt.data.email_id ?? '')
+    if (!providerId) return done({ outcome: 'ignored', reason: 'no email_id' })
+    const m = await admin(db => db.one<{ id: string; org_id: string; agent_id: string | null; status: string }>(`select id, org_id, agent_id, status from email_messages where provider_message_id = $1`, [providerId]))
+    if (!m) return done({ outcome: 'ignored', reason: 'not a message Deploi sent' })
+    const bounce = evt.data.bounce as { message?: string; type?: string } | undefined
+    await admin(async db => {
+      if (evt.type === 'email.delivered') {
+        await db.query(`update email_messages set meta = meta || jsonb_build_object('delivery_event', 'delivered', 'delivery_event_at', now()) where id = $1`, [m.id])
+      } else {
+        const reason = evt.type === 'email.complained' ? 'the recipient marked it as spam' : `bounced: ${String(bounce?.message ?? bounce?.type ?? 'the receiving server refused it').slice(0, 200)}`
+        await db.query(`update email_messages set status = 'failed', failure_code = $2, status_reason = $3, meta = meta || jsonb_build_object('delivery_event', $2::text, 'delivery_event_at', now()) where id = $1 and status in ('accepted','delivery_unknown')`,
+          [m.id, evt.type === 'email.complained' ? 'complained' : 'bounced', reason])
+      }
+      await audit(db, { orgId: m.org_id, entityType: 'execution', entityId: m.id, event: evt.type === 'email.delivered' ? 'email.delivery_reported' : 'email.bounced', actor: 'resend:webhook', detail: { email_message: true, agent_id: m.agent_id, event: evt.type } })
+    })
+    return done({ outcome: 'ignored', reason: `recorded ${evt.type}` })
+  }
   if (evt.type !== 'email.received') return done({ outcome: 'ignored', reason: `event ${evt.type}` })
   const emailId = String(evt.data.email_id ?? '')
   if (!emailId) return done({ outcome: 'ignored', reason: 'no email_id' })

@@ -95,8 +95,8 @@ export async function POST(req: Request) {
         const row = await admin(db => loadConnection(db, conn.id))
         if (!row) throw new Error('connection not loadable')
         const connector = getConnector('shopify')
-        const out: { product: string; variant: string; sku: string | null; available: number | null; policy: string; status: string }[] = []
-        for await (const page of connector.listResources(row)) for (const r of page as ShopifyVariantRecord[]) out.push({ product: r.productTitle, variant: r.variantTitle, sku: r.sku, available: r.totalAvailable, policy: r.inventoryPolicy, status: r.productStatus })
+        const out: { productId: string; variantId: string; product: string; variant: string; sku: string | null; available: number | null; policy: string; status: string }[] = []
+        for await (const page of connector.listResources(row)) for (const r of page as ShopifyVariantRecord[]) out.push({ productId: r.productId, variantId: r.variantId, product: r.productTitle, variant: r.variantTitle, sku: r.sku, available: r.totalAvailable, policy: r.inventoryPolicy, status: r.productStatus })
         const products = new Set(out.map(o => o.product))
         return NextResponse.json({ ok: true, products: products.size, variants: out.length, lowStock: out.filter(o => o.available !== null && o.available < 5).length, sample: out.slice(0, 40) })
       }

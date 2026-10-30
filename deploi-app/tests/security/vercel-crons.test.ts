@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(__dirname, '..', '..')
-const ALLOWED = ['/api/cron/agents', '/api/cron/weekly-summary']
+const ALLOWED = ['/api/cron/agents', '/api/cron/weekly-summary', '/api/cron/library']
 const RETIRED = ['/api/cron/morning-pipeline', '/api/cron/morning-report', '/api/cron/workers']
 
 describe('vercel.json crons', () => {

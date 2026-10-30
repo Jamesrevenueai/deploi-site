@@ -23,12 +23,18 @@
  *    cannot recreate the archived tables.
  *
  * Tables and functions that do not exist on the target are skipped (production may be behind the full consulting schema).
+ *
+ * Where Postgres ports are unreachable, pass --http=<project-ref> instead of --db (Supabase Management API over HTTPS).
+ * Reads are one request each. `dump` writes the care tables as JSON (plus the same manifest and sha256). `apply` and
+ * `restore` send their whole transaction as ONE request; the checks `apply` makes inside its transaction (counts still equal
+ * the dump before the move, equal after it, nothing left in public) are SQL assertions there, so any mismatch aborts it.
  */
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { Client } from 'pg'
 import { assertTargetAllowed } from './launch-migrations'
+import { literal, managementQueryFor } from './supabase-http'
 
 /** Tables created for the consulting service (migrations 20261020000001 .. 20261021000027) that nothing now uses. */
 export const CARE_TABLES = [
@@ -61,32 +67,45 @@ const q = (s: string) => `"${s.replace(/"/g, '""')}"`
 
 function arg(argv: string[], name: string) { return argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? (argv.includes(`--${name}`) ? argv[argv.indexOf(`--${name}`) + 1] : undefined) }
 
-async function connect(url: string) {
+/** The subset of pg.Client used here, so the same reads also run over HTTPS. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Conn = { query<T = any>(text: string, params?: unknown[]): Promise<{ rows: T[] }>; end(): Promise<void> }
+
+const HTTP = 'supabase-http:'
+const httpRef = (target: string) => target.startsWith(HTTP) ? target.slice(HTTP.length) : null
+const interpolate = (text: string, params: unknown[] = []) => text.replace(/\$(\d+)/g, (_, n) => literal(params[Number(n) - 1]))
+
+async function connect(url: string): Promise<Conn> {
+  const ref = httpRef(url)
+  if (ref) return {
+    query: async <T,>(text: string, params?: unknown[]) => ({ rows: await managementQueryFor<T>(ref, interpolate(text, params)) }),
+    end: async () => {},
+  }
   const c = new Client({ connectionString: url, ssl: /supabase\.(co|com)/.test(url) ? { rejectUnauthorized: false } : undefined })
-  await c.connect(); return c
+  await c.connect(); return c as unknown as Conn
 }
 
-export async function presentTables(c: Client, schema = 'public'): Promise<string[]> {
+export async function presentTables(c: Conn, schema = 'public'): Promise<string[]> {
   const r = await c.query<{ tablename: string }>('select tablename from pg_tables where schemaname = $1 and tablename = any($2::text[]) order by 1', [schema, [...CARE_TABLES]])
   return r.rows.map(x => x.tablename)
 }
 
 type Fn = { oid: string; name: string; args: string }
-export async function presentFunctions(c: Client): Promise<Fn[]> {
+export async function presentFunctions(c: Conn): Promise<Fn[]> {
   return (await c.query<Fn>(
     `select p.oid::text oid, p.proname name, pg_get_function_identity_arguments(p.oid) args from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and p.proname = any($1::text[]) order by 2, 3`, [[...CARE_FUNCTIONS]])).rows
 }
 const sig = (schema: string, f: { name: string; args: string }) => `${schema}.${q(f.name)}(${f.args})`
 
-export async function countRows(c: Client, schema: string, tables: string[]): Promise<Record<string, number>> {
+export async function countRows(c: Conn, schema: string, tables: string[]): Promise<Record<string, number>> {
   const out: Record<string, number> = {}
   for (const t of tables) out[t] = Number((await c.query<{ n: string }>(`select count(*)::text as n from ${q(schema)}.${q(t)}`)).rows[0].n)
   return out
 }
 
 /** Everything that would break if the tables and functions moved. An empty list means it is safe. */
-export async function blockers(c: Client, tables: string[]): Promise<string[]> {
+export async function blockers(c: Conn, tables: string[]): Promise<string[]> {
   const out: string[] = []
   for (const k of KEEP_TABLES) if (tables.includes(k)) out.push(`${k} is on the keep list but was selected`)
   if (tables.length) {
@@ -120,7 +139,7 @@ export async function blockers(c: Client, tables: string[]): Promise<string[]> {
   return out
 }
 
-async function appRoles(c: Client): Promise<string[]> {
+async function appRoles(c: Conn): Promise<string[]> {
   return (await c.query<{ rolname: string }>("select rolname from pg_roles where rolname in ('anon', 'authenticated', 'service_role') order by 1")).rows.map(r => r.rolname)
 }
 
@@ -143,6 +162,7 @@ export async function report(url: string) {
 }
 
 export async function dump(url: string, out: string) {
+  if (httpRef(url)) return dumpJson(url, out)
   const c = await connect(url)
   let present: string[], counts: Record<string, number>
   try { present = await presentTables(c); counts = await countRows(c, 'public', present) } finally { await c.end() }
@@ -156,6 +176,22 @@ export async function dump(url: string, out: string) {
   return { sha, counts }
 }
 
+/** HTTPS: every care table's rows as JSON ({ table: rows[] }), with the same manifest and sha256 as a pg_dump. */
+async function dumpJson(url: string, out: string) {
+  const c = await connect(url)
+  const present = await presentTables(c), counts = await countRows(c, 'public', present)
+  if (!present.length) throw new Error('no care tables on this database: nothing to dump')
+  const data: Record<string, unknown[]> = {}
+  for (const t of present) data[t] = (await c.query<{ rows: unknown[] }>(`select coalesce(json_agg(x), '[]'::json) as rows from public.${q(t)} x`)).rows[0].rows
+  for (const t of present) if (data[t].length !== counts[t]) throw new Error(`${t}: counted ${counts[t]} rows but exported ${data[t].length}`)
+  writeFileSync(out, JSON.stringify(data))
+  const sha = createHash('sha256').update(readFileSync(out)).digest('hex')
+  writeFileSync(`${out}.counts.tsv`, present.map(t => `${t}\t${counts[t]}`).join('\n') + '\n')
+  writeFileSync(`${out}.sha256`, `${sha}  ${out}\n`)
+  console.log(`dump (JSON): ${out}\n  size: ${statSync(out).size} bytes\n  sha256: ${sha}\n  manifest: ${out}.counts.tsv (${present.length} tables, ${Object.values(counts).reduce((a, b) => a + b, 0)} rows)`)
+  return { sha, counts }
+}
+
 function readManifest(dumpFile: string): Record<string, number> {
   if (!existsSync(dumpFile) || !existsSync(`${dumpFile}.counts.tsv`) || !existsSync(`${dumpFile}.sha256`)) throw new Error(`dump, ${dumpFile}.counts.tsv and ${dumpFile}.sha256 must all exist`)
   const sha = createHash('sha256').update(readFileSync(dumpFile)).digest('hex')
@@ -166,6 +202,7 @@ function readManifest(dumpFile: string): Record<string, number> {
 }
 
 export async function apply(url: string, dumpFile: string) {
+  if (httpRef(url)) return applyHttp(url, dumpFile)
   const manifest = readManifest(dumpFile)
   const sha = readFileSync(`${dumpFile}.sha256`, 'utf8').split(/\s+/)[0]
   const c = await connect(url)
@@ -218,6 +255,61 @@ export async function apply(url: string, dumpFile: string) {
   } finally { await c.end() }
 }
 
+/** One request: begin; assert counts; move, log, revoke; assert counts and an empty public; commit. */
+async function applyHttp(url: string, dumpFile: string) {
+  const manifest = readManifest(dumpFile)
+  const sha = readFileSync(`${dumpFile}.sha256`, 'utf8').split(/\s+/)[0]
+  const c = await connect(url)
+  const present = await presentTables(c), fns = await presentFunctions(c)
+  if (!present.length && !fns.length) { console.log('nothing to do: no care tables or functions in public'); return }
+  const bl = await blockers(c, present)
+  if (bl.length) throw new Error(`refusing: something we keep depends on the care tables or functions:\n  - ${bl.join('\n  - ')}`)
+  const roles = await appRoles(c)
+  const counts = await countRows(c, 'public', present)
+  for (const t of present) if (manifest[t] !== counts[t]) throw new Error(`the data changed since the dump (${t}: dump ${manifest[t]}, now ${counts[t]}). Make a new dump.`)
+  for (const t of Object.keys(manifest)) if (!present.includes(t)) throw new Error(`${t} is in the dump but missing now. Make a new dump.`)
+  const acls: { f: Fn; pub: boolean; grantees: string[] }[] = []
+  for (const f of fns) {
+    const a = (await c.query<{ pub: boolean; grantees: string[] }>(
+      `select coalesce(bool_or(a.grantee = 0 and a.privilege_type = 'EXECUTE'), false) pub,
+              coalesce(array_agg(distinct r.rolname) filter (where a.grantee <> 0 and a.privilege_type = 'EXECUTE' and r.rolname = any($2::text[])), '{}') grantees
+       from pg_proc p cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a left join pg_roles r on r.oid = a.grantee where p.oid = $1::oid`, [f.oid, roles])).rows[0]
+    acls.push({ f, pub: a.pub, grantees: a.grantees })
+  }
+  const L = (v: unknown) => literal(v)
+  const assertCounts = (schema: string, when: string) => `do $$ begin\n${present.map(t =>
+    `  if (select count(*) from ${q(schema)}.${q(t)}) <> ${counts[t]} then raise exception 'row count mismatch ${when} (${t}: expected ${counts[t]})'; end if;`).join('\n')}\nend $$;`
+  const sql = [
+    'begin;',
+    assertCounts('public', 'before the move: the data changed since the dump'),
+    `create schema if not exists ${SCHEMA};`,
+    `create table if not exists ${SCHEMA}._archive_log (table_name text primary key, rows_at_archive bigint not null, archived_at timestamptz not null default now(), dump_sha256 text not null);`,
+    `create table if not exists ${SCHEMA}._archive_grants (table_name text not null, grantee text not null, privilege text not null, primary key (table_name, grantee, privilege));`,
+    `create table if not exists ${SCHEMA}._archive_functions (name text not null, args text not null, public_execute boolean not null, grantees text[] not null default '{}', archived_at timestamptz not null default now(), primary key (name, args));`,
+    ...present.flatMap(t => [
+      `insert into ${SCHEMA}._archive_grants (table_name, grantee, privilege) select table_name, grantee, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name = ${L(t)} and grantee = any(${L(roles)}) on conflict do nothing;`,
+      `alter table public.${q(t)} set schema ${SCHEMA};`,
+      `insert into ${SCHEMA}._archive_log (table_name, rows_at_archive, dump_sha256) values (${L(t)}, ${counts[t]}, ${L(sha)});`,
+    ]),
+    ...acls.flatMap(({ f, pub, grantees }) => [
+      `insert into ${SCHEMA}._archive_functions (name, args, public_execute, grantees) values (${L(f.name)}, ${L(f.args)}, ${L(pub)}, ${L(grantees)});`,
+      `alter function ${sig('public', f)} set schema ${SCHEMA};`,
+      `revoke all on function ${sig(SCHEMA, f)} from public;`,
+      ...roles.map(r => `revoke all on function ${sig(SCHEMA, f)} from ${q(r)};`),
+    ]),
+    `revoke all on schema ${SCHEMA} from public;`, `revoke all on all tables in schema ${SCHEMA} from public;`,
+    ...roles.flatMap(r => [`revoke all on schema ${SCHEMA} from ${q(r)};`, `revoke all on all tables in schema ${SCHEMA} from ${q(r)};`, `revoke all on all sequences in schema ${SCHEMA} from ${q(r)};`]),
+    assertCounts(SCHEMA, 'after the move'),
+    `do $$ begin
+  if exists (select 1 from pg_tables where schemaname = 'public' and tablename = any(${L([...CARE_TABLES])})) then raise exception 'care tables still in public'; end if;
+  if exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = any(${L([...CARE_FUNCTIONS])})) then raise exception 'consulting functions still in public'; end if;
+end $$;`,
+    'commit;',
+  ].join('\n')
+  try { await c.query(sql) } catch (e) { await c.query('rollback').catch(() => {}); throw e }
+  console.log(`archived ${present.length} tables (${Object.values(counts).reduce((a, b) => a + b, 0)} rows) and ${fns.length} functions into schema ${SCHEMA}; app roles (${roles.join(', ') || 'none'}) revoked; dump sha256 ${sha}`)
+}
+
 export async function verify(url: string) {
   const c = await connect(url)
   try {
@@ -250,6 +342,7 @@ export async function verify(url: string) {
 }
 
 export async function restore(url: string) {
+  if (httpRef(url)) return restoreHttp(url)
   const c = await connect(url)
   try {
     const log = (await c.query<{ table_name: string }>(`select table_name from ${SCHEMA}._archive_log order by 1`)).rows.map(r => r.table_name)
@@ -276,6 +369,24 @@ export async function restore(url: string) {
   } finally { await c.end() }
 }
 
+async function restoreHttp(url: string) {
+  const c = await connect(url)
+  const log = (await c.query<{ table_name: string }>(`select table_name from ${SCHEMA}._archive_log order by 1`)).rows.map(r => r.table_name)
+  const fns = (await c.query<{ name: string; args: string; public_execute: boolean; grantees: string[] }>(`select name, args, public_execute, grantees from ${SCHEMA}._archive_functions order by 1, 2`)).rows
+  if (!log.length && !fns.length) throw new Error('nothing archived')
+  const grants = (await c.query<{ table_name: string; grantee: string; privilege: string }>(`select table_name, grantee, privilege from ${SCHEMA}._archive_grants`)).rows
+  const sql = ['begin;',
+    ...log.map(t => `alter table ${SCHEMA}.${q(t)} set schema public;`),
+    ...grants.map(g => `grant ${g.privilege} on public.${q(g.table_name)} to ${q(g.grantee)};`),
+    ...fns.flatMap(f => [`alter function ${sig(SCHEMA, f)} set schema public;`,
+      f.public_execute ? `grant execute on function ${sig('public', f)} to public;` : `revoke all on function ${sig('public', f)} from public;`,
+      ...f.grantees.map(g => `grant execute on function ${sig('public', f)} to ${q(g)};`)]),
+    `drop table ${SCHEMA}._archive_functions;`, `drop table ${SCHEMA}._archive_log;`, `drop table ${SCHEMA}._archive_grants;`,
+    `drop schema ${SCHEMA};`, 'commit;'].join('\n')
+  try { await c.query(sql) } catch (e) { await c.query('rollback').catch(() => {}); throw e }
+  console.log(`restored ${log.length} tables (${grants.length} grants) and ${fns.length} functions to public`)
+}
+
 export async function dropArchive(url: string, confirm: boolean) {
   if (!confirm) throw new Error('refusing: pass --confirm-drop to delete the archive')
   const c = await connect(url)
@@ -290,9 +401,11 @@ export async function dropArchive(url: string, confirm: boolean) {
 
 async function main() {
   const [cmd, ...argv] = process.argv.slice(2)
-  const url = arg(argv, 'db')
-  if (!cmd || !url) { console.error('usage: archive-care-tables.ts <report|dump|apply|verify|restore|drop> --db <url> [...]'); process.exit(2) }
-  assertTargetAllowed(url, argv)
+  const ref = arg(argv, 'http')
+  const url = ref ? `${HTTP}${ref}` : arg(argv, 'db')
+  if (!cmd || !url) { console.error('usage: archive-care-tables.ts <report|dump|apply|verify|restore|drop> (--db <url> | --http <project-ref>) [...]'); process.exit(2) }
+  if (ref) { if (arg(argv, 'confirm-production') !== ref) throw new Error(`refusing to touch Supabase project ${ref} without --confirm-production=${ref} (owner approval required)`) }
+  else assertTargetAllowed(url, argv)
   if (cmd === 'report') await report(url)
   else if (cmd === 'dump') await dump(url, arg(argv, 'out') ?? (() => { throw new Error('--out <file> required') })())
   else if (cmd === 'apply') await apply(url, arg(argv, 'dump') ?? (() => { throw new Error('--dump <file> required') })())

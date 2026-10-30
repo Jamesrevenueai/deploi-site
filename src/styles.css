@@ -655,6 +655,7 @@ section.alt { background: rgba(11, 15, 26, 0.75); }
 .compare-table td .yes { color: var(--au-teal); display: inline-grid; place-items: center; }
 .compare-table td .yes svg { width: 16px; height: 16px; }
 .compare-table td .no { color: var(--dg-grey-headline); }
+@media (max-width: 480px) { .compare-table { font-size: 0.8125rem; } .compare-table th, .compare-table td { padding: 10px 6px; } .compare-table tbody th { min-width: 96px; } }
 .compare-table tr:last-child th, .compare-table tr:last-child td { border-bottom: 0; }
 .status-line + .lead, .pricing-page .lead { color: var(--dg-grey-body); }
 .timeline { grid-template-columns: repeat(5, 1fr); }

@@ -32,9 +32,12 @@ on the existing `deploi-site` project. Note: the Vercel project currently serves
 `getdeploi.com` is registered on the team but not attached to the project.
 
 ## 4. Tables left from the home-care consulting service
-The consulting code was removed on 2026-10-29. Its tables (EVV visits and rules, aides, referrals, assessments,
-engagements, pilots, economics, service tickets, credit ledger and others in `supabase/migrations/2026102*`) are
-still in the schema and still hold production data. Nothing in the app reads or writes them any more.
-Dropping them needs a new migration and the owner's approval; no such migration exists yet. `agencies` is
-not one of them: it is the organization table for merchants (`org_type = 'merchant'`), and `prospects` and
-`touches` hold early access applications.
+The consulting code was removed on 2026-10-29. Its 34 tables and 8 database functions are still in the production schema
+and may still hold data. Nothing in the app reads or writes them. They are to be **archived, not dropped**:
+`docs/ARCHIVE-CARE-TABLES.md` (tool, rehearsal results, the 30-day drop TODO) and `docs/PRODUCTION-MIGRATION-PLAN.md`
+(the order, the backup and the rollback). Neither has been run on production. `agencies` is not one of them: it is the
+organization table for merchants (`org_type = 'merchant'`), and `prospects` and `touches` hold early access applications.
+
+Production's database is behind the consulting schema (its logs show missing `job_runs` and `delivery_status`), so do **not** run
+`npm run db:migrate:prod` there: it applies every pending migration without the production confirmation that
+`scripts/launch-migrations.ts` requires (and `--seed` writes demo data). Use `launch-migrations.ts`.

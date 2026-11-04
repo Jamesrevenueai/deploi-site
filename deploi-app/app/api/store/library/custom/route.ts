@@ -9,6 +9,7 @@ export async function POST(req: Request) {
   try {
     const actor = await resolveActor(req, { mutating: true })
     const body = await readJson(req)
+    await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)
     return NextResponse.json({ ok: true, agent: await createCustomAgent(actor, { name: String(body.name ?? ''), job: String(body.job ?? ''), permission: body.permission }) })
   } catch (e) { return errorResponse(e) }
 }

@@ -4,13 +4,14 @@
  */
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe', string[]> = {
   shopify: [], // <shop>.myshopify.com only, checked by suffix below
   shopify_partners: ['partners.shopify.com'], // Partner API: Shopify App Pricing subscription status
   amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
   woocommerce: [], // the merchant's own https host; never a private address
   email: ['api.resend.com'],
   supabase_mgmt: ['api.supabase.com'],
+  stripe: ['api.stripe.com'], // subscription billing for customers not billed through Shopify (lib/billing/stripe.ts)
   competitor_public: [], // a public https store the merchant chose to monitor; never a private address or an IP, and never a provider above
 }
 

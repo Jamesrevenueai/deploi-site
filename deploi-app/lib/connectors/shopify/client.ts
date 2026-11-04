@@ -122,6 +122,8 @@ export function throttleWaitMs(cost: QueryCost | null | undefined, needed?: numb
 
 /** The last throttle status per connection, so the next request waits instead of being refused. */
 const bucket = new Map<string, { cost: QueryCost; at: number }>()
+/** Tests only: forget the throttle status of every connection. */
+export function resetThrottleState() { bucket.clear() }
 
 /** Wait time before the next request on this connection (the bucket refills at restoreRate per second). */
 export function pacingWaitMs(connectionId: string, now = Date.now()): number {
@@ -165,7 +167,8 @@ export async function shopifyGraphql<T>(conn: ConnectionRow, body: GqlBody, opts
     if (cost?.throttleStatus) bucket.set(conn.id, { cost, at: Date.now() })
     if (json.errors?.length) {
       const throttled = json.errors.some(e => e.extensions?.code === 'THROTTLED')
-      if (throttled && attempt < throttleAttempts) { await sleep(throttleWaitMs(cost) || 500 * attempt); continue }
+      // the backoff already waited for the bucket: do not wait for it again before the retry
+      if (throttled && attempt < throttleAttempts) { await sleep(throttleWaitMs(cost) || 500 * attempt); bucket.delete(conn.id); continue }
       const denied = json.errors.some(e => e.extensions?.code === 'ACCESS_DENIED')
       throw new ShopifyApiError(json.errors.map(e => e.message).join('; ').slice(0, 300), throttled ? 'throttled' : denied ? 'auth' : 'graphql')
     }

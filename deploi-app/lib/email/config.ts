@@ -27,6 +27,8 @@ export const emailConfig = {
   get resendKey() { return e('RESEND_API_KEY') },
   /** svix signing secret of the Resend webhook that delivers email.received for the agent mail domain */
   get agentMailWebhookSecret() { return e('AGENT_MAIL_WEBHOOK_SECRET') },
+  /** most emails one organization may send per UTC day, across all its agents and people (EMAIL_ORG_DAILY_CAP) */
+  get orgDailyCap() { const v = Number(e('EMAIL_ORG_DAILY_CAP')); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 200 },
   maxMessageBytes: 3_000_000,
   maxAttempts: 4,
   reconcileWindowMs: 30 * 60e3,

@@ -27,11 +27,16 @@ import type { DraftMessage } from './tasks'
 import type { FindResult, MessageContent } from './types'
 import { randomBytes } from 'node:crypto'
 import { replyAddress } from './mailbox'
+import { authorizeAgentAction } from '../engine/authorize'
+import { orgStopReason } from '../engine/kill-switch'
+import { suppressedAmong } from './suppression'
+import { unsubscribeUrl } from './unsubscribe'
+import { log } from '../log'
 
 export type EmailStatus = 'draft' | 'awaiting_approval' | 'queued' | 'sending' | 'accepted' | 'failed' | 'delivery_unknown' | 'cancelled'
 export type EmailMessageRow = {
   id: string; org_id: string; agent_id: string | null; run_id: string | null; account_id: string; policy_id: string | null; policy_version: number | null
-  task_key: DraftMessage['taskKey']; dedupe_key: string; status: EmailStatus; status_reason: string | null
+  task_key: DraftMessage['taskKey'] | 'human_reply'; dedupe_key: string; status: EmailStatus; status_reason: string | null
   from_address: string; to_addresses: string[]; cc_addresses: string[]; attachment_count: number; attachment_bytes: number
   key_id: string; content_ciphertext: string; content_hash: string; internet_message_id: string
   approval_kind: 'individual' | 'standing' | null; approved_by: string | null; approved_hash: string | null; approved_at: string | null; qualification: EmailQualification | null
@@ -184,6 +189,12 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
     if (!m) throw new EngineError('not_found', 'message not found')
     if (m.status !== 'queued') return { kind: 'skip' as const, m }
     if (m.next_attempt_at && new Date(m.next_attempt_at).getTime() > now.getTime()) return { kind: 'skip' as const, m }
+    // organization stop: every send is held (stays queued, nothing goes out) until the stop is turned off
+    const held = await orgStopReason(db, m.org_id)
+    if (held) {
+      await db.query(`update email_messages set status_reason = $2 where id = $1`, [m.id, `held: ${held}`])
+      return { kind: 'skip' as const, m: { ...m, status_reason: `held: ${held}` } }
+    }
     const stop = (status: EmailStatus, reason: string, extra: Record<string, unknown> = {}) => ({ kind: 'stop' as const, m, status, reason, extra })
     const ctx = await agentPolicy(db, m.agent_id)
     const account = await db.one<EmailAccountRow>('select * from email_accounts where id = $1', [m.account_id])
@@ -201,6 +212,14 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
       if (!q.covered) return stop('awaiting_approval', `no longer covered by the standing authorization: ${q.blockers.join('; ')}`, { qualification: JSON.stringify(q), approval_kind: null, approved_hash: null, approved_by: null })
       qualification = q
     } else if (m.approval_kind !== 'individual') return stop('awaiting_approval', 'waiting for your approval')
+    // the central agent authorization check, at the moment of sending
+    if (m.agent_id) {
+      const az = await authorizeAgentAction(db, { agentId: m.agent_id, orgId: m.org_id, now, action: { tool: 'email', taskKey: m.task_key, tier: m.approval_kind === 'standing' ? 'send_autonomous' : 'send_approved', accountId: m.account_id, recipients: [...m.to_addresses, ...m.cc_addresses] } })
+      if (!az.ok) return stop('awaiting_approval', `cannot send: ${az.reason}`)
+    }
+    // recipients who bounced, complained or unsubscribed are never written to again
+    const suppressed = await suppressedAmong(db, m.org_id, [...m.to_addresses, ...m.cc_addresses])
+    if (suppressed.length) return stop('failed', `not sent: ${suppressed.join(', ')} bounced, complained or unsubscribed earlier, so Deploi no longer writes to ${suppressed.length === 1 ? 'that address' : 'those addresses'}`, { failure_code: 'suppressed' })
     if (!account.is_synthetic) {
       const live = liveSendAllowed([...m.to_addresses, ...m.cc_addresses])
       if (!live.ok) return stop('failed', live.reason, { failure_code: 'live_sends_disabled' })
@@ -208,6 +227,16 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
       if (access) return stop('failed', access, { failure_code: 'store_access' })
     }
     if (m.attempts >= emailConfig.maxAttempts) return stop('failed', `gave up after ${m.attempts} attempts`, { failure_code: 'attempts' })
+    // per-organization daily cap, counted under a per-organization lock so concurrent sends cannot pass it together
+    await db.query(`select pg_advisory_xact_lock(hashtextextended($1, 3907))`, [`email-cap:${m.org_id}`])
+    const today = await db.one<{ n: string }>(`select count(*)::text as n from email_messages where org_id = $1 and status in ('sending','accepted','delivery_unknown') and sending_started_at >= date_trunc('day', $2::timestamptz at time zone 'UTC') at time zone 'UTC'`, [m.org_id, now.toISOString()])
+    if (Number(today?.n ?? 0) >= emailConfig.orgDailyCap) {
+      const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+      const reason = `your organization's daily limit of ${emailConfig.orgDailyCap} emails is reached; this one waits until ${tomorrow.toISOString().slice(0, 10)} (nothing was sent)`
+      await db.query(`update email_messages set status_reason = $2, next_attempt_at = $3 where id = $1`, [m.id, reason, tomorrow.toISOString()])
+      await audit(db, { orgId: m.org_id, entityType: 'execution', entityId: m.id, event: 'email.held', actor: opts.actor, detail: { email_message: true, reason: 'org_daily_cap', cap: emailConfig.orgDailyCap } })
+      return { kind: 'skip' as const, m: { ...m, status_reason: reason } }
+    }
     await db.query(`update email_messages set status = 'sending', status_reason = null, attempts = attempts + 1, sending_started_at = now(), policy_id = $2, policy_version = $3, qualification = $4 where id = $1`,
       [m.id, ctx.policyId, ctx.policyVersion, qualification ? JSON.stringify(qualification) : null])
     await audit(db, { orgId: m.org_id, entityType: 'execution', entityId: m.id, event: 'email.sending', actor: opts.actor, detail: { email_message: true, attempt: m.attempts + 1, approval_kind: m.approval_kind, policy_version: ctx.policyVersion } })
@@ -227,8 +256,12 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
     return { messageId, status: 'failed', reason: auth ? 'reconnect the account' : 'authorization unavailable' }
   }
   const content = decryptContent(m.id, m.key_id, m.content_ciphertext)
+  // agent mail offers a signed one-click unsubscribe (header + footer); a person's own reply does not
+  const unsub = m.task_key === 'human_reply' ? null : unsubscribeUrl({ orgId: m.org_id, address: m.to_addresses[0], messageId: m.id })
+  if (!unsub && m.task_key !== 'human_reply') log.warn('email.unsubscribe_unavailable', { message_id: m.id, reason: 'no signing secret configured' })
   const result = await adapter.send(accountRef(account), token, { internetMessageId: m.internet_message_id, from: account.address, fromName: account.display_name, to: m.to_addresses, cc: m.cc_addresses, content, deploiId: m.id,
-    inReplyTo: m.in_reply_to, references: m.in_reply_to ? [m.in_reply_to] : [], replyTo: account.provider === 'deploi' && m.reply_token ? replyAddress(account.address, m.reply_token) : null })
+    inReplyTo: m.in_reply_to, references: m.in_reply_to ? [m.in_reply_to] : [], replyTo: account.provider === 'deploi' && m.reply_token ? replyAddress(account.address, m.reply_token) : null,
+    listUnsubscribe: unsub })
   if (result.outcome === 'accepted') {
     await finish(m, 'accepted', null, opts.actor, { accepted_at: new Date().toISOString(), accepted_evidence: result.evidence, provider_message_id: result.providerMessageId, provider_thread_id: result.providerThreadId, failure_code: null })
     return { messageId, status: 'accepted' }

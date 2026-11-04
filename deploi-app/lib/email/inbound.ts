@@ -17,12 +17,14 @@ import { emailConfig } from './config'
 import { fetchReceivedEmail, type ReceivedEmail } from './adapters/deploi'
 import { parseAgentAddress } from './mailbox'
 import type { EmailAccountRow } from './accounts'
+import { autoReplyReason } from './loop'
+import { suppressAddresses } from './suppression'
 
 export type InboundEvent = { deliveryId: string; type: string; data: Record<string, unknown> }
 export type InboundOutcome =
   | { outcome: 'duplicate' }
   | { outcome: 'ignored'; reason: string }
-  | { outcome: 'stored'; items: { inboundId: string; agentId: string | null; classification: string; status: 'accepted' | 'quarantined'; threadMessageId: string | null }[] }
+  | { outcome: 'stored'; items: { inboundId: string; agentId: string | null; classification: string; status: 'accepted' | 'quarantined'; threadMessageId: string | null; autoReply: boolean }[] }
 
 const bare = (a: string) => a.trim().toLowerCase().replace(/^.*<([^>]+)>.*$/, '$1')
 const list = (v: unknown) => (Array.isArray(v) ? v.map(x => bare(String(x))) : typeof v === 'string' && v ? [bare(v)] : [])
@@ -48,7 +50,7 @@ async function handle(evt: InboundEvent, fetchEmail: (id: string) => Promise<Rec
   if (/^email\.(bounced|complained|delivered)$/.test(evt.type)) {
     const providerId = String(evt.data.email_id ?? '')
     if (!providerId) return done({ outcome: 'ignored', reason: 'no email_id' })
-    const m = await admin(db => db.one<{ id: string; org_id: string; agent_id: string | null; status: string }>(`select id, org_id, agent_id, status from email_messages where provider_message_id = $1`, [providerId]))
+    const m = await admin(db => db.one<{ id: string; org_id: string; agent_id: string | null; status: string; to_addresses: string[]; cc_addresses: string[] }>(`select id, org_id, agent_id, status, to_addresses, cc_addresses from email_messages where provider_message_id = $1`, [providerId]))
     if (!m) return done({ outcome: 'ignored', reason: 'not a message Deploi sent' })
     const bounce = evt.data.bounce as { message?: string; type?: string } | undefined
     await admin(async db => {
@@ -58,6 +60,11 @@ async function handle(evt: InboundEvent, fetchEmail: (id: string) => Promise<Rec
         const reason = evt.type === 'email.complained' ? 'the recipient marked it as spam' : `bounced: ${String(bounce?.message ?? bounce?.type ?? 'the receiving server refused it').slice(0, 200)}`
         await db.query(`update email_messages set status = 'failed', failure_code = $2, status_reason = $3, meta = meta || jsonb_build_object('delivery_event', $2::text, 'delivery_event_at', now()) where id = $1 and status in ('accepted','delivery_unknown')`,
           [m.id, evt.type === 'email.complained' ? 'complained' : 'bounced', reason])
+        // the address is suppressed for this organization: nothing is sent to it again. Only recipients of this
+        // message can be suppressed this way (the event's own list narrows it to the ones that bounced)
+        const mine = [...m.to_addresses, ...m.cc_addresses].map(a => a.toLowerCase())
+        const reported = list(evt.data.to).filter(a => mine.includes(a))
+        await suppressAddresses(db, { orgId: m.org_id, addresses: reported.length ? reported : mine, reason: evt.type === 'email.complained' ? 'complained' : 'bounced', sourceMessageId: m.id, detail: reason, actor: 'resend:webhook' })
       }
       await audit(db, { orgId: m.org_id, entityType: 'execution', entityId: m.id, event: evt.type === 'email.delivered' ? 'email.delivery_reported' : 'email.bounced', actor: 'resend:webhook', detail: { email_message: true, agent_id: m.agent_id, event: evt.type } })
     })
@@ -97,19 +104,21 @@ async function handle(evt: InboundEvent, fetchEmail: (id: string) => Promise<Rec
       const allowed = Boolean(member) || Boolean(thread && [...thread.to_addresses, ...thread.cc_addresses].includes(from)) || Boolean(email && recipientAllowed(email, from))
       const status: 'accepted' | 'quarantined' = authFail.length ? 'quarantined' : allowed ? 'accepted' : 'quarantined'
       const reason = authFail.length ? `failed sender authentication (${authFail.join(', ')})` : allowed ? null : 'the sender is not on this agent\'s allowed list'
+      // loop protection: machine-generated mail is kept for the merchant but is never a reply an agent reacts to
+      const autoReply = autoReplyReason(mail, from, emailConfig.agentMailDomain)
 
       const row = await db.one<{ id: string }>(`insert into email_inbound (org_id, account_id, agent_id, provider_email_id, internet_message_id, from_address, to_addresses, cc_addresses,
-          classification, status, status_reason, thread_message_id, auth_results, key_id, content_ciphertext, attachment_count, received_at)
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending','pending',$14,$15) on conflict do nothing returning id`,
+          classification, status, status_reason, thread_message_id, auth_results, key_id, content_ciphertext, attachment_count, received_at, attachments, auto_reply, auto_reply_reason)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending','pending',$14,$15,$16,$17,$18) on conflict do nothing returning id`,
         [acc.org_id, acc.id, acc.agent_id, mail.id, mail.messageId, from, list(mail.to), list(mail.cc), classification, status, reason, thread?.id ?? null,
-          JSON.stringify(auth), mail.attachmentCount, mail.receivedAt])
+          JSON.stringify(auth), mail.attachments?.length ?? mail.attachmentCount, mail.receivedAt, JSON.stringify(mail.attachments ?? []), Boolean(autoReply), autoReply])
       if (!row) return null // same email already stored for this mailbox
       const enc = encryptSecret(JSON.stringify({ subject: mail.subject.slice(0, 500), text: mail.text.slice(0, MAX_TEXT) }), `email-inbound:${row.id}`)
       await db.query('update email_inbound set key_id = $2, content_ciphertext = $3 where id = $1', [row.id, enc.keyId, enc.ciphertext])
-      if (thread && status === 'accepted') await db.query('update email_messages set reply_count = reply_count + 1, reply_seen_at = greatest(coalesce(reply_seen_at, $2), $2) where id = $1', [thread.id, mail.receivedAt])
+      if (thread && status === 'accepted' && !autoReply) await db.query('update email_messages set reply_count = reply_count + 1, reply_seen_at = greatest(coalesce(reply_seen_at, $2), $2) where id = $1', [thread.id, mail.receivedAt])
       await audit(db, { orgId: acc.org_id, entityType: 'execution', entityId: row.id, event: `email.inbound.${status}`, actor: 'system:agent-mail',
-        detail: { email_inbound: true, agent_id: acc.agent_id, classification, thread_message_id: thread?.id ?? null, reason, attachments: mail.attachmentCount } })
-      return { inboundId: row.id, agentId: acc.agent_id, classification, status, threadMessageId: thread?.id ?? null }
+        detail: { email_inbound: true, agent_id: acc.agent_id, classification, thread_message_id: thread?.id ?? null, reason, attachments: mail.attachments?.length ?? mail.attachmentCount, auto_reply: autoReply } })
+      return { inboundId: row.id, agentId: acc.agent_id, classification, status, threadMessageId: thread?.id ?? null, autoReply: Boolean(autoReply) }
     })
     if (r) items.push(r)
   }

@@ -18,6 +18,8 @@ import { loadAgentContext, qualifies, type Qualification } from '../agents/plan'
 import { actionField, writableFields } from '../agents/policy'
 import { invalidateProposal, type ProposalRow } from './proposals'
 import { assertMerchant, withActor, type Actor } from './actor'
+import { authorizeAgentAction, type AuthzResult } from './authorize'
+import { orgStopReason } from './kill-switch'
 import type { ApplyResult, ConnectionRow, Correction, ResourceRecord } from './types'
 
 export type ExecutionStatus = 'queued' | 'prechecking' | 'blocked' | 'stale' | 'executing' | 'applied' | 'unknown' | 'verified' | 'failed' | 'verification_failed'
@@ -143,8 +145,10 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
       `select count(*)::text as n from executions e join approvals a on a.id = e.approval_id where e.agent_id = $1 and a.approver_kind = 'standing_authorization'
        and e.started_at >= date_trunc('day', now()) and e.status not in ('blocked','stale') and e.id <> $2`, [p!.agent_id, execId]) : null
     const accessBlock = await writeBlockReason(db, conn!)
+    // the central agent authorization check (org access, kill switch, grant, capability, tier, store access)
+    const authz: AuthzResult | null = p!.agent_id ? await authorizeAgentAction(db, { agentId: p!.agent_id, orgId: p!.org_id, action: { tool: 'store', actionKey: p!.action_key, tier: 'send_approved', connectionId: p!.connection_id } }) : null
     await db.query('update executions set agent_id = $2, policy_id = $3, policy_version = $4 where id = $1', [execId, p!.agent_id ?? null, p!.policy_id ?? null, p!.policy_version ?? null])
-    return { exec: exec!, p: p!, conn: conn!, checkKey: issue!.check_key, approval: approval!, agentCtx, agentStatus: agentRow?.status ?? null, plan, hasSubscription: Boolean(sub), dayCount: Number(day?.n ?? 0), accessBlock }
+    return { exec: exec!, p: p!, conn: conn!, checkKey: issue!.check_key, approval: approval!, agentCtx, agentStatus: agentRow?.status ?? null, plan, hasSubscription: Boolean(sub), dayCount: Number(day?.n ?? 0), accessBlock, authz }
   })
   const { p, conn, agentCtx, plan } = ctx
   const correction = correctionFromProposal(p)
@@ -162,6 +166,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
     : (p.policy_version ?? null) !== agentCtx.policyRow.version ? null // handled as stale below (recompute)
     : !writableFields(agentCtx.policy, conn.platform).includes(field) ? `field "${field}" is not writable for this agent`
     : standing && (ctx.approval.policy_id !== agentCtx.policyRow.id || ctx.approval.policy_version !== agentCtx.policyRow.version) ? 'the standing authorization that covered this change was changed or revoked'
+    : ctx.authz && !ctx.authz.ok ? ctx.authz.reason
     : null
   const block =
     !field ? `no connector declares the action ${p.action_key}`
@@ -241,6 +246,8 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
   // (and this write never starts) or waits until the write has been claimed. A pause that closed this execution
   // while it was prechecking also stops it here (status is no longer 'prechecking').
   const lastGate = await admin(async db => {
+    const stopped = await orgStopReason(db, p.org_id)
+    if (stopped && p.agent_id) return stopped
     if (p.agent_id) {
       const a = await db.one<{ status: string; active_policy_id: string | null }>('select status, active_policy_id from agents where id = $1 for share', [p.agent_id])
       if (!a || a.status !== 'active') return `the agent is ${a?.status ?? 'deleted'}; it may not write`

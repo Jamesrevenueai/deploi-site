@@ -28,6 +28,8 @@ export type OutgoingMessage = {
   references?: string[]
   /** where replies go (agent mailboxes: a tagged address that routes the reply back to this thread) */
   replyTo?: string | null
+  /** signed one-click unsubscribe link (agent mail only): sent as List-Unsubscribe and as a footer line */
+  listUnsubscribe?: string | null
 }
 
 export type SendResult =

@@ -3,13 +3,14 @@
  * token (organization, address, message). POST (the mail client's one-click, or the button below)
  * suppresses the address for that organization: Deploi never sends to it again. GET only shows the
  * button, so link scanners that open URLs never unsubscribe anyone. Nothing here reveals the
- * organization or any other address.
+ * organization or any other address. POST is limited per client IP (bucket unsubscribe); GET changes nothing.
  */
 import { NextResponse } from 'next/server'
 import { admin } from '@/lib/db'
 import { log } from '@/lib/log'
 import { verifyUnsubscribeToken } from '@/lib/email/unsubscribe'
 import { suppressAddresses } from '@/lib/email/suppression'
+import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const limited = await hitByIp('unsubscribe', req)
+  if (!limited.allowed) return tooManyRequests(limited)
   const url = new URL(req.url)
   let t = url.searchParams.get('t') ?? ''
   const type = req.headers.get('content-type') ?? ''

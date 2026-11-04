@@ -7,7 +7,9 @@ import { admin } from '../../lib/db'
 const ready = await prepareDb()
 const post = async (body: unknown, origin = 'https://getdeploi.com') => {
   const { POST } = await import('../../app/api/public/lead/route')
-  const r = await POST(new Request('http://localhost/api/public/lead', { method: 'POST', headers: { 'content-type': 'application/json', origin }, body: JSON.stringify(body) }))
+  // each request from its own client IP: the per-IP limit (bucket lead) is tested in tests/security/rate-limit.test.ts
+  const ip = `198.51.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`
+  const r = await POST(new Request('http://localhost/api/public/lead', { method: 'POST', headers: { 'content-type': 'application/json', origin, 'x-forwarded-for': ip }, body: JSON.stringify(body) }))
   return { status: r.status, json: await r.json() as { ok: boolean; id: string | null }, headers: r.headers }
 }
 const EMAILS = ['early-access@example.com', 'early-old-field@example.com', 'early-secret@example.com', 'old-consulting@example.com', 'fast-bot@timing.example', 'person@timing.example']

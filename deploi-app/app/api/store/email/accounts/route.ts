@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
+import { resolveActor, errorResponse, readJson, HttpError, limitActor } from '@/lib/store/request'
 import { listAccounts, providers } from '@/lib/email/queries'
 import { startConnect } from '@/lib/email/accounts'
 import type { EmailProvider } from '@/lib/email/types'
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     const body = await readJson(req)
     const provider = String(body.provider ?? '') as EmailProvider
     if (!['gmail', 'microsoft', 'synthetic'].includes(provider)) throw new HttpError(400, 'invalid_input', 'unknown provider')
+    await limitActor('oauth_start', actor)
     const r = await startConnect(actor, { provider, read: body.read === true, accountId: typeof body.accountId === 'string' ? body.accountId : null, returnTo: typeof body.returnTo === 'string' ? body.returnTo : null })
     return NextResponse.json({ ok: true, ...r })
   } catch (e) { return errorResponse(e) }

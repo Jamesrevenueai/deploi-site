@@ -3,12 +3,15 @@ import { resolveActor } from '@/lib/store/request'
 import { completeOfficeConnect, OfficeNotConfigured } from '@/lib/office/connections'
 import { isEngineError } from '@/lib/engine/errors'
 import { log } from '@/lib/log'
+import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 import '@/lib/office/actions'
 
 export const dynamic = 'force-dynamic'
 
 /** OAuth redirect target. The state must be unused, unexpired and started by this same user in this same organization. */
 export async function GET(req: Request) {
+  const limited = await hitByIp('oauth_callback', req)
+  if (!limited.allowed) return tooManyRequests(limited)
   const url = new URL(req.url)
   const back = (q: string) => NextResponse.redirect(new URL(`/office/connections?${q}`, url.origin), 303)
   try {

@@ -123,6 +123,49 @@ describe('API route sweep', () => {
     expect(stripe.indexOf('verifyStripeSignature(raw')).toBeLessThan(stripe.indexOf('JSON.parse(raw)'))
   })
 
+  it('abuse-prone endpoints call the rate limiter first (security review F-12)', () => {
+    // public and unauthenticated entry points: limited per client IP before any work
+    const BY_IP: Record<string, string> = {
+      'app/api/public/lead/route.ts': 'lead',
+      'app/auth/callback/route.ts': 'auth_callback',
+      'app/api/shopify/auth/start/route.ts': 'oauth_start',
+      'app/api/shopify/auth/callback/route.ts': 'oauth_callback',
+      'app/api/office/oauth/google/callback/route.ts': 'oauth_callback',
+      'app/api/office/oauth/hubspot/callback/route.ts': 'oauth_callback',
+      'app/api/email/oauth/callback/route.ts': 'oauth_callback',
+      'app/api/webhooks/agent-mail/unsubscribe/route.ts': 'unsubscribe',
+      'app/api/woocommerce/callback/route.ts': 'woo_callback',
+    }
+    for (const [f, bucket] of Object.entries(BY_IP)) {
+      const t = src(f)
+      const hs = handlers(t).filter(h => !(f.endsWith('unsubscribe/route.ts') && h.method === 'GET')) // GET only shows the button
+      for (const h of hs) {
+        const m = h.body.match(new RegExp(`const limited = await hitByIp\\('${bucket}', req\\)\\s*\\n\\s*if \\(!limited\\.allowed\\) return tooManyRequests\\(limited`))
+        expect(m, `${f} ${h.method}`).toBeTruthy()
+        // the limit is the first thing the handler does (after building CORS headers)
+        expect(h.body.slice(0, m!.index).replace(/export async function \w+\(req: Request\) \{|const headers = corsHeaders\(req\.headers\.get\('origin'\)\)/g, '').trim(), `${f} ${h.method}`).toBe('')
+      }
+    }
+    // OAuth consent starts for signed-in merchants: per organization
+    for (const f of ['app/api/store/email/accounts/route.ts', 'app/api/store/email/accounts/[id]/[action]/route.ts', 'app/api/office/connections/route.ts', 'app/api/woocommerce/connect/route.ts']) {
+      expect(src(f), f).toMatch(/await limitActor\('oauth_start', actor\)/)
+    }
+    // sign-in: dev sign-in and sign-in links, per IP (links also per address)
+    const login = src('app/login/actions.ts')
+    expect(login).toMatch(/devSignIn[\s\S]*limited\('dev_login'\)[\s\S]*export async function magicLink[\s\S]*limited\('magic_link_ip'\)[\s\S]*limited\('magic_link_email'/)
+    // every state-changing merchant call passes the per-organization ceiling in resolveActor
+    const req = src('lib/store/request.ts')
+    const fn = req.slice(req.indexOf('export async function resolveActor'), req.indexOf('const ENGINE_STATUS'))
+    expect((fn.match(/if \(opts\.mutating\) await limitWrites\(/g) ?? []).length).toBe(3) // shop session, staff, merchant
+    expect(req).toMatch(/e instanceof RateLimitError \? \{ 'Retry-After'/)
+    // webhooks: only signature rejections are counted; a valid delivery is never limited
+    expect(src('app/api/shopify/webhooks/route.ts')).toMatch(/limitRejectedWebhook\(req, await handleShopifyWebhook\(/)
+    expect(src('app/api/woocommerce/webhooks/route.ts')).toMatch(/limitRejectedWebhook\(req, await handleWooWebhook\(/)
+    expect(src('app/api/webhooks/agent-mail/route.ts')).toMatch(/return limitRejectedWebhook\(req, NextResponse\.json\(\{ ok: false \}, \{ status: 403 \}\)\)/)
+    expect(src('app/api/billing/stripe/webhook/route.ts')).toMatch(/return limitRejectedWebhook\(req, NextResponse\.json\(\{ ok: false, error: 'invalid_signature' \}, \{ status: 400 \}\), true\)/)
+    for (const f of Object.keys(WEBHOOKS)) expect(src(f), f).not.toMatch(/hitByIp\(/)
+  })
+
   it('every classified exception shows its guard', () => {
     for (const [f, o] of Object.entries(OTHER)) expect(src(f), `${f} (${o.why})`).toMatch(o.evidence)
   })

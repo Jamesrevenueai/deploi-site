@@ -17,13 +17,13 @@ Severity: **Critical** (cross-tenant or privilege compromise reachable by an out
 | F-03 | High | Staff e-mail list matched by substring (`hello@getdeploi.co` became staff) and was callable by anon | Fixed |
 | F-04 | High | `TRUNCATE` (not subject to RLS) granted to `anon`/`authenticated` on most tables | Fixed |
 | F-05 | Medium | `_migrations` had no RLS and was writable by user roles | Fixed |
-| F-06 | Medium | No script/style Content-Security-Policy (only `frame-ancestors`) | Open |
+| F-06 | Medium | No script/style Content-Security-Policy (only `frame-ancestors`) | Fixed (script policy, enforced; styles not restricted) |
 | F-07 | Medium | Shopify `customers/redact` and `customers/data_request` answer "no customer data held"; untrue once order/customer agents or agent e-mail hold shopper data | Open |
 | F-08 | Medium | Any member of an organization (or any Shopify admin user of the store) can grant agent authorizations; no owner-only role | Open |
 | F-09 | Medium | With billing on, `/api/store/plan` would let a merchant switch to any tier for free | Fixed |
 | F-10 | Low | Monthly agent-action allowance is shown but not enforced at run time | Fixed |
 | F-11 | Low | A downgrade arriving by Stripe webhook updates the tier but does not switch off library agents the new tier excludes (the merchant-initiated path does) | Fixed |
-| F-12 | Low | No rate limit on the public early-access form or on sign-in link requests (beyond Supabase's own) | Open |
+| F-12 | Low | No rate limit on the public early-access form or on sign-in link requests (beyond Supabase's own) | Fixed |
 | F-13 | Info | Dev sign-in on production (`AUTH_MODE=dev`, `ALLOW_DEV_LOGIN=true`) per `PRODUCTION-SAFETY.md` §2 | Open (owner action, not re-verified here) |
 | F-14 | Info | `email_messages.reply_token` is readable by the owning organization | Accepted |
 
@@ -68,8 +68,29 @@ public table and from the default privileges. Test fails if any such grant reapp
 `_migrations` (created by `scripts/migrate.ts`) had no RLS and full grants for `authenticated`. Fix: RLS
 on, all user-role privileges revoked (the runner connects as the owner). Allowlisted as deny-all.
 
-### F-06 Medium — no script CSP (Open)
-`middleware.ts` sets only `frame-ancestors`. A nonce-based `script-src` (Next.js supports nonces via
+### F-06 Medium — no script CSP (Fixed for scripts)
+**Fix.** `middleware.ts` now sends, on every page, a per-response nonce policy built by `lib/security/csp.ts`:
+`script-src 'self' 'nonce-…' 'strict-dynamic'` (plus `https://cdn.shopify.com` on `/shopify/*` as the
+CSP2 fallback), `object-src 'none'`, `base-uri 'self'`, `connect-src 'self'` + the Supabase project origin
+(and Shopify hosts on `/shopify/*`), and the unchanged `frame-ancestors`. The nonce reaches the renderer in
+the request's `Content-Security-Policy` header (Next.js puts it on all of its scripts) and in `x-nonce`
+(the root layout puts it on the App Bridge script; `lib/shopify/head.ts` keeps it when moving App Bridge
+first). The embedded document's second render pass makes its own nonce and the document keeps exactly
+that pass's policy. A client-sent `x-nonce` / CSP request header is overwritten. Every route renders
+dynamically (the root layout reads headers), so no prerendered page lacks the nonce. Production needs no
+`'unsafe-eval'`: the only `Function(...)` uses in the client bundles are `globalThis` fallbacks never
+reached by current browsers; `next dev` gets `'unsafe-eval'` and `ws:` (dev only). **Mode: enforced**, since
+the full Playwright suite passes under it, including a new test that loads `/login` and `/store`, checks
+every script tag carries the response nonce and records zero CSP violations. `CSP_MODE=report-only` moves
+the script policy to `Content-Security-Policy-Report-Only` (frame-ancestors stays enforced, since browsers
+ignore it in report-only policies); `CSP_REPORT_URI` adds a report endpoint. **Still open:** the embedded
+app was verified only with the App Bridge stub (the three embedded e2e tests need Shopify credentials);
+check `/shopify` once inside a real Shopify admin after deploy, and switch to `CSP_MODE=report-only` if
+App Bridge reports violations. Styles (`style-src`) are not restricted. Tests:
+`tests/security/headers.test.ts` (policy on `/login`, `/store`, `/shopify`, nonce forwarded to the
+renderer, no smuggled nonce, no unsafe-eval in production, report-only split), `e2e/security.spec.ts`.
+
+Original finding: `middleware.ts` set only `frame-ancestors`. A nonce-based `script-src` (Next.js supports nonces via
 middleware) plus `object-src 'none'; base-uri 'self'` would limit XSS impact. Not added here because the
 embedded app's App Bridge script, the App Bridge head re-ordering and Next's inline scripts must be
 tested together in the Shopify admin; a wrong policy breaks the embedded app. Owner: shared-infra.
@@ -94,7 +115,7 @@ without payment. Harmless in the free beta; with `BILLING_MODE` on it would bypa
 now refuses while billing is on (one line); the tier follows the Stripe subscription
 (`lib/billing/webhooks.ts`). Tested in `tests/billing/stripe-flow.test.ts`.
 
-### F-10, F-11 Low (Fixed), F-12 Low (Open)
+### F-10, F-11 Low (Fixed)
 - F-10 (fixed): `lib/plans/allowance.ts` counts carried-out agent actions per UTC calendar month (agent
   store writes executing/applied/verified/unknown, agent email sending/accepted/delivery_unknown, Office
   actions executing/succeeded/unknown, library writes done; never drafts, proposals, refused, blocked,
@@ -111,7 +132,33 @@ now refuses while billing is on (one line); the tier follows the Stripe subscrip
   plus one `plan.enforced` entry. A lapse (cancelled, unpaid, paused, past due beyond grace) applies the
   lowest tier. Nothing is deleted; an upgrade resumes nothing; resume and first grant refuse beyond the
   plan. Office connections are checked at connect.
-- F-12: add per-IP rate limits (Vercel Firewall rules) for `/api/public/lead` and `/login`.
+
+### F-12 Low — rate limits (Fixed)
+Postgres-backed limiter (`lib/security/rate-limit.ts`, migration 44 `rate_limits`, RLS on with no policy,
+functions executable by `service_role` only): one atomic `INSERT … ON CONFLICT DO UPDATE` per check, sliding
+window estimate over two fixed windows, expired windows cleaned opportunistically. Answers 429 with
+`Retry-After`. Configurable with `RATE_LIMIT_<BUCKET>=<limit>/<seconds>`; `RATE_LIMITS=off` disables all.
+Every bucket fails open if the database is down (the guarded request needs that database anyway).
+Client IP = first `x-forwarded-for` hop, else `x-real-ip`: trustworthy on Vercel, which overwrites both;
+behind another proxy only as trustworthy as that proxy. IPv6 is keyed by /64.
+
+| Bucket | Default | Where |
+|---|---|---|
+| `lead` | 6 / 10 min per IP | `/api/public/lead` |
+| `magic_link_ip`, `magic_link_email` | 10 / 15 min per IP; 5 / h per address | `magicLink` (`app/login/actions.ts`) |
+| `dev_login` | 300 / 10 min per IP | `devSignIn` (dev auth only) |
+| `auth_callback` | 30 / 10 min per IP | `/auth/callback` |
+| `oauth_start` | 30 / 10 min | `/api/shopify/auth/start` (per IP); mailbox, Office and WooCommerce consent starts (per organization) |
+| `oauth_callback` | 60 / 10 min per IP | Shopify, Office (Google, HubSpot) and mailbox OAuth callbacks |
+| `unsubscribe` | 30 / 10 min per IP | `POST /api/webhooks/agent-mail/unsubscribe` |
+| `woo_callback` | 30 / 10 min per IP | `/api/woocommerce/callback` |
+| `merchant_write` | 600 / min per organization (staff: per user) | `resolveActor(req, { mutating: true })` |
+| `webhook_invalid` | 120 / 10 min per IP | Shopify, WooCommerce, agent mail and Stripe webhooks: only deliveries that fail signature verification are counted; valid deliveries are never counted or refused |
+
+Sign-in refusals redirect to `/login?error=too-many-attempts`. The e2e suite runs under the defaults (one IP,
+~60 dev sign-ins, at most ~35 writes a minute per organization). Tests: `tests/security/rate-limit.test.ts`
+(60 parallel hits allow exactly the limit, rollover, isolation, 429 shape, fail-open, routes), and a static
+sweep in `tests/security/routes.test.ts` that each listed route calls the limiter first.
 
 ## Billing and legal controls added (for reference)
 
@@ -135,4 +182,5 @@ now refuses while billing is on (one line); the tier follows the Stripe subscrip
 | `tests/security/credentials.test.ts` | credential tables and secret columns unreadable by user roles; no TRUNCATE/TRIGGER/REFERENCES grants; F-01..F-03 regressions |
 | `tests/security/routes.test.ts` | every API route classified; every merchant/billing handler resolves the org from the session, never from the request; mutating handlers pass the CSRF check; every webhook verifies a signature before parsing |
 | `tests/security/secrets.test.ts` | no credential pattern in any tracked file; no real env file tracked |
-| `tests/security/headers.test.ts` | HSTS, nosniff, referrer, Permissions-Policy, X-Frame-Options, frame-ancestors for the embed |
+| `tests/security/headers.test.ts` | HSTS, nosniff, referrer, Permissions-Policy, X-Frame-Options, frame-ancestors for the embed; nonce script CSP on `/login`, `/store`, `/shopify` |
+| `tests/security/rate-limit.test.ts` | the rate limiter: concurrency, window rollover, key isolation, 429 + Retry-After, fail-open, lead / merchant / webhook wiring |

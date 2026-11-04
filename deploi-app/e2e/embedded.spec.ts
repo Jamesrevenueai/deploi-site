@@ -36,11 +36,15 @@ test.skip(!KEY || !SECRET, 'SHOPIFY_API_KEY and SHOPIFY_API_SECRET must be set f
 test('the admin loads /shopify: App Bridge is the first script, the frame is limited to the admin, and the store opens', async ({ page }) => {
   await stubAppBridge(page, SHOP)
   const res = await page.goto(`/shopify?shop=${SHOP}&host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvbm9ydGh3aW5k&embedded=1`)
-  expect(res!.headers()['content-security-policy']).toBe(`frame-ancestors https://${SHOP} https://admin.shopify.com;`)
+  const csp = res!.headers()['content-security-policy']
+  expect(csp).toContain(`frame-ancestors https://${SHOP} https://admin.shopify.com;`)
+  // the script policy's nonce is the one on App Bridge (and on Next.js's own scripts)
+  const nonce = /'nonce-([^']+)'/.exec(csp)![1]
+  expect(csp).toContain("'strict-dynamic'")
   const html = await res!.text()
   const head = html.slice(0, html.indexOf('</head>'))
   const firstScript = head.match(/<script[^>]*>/)![0]
-  expect(firstScript).toBe('<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js">')
+  expect(firstScript).toBe(`<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" nonce="${nonce}">`)
   expect(head.indexOf(`<meta name="shopify-api-key" content="${KEY}"/>`)).toBeGreaterThan(-1)
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
   // a synthetic demo store needs no beta access card

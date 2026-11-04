@@ -6,10 +6,13 @@ import { shopifyConfig } from '@/lib/connectors/shopify/config'
 import { ensureInstalled } from '@/lib/connectors/shopify/install'
 import { runScan } from '@/lib/engine/scan'
 import { log } from '@/lib/log'
+import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 import '@/lib/connectors'
 
 /** Authorization code callback: HMAC, state and shop are verified before the code is exchanged. */
 export async function GET(req: Request) {
+  const limited = await hitByIp('oauth_callback', req)
+  if (!limited.allowed) return tooManyRequests(limited)
   if (!shopifyConfig.configured) return NextResponse.json({ ok: false, error: 'shopify_not_configured' }, { status: 503 })
   const q = new URL(req.url).searchParams
   const shop = normalizeShop(q.get('shop'))

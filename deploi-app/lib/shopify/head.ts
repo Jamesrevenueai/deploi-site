@@ -6,7 +6,8 @@
  */
 export const APP_BRIDGE_SRC = 'https://cdn.shopify.com/shopifycloud/app-bridge.js'
 
-const SCRIPT = /<script src="https:\/\/cdn\.shopify\.com\/shopifycloud\/app-bridge\.js"><\/script>/
+// the nonce attribute is the response's CSP script nonce (middleware.ts)
+const SCRIPT = /<script src="https:\/\/cdn\.shopify\.com\/shopifycloud\/app-bridge\.js"(?: nonce="[A-Za-z0-9+/=]*")?><\/script>/
 const META = /<meta name="shopify-api-key" content="[^"<>]*"\/?>/
 
 export function appBridgeFirst(html: string): string {

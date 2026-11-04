@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
+import { resolveActor, errorResponse, readJson, HttpError, limitActor } from '@/lib/store/request'
 import { checkAccount, disconnectAccount, startConnect, visibleAccount } from '@/lib/email/accounts'
 
 export const dynamic = 'force-dynamic'
@@ -18,6 +18,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     if (action === 'disconnect') return NextResponse.json({ ok: true, ...(await disconnectAccount(actor, id)) })
     if (action === 'reconnect') {
       const acc = await visibleAccount(actor, id)
+      await limitActor('oauth_start', actor)
       return NextResponse.json({ ok: true, ...(await startConnect(actor, { provider: acc.provider, accountId: acc.id, read: body.read === true || acc.can_read, returnTo: typeof body.returnTo === 'string' ? body.returnTo : null })) })
     }
     throw new HttpError(404, 'not_found', 'unknown action')

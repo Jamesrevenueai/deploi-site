@@ -6,8 +6,11 @@ import { NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
 import { normalizeShop, authorizeUrl } from '@/lib/connectors/shopify/auth'
 import { shopifyConfig } from '@/lib/connectors/shopify/config'
+import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 
 export async function GET(req: Request) {
+  const limited = await hitByIp('oauth_start', req)
+  if (!limited.allowed) return tooManyRequests(limited)
   if (!shopifyConfig.configured) return NextResponse.json({ ok: false, error: 'shopify_not_configured' }, { status: 503 })
   const shop = normalizeShop(new URL(req.url).searchParams.get('shop'))
   if (!shop) return NextResponse.json({ ok: false, error: 'invalid shop domain' }, { status: 400 })

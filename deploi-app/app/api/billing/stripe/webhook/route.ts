@@ -10,6 +10,7 @@ import { log } from '@/lib/log'
 import { billingMode, stripeConfig } from '@/lib/billing/config'
 import { verifyStripeSignature } from '@/lib/billing/stripe'
 import { handleStripeEvent, isStripeEvent } from '@/lib/billing/webhooks'
+import { limitRejectedWebhook } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,8 @@ export async function POST(req: Request) {
   const sig = verifyStripeSignature(raw, req.headers.get('stripe-signature'), stripeConfig.webhookSecret)
   if (!sig.ok) {
     log.warn('stripe.webhook.bad_signature', { reason: sig.reason })
-    return NextResponse.json({ ok: false, error: 'invalid_signature' }, { status: 400 })
+    // only rejected deliveries are counted (per IP); a valid one is never limited
+    return limitRejectedWebhook(req, NextResponse.json({ ok: false, error: 'invalid_signature' }, { status: 400 }), true)
   }
   let event: unknown
   try { event = JSON.parse(raw) } catch { return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 }) }

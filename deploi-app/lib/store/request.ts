@@ -16,9 +16,27 @@ import { shopifyConfig } from '../connectors/shopify/config'
 import type { Actor } from '../engine/actor'
 import { isEngineError, type EngineErrorCode } from '../engine/errors'
 import { isLibraryError, LIBRARY_STATUS } from '../library/errors'
+import { hit } from '../security/rate-limit'
 import '../connectors'
 
 export class HttpError extends Error { constructor(public status: number, public code: string, message: string) { super(message); this.name = 'HttpError' } }
+/** 429 with the seconds to wait (sent as Retry-After). */
+export class RateLimitError extends HttpError { constructor(public retryAfterS: number) { super(429, 'rate_limited', 'too many requests; try again later'); this.name = 'RateLimitError' } }
+
+/**
+ * A generous per-organization ceiling on state-changing merchant calls (lib/security/rate-limit.ts,
+ * bucket merchant_write; staff are keyed by user). Fails open if the database is unreachable.
+ */
+async function limitWrites(key: string) {
+  const r = await hit('merchant_write', key)
+  if (!r.allowed) throw new RateLimitError(r.retryAfterS)
+}
+
+/** Limit an authenticated operation per organization (staff: per user), e.g. bucket oauth_start for provider consent starts. */
+export async function limitActor(bucket: 'oauth_start', actor: Actor) {
+  const r = await hit(bucket, actor.kind === 'staff' ? `user:${actor.session.uid}` : `org:${actor.orgId}`)
+  if (!r.allowed) throw new RateLimitError(r.retryAfterS)
+}
 
 export function bearer(req: Request): string | null {
   const h = req.headers.get('authorization') ?? ''
@@ -47,13 +65,18 @@ export async function resolveActor(req: Request, opts: { mutating?: boolean } = 
   if (shopSession) {
     const conn = await admin(db => db.one<{ org_id: string }>(`select org_id from store_connections where platform = 'shopify' and external_id = $1 and status = 'active'`, [shopSession.shop]))
     if (!conn) throw new HttpError(409, 'not_installed', 'this shop has not finished installing the app')
+    if (opts.mutating) await limitWrites(`org:${conn.org_id}`)
     return { kind: 'shopify_user', orgId: conn.org_id, shop: shopSession.shop, userId: shopSession.userId ?? 'unknown', label: `shopify:${shopSession.shop}:user:${shopSession.userId ?? 'unknown'}` }
   }
   const s = await getSession()
   if (!s) throw new HttpError(401, 'unauthenticated', 'sign in required')
   if (opts.mutating && !sameOrigin(req)) throw new HttpError(403, 'bad_origin', 'cross-site request refused')
-  if (s.role === 'staff') return { kind: 'staff', session: s, label: `staff:${s.email}` }
+  if (s.role === 'staff') {
+    if (opts.mutating) await limitWrites(`user:${s.uid}`)
+    return { kind: 'staff', session: s, label: `staff:${s.email}` }
+  }
   if (s.orgType !== 'merchant' || !s.agencyId) throw new HttpError(403, 'not_a_merchant', 'this account is not linked to a store organization')
+  if (opts.mutating) await limitWrites(`org:${s.agencyId}`)
   return { kind: 'profile', session: s, orgId: s.agencyId, label: `user:${s.email}` }
 }
 
@@ -65,7 +88,8 @@ const ENGINE_STATUS: Record<EngineErrorCode, number> = {
 export function errorResponse(e: unknown): NextResponse {
   if (e instanceof HttpError) {
     // App Bridge fetches a fresh ID token and retries once when it sees this header on a 401
-    const headers = e.code === 'invalid_session_token' ? { 'X-Shopify-Retry-Invalid-Session-Request': '1' } : undefined
+    const headers: Record<string, string> | undefined = e instanceof RateLimitError ? { 'Retry-After': String(e.retryAfterS), 'cache-control': 'no-store' }
+      : e.code === 'invalid_session_token' ? { 'X-Shopify-Retry-Invalid-Session-Request': '1' } : undefined
     return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: e.status, headers })
   }
   if (isEngineError(e)) return NextResponse.json({ ok: false, error: e.code, message: e.message }, { status: ENGINE_STATUS[e.code] ?? 400 })

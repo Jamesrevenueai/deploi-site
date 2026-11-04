@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { HttpError, readJson } from '@/lib/store/request'
+import { HttpError, limitActor, readJson } from '@/lib/store/request'
 import { officeActor, officeError } from '@/lib/office/request'
 import { requireAgreements } from '@/lib/legal'
 import { officeConnections } from '@/lib/office/queries'
@@ -32,6 +32,7 @@ export async function POST(req: Request) {
     const actor = await officeActor(req, { mutating: true })
     const body = await readJson(req)
     if (body.op === 'connect' || body.op === 'mailbox') await requireAgreements(actor, 'office')
+    if (body.op === 'connect') await limitActor('oauth_start', actor)
     if (body.op === 'connect') return NextResponse.json({ ok: true, url: (await startOfficeConnect(actor, provider(body.provider))).url })
     if (body.op === 'synthetic') return NextResponse.json({ ok: true, connection: { id: (await connectSyntheticOffice(actor, provider(body.provider))).id } })
     if (body.op === 'disconnect') return NextResponse.json({ ok: true, ...(await disconnectOffice(actor, String(body.id ?? ''))) })

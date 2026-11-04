@@ -3,6 +3,7 @@ import { resolveActor, HttpError } from '@/lib/store/request'
 import { completeConnect } from '@/lib/email/accounts'
 import { isEngineError } from '@/lib/engine/errors'
 import { log } from '@/lib/log'
+import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ export const dynamic = 'force-dynamic'
  * window that started it, which completes with its own verified session token.
  */
 export async function GET(req: Request) {
+  const limited = await hitByIp('oauth_callback', req)
+  if (!limited.allowed) return tooManyRequests(limited)
   const url = new URL(req.url)
   const state = url.searchParams.get('state') ?? ''
   const code = url.searchParams.get('code')

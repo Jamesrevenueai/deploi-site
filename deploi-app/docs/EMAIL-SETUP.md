@@ -12,8 +12,13 @@ Each agent can have its own address, `<name>.<code>@AGENT_MAIL_DOMAIN`. It sends
 | Send via Resend with `Idempotency-Key = deploi-<message id>`, tagged Reply-To for threading | `lib/email/adapters/deploi.ts` | fake Resend: a repeat or a forced re-queue sends once |
 | Strict recipient allowlist (even an approved message cannot go to anyone outside it) | `lib/email/check.ts` | refused-with-approval test |
 | Inbound (`email.received`): signed webhook, delivery dedupe, threading by token then headers, sender allowlist, SPF/DKIM/DMARC quarantine, encrypted storage, audit | `app/api/webhooks/agent-mail`, `lib/email/inbound.ts` | threading, duplicates, quarantine, retry, and webhook-refusal tests |
+| Customer inbox (threads, read/unread, label with an agent, reply as a person through `sendMessage` and every gate) | `lib/email/inbox.ts`, `/store/inbox/mail` | `tests/infra/email.test.ts` |
+| Suppression: Resend `email.bounced` / `email.complained` and one-click unsubscribe (`List-Unsubscribe` + `List-Unsubscribe-Post`, signed link, `/api/webhooks/agent-mail/unsubscribe`) block later sends to that address, per organization | `lib/email/suppression.ts`, `lib/email/unsubscribe.ts` | `tests/infra/email.test.ts` |
+| Per-organization daily cap (`EMAIL_ORG_DAILY_CAP`), loop protection (auto-replies never count as replies), attachments stored as metadata only | `lib/email/engine.ts`, `lib/email/loop.ts` | `tests/infra/email.test.ts` |
 | Supplier follow-up: one reply in the same thread when the supplier has not answered | `lib/email/tasks.ts#supplierFollowup` | unit + run |
 | **Live verified** | — | **No.** Needs `AGENT_MAIL_DOMAIN`, Resend domain verification and your dedicated test address (`LAUNCH-DNS.md` §B4). |
+
+**Live steps still to do (founder):** in Resend, verify `AGENT_MAIL_DOMAIN`; add one webhook to `https://<app>/api/webhooks/agent-mail` subscribed to `email.received`, `email.bounced`, `email.complained` and `email.delivered`, and put its signing secret in `AGENT_MAIL_WEBHOOK_SECRET`; set `RESEND_API_KEY`, `EMAIL_LIVE_SENDS=allowlist` with your own test address in `EMAIL_TEST_RECIPIENTS`; then send one approved message, reply to it, click its unsubscribe link and confirm the address shows as suppressed. Not done in this build: there is no key or domain here.
 
 Resend facts used (from resend.com/docs, 2026-10-28):
 - the `email.received` webhook carries metadata only; the text and headers come from `GET /emails/receiving/{id}`;

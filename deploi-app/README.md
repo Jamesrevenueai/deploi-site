@@ -42,7 +42,11 @@ All optional; empty means "off" or "synthetic". `.env.example` lists every name.
 | `EMAIL_TEST_RECIPIENTS` | Comma-separated addresses or `@domains` allowed under `allowlist`. |
 | `EMAIL_OAUTH_PROVIDERS` | `on` shows the Gmail / Microsoft connectors (not live-verified). |
 | `DEMO_CONTROLS` | `true` enables `POST /api/store/demo` (reset, external change, fault, scope changes) on SYNTHETIC stores under `NODE_ENV=production`. **Required for the Playwright e2e run against `npm run build && npm run start`**; never set it on a real deployment. |
-| `CRON_SECRET` | Bearer token Vercel sends to `/api/cron/agents` and `/api/cron/weekly-summary`; both refuse everything else. |
+| `JOBS_PAUSED` | `on` stops every job-queue worker (incident switch); jobs stay queued. |
+| `JOBS_ORG_CONCURRENCY` | Most jobs of one organization running at once (default 2). |
+| `EMAIL_ORG_DAILY_CAP` | Most emails one organization sends per UTC day, agents and people together (default 200); the rest wait for the next day. |
+| `UNSUBSCRIBE_SECRET` | Signs the one-click unsubscribe link on agent mail; falls back to `APP_SECRET`. |
+| `CRON_SECRET` | Bearer token Vercel sends to `/api/cron/agents`, `/api/cron/jobs`, `/api/cron/library` and `/api/cron/weekly-summary`; all refuse everything else. |
 
 ## Checks
 

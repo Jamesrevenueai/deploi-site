@@ -66,7 +66,7 @@ describe('legal documents', () => {
         if (statSync(p).isDirectory()) walk(p)
         else if (/\.(ts|tsx|mjs|js|sql)$/.test(n)) {
           const t = readFileSync(p, 'utf8')
-          if (/legal_documents/.test(t) && /(update\s+legal_documents|insert\s+into\s+legal_documents)[^;]*'published'/is.test(t)) offenders.push(relative(ROOT, p))
+          if (/legal_documents/.test(t) && /(update\s+legal_documents|insert\s+into\s+legal_documents)[^;]*'published'/i.test(t)) offenders.push(relative(ROOT, p))
         }
       }
     }

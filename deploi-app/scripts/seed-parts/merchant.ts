@@ -39,6 +39,7 @@ export async function seedArea({ c, counts }: SeedCtx) {
        values ($1,$2,'shopify',$3,$4,'active',$5,'2026-10',true,$6,now())
        on conflict (id) do update set status = 'active', scopes = excluded.scopes, is_synthetic = true`, [conn, org, m.domain, m.name, SCOPES, m.tz])
     await c.query(`update store_connections set currency = 'USD' where id = $1`, [conn])
+    await c.query(`insert into org_products (org_id, product, enabled_by) values ($1, 'commerce', 'seed') on conflict (org_id, product) do update set status = 'active', disabled_at = null`, [org]) // migration 36 backfills only merchants that existed before it ran
     await c.query(`insert into synthetic_store_state (connection_id, state) values ($1,$2) on conflict (connection_id) do update set state = excluded.state, updated_at = now()`,
       [conn, JSON.stringify(m.state())])
     await c.query(

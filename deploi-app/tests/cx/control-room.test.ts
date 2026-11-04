@@ -39,7 +39,7 @@ describe('agent health', () => {
 })
 
 describe.skipIf(!ready)('Control Room', () => {
-  beforeEach(async () => { await resetCx(NW); await resetCx(HB) })
+  beforeEach(async () => { await admin(db => db.query('update org_controls set agents_stopped = false where org_id = any($1)', [[NW.org, HB.org]])); await resetCx(NW); await resetCx(HB) })
   afterAll(async () => { await resetCx(NW); await resetCx(HB) })
 
   it('aggregates only the signed-in organization: agents, approvals, issues, connections and the weekly estimate', async () => {

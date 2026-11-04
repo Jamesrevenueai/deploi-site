@@ -5,6 +5,7 @@
  * changes a permission. Every run is recorded in office_runs and the audit trail.
  */
 import { admin, type Db } from '../db'
+import { log } from '../log'
 import { decryptSecret } from '../connectors/credentials'
 import { emailAdapter } from '../email/adapters'
 import { accessToken, accountRef, type EmailAccountRow } from '../email/accounts'
@@ -267,7 +268,7 @@ async function crmUpdates(ctx: AgentCtx, now: Date, counts: Counts) {
     if (a.kind === 'create_event' && !u.logMeetings) continue
     const key = `crmlog:${a.id}`
     const marker = crmMarker(`${ctx.agent.org_id}:${key}`, sha)
-    const when = (a.executed_at ?? now.toISOString()).slice(0, 16).replace('T', ' ')
+    const when = new Date(a.executed_at ?? now).toISOString().slice(0, 16).replace('T', ' ')
     const body = a.payload.type === 'email'
       ? `Email sent by Deploi Office (${a.agent_name}) to ${a.payload.to} on ${when} UTC. Subject: "${a.payload.subject.slice(0, 200)}". Ref ${marker}`
       : a.payload.type === 'event' ? `Meeting booked by Deploi Office (${a.agent_name}): "${a.payload.summary}" ${a.payload.start.slice(0, 16).replace('T', ' ')} UTC with ${a.payload.attendees.join(', ')}. Ref ${marker}` : ''
@@ -317,6 +318,7 @@ export async function runOfficeAgent(agentId: string, opts: { trigger?: 'manual'
     status = e instanceof Blocked ? 'blocked' : 'failed'
     reason = e instanceof Blocked || e instanceof OfficeAuthError ? e.message : e instanceof OfficeHttpError ? e.message : 'the run stopped on an unexpected error'
     if (e instanceof OfficeAuthError) status = 'blocked'
+    if (status === 'failed') log.error('office.run.failed', { agent_id: agentId, error: (e as Error).message?.slice(0, 300) })
   }
   await admin(async db => {
     await db.query(`update office_runs set status = $2, status_reason = $3, counts = $4, finished_at = now() where id = $1`, [run.id, status, reason, JSON.stringify(counts)])
@@ -325,12 +327,20 @@ export async function runOfficeAgent(agentId: string, opts: { trigger?: 'manual'
   return { runId: run.id, status, reason, counts }
 }
 
-/** Carry out due queued actions of one organization (optionally one agent), oldest first, bounded. */
+/**
+ * Carry out due queued actions of one organization (optionally one agent), oldest first, at most `limit`
+ * in total. Actions queued by an execution (a booking's confirmation email) are picked up in the same call.
+ */
 export async function executeDue(orgId: string, opts: { agentId?: string; now?: Date; limit?: number } = {}) {
   const now = opts.now ?? new Date()
-  const due = await admin(db => db.query<{ id: string }>(`select id from office_actions where org_id = $1 and status = 'queued' and (next_attempt_at is null or next_attempt_at <= $2)
-    and ($3::uuid is null or agent_id = $3) order by created_at limit $4`, [orgId, now.toISOString(), opts.agentId ?? null, opts.limit ?? officeConfig.actionsPerOrg]))
-  const out = []
-  for (const d of due) out.push(await executeOfficeAction(d.id, { now }))
+  const limit = opts.limit ?? officeConfig.actionsPerOrg
+  const seen = new Set<string>()
+  const out: Awaited<ReturnType<typeof executeOfficeAction>>[] = []
+  for (let round = 0; round < 3 && out.length < limit; round++) {
+    const due = await admin(db => db.query<{ id: string }>(`select id from office_actions where org_id = $1 and status = 'queued' and (next_attempt_at is null or next_attempt_at <= $2)
+      and ($3::uuid is null or agent_id = $3) and not (id = any($5::uuid[])) order by created_at limit $4`, [orgId, now.toISOString(), opts.agentId ?? null, limit - out.length, [...seen]]))
+    if (!due.length) break
+    for (const d of due) { seen.add(d.id); out.push(await executeOfficeAction(d.id, { now })) }
+  }
   return out
 }

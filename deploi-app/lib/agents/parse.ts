@@ -37,7 +37,7 @@ const UNSUPPORTED: [RegExp, string][] = [
   [/\b(archive|draft|un-?archive|change (the )?status)\b/, 'changing product status'],
   [/\b(write|rewrite|generate) (the )?(descriptions?|titles?|copy)\b/, 'writing product content'],
   [/\b(discount|coupon|promotion)s?\b/, 'discounts and promotions'],
-  [/\b(amazon|woocommerce|ebay|etsy)\b/, 'other platforms (Shopify is the only operational platform today)'],
+  [/\b(amazon|ebay|etsy)\b/, 'other platforms (Shopify and WooCommerce are the operational platforms today)'],
   [/\b(generate|create|make up|invent) (new )?skus?\b/, 'generating new SKUs (SKUs come only from your mapping file)'],
 ]
 

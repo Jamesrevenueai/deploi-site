@@ -71,7 +71,7 @@ export function needsPersonAlert(e: EmailPolicy, f: { runId: string; agentId: st
 export type ReorderItem = { variantId: string; sku: string | null; label: string; available: number; reorderQty?: number | null; leadTimeDays?: number | null }
 /** Variants at or below the threshold, in scope, tracked and active. Quantities to order are never guessed. */
 export function reorderCandidates(records: ResourceRecord[], threshold: number, inScope: (r: ResourceRecord) => boolean): ReorderItem[] {
-  return records.filter(r => r.resourceType === 'variant' && r.productStatus === 'ACTIVE' && r.tracked === true && r.isGiftCard !== true && typeof r.totalAvailable === 'number' && (r.totalAvailable as number) <= threshold && inScope(r))
+  return records.filter(r => (r.resourceType === 'variant' || r.resourceType === 'woo_stock_object') && r.productStatus === 'ACTIVE' && r.tracked === true && r.isGiftCard !== true && typeof r.totalAvailable === 'number' && (r.totalAvailable as number) <= threshold && inScope(r))
     .map(r => ({ variantId: String(r.variantId), sku: (r.sku as string | null) ?? null, available: r.totalAvailable as number,
       label: `${clean(r.productTitle, 120)}${r.variantTitle && r.variantTitle !== 'Default Title' ? ` / ${clean(r.variantTitle, 60)}` : ''}` }))
 }

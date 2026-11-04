@@ -34,7 +34,9 @@ export function assertApprovedHost(url: string, purpose: keyof typeof APPROVED_H
   const host = hostOf(url)
   let ok: boolean
   if (purpose === 'shopify') ok = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) && url.startsWith('https://')
-  else if (purpose === 'woocommerce') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.')
+  // the merchant's own https store: a public name (never an IP literal), never a provider above; the transport also checks every resolved address
+  else if (purpose === 'woocommerce') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
+    && !/^https:\/\/[^/]*@/.test(url) && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.myshopify.com')
   else if (purpose === 'competitor_public') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
     && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.supabase.co')
   else ok = APPROVED_HOSTS[purpose].includes(host)

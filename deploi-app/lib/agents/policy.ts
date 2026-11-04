@@ -179,7 +179,8 @@ export const PolicySchema = z.object({
       flagInStockVariants: z.boolean().default(true),
     }).optional(),
     publication: z.object({
-      publicationId: z.string().regex(/^gid:\/\/shopify\/Publication\/\d+$/),
+      /** a Shopify publication id, or woocommerce:storefront (a WooCommerce store has one storefront) */
+      publicationId: z.string().regex(/^(gid:\/\/shopify\/Publication\/\d+|woocommerce:storefront)$/),
       publicationName: z.string().min(1).max(120),
       /** instructions come from a publication list file, or from a tag rule */
       sourceId: z.string().uuid().nullable().default(null),

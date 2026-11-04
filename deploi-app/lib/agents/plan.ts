@@ -5,7 +5,7 @@ import type { ScanPlan, PlannedCheck } from '../engine/plan'
 import type { ResourceRecord } from '../engine/types'
 import { loadReference, moneyCents, type ReferenceIndex } from './references'
 import { actionField, actionType, inScope, parsePolicy, writableFields, type AgentPolicy } from './policy'
-import { allAgentCheckKeys, correctionCapability, isWatchCheck } from '../engine/capabilities'
+import { allAgentCheckKeys, correctionCapability, resolveWatchCheck } from '../engine/capabilities'
 import type { Platform } from '../engine/types'
 
 export type AgentRow = { id: string; org_id: string; connection_id: string; name: string; task_text: string; status: 'draft' | 'active' | 'paused' | 'revoked' | 'deleted'; active_policy_id: string | null; schedule: AgentPolicy['schedule']; next_run_at: string | null; last_run_at: string | null; created_by: string; created_at: string; updated_at: string }
@@ -38,8 +38,9 @@ export async function loadAgentContext(db: Db, agentId: string): Promise<AgentCo
     checks.push({ check, config: check.parseConfig(config), version: policyRow.version })
   }
   for (const key of policy.watch) {
-    const check = isWatchCheck(platform, key) ? getCheck(key) : undefined
-    if (check) checks.push({ check, config: check.parseConfig(check.defaultConfig), version: policyRow.version })
+    const resolved = resolveWatchCheck(platform, key)
+    const check = resolved ? getCheck(resolved) : undefined
+    if (check && !checks.some(c => c.check.key === check.key)) checks.push({ check, config: check.parseConfig(check.defaultConfig), version: policyRow.version })
   }
   const plan: ScanPlan = {
     agentId: agent.id, policyId: policyRow.id, policyVersion: policyRow.version, checks,
@@ -71,8 +72,8 @@ export function qualifies(ctx: AgentContext, input: { actionKey: string; change:
   if (!field || !writableFields(policy, ctx.platform).includes(field)) blockers.push(`field "${field ?? 'unknown'}" is not writable for this agent`); else reasons.push(`field "${field}" is writable`)
   const pid = String(input.record.productId ?? '')
   if (!inScope(policy, pid, Array.isArray(input.record.productTags) ? (input.record.productTags as string[]) : [])) blockers.push('the product is outside the agent\'s scope or is an exception'); else reasons.push('the product is inside the agent\'s scope')
-  if (input.actionKey === 'shopify.product.unpublish' && !policy.rules.publication?.allowUnpublish) blockers.push('unpublishing is not authorized')
-  if (input.actionKey === 'shopify.variant.set_sku' && input.change.from && !policy.rules.sku?.allowOverwrite) blockers.push('overwriting an existing SKU is not authorized')
+  if (type === 'publication' && input.change.to === false && !policy.rules.publication?.allowUnpublish) blockers.push('unpublishing is not authorized')
+  if (type === 'sku' && input.change.from && !policy.rules.sku?.allowOverwrite) blockers.push('overwriting an existing SKU is not authorized')
   if (type === 'price' && policy.rules.price) {
     const before = moneyCents(String(input.change.from ?? '')), after = moneyCents(String(input.change.to ?? ''))
     const max = policy.rules.price.maxChangePct

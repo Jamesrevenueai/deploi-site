@@ -26,7 +26,7 @@ export const variantFields = (withPublications: boolean) => /* GraphQL */ `
       sellingPlanGroupsCount { count }
       onlineStoreUrl
       updatedAt
-      ${withPublications ? 'resourcePublicationsV2(first: 10, onlyPublished: false) { nodes { publication { id } isPublished publishDate } }' : ''}
+      ${withPublications ? 'resourcePublicationsV2(first: 10, onlyPublished: false) { pageInfo { hasNextPage } nodes { publication { id } isPublished publishDate } }' : ''}
     }
     inventoryItem {
       id

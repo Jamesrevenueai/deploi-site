@@ -17,6 +17,8 @@ import { loadAgentContext, qualifies, type AgentRow, type Qualification } from '
 import { nextRunAt } from './schedule'
 import { runEmailStep, type EmailRunCounts } from '../email/run'
 import { runCompetitorStep, type CompetitorRunCounts } from '../competitors/run'
+import { syncSupplierRequests, type SupplierCounts } from './supplier'
+import { flushRescans } from '../connectors/shopify/rescans'
 
 export type AgentRunTrigger = 'manual' | 'schedule' | 'webhook' | 'test'
 export type AgentRunCounts = {
@@ -28,6 +30,8 @@ export type AgentRunCounts = {
   missingSources: string[]
   email?: EmailRunCounts
   competitors?: CompetitorRunCounts
+  /** Supplier Chaser: the agent's restock requests after this run (sent, followed up, replied) */
+  supplier?: SupplierCounts
 }
 export type AgentRunResult = { runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts; executions: ExecutionResult[] }
 
@@ -164,6 +168,9 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
     } catch (e) {
       return finishRun('failed', `email step failed: ${(e as Error).message.slice(0, 160)}`, scanId)
     }
+    if (ctx.policy.email.tasks.includes('supplier_reorder')) {
+      try { counts.supplier = { ...await syncSupplierRequests(agentId), skipped: counts.email.supplierSkipped ?? 0 } } catch { /* status mirror only; the messages themselves are recorded */ }
+    }
   }
   return finishRun('completed', undefined, scanId)
 }
@@ -171,6 +178,9 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
 /** Scheduler: run every active agent that is due. Each agent runs at most once per call; failures are recorded per agent. */
 export async function runDueAgents(opts: { now?: Date; limit?: number } = {}) {
   const now = opts.now ?? new Date()
+  // Shopify webhook rescans that a webhook's own flush did not finish (debounced or failed) are read first,
+  // so hourly agents see current inventory. Best effort: a failure is retried on the next call.
+  await flushRescans({ actor: 'system:scheduler' }).catch(() => undefined)
   const due = await admin(db => db.query<{ id: string }>(
     `select a.id from agents a join store_connections c on c.id = a.connection_id
      where a.status = 'active' and a.next_run_at is not null and a.next_run_at <= $1 and c.status = 'active' order by a.next_run_at limit $2`, [now.toISOString(), opts.limit ?? 20]))

@@ -98,6 +98,10 @@ export const EmailPolicySchema = z.object({
     cooldownDays: z.number().int().min(1).max(60).default(7),
     /** supplier_followup: days without a reply before the single follow-up */
     followupDays: z.number().int().min(1).max(30).default(3),
+    /** optional supplier mapping file (sku -> supplier email, reorder quantity, lead time); each mapped address must satisfy the recipient rules */
+    mappingSourceId: z.string().uuid().optional(),
+    /** low-stock SKUs the mapping does not list: ask the default supplier above, or leave them out */
+    unmapped: z.enum(['default_supplier', 'skip']).optional(),
   }).optional(),
   /** reading the mailbox is a separate permission, only for a task that needs it */
   read: z.object({
@@ -358,6 +362,8 @@ function emailExpansion(pe: EmailPolicy | undefined, ne: EmailPolicy | undefined
   if (ne.read.enabled && !pe.read.enabled) r.push('may now read replies in the mailbox')
   const ps = pe.supplierReorder, ns = ne.supplierReorder
   if (ns && (!ps || ns.supplierAddress !== ps.supplierAddress)) r.push('different supplier address')
+  if (ns?.mappingSourceId && ns.mappingSourceId !== ps?.mappingSourceId) r.push('different supplier mapping file')
+  if (ns && ps && (ns.unmapped ?? 'default_supplier') === 'default_supplier' && ps.unmapped === 'skip') r.push('unmapped products now go to the default supplier')
   if (ns && ps && (ns.thresholdAvailable > ps.thresholdAvailable || ns.cooldownDays < ps.cooldownDays || ns.followupDays < ps.followupDays)) r.push('supplier emails sent more often')
   return r
 }
@@ -430,7 +436,7 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
       : e.permission === 'send_approved' ? 'may send a message only after you approve that exact message'
       : `may send without asking until ${e.validUntil ? new Date(e.validUntil).toISOString().slice(0, 10) : '(no end date)'}`
     grants.push(`Email from ${sender}: ${level}. Purpose: "${e.purpose}". Tasks: ${what}.`)
-    grants.push(`Email recipients allowed: ${who}.${e.notify.length ? ` Summaries and alerts go to ${e.notify.join(', ')}.` : ''}${e.supplierReorder ? ` Supplier requests go to ${e.supplierReorder.supplierAddress} for variants with ${e.supplierReorder.thresholdAvailable} or fewer available, at most once every ${e.supplierReorder.cooldownDays} days per variant.` : ''}${e.supplierReorder && e.tasks.includes('supplier_followup') ? ` If the supplier has not replied after ${e.supplierReorder.followupDays} days, one follow-up in the same thread.` : ''}`)
+    grants.push(`Email recipients allowed: ${who}.${e.notify.length ? ` Summaries and alerts go to ${e.notify.join(', ')}.` : ''}${e.supplierReorder ? ` Supplier requests go to ${e.supplierReorder.mappingSourceId ? `the supplier named for each SKU in your supplier mapping file (only addresses the recipient rules allow)${e.supplierReorder.unmapped === 'skip' ? '; SKUs not in the file are left out' : `, otherwise ${e.supplierReorder.supplierAddress}`}` : e.supplierReorder.supplierAddress}, one request per supplier per day, for variants with ${e.supplierReorder.thresholdAvailable} or fewer available, at most once every ${e.supplierReorder.cooldownDays} days per variant.` : ''}${e.supplierReorder && e.tasks.includes('supplier_followup') ? ` If the supplier has not replied after ${e.supplierReorder.followupDays} days, one follow-up in the same thread.` : ''}`)
     if (e.read.enabled) grants.push('Mailbox reading: only to notice replies to messages this agent sent. Reply content is never acted on.')
     if (e.permission !== 'draft') limits.push(`Email: at most ${e.limits.perRun} messages per run, ${e.limits.perDay} per day and ${e.maxRecipientsPerMessage} recipients per message${e.allowAttachments ? '' : ', no attachments'}. Anything outside these limits waits for your approval.`)
     never.push(ctx.emailAccount?.provider === 'deploi' ? 'Never sends email to anyone outside the allowed recipients, even with your approval: adding a recipient needs a new grant.' : 'Never sends email to anyone outside the allowed recipients without your approval of that exact message.')

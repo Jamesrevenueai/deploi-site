@@ -1,6 +1,6 @@
 # Shopify App Store: what is still open
 
-As of 2026-10-28. The full listing checklist and draft copy are in `APP-STORE-CHECKLIST.md`. This page covers only the five open decisions and assets. Shopify's own figures (fees, limits) change; check them in the Partner Dashboard before relying on them.
+As of 2026-11-04. The full listing checklist and draft copy are in `APP-STORE-CHECKLIST.md`. This page covers the five open decisions and assets (§1–5) and the live verification that must happen before submission (§6). Shopify's own figures (fees, limits) change; check them in the Partner Dashboard before relying on them.
 
 ## 1. Pricing: options and a recommendation
 
@@ -69,3 +69,29 @@ The draft is at `https://getdeploi.com/privacy`. It shows "Draft, pending legal 
 7. **Estimates:** the weekly "time saved" figure is an estimate, not a guarantee. Check the wording in the policy and the terms.
 8. **Contact and requests:** a working privacy contact address. Mail to `hello@getdeploi.com` fails DMARC until `LAUNCH-STEPS.md` step 2 is done for the root domain.
 9. **Children's data, cookies and analytics** on the public site. Confirm what the site sets.
+
+## 6. Live verification before submission (blocked: needs you)
+
+No Shopify credentials exist in the build environment, so none of this has run against Shopify. The code paths are
+built and tested against a fake Shopify HTTP endpoint and the synthetic store. What is done in code, and the exact
+step that verifies it, is in `SHOPIFY-SETUP.md` §2 (steps 1–11). In short, in this order:
+
+| # | You do | Proves |
+|---|---|---|
+| 1 | Create a development store and the "Deploi (dev)" app; `shopify app deploy --config deploi-dev` | scopes, optional scopes and the three compliance topics are registered |
+| 2 | Set the environment (`SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_KEY_ID`, `CRON_SECRET`); apply migrations through `20261104000037` | the app can install and the hourly job runs |
+| 3 | Install from the store admin | managed install + token exchange; an expiring offline token is stored |
+| 4 | `SHOPIFY_DEVSTORE_SHOP=<store>.myshopify.com npx tsx scripts/shopify-devstore-check.ts --from-db` | read-only: install status, scopes, one page of variants with its query cost, sales channels. Refuses non-development stores and sends no mutation |
+| 5 | Wait over an hour, open the app | refresh with rotation (`credential.stored` by `system:token-refresh`) |
+| 6 | `shopify app webhook trigger` for `inventory_levels/update`, `products/update` and the three compliance topics | HMAC, dedupe, debounced rescan, compliance records |
+| 7 | One agent per correction, review then authorized | every change **Verified**; answers to READINESS §3 items 1–6 (SKU scope, unpublish read-back, channels, price lists, precision, cost) |
+| 8 | Supplier Chaser with a mapping pointing at an address you own; reply with a date | request sent from the agent mailbox, reply matched, ETA shown, no follow-up after the reply |
+| 9 | Uninstall; reinstall within 48 h; uninstall again | uninstall stops everything; `shop/redact` deferred for a reinstalled shop, erases after a final uninstall |
+
+Record each answer in `docs/platform-research/shopify-workflows.md`. Only then mark READINESS §3 items as verified.
+
+Still open after that, and not code: pricing (§1), icon (§2), the demo video (§3), reviewer samples in
+`docs/reviewer-samples/` (§4), a review-mode setting that allows writes on reviewers' development stores (§4; today
+development stores are enabled automatically under `STORE_ACCESS_MODE=beta`, so this may already be covered — confirm
+on step 3 that a fresh development store shows **eligible: development_store**), and legal review (§5).
+

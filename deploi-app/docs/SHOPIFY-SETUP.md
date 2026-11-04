@@ -45,25 +45,65 @@ New agents and new email permissions always start at drafts only. Acting without
 
 ## 2. Development store (live verification, not yet done)
 
-1. Partner account, then a development store: `shopify store create dev --name "<name>" --plan basic --demo-data`
-   or Dev Dashboard → Stores → Create store → Dev. Dev stores cannot take real payments.
-2. Create the app in the Dev Dashboard; copy `shopify.app.toml.example` to `shopify.app.toml` and fill
-   `client_id` and `handle`. Deploy configuration with `shopify app deploy`.
-3. Environment for the app (names only; values come from the Dev Dashboard and a key generator):
+Nothing below has run against Shopify: this repository has no Shopify credentials. Every step is for the founder,
+in order. Each one names what proves it worked.
+
+1. **Store.** Partner Dashboard → Stores → Create store → Development (or `shopify store create dev --name "<name>" --plan basic --demo-data`).
+   Development stores cannot take real payments.
+2. **App.** Dev Dashboard → Apps → Create app ("Deploi (dev)"). Then, in `deploi-app`:
+   `shopify app config link --client-id <client id> --file-name shopify.app.deploi-dev.toml`, merge
+   `shopify.app.deploi-dev.toml.example` into it (scopes, optional scopes, webhooks, compliance topics), and
+   `shopify app deploy --config deploi-dev`. Proof: Dev Dashboard → Versions shows the scopes and the three compliance topics.
+3. **Environment** on the app host (names only; values from the Dev Dashboard and a key generator):
    - `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_API_VERSION=2026-10`, `SHOPIFY_APP_URL`
    - `CREDENTIALS_ENCRYPTION_KEY` (base64 of 32 random bytes), `CREDENTIALS_KEY_ID`
    - `STORE_ACCESS_MODE=beta` (default): development stores are enabled automatically (Shopify's
      `shop.plan.partnerDevelopment`); other stores need an invite or staff approval (`/staff/store-access`).
      Use `open` for the App Store submission and listing (see §5).
    - `LIVE_WRITES=off` pauses writes to every real store (incident switch); leave unset otherwise
-   - keep `BILLING_REQUIRED` unset during early access
-4. Apply migrations `20261028000028` to `20261029000032` to the target database (`npm run db:migrate:prod`). Set
-   `CRON_SECRET` so `/api/cron/agents` (hourly, see `vercel.json`) runs scheduled agents and refuses anyone else.
-5. Install from the Shopify admin (managed installation). The embedded app loads `/shopify`, calls
-   `/api/shopify/session` with the App Bridge id token, and the server exchanges it for an expiring offline
-   token (stored encrypted).
-6. Test webhooks with `shopify app webhook trigger --topic=<topic> --address=https://<app>/api/shopify/webhooks --api-version=2026-10`.
-7. Confirm the open items in `docs/shopify-workflow.md` ("What is not verified live").
+   - `CRON_SECRET` so `/api/cron/agents` (hourly, `vercel.json`) runs scheduled agents and flushes leftover webhook rescans
+   - optional: `SHOPIFY_WEBHOOK_DEBOUNCE_MS` (default 15000) and `SHOPIFY_WEBHOOK_MAX_DELAY_MS` (default 120000)
+   - keep `BILLING_REQUIRED` unset (off)
+4. **Database.** Apply migrations through `20261104000037_shopify_ops.sql` (`npm run db:migrate:prod`; rollback
+   `supabase/rollback/20261104000037_shopify_ops.down.sql`).
+5. **Install** from the store admin (Apps → Deploi (dev)). The embedded app loads `/shopify`, calls
+   `/api/shopify/session` with the App Bridge id token, and the server exchanges it for an expiring offline token.
+   Proof: `store_connections` row `active`; `store_credentials.expires_at` about one hour ahead and `refresh_expires_at` about 90 days.
+6. **Read-only smoke check** (sends queries only; refuses any store that is not a development store):
+   `SHOPIFY_DEVSTORE_SHOP=<store>.myshopify.com npx tsx scripts/shopify-devstore-check.ts --from-db` (with that
+   environment's `DATABASE_URL` and `CREDENTIALS_ENCRYPTION_KEY`), or pass `SHOPIFY_DEVSTORE_TOKEN` directly.
+   Proof: `Result: PASS`; paste the variant query cost line into `docs/platform-research/shopify-workflows.md` (READINESS §3 item 6).
+7. **Token refresh.** Wait more than an hour, then open the app or press **Run now**. Proof: the audit trail shows
+   `credential.stored` by `system:token-refresh` and a new `refresh_expires_at`. If Shopify refuses the refresh the
+   connection shows `status = 'error'`, `status_reason = 'needs_reauth: …'`; reopening the app clears it.
+8. **Webhooks.** `shopify app webhook trigger --topic=<topic> --address=https://<app>/api/shopify/webhooks --api-version=2026-10`
+   for `inventory_levels/update`, `products/update`, `customers/data_request`, `customers/redact`, `shop/redact`.
+   Proof: `webhook_receipts` rows `processed`; compliance topics also in `shopify_compliance_requests`.
+9. **Corrections.** Upload the three demo CSVs (adapted to the store's products), create one agent per correction,
+   run each in review mode then authorized mode, and confirm **Verified** in Deploi and in the Shopify admin. Record:
+   whether the SKU write needs `write_inventory` (below), whether an unpublished channel disappears from
+   `resourcePublicationsV2` (handled either way, below), price precision, SKU search exactness.
+10. **Supplier Chaser.** Connect an agent mailbox, upload a supplier mapping (`sku,supplier_email,reorder_qty,lead_time_days,supplier_name`)
+    pointing at an address you control, set an item to 0 available, run the agent, approve the request, reply
+    from that address with a date. Proof: the request shows **Supplier replied; a date is mentioned: …** and no follow-up is sent.
+11. **Uninstall**, then reinstall within 48 hours (data kept; a later `shop/redact` is recorded as deferred), then uninstall
+    for good (after 48 hours `shop/redact` erases the shop).
+
+### What the code does where live behaviour is unconfirmed
+
+- **SKU writes and `write_inventory`.** Shopify documents `productVariantsBulkUpdate` as needing `write_products`, and
+  names no extra scope for `ProductVariantsBulkInput.inventoryItem.sku`; `inventoryItemUpdate` is the mutation that
+  needs `write_inventory` (`docs/platform-research/shopify-app-store.md` §5, `shopify-workflows.md` §3). Decision:
+  do **not** request `write_inventory`. If a live store refuses the SKU part for missing access, the execution ends
+  **Blocked** with "it may need the write_inventory scope"; the fix is adding `write_inventory` to `OPTIONAL_SCOPES`,
+  `ACTION_SCOPES['shopify.variant.set_sku']` and both TOML files.
+- **Unpublish verification.** The verifying read fills every known channel that is missing from a complete
+  `resourcePublicationsV2` list (no next page) as not published, so an unpublish verifies whether Shopify returns
+  `isPublished: false` or drops the channel. An incomplete list is not read that way.
+- **Throttling.** Every response's `extensions.cost.throttleStatus` is kept per connection; the next request waits
+  for the bucket, and a `THROTTLED` error waits `(requested − available) / restoreRate` (0.25 to 10 s). A throttled
+  mutation is retried (it did not run); a mutation with a lost response never is.
+- **Webhook bursts** collapse into one targeted rescan per record after a quiet period (`shopify_rescan_queue`).
 
 ## 3. Permissions
 
@@ -87,8 +127,7 @@ also receives `app/scopes_update`. A store that only ever drafts never grants a 
 Every execution re-checks the granted list and ends **blocked: missing permission: <scope>** rather than
 writing.
 
-Possibly needed, to confirm on a development store: `write_inventory` if `productVariantsBulkUpdate` refuses
-`inventoryItem.sku` without it. Writes to a real store need store access (`lib/engine/access.ts`): open mode,
+`write_inventory` is not requested; see "SKU writes and `write_inventory`" in §2. Writes to a real store need store access (`lib/engine/access.ts`): open mode,
 a development store, a redeemed beta invite or staff approval; a staff denial or `LIVE_WRITES=off` blocks
 them. Each agent's writable fields are enforced again inside the connector.
 
@@ -104,6 +143,36 @@ and changes are blocked until a plan is active. **Blocked:** no plans or prices 
 API credentials (`SHOPIFY_PARTNER_API_TOKEN`, `SHOPIFY_PARTNER_ID` (the number in the Partner Dashboard
 URL), `SHOPIFY_PARTNER_APP_ID`) do not exist. Set the plan's welcome link to `/shopify` so the plan is re-read
 on return. Beta merchants can get private plans limited to their stores.
+
+Decisions confirmed in code: the app never calls `appSubscriptionCreate` (App Pricing forbids it; that is Manual
+Pricing, legacy), and cannot cancel a merchant's plan (the merchant does that in Shopify; uninstall cancels it, and
+`markUninstalled` mirrors that locally). If an `app_subscriptions/update` webhook ever arrives it only triggers a
+fresh Partner API read, never trusts the payload. `BILLING_REQUIRED` stays off.
+
+## 4a. Privacy webhooks and uninstall
+
+- `app/uninstalled`: credentials deleted, every agent paused, queued writes, email and rescans cancelled, live
+  proposals blocked, subscriptions marked cancelled.
+- `customers/data_request`: the app holds no customer data from Shopify (no customer or order scopes). The only
+  place a customer's address can appear is an agent mailbox; the request records how many messages from or to that
+  address are held (count only) in the work log so the merchant can answer.
+- `customers/redact`: deletes that mail for the shop's organization only.
+- `shop/redact` (48 hours after uninstall): erases the connection, its agents' mail and everything under it, and the
+  organization when it has no other store. If the shop reinstalled, nothing is erased and the request is recorded as deferred.
+- Every delivery is HMAC-checked (401 otherwise), de-duplicated by webhook id, recorded in
+  `shopify_compliance_requests` with the customer as a one-way hash, and a failure returns 500 so Shopify retries.
+
+## 4b. Supplier Chaser
+
+Low stock (the agent's threshold) → each SKU's supplier from the agent's **supplier mapping** reference file
+(`sku, supplier_email, reorder_qty, lead_time_days, supplier_name`), or the default supplier → **one consolidated
+request per supplier per day** from the agent's mailbox (dedupe key `supplier_reorder:<supplier>:<day>`, plus a
+per-variant cooldown) → decided by the agent's email tier (draft, approve each, or within limits) → sent by the email
+engine. A supplier address outside the agent's recipient rules is never written to; a SKU listed twice is left out.
+A reply is matched to the thread; a date in the supplier's own words (quoted history is ignored) is stored as an
+ETA for the merchant to read and is never acted on. One follow-up after the set number of days without a reply; a
+follow-up not yet sent is withdrawn when the supplier replies. Status per request: `supplier_requests`
+(`lib/agents/supplier.ts#listSupplierRequests`).
 
 ## 5. App Store submission
 

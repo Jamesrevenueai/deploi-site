@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { merchantActor, staffActor } from '../merchant/helpers'
-import { createAgent, grantPolicy } from '../../lib/agents/lifecycle'
+import { createAgent, grantPolicy, clearAgentStop } from '../../lib/agents/lifecycle'
 import { runAgent } from '../../lib/agents/run'
 import { listInbox } from '../../lib/agents/inbox'
 import { setSwitch, setTier } from '../../lib/library/switches'
@@ -92,11 +92,15 @@ describe.skipIf(!ready)('Control Room', () => {
     expect(states.filter(s => s.status === 'active')).toHaveLength(0)
     expect((await admin(db => db.one<{ n: number }>(`select count(*)::int as n from library_switches where org_id = $1 and enabled`, [NW.org])))!.n).toBe(0)
     expect((await admin(db => db.one<{ status: string }>('select status from agents where id = $1', [harbor])))!.status).toBe('active')
+    // the organization stop switch is on for Northwind only (sends held, resume refused until cleared)
+    expect((await admin(db => db.one<{ agents_stopped: boolean }>('select agents_stopped from org_controls where org_id = $1', [NW.org])))!.agents_stopped).toBe(true)
+    expect((await admin(db => db.one<{ agents_stopped: boolean }>('select agents_stopped from org_controls where org_id = $1', [HB.org])))?.agents_stopped ?? false).toBe(false)
     expect(await stopAllAgents(nw)).toMatchObject({ paused: 0, alreadyStopped: 3, librarySwitchedOff: 0 })
     await expect(stopAllAgents(await staffActor())).rejects.toMatchObject({ code: 'forbidden' })
     const cr = await controlRoom(nw)
     expect(cr.counts.paused).toBe(2)
     expect(cr.counts.active).toBe(0)
+    await clearAgentStop(nw)
   })
 
   it('integrations are honest: a store row means connected, email providers are never live-verified, office tools need setup', async () => {

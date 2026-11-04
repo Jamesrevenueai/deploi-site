@@ -1,14 +1,14 @@
 /**
  * Control Room: one organization-scoped read of everything an owner needs at a glance, plus the
  * organization's emergency stop. Every read runs as the signed-in user (RLS limits it to their
- * organization; Deploi staff are refused here). Stopping uses the existing per-agent pause path and
+ * organization; Deploi staff are refused here). Stopping sets the organization stop switch (lib/agents/lifecycle.ts) and
  * the agent library's switch, so no server policy logic is duplicated.
  */
 import { withActor, assertMerchant, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { activity } from '../engine/queries'
 import { listInbox } from '../agents/inbox'
-import { pauseAgent } from '../agents/lifecycle'
+import { stopAllAgents as orgStopAll } from '../agents/lifecycle'
 import { weeklyFacts, weekStartOf } from '../agents/weekly'
 import { listAccounts, providers } from '../email/queries'
 import { emailConfig } from '../email/config'
@@ -156,20 +156,14 @@ export type StopAllResult = { paused: number; alreadyStopped: number; librarySwi
 export async function stopAllAgents(actor: Actor): Promise<StopAllResult> {
   const orgId = orgOf(actor)
   assertMerchant(actor, orgId)
-  const { agents, switches } = await withActor(actor, async db => ({
-    agents: await db.query<{ id: string; name: string; status: string }>(`select id, name, status from agents where org_id = current_org_id() and status <> 'deleted'`),
+  const before = await withActor(actor, async db => ({
+    stopped: Number((await db.one<{ n: string }>(`select count(*)::text as n from agents where org_id = current_org_id() and status not in ('active','deleted')`))?.n ?? 0),
     switches: await db.query<{ agent_key: string }>(`select agent_key from library_switches where org_id = current_org_id() and enabled`),
   }))
-  const out: StopAllResult = { paused: 0, alreadyStopped: 0, librarySwitchedOff: 0, failed: [] }
-  for (const a of agents) {
-    if (a.status !== 'active') { out.alreadyStopped++; continue }
-    try { await pauseAgent(actor, a.id); out.paused++ } catch (e) {
-      // it stopped between the read and the pause (another tab, the schedule): nothing left to stop
-      if ((e as { code?: string }).code === 'not_pending') out.alreadyStopped++
-      else out.failed.push({ id: a.id, name: a.name, message: (e as Error).message })
-    }
-  }
-  for (const s of switches) {
+  // the organization switch: pauses every agent, cancels queued jobs, holds sends and refuses resume until cleared
+  const org = await orgStopAll(actor, 'stopped from the Control Room')
+  const out: StopAllResult = { paused: org.agentsPaused, alreadyStopped: before.stopped, librarySwitchedOff: 0, failed: [] }
+  for (const s of before.switches) {
     try { await setSwitch(actor, s.agent_key, false); out.librarySwitchedOff++ } catch (e) { out.failed.push({ id: s.agent_key, name: s.agent_key, message: (e as Error).message }) }
   }
   return out

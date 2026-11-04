@@ -71,15 +71,9 @@ export function ControlRoomScreen() {
   async function stopAll() {
     setStop({ kind: 'busy' })
     try {
-      // the organization-wide stop of the approvals workstream when it is deployed; otherwise pause each agent here
-      const org = await fetch(ROUTES.orgStopApi, { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ confirm: 'stop' }) }).catch(() => null)
-      if (org && org.ok) {
-        const j = await org.json().catch(() => ({})) as Partial<StopAllResult>
-        setStop({ kind: 'done', via: 'org', r: { paused: j.paused ?? 0, alreadyStopped: j.alreadyStopped ?? 0, librarySwitchedOff: j.librarySwitchedOff ?? 0, failed: j.failed ?? [] } })
-      } else {
-        const r = await storeFetch<StopAllResult & { ok: true }>('/api/store/control-room/stop-all', { method: 'POST', body: { confirm: 'stop' } })
-        setStop({ kind: 'done', via: 'agents', r })
-      }
+      // the Control Room route sets the organization stop switch (agents paused, queued work cancelled, sends held)
+      const r = await storeFetch<StopAllResult & { ok: true }>('/api/store/control-room/stop-all', { method: 'POST', body: { confirm: 'stop' } })
+      setStop({ kind: 'done', via: 'org', r })
       setConfirm(false)
     } catch (e) { setStop({ kind: 'error', e: asApiError(e) }) }
     await reload()

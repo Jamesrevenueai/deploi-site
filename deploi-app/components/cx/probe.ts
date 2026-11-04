@@ -43,7 +43,5 @@ export const ROUTES = {
   legalApi: '/api/store/legal',
   billing: '/store/billing',
   approvalsApi: '/api/store/approvals',
-  /** organization-wide stop owned by the approvals workstream; the Control Room falls back to its own route */
-  orgStopApi: '/api/store/stop-all',
   officeConnectionsApi: '/api/office/connections',
 } as const

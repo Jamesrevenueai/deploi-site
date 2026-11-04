@@ -1,6 +1,7 @@
 import '../merchant/env'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createHmac } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { handleShopifyWebhook } from '../../lib/connectors/shopify/webhooks'
@@ -24,6 +25,16 @@ const collect = () => { const fns: (() => Promise<void>)[] = []; return { defer:
 const queue = (conn: string) => admin(db => db.query<{ resource_id: string; hits: number; topics: string[] }>('select resource_id, hits, topics from shopify_rescan_queue where connection_id = $1 order by resource_id', [conn]))
 const targetedScans = (conn: string) => admin(db => db.one<{ n: string }>(`select count(*)::text as n from scans where connection_id = $1 and scope = 'targeted'`, [conn])).then(r => Number(r!.n))
 const receipt = (id: string) => admin(db => db.one<{ status: string; note: string }>(`select status, note from webhook_receipts where platform = 'shopify' and delivery_id = $1`, [id]))
+
+describe('app configuration declares every topic the handler relies on', () => {
+  it('both TOML examples subscribe to monitoring and mandatory compliance topics', () => {
+    for (const f of ['shopify.app.toml.example', 'shopify.app.deploi-dev.toml.example']) {
+      const toml = readFileSync(f, 'utf8')
+      for (const t of ['app/uninstalled', 'app/scopes_update', 'products/update', 'products/delete', 'inventory_levels/update', 'inventory_items/update']) expect(toml, `${f}: ${t}`).toContain(`"${t}"`)
+      expect(toml).toMatch(/compliance_topics = \["customers\/data_request", "customers\/redact", "shop\/redact"\]/)
+    }
+  })
+})
 
 describe.skipIf(!ready)('Shopify webhooks: debounced rescans, uninstall, compliance and billing', () => {
   beforeEach(async () => { await resetMerchant(NW); await resetMerchant(HB); await admin(db => db.query('delete from shopify_rescan_queue')) })

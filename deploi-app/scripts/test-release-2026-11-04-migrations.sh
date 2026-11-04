@@ -59,8 +59,9 @@ step "7. rollback refuses while release tables hold data"
 psqlq "$PGURL/$COPY" -c "insert into org_products (org_id, product, enabled_by) values ('00000000-0000-4000-8000-000000000b01', 'office', 'rehearsal') on conflict do nothing"
 OUT=$(npx tsx scripts/launch-migrations.ts rollback $SET --db "$PGURL/$COPY" 2>&1 || true)
 if grep -q 'rollback refused' <<<"$OUT"; then echo "refused: $(grep -o 'rollback refused.*' <<<"$OUT" | head -1)"; else echo "NOT REFUSED: $OUT"; exit 1; fi
-STILL=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261104%'"); [[ "$STILL" == "8" ]] || { echo "PARTIAL ROLLBACK: $STILL"; exit 1; }
-echo "all 8 release migrations still recorded after the refusal: ok"
+EXPECTED=$(ls supabase/migrations/20261104*.sql | wc -l | tr -d " ")
+STILL=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261104%'"); [[ "$STILL" == "$EXPECTED" ]] || { echo "PARTIAL ROLLBACK: $STILL of $EXPECTED"; exit 1; }
+echo "all $EXPECTED release migrations still recorded after the refusal: ok"
 
 step "8. rollback with --discard-data, then compare the schema with the original"
 npx tsx scripts/launch-migrations.ts rollback $SET --db "$PGURL/$COPY" --discard-data

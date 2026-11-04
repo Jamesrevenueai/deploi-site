@@ -1,6 +1,6 @@
 # Deploi readiness report — 2026-11-04
 
-Branch `claude/deploi-full-implementation` (integration of eight workstreams). **Nothing on this branch is
+Branch `claude/deploi-full-implementation` (integration of eight workstreams: Shopify, WooCommerce, shared infrastructure, Deploi Office, customer experience, legal/billing/security, plan enforcement, rate limits/CSP). **Nothing on this branch is
 merged or deployed.** Production (`deploi-app` on Vercel, Supabase `deploi-prod`) still runs `main` at
 `e7d2b6c` with migrations through `20261030000035`.
 
@@ -20,11 +20,11 @@ No capability on this branch is live-tested. Every integration below is **locall
 |---|---|
 | Typecheck (`npx tsc --noEmit`) | clean |
 | Lint (`npx eslint app components lib e2e tests scripts --quiet`) | clean |
-| Unit + integration (`npx vitest run`, fresh database) | **FINAL_VITEST** (was 298/298 at session start) |
-| Browser tests against `next build` (`npx playwright test`) | **FINAL_E2E** (3 skipped: embedded Shopify needs real Shopify credentials) |
+| Unit + integration (`npx vitest run`, fresh database) | **577/577** in 85 files (was 298/298 at session start) |
+| Browser tests against `next build` (`npx playwright test`) | **40 passed, 3 skipped** (the 3 are the embedded Shopify app, which needs real Shopify credentials) |
 | Production build (`npm run build`) | succeeds |
 | Website (`npm test`, `npm run build` at repo root) | 47/47; build succeeds |
-| Release migration rehearsal (`bash scripts/test-release-2026-11-04-migrations.sh`) | all checks pass: production host refused; dry run leaves nothing; apply keeps existing rows and backfills Commerce; 111 app tests pass on the migrated copy; rollback refuses while data exists and the refusal leaves all migrations in place; `--discard-data` rollback returns the schema to the original except the deliberately kept security hardening (8 lines); re-apply works |
+| Release migration rehearsal (`bash scripts/test-release-2026-11-04-migrations.sh`) | all checks pass for migrations 036–044: production host refused; dry run leaves nothing; apply keeps existing rows and backfills Commerce; 133 app tests pass on the migrated copy; rollback refuses while data exists and the refusal leaves all migrations in place; `--discard-data` rollback returns the schema to the original except the deliberately kept security hardening (8 lines); re-apply works |
 | Forbidden-name scan (`scripts/forbidden-grep.sh`) | clean |
 
 ## 2. Capability status
@@ -56,9 +56,9 @@ No capability on this branch is live-tested. Every integration below is **locall
 | Agreement acceptance tracking + gate | Locally tested | Append-only acceptances (who, when, IP, UA, document hash). Gate on store/Office connect, agent create/grant, billing. `LEGAL_GATE=off` by default. |
 | Billing: Stripe subscriptions | Locally tested; **Blocked** live | Checkout, portal, signature-verified webhook. `BILLING_MODE=off` by default; live mode refuses without explicit live config. Needs Stripe account + prices. |
 | Billing: Shopify App Store merchants | Partial | Status read + webhook-triggered refresh; no `appSubscriptionCreate` (App Pricing is set in the Partner Dashboard). `BILLING_REQUIRED` off. |
-| Plan enforcement | PLAN_STATUS | Agents, competitor stores, monthly emails, Office limits; ALLOWANCE_STATUS |
+| Plan enforcement | Locally tested | Agents, competitor stores, monthly emails, Office seats and connections, and the monthly action allowance (carried-out actions per UTC month; over it, work is held for approval, never dropped). Downgrade or lapse switches off excluded library agents and pauses the newest agents over the limit, audited; upgrades resume nothing. Only while `BILLING_MODE` is on. Open: an over-limit email send fails rather than being held; held library drafts still expire after 14 days. |
 | Tenant isolation | Locally tested | Catalog-driven tests: every table has RLS + a scoped policy or a documented deny-all; org A reads 0 rows of org B in every org-scoped table; credential tables unreadable by user roles. |
-| Abuse protection / CSP | RATE_STATUS | |
+| Abuse protection / CSP | Locally tested (vitest + e2e) | Postgres-backed rate limits (migration 044) on the lead form, sign-in, auth and OAuth callbacks, unsubscribe, the WooCommerce key callback and merchant writes; signed webhooks never refused. Enforced nonce-based script CSP; the embedded Shopify admin is tested only against the App Bridge stub (check `/shopify` in a real admin after deploy; `CSP_MODE=report-only` is the fallback). `style-src` not restricted. |
 
 ## 3. Security findings
 
@@ -76,6 +76,7 @@ No capability on this branch is live-tested. Every integration below is **locall
 | F-07 | Medium | Shopify customer privacy webhooks answer "no customer data held"; untrue once order/customer agents or agent email hold shopper data | Open: change before such agents ship |
 | F-08 | Medium | Any member of an organization can grant agent authorizations (no owner-only role) | Open |
 | F-13 | Info | Dev sign-in on production per `PRODUCTION-SAFETY.md` §2 | Open: verify Production env has no `AUTH_MODE=dev` / `ALLOW_DEV_LOGIN` (Vercel listing on 2026-11-04 shows both set for **Preview only**) |
+| F-06, F-09, F-10, F-11, F-12 | Medium–Low | No script CSP; free tier switch with billing on; allowance not enforced; webhook downgrade; no rate limits | Fixed on the branch |
 | Others | | `docs/SECURITY-REVIEW-2026-11-04.md` | |
 
 ## 4. Blockers and the exact founder actions
@@ -86,7 +87,7 @@ No capability on this branch is live-tested. Every integration below is **locall
    not yours. Production has 3 staff profiles; `STAFF_EMAILS` lists 2 addresses.
 2. **Grant this session (or a future one) push access to `deploi-site`** so the branch can be pushed and a
    draft PR opened. The request was refused in this session.
-3. **Apply migrations 036–043 (044 if merged) to production**, after review, with
+3. **Apply migrations 036–044 to production**, after review, with
    `npx tsx scripts/launch-migrations.ts dry-run --set=2026-11-04 --http=makqaqzlylhckijdbjzi --confirm-production=makqaqzlylhckijdbjzi`,
    then `apply`. Do preview (`bhddgjcefwasdyrrfptc`) first. This session was not permitted to run even a
    rolled-back dry run on preview.

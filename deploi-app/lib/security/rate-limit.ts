@@ -31,12 +31,12 @@ export type BucketName =
 
 export type BucketConfig = { limit: number; windowS: number; onError: 'open' | 'closed'; why: string }
 
-/** Defaults. The e2e suite (one IP, ~60 dev sign-ins and a few hundred writes per run) fits under all of them. */
+/** Defaults. The e2e suite runs under them unchanged (one IP: ~60 dev sign-ins and at most ~35 writes a minute per organization per run). */
 export const BUCKETS: Record<BucketName, BucketConfig> = {
   lead: { limit: 6, windowS: 600, onError: 'open', why: 'public early-access form, per IP (a person applies once)' },
   magic_link_ip: { limit: 10, windowS: 900, onError: 'open', why: 'sign-in link requests per IP (Supabase also limits OTP mail)' },
   magic_link_email: { limit: 5, windowS: 3600, onError: 'open', why: 'sign-in link requests per address, so one inbox cannot be flooded from many IPs' },
-  dev_login: { limit: 120, windowS: 600, onError: 'open', why: 'development sign-in (AUTH_MODE=dev only), per IP' },
+  dev_login: { limit: 300, windowS: 600, onError: 'open', why: 'development sign-in (AUTH_MODE=dev only), per IP' },
   auth_callback: { limit: 30, windowS: 600, onError: 'open', why: 'magic-link code exchange, per IP' },
   oauth_start: { limit: 30, windowS: 600, onError: 'open', why: 'OAuth starts (Shopify install per IP; mailbox and Office consent per organization)' },
   oauth_callback: { limit: 60, windowS: 600, onError: 'open', why: 'OAuth callbacks, per IP' },

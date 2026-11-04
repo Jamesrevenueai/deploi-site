@@ -272,9 +272,17 @@ export async function stopAllAgents(actor: Actor, reason: string) {
       emails += await cancelAgentEmail(db, a.id, 'all agents were stopped; queued messages are not sent', false)
       await audit(db, { orgId, entityType: 'agent', entityId: a.id, event: 'agent.paused', actor: actor.label, detail: { reason: 'all agents were stopped', org_stop: true } })
     }
+    // Deploi Office agents stop with the rest: paused, queued sends, bookings and CRM writes cancelled
+    const { cancelAgentActions } = await import('../office/actions')
+    const officeActive = await db.query<{ id: string }>(`update office_agents set status = 'paused', next_run_at = null where org_id = $1 and status = 'active' returning id`, [orgId])
+    for (const o of officeActive) {
+      const n = await cancelAgentActions(db, o.id, 'all agents were stopped; queued items are not carried out', false)
+      emails += n.emails
+      await audit(db, { orgId, entityType: 'agent', entityId: o.id, event: 'office_agent.paused', actor: actor.label, detail: { reason: 'all agents were stopped', org_stop: true, actions_cancelled: n.actions } })
+    }
     const jobs = await cancelJobs(db, { orgId, reason: 'all agents were stopped', actor: actor.label, agentWorkOnly: true })
-    await audit(db, { orgId, entityType: 'org', entityId: orgId, event: 'org.agents_stopped', actor: actor.label, detail: { reason: why, agents_paused: active.length, proposals_blocked: proposals, emails_cancelled: emails, jobs_cancelled: jobs } })
-    return { agentsPaused: active.length, proposalsBlocked: proposals, emailsCancelled: emails, jobsCancelled: jobs }
+    await audit(db, { orgId, entityType: 'org', entityId: orgId, event: 'org.agents_stopped', actor: actor.label, detail: { reason: why, agents_paused: active.length, office_agents_paused: officeActive.length, proposals_blocked: proposals, emails_cancelled: emails, jobs_cancelled: jobs } })
+    return { agentsPaused: active.length + officeActive.length, officeAgentsPaused: officeActive.length, proposalsBlocked: proposals, emailsCancelled: emails, jobsCancelled: jobs }
   })
 }
 

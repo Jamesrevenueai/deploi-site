@@ -56,6 +56,11 @@ async function valueFor(c: Client, col: Col, lits: Map<string, string>): Promise
   }
 }
 
+/** Columns whose check constraint is a pattern the generic generator cannot satisfy: a valid literal per column. */
+const VALUE_OVERRIDES: Record<string, string> = {
+  'email_thread_state.thread_key': `'m:' || gen_random_uuid()::text`,
+}
+
 describe.skipIf(!ready)('cross-tenant isolation of every org-scoped table', () => {
   it("organization A reads none of organization B's rows in any org-scoped table; B reads its own", async () => {
     await withOwner(async c => {
@@ -74,7 +79,7 @@ describe.skipIf(!ready)('cross-tenant isolation of every org-scoped table', () =
             if (k.generated) continue
             if (k.name === col) { names.push(k.name); values.push(`'${ORG_HB}'`); continue }
             if (k.nullable || k.hasDefault) continue
-            names.push(k.name); values.push(await valueFor(c, k, lits))
+            names.push(k.name); values.push(VALUE_OVERRIDES[`${t}.${k.name}`] ?? await valueFor(c, k, lits))
           }
           const hasId = cols.some(k => k.name === 'id')
           await c.query('savepoint s')

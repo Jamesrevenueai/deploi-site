@@ -4,6 +4,7 @@
  * organization; Deploi staff are refused here). Stopping sets the organization stop switch (lib/agents/lifecycle.ts) and
  * the agent library's switch, so no server policy logic is duplicated.
  */
+import { providerConfigured, type OfficeProvider } from '../office/config'
 import { withActor, assertMerchant, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { activity } from '../engine/queries'
@@ -185,11 +186,18 @@ export type Integration = {
 /** Status of every integration, honestly: nothing reads "connected" without a connection row or configured credentials. */
 export async function integrations(actor: Actor): Promise<Integration[]> {
   orgOf(actor)
-  const { stores, accounts, mailboxes } = await withActor(actor, async db => ({
+  const { stores, accounts, mailboxes, office } = await withActor(actor, async db => ({
     stores: await db.query<{ platform: string; status: string; name: string; is_synthetic: boolean }>(`select platform, status, coalesce(display_name, external_id) as name, is_synthetic from store_connections where org_id = current_org_id()`),
     accounts: await db.query<{ provider: string; status: string; address: string }>(`select provider, status, address from email_accounts where org_id = current_org_id() and status <> 'disconnected' and provider in ('gmail','microsoft')`),
     mailboxes: (await db.one<{ n: number }>(`select count(*)::int as n from email_accounts where org_id = current_org_id() and provider = 'deploi' and status <> 'disconnected'`))?.n ?? 0,
+    office: await db.query<{ provider: string; status: string; name: string; is_synthetic: boolean }>(`select provider, status, coalesce(display_name, external_account_id) as name, is_synthetic from office_connections where org_id = current_org_id() and status <> 'disconnected'`),
   }))
+  const officeIntegration = (p: OfficeProvider): Pick<Integration, 'status' | 'detail'> => {
+    const c = office.find(x => x.provider === p)
+    if (c?.status === 'active') return { status: 'connected', detail: `${c.name}${c.is_synthetic ? ' (synthetic test account)' : ''}. Not live-verified.` }
+    if (c?.status === 'needs_reauth') return { status: 'needs_setup', detail: `${c.name}: reconnect in Deploi Office.` }
+    return providerConfigured(p) ? { status: 'needs_setup', detail: 'Available, not connected. Connect it in Deploi Office.' } : { status: 'not_available', detail: 'Not configured on this environment yet.' }
+  }
   const store = (p: string) => stores.find(s => s.platform === p && s.status === 'active')
   const prov = new Map(providers().map(p => [p.provider, p]))
   const shop = store('shopify'), woo = store('woocommerce')
@@ -229,21 +237,19 @@ export async function integrations(actor: Actor): Promise<Integration[]> {
     mail('gmail', 'Gmail / Google Workspace'),
     mail('microsoft', 'Microsoft 365 / Outlook'),
     {
-      key: 'hubspot', name: 'HubSpot', group: 'office', liveVerified: false, href: '/office/connections', probe: true, status: 'needs_setup',
-      detail: 'Set up in Deploi Office.',
+      key: 'hubspot', name: 'HubSpot', group: 'office', liveVerified: false, href: '/office/connections', probe: false, ...officeIntegration('hubspot'),
       usedFor: 'Deploi Office follows up new leads and keeps contact records current.',
       permissions: ['Read contacts and deals', 'Draft follow-ups; writing back needs your grant'],
     },
     {
-      key: 'google_calendar', name: 'Google Calendar', group: 'office', liveVerified: false, href: '/office/connections', probe: true, status: 'needs_setup',
-      detail: 'Set up in Deploi Office.',
+      key: 'google_calendar', name: 'Google Calendar', group: 'office', liveVerified: false, href: '/office/connections', probe: false, ...officeIntegration('google_calendar'),
       usedFor: 'Deploi Office proposes meeting times from your free and busy slots.',
       permissions: ['Read free and busy times', 'Create events only for bookings you approve or grant'],
     },
     {
       key: 'stripe', name: 'Stripe billing', group: 'billing', liveVerified: false, href: '/store/billing', probe: true,
-      status: process.env.STRIPE_SECRET_KEY ? 'needs_setup' : 'not_available',
-      detail: process.env.STRIPE_SECRET_KEY ? 'Billing is set up on this environment; manage your plan on the billing page.' : 'Billing is not set up on this environment. Paid pilots are invoiced directly.',
+      status: process.env.STRIPE_SECRET_KEY && (process.env.BILLING_MODE ?? 'off') !== 'off' ? 'needs_setup' : 'not_available',
+      detail: process.env.STRIPE_SECRET_KEY && (process.env.BILLING_MODE ?? 'off') !== 'off' ? 'Billing is set up on this environment; manage your plan on the billing page.' : 'Billing is not set up on this environment. Paid pilots are invoiced directly.',
       usedFor: 'Your Deploi subscription. Agents never use it.',
       permissions: ['None for agents', 'You approve every charge'],
     },

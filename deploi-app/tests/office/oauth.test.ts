@@ -1,5 +1,5 @@
 import '../merchant/env'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
 import { createHash } from 'node:crypto'
 import { admin } from '../../lib/db'
 import { prepareDb } from '../db/helpers'
@@ -11,6 +11,8 @@ import { staffActor } from '../merchant/helpers'
 import { NW, HB, merchantActor, resetOffice } from './helpers'
 
 const ready = await prepareDb()
+// leave no Office agents, actions or connections behind for other test files
+afterAll(async () => { if (ready) { await resetOffice(NW, { enable: false }); await resetOffice(HB, { enable: false }) } })
 const ENV = ['HUBSPOT_CLIENT_ID', 'HUBSPOT_CLIENT_SECRET', 'GOOGLE_CALENDAR_CLIENT_ID', 'GOOGLE_CALENDAR_CLIENT_SECRET']
 const seen: { provider: string; code: string; verifier: string | null }[] = []
 const configure = () => { for (const k of ENV) process.env[k] = `test-${k.toLowerCase()}` }

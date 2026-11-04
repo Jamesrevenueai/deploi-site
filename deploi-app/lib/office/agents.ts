@@ -7,6 +7,7 @@
 import { admin, type Db } from '../db'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
+import { orgStopReason } from '../engine/kill-switch'
 import { assertProduct } from '../products'
 import { officeAudit } from './audit'
 import { cancelAgentActions, type AgentRow } from './actions'
@@ -114,6 +115,8 @@ export async function grantOfficePolicy(actor: Actor, agentId: string, policyId:
     await assertProduct(db, a0.org_id, 'office')
     const agent = (await db.one<AgentRow>('select * from office_agents where id = $1 for update', [agentId]))!
     if (agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
+    const stopped = await orgStopReason(db, a0.org_id)
+    if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before granting an agent`)
     const pr = await db.one<PolicyRow>('select * from office_agent_policies where id = $1 and agent_id = $2 for update', [policyId, agentId])
     if (!pr || pr.status !== 'pending_grant') throw new EngineError('not_pending', 'this version is not waiting for a grant')
     if (pr.policy_hash !== shownHash) throw new EngineError('hash_mismatch', 'the authorization you reviewed is not the current version; review it again')
@@ -146,6 +149,8 @@ export async function resumeOfficeAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
   return admin(async db => {
     await assertProduct(db, a0.org_id, 'office')
+    const stopped = await orgStopReason(db, a0.org_id)
+    if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before resuming an agent`)
     const r = await db.query(`update office_agents set status = 'active', next_run_at = now() where id = $1 and status = 'paused' and active_policy_id is not null returning id`, [agentId])
     if (!r.length) throw new EngineError('not_pending', 'only a paused agent with an active authorization can resume')
     await officeAudit(db, { orgId: a0.org_id, entityType: 'office_agent', entityId: agentId, event: 'agent.resumed', actor: actor.label })

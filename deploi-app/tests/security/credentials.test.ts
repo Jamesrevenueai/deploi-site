@@ -13,7 +13,7 @@ const SECRET_COLUMN = /(cipher|secret|password|verifier|code_hash|reply_token|ac
 const NOT_SECRET: Record<string, string> = {
   'email_messages.reply_token': 'part of the Reply-To address every recipient sees; readable only by the owning organization (RLS)',
 }
-const CREDENTIAL_TABLES = ['store_credentials', 'email_credentials', 'email_oauth_states']
+const CREDENTIAL_TABLES = ['store_credentials', 'email_credentials', 'email_oauth_states', 'woo_auth_states', 'woo_connections', 'office_credentials', 'office_oauth_states']
 
 describe.skipIf(!ready)('credentials and privileges', () => {
   it('credential tables have no privilege for anon or authenticated, and a session reads nothing from them', async () => {

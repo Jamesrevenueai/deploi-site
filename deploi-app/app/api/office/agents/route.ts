@@ -4,6 +4,7 @@ import { HttpError, readJson } from '@/lib/store/request'
 import { officeActor, officeError } from '@/lib/office/request'
 import { officeAgents } from '@/lib/office/queries'
 import { createOfficeAgent } from '@/lib/office/agents'
+import { requireAgreements } from '@/lib/legal'
 import { officeTemplate, officeTemplatePolicy } from '@/lib/office/templates'
 import { activeConnection } from '@/lib/office/connections'
 
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const actor = await officeActor(req, { mutating: true })
+    await requireAgreements(actor, 'office')
     const b = await readJson(req)
     const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
     if (typeof b.template === 'string') {

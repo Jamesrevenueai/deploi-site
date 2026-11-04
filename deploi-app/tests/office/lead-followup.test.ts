@@ -1,14 +1,16 @@
 import '../merchant/env'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { admin } from '../../lib/db'
 import { prepareDb } from '../db/helpers'
 import { getSynthMail } from '../../lib/email/adapters/synthetic'
 import { runOfficeAgent } from '../../lib/office/run'
 import { approveOfficeAction, editOfficeAction, rejectOfficeAction } from '../../lib/office/approvals'
 import { injectSyntheticInbound, mutateOfficeSynth } from '../../lib/office/synthetic'
-import { NW, setupOffice, grantedAgent, widen, actions, leads, lead, t0, addDays, type OfficeSetup } from './helpers'
+import { NW, setupOffice, grantedAgent, widen, actions, leads, lead, t0, addDays, type OfficeSetup, resetOffice, HB } from './helpers'
 
 const ready = await prepareDb()
+// leave no Office agents, actions or connections behind for other test files
+afterAll(async () => { if (ready) { await resetOffice(NW, { enable: false }); await resetOffice(HB, { enable: false }) } })
 
 describe.skipIf(!ready)('Lead Follow-up end to end (synthetic HubSpot and mailbox)', () => {
   let s: OfficeSetup

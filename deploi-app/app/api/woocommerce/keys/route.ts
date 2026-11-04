@@ -1,6 +1,7 @@
 /** Manual fallback: paste a Read/Write key pair. Validated by a live read before anything is stored. Body: { siteUrl, consumerKey, consumerSecret }. */
 import { NextResponse, after } from 'next/server'
 import { resolveActor, errorResponse, readJson } from '@/lib/store/request'
+import { requireAgreements } from '@/lib/legal'
 import { connectStore } from '@/lib/connectors/woocommerce/connect'
 import { merchantFor } from '@/lib/connectors/woocommerce/actor'
 import { runScan } from '@/lib/engine/scan'
@@ -11,7 +12,9 @@ export const maxDuration = 60
 
 export async function POST(req: Request) {
   try {
-    const m = merchantFor(await resolveActor(req, { mutating: true }))
+    const actor = await resolveActor(req, { mutating: true })
+    await requireAgreements(actor, 'commerce')
+    const m = merchantFor(actor)
     const body = await readJson(req)
     const creds = { consumerKey: String(body.consumerKey ?? '').trim(), consumerSecret: String(body.consumerSecret ?? '').trim() }
     const r = await connectStore({ orgId: m.orgId, actor: m.label, siteUrl: String(body.siteUrl ?? ''), creds, permissions: 'read_write', via: 'manual' })

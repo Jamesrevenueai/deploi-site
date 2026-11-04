@@ -58,7 +58,7 @@ export const engineSource: ApprovalSource = {
 type MailRow = { id: string; org_id: string; agent_id: string | null; agent_name: string | null; status: string; status_reason: string | null; task_key: string; from_address: string; to_addresses: string[]; cc_addresses: string[]
   content_hash: string; created_at: string; attachment_count: number }
 const MAIL_SQL = `select m.id, m.org_id, m.agent_id, g.name as agent_name, m.status, m.status_reason, m.task_key, m.from_address, m.to_addresses, m.cc_addresses, m.content_hash, m.created_at, m.attachment_count
-  from email_messages m left join agents g on g.id = m.agent_id where m.org_id = $1 and m.status in ('awaiting_approval', 'draft')`
+  from email_messages m left join agents g on g.id = m.agent_id where m.org_id = $1 and m.status in ('awaiting_approval', 'draft') and m.office_agent_id is null`
 
 async function mailItems(rows: MailRow[]): Promise<ApprovalItem[]> {
   if (!rows.length) return []

@@ -10,7 +10,9 @@ export const MERCHANT_NAV: NavItem[] = [
   { href: '/store/activity', label: 'Activity', icon: 'list' },
   { href: '/store/rules', label: 'Rules', icon: 'shield' },
   { href: '/store/team', label: 'Team', icon: 'users' },
-  { href: '/store/plan', label: 'Plan', icon: 'badge' },
+  { href: '/office', label: 'Office', icon: 'users' },
+  { href: '/store/plan', label: 'Plan', icon: 'badge', also: ['/store/billing'] },
+  { href: '/store/legal', label: 'Agreements', icon: 'shield' },
   { href: '/store/onboarding', label: 'Setup', icon: 'check' },
 ]
 

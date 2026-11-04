@@ -31,6 +31,7 @@ function handlers(text: string): { method: string; body: string }[] {
 const WEBHOOKS: Record<string, { evidence: RegExp; lib?: { file: string; evidence: RegExp } }> = {
   'app/api/shopify/webhooks/route.ts': { evidence: /handleShopifyWebhook/, lib: { file: 'lib/connectors/shopify/webhooks.ts', evidence: /verifyWebhookHmac\(raw/ } },
   'app/api/webhooks/agent-mail/route.ts': { evidence: /verifySvix\(/ },
+  'app/api/woocommerce/webhooks/route.ts': { evidence: /handleWooWebhook/, lib: { file: 'lib/connectors/woocommerce/webhooks.ts', evidence: /verifyWooSignature\(raw, signature, secret\)/ } },
   'app/api/billing/stripe/webhook/route.ts': { evidence: /verifyStripeSignature\(raw, req\.headers\.get\('stripe-signature'\)/ },
 }
 /** Routes that are deliberately outside the merchant session, with the guard each must show. */
@@ -45,16 +46,39 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/shopify/auth/callback/route.ts': { why: 'OAuth callback: HMAC + state + shop verified', evidence: /verifyQueryHmac/ },
   'app/api/shopify/session/route.ts': { why: 'embedded app install: Shopify session token verified', evidence: /verifyShopifyBearer\(req\)/ },
   'app/api/email/oauth/callback/route.ts': { why: 'mailbox OAuth callback: session + state', evidence: /resolveActor/ },
+  'app/api/cron/jobs/route.ts': { why: 'Vercel cron', evidence: /cronAuthorized\(req\)/ },
+  'app/api/cron/office/route.ts': { why: 'Vercel cron', evidence: /cronAuthorized\(req\)/ },
+  'app/api/webhooks/agent-mail/unsubscribe/route.ts': { why: 'one-click unsubscribe: signed token per message and recipient', evidence: /verifyUnsubscribeToken\(/ },
+  'app/api/woocommerce/callback/route.ts': { why: 'WooCommerce key callback: signed, one-time, expiring state bound to the organization', evidence: /receiveCallback\(body\)/ },
+  'app/api/woocommerce/return/route.ts': { why: 'browser return from WooCommerce: signed state must belong to the signed-in session\'s organization', evidence: /session\.agencyId !== state\.org_id/ },
+  'app/api/woocommerce/connect/route.ts': { why: 'merchant session', evidence: /resolveActor\(req, \{ mutating: true \}\)/ },
+  'app/api/woocommerce/keys/route.ts': { why: 'merchant session', evidence: /resolveActor\(req, \{ mutating: true \}\)/ },
+  'app/api/woocommerce/disconnect/route.ts': { why: 'merchant session', evidence: /resolveActor\(req, \{ mutating: true \}\)/ },
+  'app/api/woocommerce/status/route.ts': { why: 'merchant session', evidence: /resolveActor\(req\)/ },
+  'app/api/office/oauth/hubspot/callback/route.ts': { why: 'HubSpot OAuth callback: session + one-time state', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
+  'app/api/office/oauth/google/callback/route.ts': { why: 'Google OAuth callback: session + one-time state + PKCE', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/email/oauth/synthetic/route.ts': { why: 'synthetic consent page, off unless synthetic mail is allowed', evidence: /syntheticAllowed/ },
 }
+
+/** Deploi Office API: every handler resolves the session through officeActor (session, CSRF, staff refused, product enabled). */
+const isOfficeApi = (f: string) => f.startsWith('app/api/office/') && !f.startsWith('app/api/office/oauth/')
 
 describe('API route sweep', () => {
   const all = routes(API)
 
   it('every route is a merchant route, a webhook, or a classified exception', () => {
-    const unclassified = all.filter(f => !f.startsWith('app/api/store/') && !f.startsWith('app/api/billing/') && !WEBHOOKS[f] && !OTHER[f])
+    const unclassified = all.filter(f => !f.startsWith('app/api/store/') && !f.startsWith('app/api/billing/') && !isOfficeApi(f) && !WEBHOOKS[f] && !OTHER[f])
     expect(unclassified).toEqual([])
     for (const k of [...Object.keys(WEBHOOKS), ...Object.keys(OTHER)]) expect(all, `stale entry ${k}`).toContain(k)
+  })
+
+  it('every Deploi Office handler resolves the organization through officeActor', () => {
+    const office = all.filter(isOfficeApi)
+    expect(office.length).toBeGreaterThan(5)
+    const bad: string[] = []
+    for (const f of office) for (const h of handlers(src(f))) if (!/officeActor\(req/.test(h.body)) bad.push(`${f} ${h.method}`)
+    expect(bad).toEqual([])
+    expect(src('lib/office/request.ts')).toMatch(/resolveActor\(req, opts\)[\s\S]*assertProduct\(db, actor\.orgId, 'office'\)/)
   })
 
   it('every merchant and billing handler resolves the organization from the session', () => {

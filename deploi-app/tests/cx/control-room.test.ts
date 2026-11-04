@@ -103,13 +103,13 @@ describe.skipIf(!ready)('Control Room', () => {
     await clearAgentStop(nw)
   })
 
-  it('integrations are honest: a store row means connected, email providers are never live-verified, office tools need setup', async () => {
+  it('integrations are honest: a store row means connected, email providers are never live-verified, office tools without credentials are not available', async () => {
     const list = await integrations(await merchantActor(NW))
     const by = Object.fromEntries(list.map(i => [i.key, i]))
     expect(Object.keys(by).sort()).toEqual(['agent_mailbox', 'gmail', 'google_calendar', 'hubspot', 'microsoft', 'shopify', 'stripe', 'woocommerce'])
     expect(by.shopify.status).toBe('connected')
     expect(by.woocommerce.status).toBe('needs_setup')
-    expect(by.hubspot.status).toBe('needs_setup')
+    expect(by.hubspot.status).toBe('not_available') // no HubSpot OAuth client on this environment; connected once an office connection row exists
     expect(by.google_calendar.href).toBe('/office/connections')
     for (const k of ['gmail', 'microsoft']) { expect(by[k].liveVerified).toBe(false); expect(by[k].detail).toMatch(/Not live-verified/) }
     expect(list.every(i => i.permissions.length > 0 && i.usedFor.length > 0)).toBe(true)

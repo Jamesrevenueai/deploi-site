@@ -1,5 +1,5 @@
 import '../merchant/env'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { admin } from '../../lib/db'
 import { prepareDb } from '../db/helpers'
 import { getSynthMail } from '../../lib/email/adapters/synthetic'
@@ -8,9 +8,11 @@ import { executeOfficeAction, reconcileOfficeActions } from '../../lib/office/ac
 import { approveOfficeAction } from '../../lib/office/approvals'
 import { getOfficeSynth, injectOfficeFault, injectSyntheticInbound, mutateOfficeSynth } from '../../lib/office/synthetic'
 import { eventIdFor } from '../../lib/office/calendar'
-import { NW, setupOffice, grantedAgent, actions, lead, t0, type OfficeSetup , type TestMeeting, type TestLead } from './helpers'
+import { NW, setupOffice, grantedAgent, actions, lead, t0, type OfficeSetup, type TestMeeting, type TestLead, resetOffice, HB } from './helpers'
 
 const ready = await prepareDb()
+// leave no Office agents, actions or connections behind for other test files
+afterAll(async () => { if (ready) { await resetOffice(NW, { enable: false }); await resetOffice(HB, { enable: false }) } })
 const ANA = 'ana@acme-studio.example'
 
 async function leadReplyAsksToMeet(s: OfficeSetup, T: Date) {

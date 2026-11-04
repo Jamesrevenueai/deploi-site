@@ -18,6 +18,13 @@ const DENY_ALL: Record<string, string> = {
   inbound_webhook_events: 'raw inbound webhook payloads before processing; server only',
   beta_invites: 'hashed beta invite codes; redeemed through server code only',
   _migrations: 'migration ledger (closed to user roles by migration 42, finding F-05)',
+  woo_auth_states: 'WooCommerce authorization state and the key pair in flight (ciphertext); server only (migration 43)',
+  woo_connections: 'WooCommerce site and webhook secret (ciphertext); server only (migration 43)',
+  office_credentials: 'HubSpot / Google OAuth tokens (ciphertext); server only',
+  office_oauth_states: 'Office OAuth state and PKCE verifiers in flight; server only',
+  office_org_locks: 'per-organization scheduler lock; server only',
+  office_synthetic_state: 'the fake HubSpot / Calendar providers used in demos and tests; server only',
+  engine_audit_chain: 'head of each organization\'s audit hash chain; written by a definer trigger, verified by server code',
 }
 /** Tables readable by every signed-in user on purpose. */
 const READ_ALL: Record<string, string> = {

@@ -1,5 +1,5 @@
 import '../merchant/env'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { admin, withUser } from '../../lib/db'
 import { prepareDb, SESSIONS } from '../db/helpers'
 import { signSessionToken } from '../../lib/connectors/shopify/auth'
@@ -18,6 +18,8 @@ import { staffActor } from '../merchant/helpers'
 import { NW, HB, setupOffice, resetOffice, grantedAgent, policyFor, actions, leads, lead, t0, addDays, type OfficeSetup } from './helpers'
 
 const ready = await prepareDb()
+// leave no Office agents, actions or connections behind for other test files
+afterAll(async () => { if (ready) { await resetOffice(NW, { enable: false }); await resetOffice(HB, { enable: false }) } })
 const ANA = 'ana@acme-studio.example'
 const bearer = () => ({ authorization: `Bearer ${signSessionToken({ dest: `https://${NW.domain}`, sub: '7' }, process.env.SHOPIFY_API_SECRET!, process.env.SHOPIFY_API_KEY!)}` })
 

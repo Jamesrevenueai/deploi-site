@@ -17,6 +17,7 @@ import { admin, type Db } from '../db'
 import { canonicalJson } from '../engine/hash'
 import { EngineError } from '../engine/errors'
 import { encryptSecret } from '../connectors/credentials'
+import { orgStopReason } from '../engine/kill-switch'
 import { registerOfficeSendGate, sendMessage, type EmailMessageRow, type EmailStatus } from '../email/engine'
 import { contentHash } from '../email/content'
 import { newInternetMessageId } from '../email/mime'
@@ -225,6 +226,8 @@ async function claim(actionId: string, now: Date, actorOverride?: string): Promi
     const actor = actorOverride ?? (a.approval_kind === 'individual' && a.approved_by ? a.approved_by : actorFor(ctx))
     const stop = async (status: ActionStatus, reason: string, extra: Record<string, unknown> = {}): Promise<Claim> => { await setStatus(db, a, status, reason, actor, extra); return { kind: 'skip', status, reason } }
     if (ctx.agent.status !== 'active') return stop('cancelled', `the agent is ${ctx.agent.status}; queued actions are not carried out`)
+    const orgStopped = await orgStopReason(db, a.org_id)
+    if (orgStopped) return stop('cancelled', `${orgStopped}; queued actions are not carried out`)
     if (!(await hasProduct(db, a.org_id, 'office'))) return stop('failed', 'Deploi Office is not enabled for this organization')
     if (!ctx.policy || ctx.policyStatus !== 'active') return stop('cancelled', 'the agent has no active authorization')
     if (a.approved_hash !== a.payload_hash) return stop('awaiting_approval', 'the item changed after approval; approve the new version', { approval_kind: null, approved_hash: null, approved_by: null, approved_at: null })
@@ -564,6 +567,8 @@ registerOfficeSendGate(async (db, m) => {
   const ctx = await agentCtx(db, a.agent_id)
   if (!ctx || ctx.agent.id !== m.office_agent_id) return { ok: false, status: 'cancelled', reason: 'the office agent is missing' }
   if (ctx.agent.status !== 'active') return { ok: false, status: 'cancelled', reason: `the agent is ${ctx.agent.status}; queued messages are not sent` }
+  const orgStopped = await orgStopReason(db, a.org_id)
+  if (orgStopped) return { ok: false, status: 'cancelled', reason: `${orgStopped}; queued messages are not sent` }
   if (!(await hasProduct(db, a.org_id, 'office'))) return { ok: false, status: 'failed', reason: 'Deploi Office is not enabled for this organization' }
   if (!ctx.policy || ctx.policyStatus !== 'active') return { ok: false, status: 'cancelled', reason: 'the agent has no active authorization' }
   if (ctx.policy.mailboxAccountId !== m.account_id) return { ok: false, status: 'cancelled', reason: "the agent's mailbox changed; this message is no longer covered" }

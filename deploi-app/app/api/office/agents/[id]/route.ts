@@ -4,6 +4,7 @@ import { EngineError } from '@/lib/engine/errors'
 import { HttpError, readJson } from '@/lib/store/request'
 import { officeActor, officeError } from '@/lib/office/request'
 import { officeAgentDetail } from '@/lib/office/queries'
+import { requireAgreements } from '@/lib/legal'
 import { editOfficeAgent, grantOfficePolicy, pauseOfficeAgent, resumeOfficeAgent, revokeOfficeAgent } from '@/lib/office/agents'
 import { agentCtx } from '@/lib/office/actions'
 import { runOfficeAgent, startMeeting } from '@/lib/office/run'
@@ -27,6 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const actor = await officeActor(req, { mutating: true })
     const { id } = await ctx.params
     const b = await readJson(req)
+    if (b.op === 'grant') await requireAgreements(actor, 'office')
     if (b.op === 'grant') return NextResponse.json({ ok: true, ...(await grantOfficePolicy(actor, id, String(b.policyId ?? ''), String(b.policyHash ?? ''))) })
     if (b.op === 'edit') return NextResponse.json({ ok: true, ...(await editOfficeAgent(actor, id, { policy: b.policy, name: typeof b.name === 'string' ? b.name : undefined })) })
     if (b.op === 'pause') return NextResponse.json({ ok: true, ...(await pauseOfficeAgent(actor, id)) })

@@ -39,7 +39,7 @@ Fastest stop-gap if you want it closed before redeploying: Vercel → `deploi-ap
 
 ## 3. Why a push to `main` redeployed the app (cause, verified)
 
-- **The project connections are correct.** Both projects link to `Jamesrevenueai/deploi-site`. `deploi-app` builds the `deploi-app/` root directory: its build log shows `> deploi-app@0.1.0 build` and Next.js detected. `deploi-site` builds the repository root with Vite.
+- **The project connections are correct.** Both projects link to `<github-org>/deploi-site`. `deploi-app` builds the `deploi-app/` root directory: its build log shows `> deploi-app@0.1.0 build` and Next.js detected. `deploi-site` builds the repository root with Vite.
 - **The cause was pushes to `main`.** Every push to `main` builds both projects as Production. The commits `f1f6e87`, `f0963ff` and `b8aad24` were pushed straight to `main`. The app deployment from `b8aad24` contained engine code whose database migrations (`20261028000028`…) had not been applied to production.
 - **After an Instant Rollback**, Vercel stops assigning production domains to new deployments until you promote one. This is why the rollback held. Its MCP API does not expose that flag, so I could not read it back. In the dashboard, Deployments shows a banner while auto-assignment is paused. Do not click "Undo rollback" or promote a later build until it has passed review.
 

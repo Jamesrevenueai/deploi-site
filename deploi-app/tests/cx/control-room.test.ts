@@ -3,11 +3,11 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { merchantActor, staffActor } from '../merchant/helpers'
-import { createAgent, grantPolicy, clearAgentStop } from '../../lib/agents/lifecycle'
+import { createAgent, grantPolicy } from '../../lib/agents/lifecycle'
 import { runAgent } from '../../lib/agents/run'
 import { listInbox } from '../../lib/agents/inbox'
 import { setSwitch, setTier } from '../../lib/library/switches'
-import { agentHealth, controlRoom, integrations, stopAllAgents } from '../../lib/store/control-room'
+import { agentHealth, clearStop, controlRoom, integrations, stopAllAgents } from '../../lib/store/control-room'
 import type { Actor } from '../../lib/engine/actor'
 import { NW, HB, resetCx } from './helpers'
 
@@ -100,7 +100,11 @@ describe.skipIf(!ready)('Control Room', () => {
     const cr = await controlRoom(nw)
     expect(cr.counts.paused).toBe(2)
     expect(cr.counts.active).toBe(0)
-    await clearAgentStop(nw)
+    expect(cr.orgStop).toMatchObject({ reason: 'stopped from the Control Room' })
+    expect((await controlRoom(hb)).orgStop).toBeNull()
+    await clearStop(nw)
+    expect((await controlRoom(nw)).orgStop).toBeNull()
+    await expect(clearStop(await staffActor())).rejects.toBeTruthy()
   })
 
   it('integrations are honest: a store row means connected, email providers are never live-verified, office tools without credentials are not available', async () => {

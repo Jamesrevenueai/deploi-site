@@ -46,6 +46,8 @@ let pausedBySpec: string[] = []
 test.afterAll(async ({ browser }) => {
   const page = await browser.newPage({ baseURL: BASE })
   await signIn(page, NORTHWIND)
+  // the Control Room spec turns the organization stop on; turn it off before resuming what it paused
+  await api(page, 'POST', '/api/store/control-room/stop-all', { action: 'clear' })
   for (const id of pausedBySpec) await api(page, 'POST', `/api/store/agents/${id}/resume`, {})
   for (const a of (await wizard(page)).agents) if (a.agentId && !createdByWizard.includes(a.agentId)) createdByWizard.push(a.agentId)
   for (const id of createdByWizard) await api(page, 'DELETE', `/api/store/agents/${id}`)
@@ -165,8 +167,15 @@ test('Control Room: agents, approvals, connections and issues; Stop all asks fir
   await page.getByTestId('stop-all').click()
   await page.getByRole('button', { name: 'Yes, stop all agents' }).click()
   await expect(page.getByText('All agents stopped.')).toBeVisible()
-  const after = await api<{ agents: { status: string }[] }>(page, 'GET', '/api/store/control-room')
+  const after = await api<{ agents: { status: string }[]; orgStop: unknown }>(page, 'GET', '/api/store/control-room')
   expect(after.json.agents.filter(a => a.status === 'active')).toHaveLength(0)
+  expect(after.json.orgStop).not.toBeNull()
+  // the organization stop holds until the owner turns it off; resuming an agent is refused meanwhile
+  await expect(page.getByTestId('org-stopped')).toBeVisible()
+  if (pausedBySpec[0]) expect((await api(page, 'POST', `/api/store/agents/${pausedBySpec[0]}/resume`, {})).status).toBeGreaterThanOrEqual(400)
+  await page.getByTestId('clear-stop').click()
+  await expect(page.getByTestId('org-stopped')).toHaveCount(0)
+  expect((await api<{ orgStop: unknown }>(page, 'GET', '/api/store/control-room')).json.orgStop).toBeNull()
 })
 
 test('Integrations: every tool with an honest status; agent pages show permissions at a glance', async ({ page }) => {

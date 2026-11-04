@@ -9,7 +9,8 @@ import { withActor, assertMerchant, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { activity } from '../engine/queries'
 import { listInbox } from '../agents/inbox'
-import { stopAllAgents as orgStopAll } from '../agents/lifecycle'
+import { stopAllAgents as orgStopAll, clearAgentStop } from '../agents/lifecycle'
+import { orgControl } from '../engine/kill-switch'
 import { weeklyFacts, weekStartOf } from '../agents/weekly'
 import { listAccounts, providers } from '../email/queries'
 import { emailConfig } from '../email/config'
@@ -46,6 +47,8 @@ export type ControlRoom = {
   }
   issues: { high: number; medium: number; low: number; needsPerson: number; total: number }
   weekly: { minutes: number; formula: string; label: 'Estimate' }
+  /** the organization stop switch: while on, no agent runs, writes or sends, and grants and resumes are refused */
+  orgStop: { reason: string | null; by: string | null; at: string | null } | null
 }
 
 const DAY = 864e5
@@ -106,7 +109,8 @@ export async function controlRoom(actor: Actor, now = new Date()): Promise<Contr
     const switches = await db.one<{ n: number }>(`select count(*)::int as n from library_switches where org_id = current_org_id() and enabled`)
     const products = await enabledProducts(db, orgId)
     const facts = await weeklyFacts(db, orgId, weekStartOf(now))
-    return { org, agents, issues, stores, mailboxes: mailboxes?.n ?? 0, switchedOn: switches?.n ?? 0, products, estimate: facts.estimate }
+    const control = await orgControl(db, orgId)
+    return { org, agents, issues, stores, mailboxes: mailboxes?.n ?? 0, switchedOn: switches?.n ?? 0, products, estimate: facts.estimate, control }
   })
   const [inbox, act, accounts] = await Promise.all([listInbox(actor), activity(actor, { limit: 50 }), listAccounts(actor)])
 
@@ -133,6 +137,7 @@ export async function controlRoom(actor: Actor, now = new Date()): Promise<Contr
   return {
     org: base.org, products: base.products, generatedAt: now.toISOString(),
     agents,
+    orgStop: base.control?.agents_stopped ? { reason: base.control.stop_reason, by: base.control.stopped_by, at: base.control.stopped_at ? new Date(base.control.stopped_at).toISOString() : null } : null,
     counts: { total: agents.length, active: count('active'), paused: count('paused'), needsAttention: count('needs_attention'), draft: count('draft'), revoked: count('revoked') },
     library: { switchedOn: base.switchedOn },
     approvals: { count: changes.length + emails.length, changes: changes.length, emails: emails.length, drafts, items, source: 'inbox' },
@@ -254,4 +259,11 @@ export async function integrations(actor: Actor): Promise<Integration[]> {
       permissions: ['None for agents', 'You approve every charge'],
     },
   ]
+}
+
+/** Turn the organization stop off. Nothing restarts by itself: the owner resumes each agent. */
+export async function clearStop(actor: Actor) {
+  const orgId = orgOf(actor)
+  assertMerchant(actor, orgId)
+  return clearAgentStop(actor)
 }

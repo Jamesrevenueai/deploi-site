@@ -57,6 +57,7 @@ export function ControlRoomScreen() {
   const probes = useProbes([ROUTES.officeConnections])
   const [confirm, setConfirm] = useState(false)
   const [stop, setStop] = useState<Stop>({ kind: 'idle' })
+  const [clearing, setClearing] = useState(false)
   const [scan, setScan] = useState<Scan>({ kind: 'idle' })
 
   const header = (actions?: React.ReactNode) => <PageHeader eyebrow={data?.cr.org.name ?? 'Your organization'} title="Control Room" sub="Every agent, what waits for you, and what was verified. Agents act only within what you granted; you can stop them all at once." actions={actions} />
@@ -78,6 +79,12 @@ export function ControlRoomScreen() {
     } catch (e) { setStop({ kind: 'error', e: asApiError(e) }) }
     await reload()
   }
+  async function clearOrgStop() {
+    setClearing(true)
+    try { await storeFetch('/api/store/control-room/stop-all', { method: 'POST', body: { action: 'clear' } }); setStop({ kind: 'idle' }) } catch (e) { setStop({ kind: 'error', e: asApiError(e) }) }
+    setClearing(false)
+    await reload()
+  }
   async function runScan() {
     if (!store) return
     setScan({ kind: 'running' })
@@ -95,7 +102,8 @@ export function ControlRoomScreen() {
 
       <div aria-live="polite" className="flex flex-col gap-3">
         {wizard && !wizard.completedAt && <Banner icon="spark"><strong>Finish setting up.</strong> {wizard.steps.filter(s => s.state === 'done' || s.state === 'skipped').length} of {wizard.steps.length} steps done. <Link href={`${base}/onboarding`} className="text-ink underline">Continue setup</Link></Banner>}
-        {stop.kind === 'done' && <Banner icon="check"><strong>All agents stopped.</strong> {stop.r.paused} paused{stop.r.librarySwitchedOff ? `, ${stop.r.librarySwitchedOff} library agent${stop.r.librarySwitchedOff === 1 ? '' : 's'} switched off` : ''}{stop.r.alreadyStopped ? `; ${stop.r.alreadyStopped} were not running` : ''}. Queued changes and emails were cancelled. Resume each agent from its page when you are ready.{stop.r.failed.length ? ` Not stopped: ${stop.r.failed.map(f => `${f.name} (${f.message})`).join(', ')}.` : ''}</Banner>}
+        {cr.orgStop && <div data-testid="org-stopped"><Banner tone="warn"><strong>All agents are stopped.</strong> {cr.orgStop.reason ? `${cr.orgStop.reason}. ` : ''}Nothing runs, changes your store or sends email until you turn the stop off; then resume each agent from its page.{cr.canAct && <> <Button size="sm" variant="ghost" onClick={clearOrgStop} disabled={clearing} data-testid="clear-stop">Turn the stop off</Button></>}</Banner></div>}
+        {stop.kind === 'done' && <Banner icon="check"><strong>All agents stopped.</strong> {stop.r.paused} paused{stop.r.librarySwitchedOff ? `, ${stop.r.librarySwitchedOff} library agent${stop.r.librarySwitchedOff === 1 ? '' : 's'} switched off` : ''}{stop.r.alreadyStopped ? `; ${stop.r.alreadyStopped} were not running` : ''}. Queued changes and emails were cancelled. Turn the stop off when you are ready, then resume each agent from its page.{stop.r.failed.length ? ` Not stopped: ${stop.r.failed.map(f => `${f.name} (${f.message})`).join(', ')}.` : ''}</Banner>}
         {stop.kind === 'error' && <Banner tone="warn"><strong>Not stopped.</strong> {stop.e.message}</Banner>}
         {scan.kind === 'running' && <Banner icon="clock"><strong>Scanning.</strong> Reading every product and variant. Nothing is changed.</Banner>}
         {scan.kind === 'done' && <Banner icon="check"><strong>Scan finished.</strong> Read {scan.r.resourcesScanned} variant{scan.r.resourcesScanned === 1 ? '' : 's'}: {scan.r.issuesOpened} new issue{scan.r.issuesOpened === 1 ? '' : 's'}, {scan.r.issuesResolved} resolved.</Banner>}

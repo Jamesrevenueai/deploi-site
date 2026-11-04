@@ -65,7 +65,7 @@ export async function ensureInstalled(shop: string, idToken: string, opts: { exc
     const conn = await db.one<{ id: string }>(
       `insert into store_connections (org_id, platform, external_id, display_name, status, scopes, api_version, is_synthetic, timezone, currency, installed_at, uninstalled_at)
        values ($1,'shopify',$2,$3,'active',$4,$5,false,$6,$7,now(),null)
-       on conflict (platform, external_id) do update set status = 'active', scopes = excluded.scopes, api_version = excluded.api_version,
+       on conflict (platform, external_id) do update set status = 'active', status_reason = null, reauth_required_at = null, scopes = excluded.scopes, api_version = excluded.api_version,
          display_name = excluded.display_name, timezone = excluded.timezone, currency = coalesce(excluded.currency, store_connections.currency), installed_at = now(), uninstalled_at = null
        returning id`,
       [orgId, shop, info.name, token.scope.length ? token.scope : shopifyConfig.scopes, shopifyConfig.apiVersion, info.timezone, info.currency ?? null])
@@ -100,7 +100,11 @@ export async function markUninstalled(db: Db, shop: string, actor: string) {
     emailsCancelled += await cancelAgentEmail(db, a.id, 'the app was uninstalled; queued messages are not sent', false)
     await audit(db, { orgId: c.org_id, connectionId: c.id, entityType: 'agent', entityId: a.id, event: 'agent.paused', actor, detail: { reason: 'app uninstalled' } })
   }
-  await audit(db, { orgId: c.org_id, connectionId: c.id, entityType: 'connection', entityId: c.id, event: 'connection.uninstalled', actor, detail: { agents_paused: paused.length, emails_cancelled: emailsCancelled } })
+  // Shopify cancels the app's subscription on uninstall; mirror that so nothing reads as paid
+  const subs = await db.query(`update app_subscriptions set status = 'cancelled' where connection_id = $1 and status in ('active','pending','frozen') returning id`, [c.id])
+  // queued debounced rescans are dropped: the store can no longer be read
+  await db.query('delete from shopify_rescan_queue where connection_id = $1', [c.id])
+  await audit(db, { orgId: c.org_id, connectionId: c.id, entityType: 'connection', entityId: c.id, event: 'connection.uninstalled', actor, detail: { agents_paused: paused.length, emails_cancelled: emailsCancelled, subscriptions_cancelled: subs.length } })
   return c.id
 }
 
@@ -109,9 +113,20 @@ export async function markUninstalled(db: Db, shop: string, actor: string) {
  * off it are deleted (issues, proposals, executions, rules, scans, credentials, subscriptions, store access); the
  * organization is deleted too when it has no other store, which removes its audit trail.
  */
-export async function redactShop(db: Db, shop: string): Promise<{ deleted: boolean; orgDeleted: boolean }> {
-  const c = await db.one<{ id: string; org_id: string }>(`select id, org_id from store_connections where platform = 'shopify' and external_id = $1`, [shop])
+export async function redactShop(db: Db, shop: string): Promise<{ deleted: boolean; orgDeleted: boolean; skipped?: string }> {
+  const c = await db.one<{ id: string; org_id: string; status: string }>(`select id, org_id, status from store_connections where platform = 'shopify' and external_id = $1 for update`, [shop])
   if (!c) return { deleted: false, orgDeleted: false }
+  // Shopify sends shop/redact 48 hours after uninstall. A shop that reinstalled in the meantime is a current
+  // customer again: its data is kept (Shopify does not expect a reinstalled shop to be erased).
+  if (c.status === 'active') return { deleted: false, orgDeleted: false, skipped: 'the shop reinstalled the app; its data is in use' }
+  // agent mail for this store's agents (an organization with another store keeps its own agents' mail)
+  const agentIds = (await db.query<{ id: string }>('select id from agents where connection_id = $1', [c.id])).map(a => a.id)
+  if (agentIds.length) {
+    const accounts = (await db.query<{ id: string }>(`select id from email_accounts where agent_id = any($1::uuid[]) and provider = 'deploi'`, [agentIds])).map(a => a.id)
+    await db.query('delete from email_inbound where agent_id = any($1::uuid[]) or account_id = any($2::uuid[])', [agentIds, accounts])
+    await db.query('delete from email_messages where agent_id = any($1::uuid[]) or account_id = any($2::uuid[])', [agentIds, accounts])
+    if (accounts.length) await db.query('delete from email_accounts where id = any($1::uuid[])', [accounts])
+  }
   await db.query('delete from store_connections where id = $1', [c.id])
   await db.query(`delete from store_access where platform = 'shopify' and external_id = $1`, [shop])
   const others = await db.one<{ n: string }>('select count(*)::text as n from store_connections where org_id = $1', [c.org_id])

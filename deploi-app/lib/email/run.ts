@@ -5,12 +5,13 @@
  */
 import { admin } from '../db'
 import { env } from '../env'
-import { inScope, type AgentPolicy } from '../agents/policy'
+import type { AgentPolicy } from '../agents/policy'
 import type { ResourceRecord } from '../engine/types'
 import { checkReplies, createAgentMessages, processQueue } from './engine'
-import { competitorReport, needsPersonAlert, reorderCandidates, runReport, supplierFollowup, supplierReorder, type DraftMessage, type FollowupTarget, type PersonItem } from './tasks'
+import { competitorReport, needsPersonAlert, runReport, supplierFollowup, type DraftMessage, type FollowupTarget, type PersonItem } from './tasks'
+import { supplierDrafts } from '../agents/supplier'
 
-export type EmailRunCounts = { emailDrafted: number; emailAwaiting: number; emailAccepted: number; emailFailed: number; emailUnknown: number; emailSkipped: number }
+export type EmailRunCounts = { emailDrafted: number; emailAwaiting: number; emailAccepted: number; emailFailed: number; emailUnknown: number; emailSkipped: number; supplierSkipped?: number }
 
 export async function runEmailStep(input: {
   agentId: string; agentName: string; runId: string; policy: AgentPolicy; storeName: string; records: ResourceRecord[] | null; actor: string; now: Date
@@ -36,14 +37,10 @@ export async function runEmailStep(input: {
   }
   const sr = e.supplierReorder
   if (e.tasks.includes('supplier_reorder') && sr && input.records) {
-    const recent = await admin(db => db.query<{ v: string }>(
-      `select jsonb_array_elements_text(meta->'variant_ids') as v from email_messages where agent_id = $1 and task_key = 'supplier_reorder'
-       and status not in ('cancelled','failed') and created_at > $2`, [input.agentId, new Date(input.now.getTime() - sr.cooldownDays * 864e5).toISOString()]))
-    const skip = new Set(recent.map(r => r.v))
-    const items = reorderCandidates(input.records, sr.thresholdAvailable, r => inScope(input.policy, String(r.productId ?? ''), Array.isArray(r.productTags) ? (r.productTags as string[]) : []))
-      .filter(i => !skip.has(i.variantId))
-    const d = supplierReorder(e, { runId: input.runId, agentName: input.agentName, storeName: input.storeName, at: input.now, items })
-    if (d) drafts.push(d)
+    // one consolidated request per supplier per day, recipients from the supplier mapping or the policy (lib/agents/supplier.ts)
+    const s = await supplierDrafts({ agentId: input.agentId, runId: input.runId, agentName: input.agentName, storeName: input.storeName, policy: input.policy, records: input.records, now: input.now })
+    drafts.push(...s.drafts)
+    out.supplierSkipped = s.skipped.length
   }
 
   if (e.tasks.includes('supplier_followup') && sr && e.read.enabled) {

@@ -14,7 +14,7 @@ import { audit } from '../engine/audit'
 import { encryptSecret } from '../connectors/credentials'
 import { parsePolicy, recipientAllowed } from '../agents/policy'
 import { emailConfig } from './config'
-import { fetchReceivedEmail, type ReceivedEmail } from './adapters/deploi'
+import { attachmentMeta, fetchReceivedEmail, type ReceivedEmail } from './adapters/deploi'
 import { parseAgentAddress } from './mailbox'
 import type { EmailAccountRow } from './accounts'
 import { autoReplyReason } from './loop'
@@ -81,7 +81,9 @@ async function handle(evt: InboundEvent, fetchEmail: (id: string) => Promise<Rec
     `select * from email_accounts where provider = 'deploi' and status <> 'disconnected' and lower(address) = any($1::text[])`, [[...new Set(ours.map(o => o.p.mailbox))]]))
   if (!accounts.length) return done({ outcome: 'ignored', reason: 'no live mailbox at that address' })
 
-  const mail = await fetchEmail(emailId)
+  const fetched = await fetchEmail(emailId)
+  // attachments: metadata only, cleaned again here whatever the fetcher returned
+  const mail: ReceivedEmail = { ...fetched, attachments: fetched.attachments ? attachmentMeta(fetched.attachments) : undefined }
   const from = bare(mail.from || String(evt.data.from ?? ''))
   const items: Extract<InboundOutcome, { outcome: 'stored' }>['items'] = []
   for (const acc of accounts) {

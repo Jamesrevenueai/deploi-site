@@ -88,6 +88,11 @@ async function loadOrgMail(db: Db, actor: Actor) {
   const agents = await db.query<{ id: string; name: string }>(`select id, name from agents where ${scope.replace('m.', '')}`)
   const accounts = await db.query<{ id: string; address: string; agent_id: string | null }>(`select id, address, agent_id from email_accounts a where ${scope.replace('m.', 'a.')} and provider = 'deploi'`)
   const states = await db.query<{ thread_key: string; read_at: string | null; assigned_agent_id: string | null }>(`select thread_key, read_at, assigned_agent_id from email_thread_state where ${scope.replace('m.', '')}`)
+  // timestamps as ISO strings, so ordering and comparisons are by time
+  const t = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string).toISOString())
+  for (const m of msgs) { m.created_at = t(m.created_at)!; m.accepted_at = t(m.accepted_at) }
+  for (const i of inbound) i.received_at = t(i.received_at)!
+  for (const s of states) s.read_at = t(s.read_at)
   return { msgs, inbound, agents: new Map(agents.map(a => [a.id, a.name])), accounts: new Map(accounts.map(a => [a.id, a])), states: new Map(states.map(s => [s.thread_key, s])), keys: threadKeys(msgs, inbound) }
 }
 

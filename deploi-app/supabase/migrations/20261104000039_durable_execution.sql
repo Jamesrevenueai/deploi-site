@@ -98,6 +98,9 @@ alter table email_inbound add column if not exists auto_reply boolean not null d
 alter table email_inbound add column if not exists auto_reply_reason text;
 alter table email_messages drop constraint if exists email_messages_task_key_check;
 alter table email_messages add constraint email_messages_task_key_check check (task_key in ('run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup', 'human_reply'));
+-- the inbox reads these under RLS (never the content columns)
+grant select (attachments, auto_reply, auto_reply_reason) on email_inbound to authenticated;
+grant select (internet_message_id) on email_messages to authenticated;
 create index if not exists email_messages_org_day_idx on email_messages (org_id, sending_started_at) where status in ('sending', 'accepted', 'delivery_unknown');
 
 -- ---------------------------------------------------------------- RLS for the new tables

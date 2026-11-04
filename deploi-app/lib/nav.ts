@@ -1,5 +1,16 @@
 /** Navigation for the staff area (the merchant area's is in lib/store/nav.ts). The shell owns the rail. */
-export type NavItem = { href: string; label: string; /** highlight only on this exact path (for an area's home link) */ exact?: boolean; icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' | 'dollar' | 'file' }
+export type NavItem = {
+  href: string; label: string
+  /** highlight only on this exact path (for an area's home link) */ exact?: boolean
+  /** other paths (and their sub-paths) that belong to this entry */ also?: string[]
+  icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' | 'dollar' | 'file' | 'alert' | 'check'
+}
+
+/** Is this entry the current page? */
+export function navActive(it: NavItem, path: string): boolean {
+  if (path === it.href || (!it.exact && path.startsWith(it.href + '/'))) return true
+  return (it.also ?? []).some(a => path === a || path.startsWith(a + '/'))
+}
 
 export const STAFF_NAV: NavItem[] = [
   { href: '/staff/early-access', label: 'Early access', icon: 'inbox' },

@@ -170,7 +170,8 @@ export async function wizardView(actor: Actor): Promise<WizardView> {
     const done: Record<WizardStep, boolean | 'skipped'> = {
       business: Boolean(w.business),
       products: Boolean(w.productsChosen),
-      connect: w.productsChosen ? (!commerce || Boolean(conn)) : false,
+      // a connected store counts even before products are chosen; Office-only needs no store here (its tools connect in Deploi Office)
+      connect: Boolean(conn) || (Boolean(w.productsChosen) && !commerce),
       agreements: w.agreements === 'satisfied' ? true : w.agreements === 'skipped' ? 'skipped' : false,
       agents: !w.productsChosen ? false : !recommended.length || !conn ? 'skipped' : w.agentsSkipped ? 'skipped'
         : agents.every(a => a.status === 'active' || a.status === 'paused'),

@@ -123,10 +123,11 @@ export async function handleWooWebhook(req: Request, defer: (fn: () => Promise<v
   try {
     if (!conn || conn.status !== 'active') { await done('ignored', 'store not connected'); return NextResponse.json({ ok: true }) }
     if (topic === 'product.deleted') {
+      // WordPress post ids are unique across products and variations, so one id names either
       const id = Number(payload.id)
       if (Number.isInteger(id) && id > 0) await admin(async db => {
         const issues = await db.query<{ id: string }>(`update issues set status = 'resolved', resolved_at = now(), resolution = 'no_longer_detected', status_reason = 'product deleted in WooCommerce'
-          where connection_id = $1 and status in ('open','needs_review') and evidence ->> 'productId' = $2 returning id`, [conn.id, String(id)])
+          where connection_id = $1 and status in ('open','needs_review') and (evidence ->> 'productId' = $2 or evidence ->> 'variationId' = $2) returning id`, [conn.id, String(id)])
         const props = await db.query<ProposalRow>(`select * from proposals where issue_id = any($1::uuid[]) and status in ('pending_approval','approved')`, [issues.map(i => i.id)])
         for (const p of props) await invalidateProposal(db, p, 'stale', 'product deleted in WooCommerce', `woocommerce:${conn.id}:webhook`)
       })

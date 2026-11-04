@@ -5,6 +5,7 @@ import { CtaButton } from './Button'
 import { Icon } from '../lib/icons'
 
 export const NAV_LINKS = [
+  { to: '/#products', label: 'Products' },
   { to: '/agents', label: 'Agents' },
   { to: '/pricing', label: 'Pricing' },
   { to: '/#how', label: 'How it works' },

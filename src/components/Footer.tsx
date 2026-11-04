@@ -2,6 +2,12 @@ import { Link } from 'react-router-dom'
 import { BRAND, CONTACT_EMAIL, WORDMARK } from '../lib/brand'
 import { CTA_HREF, CTA_LABEL } from './Button'
 import { NAV_LINKS } from './Nav'
+import { env } from '../lib/env'
+
+/** Marks a legal document as a draft until counsel has reviewed it (VITE_LEGAL_REVIEWED=true). */
+export function LegalDraftTag() {
+  return env.legalReviewed ? null : <span className="legal-draft-tag">Draft<span className="sr-only">, pending legal review</span></span>
+}
 
 export function Footer() {
   const year = new Date().getFullYear()
@@ -9,7 +15,7 @@ export function Footer() {
     <footer>
       <div className="container">
         <div className="footer-brand">{WORDMARK[0]} <span className="brand-ai">{WORDMARK[1]}</span></div>
-        <p className="footer-tag">Find stock and listing problems. Approve the fix. See it verified.</p>
+        <p className="footer-tag">Agents for your store and your office. Only what you grant. Every action on the record.</p>
 
         <div className="footer-cols">
           <div className="footer-col">
@@ -22,10 +28,10 @@ export function Footer() {
             </ul>
           </div>
           <div className="footer-col">
-            <div className="footer-col-title">Company</div>
+            <div className="footer-col-title">Company and legal</div>
             <ul>
-              <li><Link to="/privacy">Privacy Policy</Link></li>
-              <li><Link to="/terms">Terms of Service</Link></li>
+              <li><Link to="/privacy">Privacy Policy</Link><LegalDraftTag /></li>
+              <li><Link to="/terms">Terms of Service</Link><LegalDraftTag /></li>
               <li><Link to="/support">Support</Link></li>
               <li><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></li>
             </ul>
@@ -33,7 +39,7 @@ export function Footer() {
         </div>
 
         <p className="footer-fine">
-          Shopify, WooCommerce and Amazon are trademarks of their respective owners. {BRAND} connects through each
+          Shopify, WooCommerce, Amazon, HubSpot and Google Calendar are trademarks of their respective owners. {BRAND} connects through each
           platform&rsquo;s official API and is not affiliated with or endorsed by them.
         </p>
         <div className="footer-copy">© {year} {BRAND}. All rights reserved.</div>

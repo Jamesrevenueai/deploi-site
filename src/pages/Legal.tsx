@@ -165,7 +165,7 @@ export default function Legal({ kind }: Props) {
     <div className="page">
       <div className="container-narrow">
         <Link to="/" className="back">← Back to {BRAND}</Link>
-        {!env.legalReviewed && <div className="draft-badge" role="status">Draft — pending legal review</div>}
+        {!env.legalReviewed && <div className="draft-badge" role="status">DRAFT — pending legal review</div>}
         <h1>{title}</h1>
         <div className="legal-meta">Last updated: {LEGAL_UPDATED}</div>
         <ol className="legal-sections">

@@ -9,7 +9,7 @@ vi.mock('../lib/env', () => ({
 
 import { EarlyAccessForm } from '../components/EarlyAccessForm'
 
-const CTA = 'Apply for Early Access'
+const CTA = 'Apply for a paid pilot'
 
 function fill(label: string | RegExp, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })

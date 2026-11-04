@@ -18,6 +18,7 @@ import { runnerFor, type ActionDraft, type RunnerContext } from './runners'
 import { storeDataFor, type StoreData } from './store-data'
 import { recordUsage } from './usage'
 import { runAgent } from '../agents/run'
+import { orgStopReason } from '../engine/kill-switch'
 
 /** Action types that move money or publish to the outside world: approval-only at every permission level. */
 export const APPROVAL_ONLY = new Set(['approve_return', 'create_discount', 'end_discount', 'send_customer_reply'])
@@ -61,6 +62,9 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
   const logKey = opts.customAgentId ? `custom:${opts.customAgentId}` : opts.agentKey
   const sw = opts.customAgentId ? null : await admin(db => db.one<SwitchRow>('select * from library_switches where org_id = $1 and agent_key = $2', [opts.orgId, opts.agentKey]))
   if (!opts.customAgentId && (!sw || !sw.enabled)) throw new LibraryError('conflict', 'this agent is switched off')
+  // organization stop ("stop all agents"): no library agent runs either
+  const stopped = await admin(db => orgStopReason(db, opts.orgId))
+  if (stopped) throw new LibraryError('conflict', stopped)
   const permission: PermissionLevel = opts.permission ?? sw?.permission ?? 'draft'
   const instructions = opts.instructions ?? sw?.standing_instructions ?? ''
   const settings = opts.settings ?? sw?.settings ?? {}

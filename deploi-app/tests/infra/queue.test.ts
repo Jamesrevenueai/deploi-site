@@ -182,3 +182,15 @@ describe.skipIf(!ready)('job queue', () => {
     expect((await runDueJobs({ kinds: ['test.record'] })).ran).toHaveLength(1)
   })
 })
+
+describe.skipIf(!ready)('organization stop covers library agents', () => {
+  it('a library agent does not run while all agents are stopped', async () => {
+    const { runLibraryAgent } = await import('../../lib/library/actions')
+    const { LIBRARY } = await import('../../lib/library/config')
+    const { runnerFor } = await import('../../lib/library/runners')
+    const key = LIBRARY.agents.find(a => runnerFor(a.key))!.key
+    const actor = await merchantActor(NW)
+    await stopAllAgents(actor, 'drill')
+    await expect(runLibraryAgent({ orgId: NW.org, agentKey: key, trigger: 'test', actor: 'test', customAgentId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow(/stopped/)
+  })
+})

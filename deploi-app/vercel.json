@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/jobs",
       "schedule": "41 * * * *"
+    },
+    {
+      "path": "/api/cron/office",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

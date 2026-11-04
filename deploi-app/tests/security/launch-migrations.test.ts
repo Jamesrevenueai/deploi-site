@@ -22,3 +22,19 @@ describe('launch migrations: production guard', () => {
     expect(() => assertTargetAllowed('postgres://postgres:postgres@127.0.0.1:5432/launch_copy', [], {})).not.toThrow()
   })
 })
+
+describe('2026-11-04 release migration set', () => {
+  it('lists exactly the 2026-11-04 migrations on disk, in order, each with a rollback, and needs the first launch applied', async () => {
+    const { readdirSync, existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { RELEASE_2026_11_04, SETS, setFrom, LAUNCH: FIRST } = await import('../../scripts/launch-migrations')
+    const dir = join(__dirname, '..', '..', 'supabase')
+    const onDisk = readdirSync(join(dir, 'migrations')).filter(f => f.startsWith('20261104')).sort()
+    expect(RELEASE_2026_11_04).toEqual(onDisk)
+    for (const f of RELEASE_2026_11_04) expect(existsSync(join(dir, 'rollback', f.replace(/\.sql$/, '.down.sql'))), f).toBe(true)
+    expect(SETS['2026-11-04'].prereq).toBe(FIRST[FIRST.length - 1])
+    expect(setFrom(['--set=2026-11-04']).files).toBe(RELEASE_2026_11_04)
+    expect(setFrom([]).files).toBe(FIRST)
+    expect(() => setFrom(['--set=nope'])).toThrow(/unknown migration set/)
+  })
+})

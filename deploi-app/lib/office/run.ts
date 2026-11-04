@@ -95,6 +95,10 @@ async function dueFollowups(ctx: AgentCtx, now: Date, counts: Counts) {
   const replied = await admin(db => db.query<{ id: string }>(`select distinct l.id from office_leads l join office_actions a on a.lead_id = l.id join email_messages m on m.id = a.email_message_id
     where l.agent_id = $1 and l.status = 'active' and m.reply_count > 0`, [ctx.agent.id]))
   for (const r of replied) { await stopLead(r.id, 'the lead replied', actorOf(ctx), 'replied'); counts.stopped = (counts.stopped ?? 0) + 1 }
+  // a first email that was cancelled before anything happened (the agent was paused) is proposed again
+  const unsent = await admin(db => db.query<LeadRow>(`select l.* from office_leads l where l.agent_id = $1 and l.status = 'active' and l.touches = 0
+    and not exists (select 1 from office_actions a where a.lead_id = l.id and a.status not in ('cancelled')) limit 50`, [ctx.agent.id]))
+  for (const lead of unsent) { await proposeTouch(ctx, lead, 1, null, now); counts.proposed = (counts.proposed ?? 0) + 1 }
   const due = await admin(db => db.query<LeadRow>(`select * from office_leads where agent_id = $1 and status = 'active' and touches >= 1 and next_touch_at <= $2 order by next_touch_at limit 50`, [ctx.agent.id, now.toISOString()]))
   for (const lead of due) {
     if (lead.touches >= l.maxTouches) { await stopLead(lead.id, 'all follow-ups sent', actorOf(ctx), 'completed'); continue }

@@ -8,7 +8,7 @@ import { executeOfficeAction, reconcileOfficeActions } from '../../lib/office/ac
 import { approveOfficeAction } from '../../lib/office/approvals'
 import { getOfficeSynth, injectOfficeFault, injectSyntheticInbound, mutateOfficeSynth } from '../../lib/office/synthetic'
 import { eventIdFor } from '../../lib/office/calendar'
-import { NW, setupOffice, grantedAgent, actions, lead, t0, type OfficeSetup } from './helpers'
+import { NW, setupOffice, grantedAgent, actions, lead, t0, type OfficeSetup , type TestMeeting, type TestLead } from './helpers'
 
 const ready = await prepareDb()
 const ANA = 'ana@acme-studio.example'
@@ -34,7 +34,7 @@ describe.skipIf(!ready)('Meeting Scheduler, booking and CRM Updater (synthetic p
     const sched = await grantedAgent(s, 'meeting_scheduler', { email: 'send_autonomous', calendar: 'send_autonomous' }, undefined, 'Scheduler')
     await runOfficeAgent(leadAgent, { trigger: 'test', now: new Date(T.getTime() + 60e3) })
     await runOfficeAgent(sched, { trigger: 'test', now: new Date(T.getTime() + 120e3) })
-    const m = (await admin(db => db.query<any>('select * from office_meetings where agent_id = $1', [sched])))[0]
+    const m = (await admin(db => db.query<TestMeeting>('select * from office_meetings where agent_id = $1', [sched])))[0]
     expect(m).toMatchObject({ contact_email: ANA, status: 'proposed', hubspot_contact_id: '701' })
     const slots = m.proposed_slots as { start: string; end: string; label: string }[]
     expect(slots).toHaveLength(3)
@@ -53,14 +53,14 @@ describe.skipIf(!ready)('Meeting Scheduler, booking and CRM Updater (synthetic p
     const proposal = (await actions(sched))[0]
     expect(proposal.payload.body).toContain(`1. ${slots[0].label}`)
     // the lead's reply stopped the follow-ups
-    expect((await admin(db => db.one<any>('select status from office_leads where agent_id = $1', [leadAgent])))!.status).toBe('replied')
+    expect((await admin(db => db.one<TestLead>('select status from office_leads where agent_id = $1', [leadAgent])))!.status).toBe('replied')
 
     await injectSyntheticInbound({ accountId: s.mailboxId, from: ANA, subject: 'Re: times', text: 'Option 2 works for me.', threadMessageId: proposal.email_message_id })
     await runOfficeAgent(sched, { trigger: 'test', now: new Date(T.getTime() + 180e3) })
     const cal = await getOfficeSynth(s.calendarId)
     expect(cal.events).toHaveLength(1)
     expect(cal.events[0]).toMatchObject({ start: slots[1].start, end: slots[1].end, attendees: [ANA], status: 'confirmed', meetLink: null })
-    const booked = (await admin(db => db.one<any>('select * from office_meetings where id = $1', [m.id])))!
+    const booked = (await admin(db => db.one<TestMeeting>('select * from office_meetings where id = $1', [m.id])))!
     expect(booked).toMatchObject({ status: 'booked', calendar_event_id: cal.events[0].id })
     sent = (await getSynthMail(s.mailboxId)).sent
     expect(sent).toHaveLength(3)
@@ -88,7 +88,7 @@ describe.skipIf(!ready)('Meeting Scheduler, booking and CRM Updater (synthetic p
     const proposal = (await actions(sched))[0]
     await injectSyntheticInbound({ accountId: s.mailboxId, from: ANA, subject: 'Re', text: '3', threadMessageId: proposal.email_message_id })
     await runOfficeAgent(sched, { trigger: 'test', now: new Date(T.getTime() + 120e3) })
-    const ev = (await actions(sched)).find((a: any) => a.kind === 'create_event')
+    const ev = (await actions(sched)).find((a) => a.kind === 'create_event')!
     expect(ev.status).toBe('awaiting_approval')
     expect(ev.payload.eventId).toBe(eventIdFor(`${NW.org}:meeting:${ev.meeting_id}:event`))
     await injectOfficeFault(s.calendarId, { op: 'insertEvent', mode: 'timeout_after_write' })
@@ -101,9 +101,12 @@ describe.skipIf(!ready)('Meeting Scheduler, booking and CRM Updater (synthetic p
     expect(rec.find(r => r.actionId === ev.id)?.status).toBe('succeeded')
     expect((await getOfficeSynth(s.calendarId)).events).toHaveLength(1)
     // even forcing the action to run again finds the existing event by its deterministic id
+    const before = (await admin(db => db.one<{ attempts: number }>('select attempts from office_actions where id = $1', [ev.id])))!.attempts
     await admin(db => db.query(`update office_actions set status = 'queued' where id = $1`, [ev.id]))
     const [a, b] = await Promise.all([executeOfficeAction(ev.id), executeOfficeAction(ev.id)])
-    expect([a.status, b.status].filter(x => x === 'succeeded')).toHaveLength(1)
+    expect([a.status, b.status]).toContain('succeeded')
+    // only one of the two concurrent calls claimed the action
+    expect((await admin(db => db.one<{ attempts: number }>('select attempts from office_actions where id = $1', [ev.id])))!.attempts).toBe(before + 1)
     expect((await getOfficeSynth(s.calendarId)).events).toHaveLength(1)
   })
 
@@ -112,11 +115,11 @@ describe.skipIf(!ready)('Meeting Scheduler, booking and CRM Updater (synthetic p
     const sched = await grantedAgent(s, 'meeting_scheduler', { email: 'send_autonomous', calendar: 'send_autonomous' })
     await runOfficeAgent(sched, { trigger: 'test', now: new Date(T.getTime() + 60e3) })
     const proposal = (await actions(sched))[0]
-    const m = (await admin(db => db.one<any>('select * from office_meetings where agent_id = $1', [sched])))!
+    const m = (await admin(db => db.one<TestMeeting>('select * from office_meetings where agent_id = $1', [sched])))!
     await mutateOfficeSynth(s.calendarId, st => { st.busy.push({ start: m.proposed_slots[0].start, end: m.proposed_slots[0].end }) })
     await injectSyntheticInbound({ accountId: s.mailboxId, from: ANA, subject: 'Re', text: 'The first one please', threadMessageId: proposal.email_message_id })
     await runOfficeAgent(sched, { trigger: 'test', now: new Date(T.getTime() + 120e3) })
     expect((await getOfficeSynth(s.calendarId)).events).toHaveLength(0)
-    expect((await admin(db => db.one<any>('select status from office_meetings where id = $1', [m.id])))!.status).toBe('failed')
+    expect((await admin(db => db.one<TestMeeting>('select status from office_meetings where id = $1', [m.id])))!.status).toBe('failed')
   })
 })

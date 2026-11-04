@@ -8,7 +8,15 @@ import { createOfficeAgent, grantOfficePolicy, editOfficeAgent } from '../../lib
 import { officeTemplatePolicy } from '../../lib/office/templates'
 import { mutateOfficeSynth, synthContact, type SynthContact } from '../../lib/office/synthetic'
 import type { OfficeKind } from '../../lib/office/policy'
+import type { OfficeActionRow } from '../../lib/office/actions'
+import type { LeadRow, MeetingRow } from '../../lib/office/run'
 import '../../lib/office/actions'
+
+/** Test views of the rows: payload fields read directly (each test knows which kind it looks at). */
+export type TestAction = Omit<OfficeActionRow, 'payload'> & { payload: { to: string; subject: string; body: string; eventId: string; summary: string; meta: Record<string, unknown> } }
+export type TestLead = LeadRow & { last_touch_at: string; stop_reason: string | null }
+export type TestMeeting = MeetingRow & { status_reason: string | null }
+type Draft = Record<string, Record<string, unknown>>
 
 export { NW, HB, merchantActor }
 
@@ -57,11 +65,11 @@ export const lead = (id: string, email: string, at: Date, extra: Partial<SynthCo
 type Tier = 'draft' | 'send_approved' | 'send_autonomous'
 
 /** Template policy with the given tiers (autonomous gets an end date 60 days out) and overrides. */
-export function policyFor(kind: OfficeKind, s: OfficeSetup, tiers: { email?: Tier; calendar?: Tier; crm?: Tier } = {}, patch: (p: Record<string, any>) => void = () => {}) {
-  const p = officeTemplatePolicy(kind, { hubspotConnectionId: s.hubspotId, calendarConnectionId: s.calendarId, mailboxAccountId: s.mailboxId, timezone: 'UTC', senderName: 'Sam at Northwind', pitch: 'We make ceramic tableware for cafes.' }) as Record<string, any>
+export function policyFor(kind: OfficeKind, s: OfficeSetup, tiers: { email?: Tier; calendar?: Tier; crm?: Tier } = {}, patch: (p: Draft) => void = () => {}) {
+  const p = officeTemplatePolicy(kind, { hubspotConnectionId: s.hubspotId, calendarConnectionId: s.calendarId, mailboxAccountId: s.mailboxId, timezone: 'UTC', senderName: 'Sam at Northwind', pitch: 'We make ceramic tableware for cafes.' }) as Draft
   const until = new Date(Date.now() + 60 * 864e5).toISOString()
   for (const t of ['email', 'calendar', 'crm'] as const) if (tiers[t] && p[t]) p[t] = { ...p[t], tier: tiers[t], validUntil: tiers[t] === 'send_autonomous' ? until : null }
-  if (kind === 'meeting_scheduler') p.hubspotConnectionId = null
+  if (kind === 'meeting_scheduler') (p as Record<string, unknown>).hubspotConnectionId = null
   patch(p)
   return p
 }
@@ -78,5 +86,5 @@ export async function widen(s: OfficeSetup, agentId: string, kind: OfficeKind, t
   return e
 }
 
-export const actions = (agentId: string) => admin(db => db.query<any>('select * from office_actions where agent_id = $1 order by created_at', [agentId]))
-export const leads = (agentId: string) => admin(db => db.query<any>('select * from office_leads where agent_id = $1 order by created_at', [agentId]))
+export const actions = (agentId: string) => admin(db => db.query<TestAction>('select * from office_actions where agent_id = $1 order by created_at', [agentId]))
+export const leads = (agentId: string) => admin(db => db.query<TestLead>('select * from office_leads where agent_id = $1 order by created_at', [agentId]))

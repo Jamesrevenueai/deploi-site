@@ -18,7 +18,7 @@ export async function acquireOrgLock(orgId: string, holder: string, now = new Da
   return Boolean(r)
 }
 export async function releaseOrgLock(orgId: string, holder: string) {
-  await admin(db => db.query(`update office_org_locks set locked_until = now() - interval '1 second', last_run_at = now() where org_id = $1 and locked_by = $2`, [orgId, holder]))
+  await admin(db => db.query(`update office_org_locks set locked_until = 'epoch', last_run_at = now() where org_id = $1 and locked_by = $2`, [orgId, holder]))
 }
 
 export async function runOfficeScheduler(opts: { now?: Date } = {}) {

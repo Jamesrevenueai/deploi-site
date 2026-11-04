@@ -39,8 +39,21 @@ export type EmailMessageRow = {
   provider_message_id: string | null; provider_thread_id: string | null; failure_code: string | null; reconcile_checks: number
   reply_seen_at: string | null; reply_count: number; meta: Record<string, unknown>; created_at: string; updated_at: string
   in_reply_to: string | null; reply_token: string | null
+  /** Deploi Office messages: the office agent and action instead of a store agent (lib/office) */
+  office_agent_id?: string | null; office_action_id?: string | null
 }
 export type SendOutcome = { messageId: string; status: EmailStatus; reason?: string | null; duplicate?: boolean }
+
+/**
+ * Deploi Office messages carry an office agent instead of a store agent. Their authorization (agent
+ * status, granted policy version, recipient allowlist, exact approved content, product enabled) is
+ * decided by lib/office, which registers this gate when it loads. Everything else stays here: the
+ * account checks, the live-send gate (EMAIL_LIVE_SENDS), one send per row and reconciliation.
+ * Without the gate registered an office message is left queued, never sent and never cancelled.
+ */
+export type OfficeSendGate = (db: Db, m: EmailMessageRow, now: Date) => Promise<{ ok: true; policyId: string; policyVersion: number } | { ok: false; status: EmailStatus; reason: string }>
+let officeGate: OfficeSendGate | null = null
+export function registerOfficeSendGate(g: OfficeSendGate) { officeGate = g }
 
 type AgentPolicyCtx = { agentStatus: string; policyId: string | null; policyStatus: string; policyVersion: number; policy: AgentPolicy | null; agentName: string }
 
@@ -178,13 +191,32 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
   const claim = await admin(async db => {
     // lock order matches pause/revoke (agent row, then its messages): share-lock the agent first, so a pause either
     // commits before this claim (and the message is cancelled or seen as paused) or waits until the send is claimed
-    const owner = await db.one<{ agent_id: string | null }>('select agent_id from email_messages where id = $1', [messageId])
+    const owner = await db.one<{ agent_id: string | null; office_agent_id: string | null }>('select agent_id, office_agent_id from email_messages where id = $1', [messageId])
     if (owner?.agent_id) await db.query('select id from agents where id = $1 for share', [owner.agent_id])
+    if (owner?.office_agent_id) await db.query('select id from office_agents where id = $1 for share', [owner.office_agent_id])
     const m = await db.one<EmailMessageRow>('select * from email_messages where id = $1 for update', [messageId])
     if (!m) throw new EngineError('not_found', 'message not found')
     if (m.status !== 'queued') return { kind: 'skip' as const, m }
     if (m.next_attempt_at && new Date(m.next_attempt_at).getTime() > now.getTime()) return { kind: 'skip' as const, m }
     const stop = (status: EmailStatus, reason: string, extra: Record<string, unknown> = {}) => ({ kind: 'stop' as const, m, status, reason, extra })
+    if (m.office_agent_id) {
+      if (!officeGate) return { kind: 'skip' as const, m }
+      const g = await officeGate(db, m, now)
+      if (!g.ok) return stop(g.status, g.reason)
+      const acc = await db.one<EmailAccountRow>('select * from email_accounts where id = $1', [m.account_id])
+      if (!acc || acc.status === 'disconnected') return stop('cancelled', 'the email account was disconnected')
+      if (acc.status !== 'active' || !acc.can_send) return stop('failed', 'the email account needs to be reconnected before it can send', { failure_code: 'account' })
+      if (acc.address.toLowerCase() !== m.from_address.toLowerCase()) return stop('cancelled', 'the sender address changed')
+      if (!m.approved_hash || m.approved_hash !== m.content_hash) return stop('cancelled', 'the message changed after approval')
+      if (!acc.is_synthetic) {
+        const live = liveSendAllowed([...m.to_addresses, ...m.cc_addresses])
+        if (!live.ok) return stop('failed', live.reason, { failure_code: 'live_sends_disabled' })
+      }
+      if (m.attempts >= emailConfig.maxAttempts) return stop('failed', `gave up after ${m.attempts} attempts`, { failure_code: 'attempts' })
+      await db.query(`update email_messages set status = 'sending', status_reason = null, attempts = attempts + 1, sending_started_at = now(), policy_id = null, policy_version = $2 where id = $1`, [m.id, g.policyVersion])
+      await audit(db, { orgId: m.org_id, entityType: 'execution', entityId: m.id, event: 'email.sending', actor: opts.actor, detail: { email_message: true, office: true, office_agent_id: m.office_agent_id, attempt: m.attempts + 1, approval_kind: m.approval_kind, policy_version: g.policyVersion } })
+      return { kind: 'go' as const, m, account: acc }
+    }
     const ctx = await agentPolicy(db, m.agent_id)
     const account = await db.one<EmailAccountRow>('select * from email_accounts where id = $1', [m.account_id])
     if (ctx.agentStatus !== 'active') return stop('cancelled', `the agent is ${ctx.agentStatus}; queued messages are not sent`)

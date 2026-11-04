@@ -2,10 +2,10 @@
 import type { NavItem } from '../nav'
 
 export const MERCHANT_NAV: NavItem[] = [
-  { href: '/store', label: 'Control Room', icon: 'home', exact: true, also: ['/store/control-room'] },
+  { href: '/store', label: 'Control Room', short: 'Home', icon: 'home', exact: true, also: ['/store/control-room'] },
   { href: '/store/agents', label: 'Agents', icon: 'bolt' },
   { href: '/store/inbox', label: 'Approvals', icon: 'inbox' },
-  { href: '/store/integrations', label: 'Integrations', icon: 'spark', also: ['/store/connections', '/store/connect'] },
+  { href: '/store/integrations', label: 'Integrations', short: 'Connect', icon: 'spark', also: ['/store/connections', '/store/connect'] },
   { href: '/store/issues', label: 'Issues', icon: 'alert' },
   { href: '/store/activity', label: 'Activity', icon: 'list' },
   { href: '/store/rules', label: 'Rules', icon: 'shield' },

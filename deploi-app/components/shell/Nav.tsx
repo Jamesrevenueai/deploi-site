@@ -33,8 +33,8 @@ export function BottomBar({ items }: { items: NavItem[] }) {
       {items.map(it => {
         const active = navActive(it, path)
         return (
-          <Link key={it.href} href={it.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined}>
-            <Icon name={it.icon} size={20} />{it.label}
+          <Link key={it.href} href={it.href} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} style={{ minWidth: 60 }}>
+            <Icon name={it.icon} size={20} />{it.short ?? it.label}
           </Link>
         )
       })}

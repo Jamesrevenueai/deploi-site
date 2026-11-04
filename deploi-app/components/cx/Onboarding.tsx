@@ -103,7 +103,7 @@ function StepBody(p: StepProps) {
   if (step === 'connect') return <ConnectStep {...p} />
   if (step === 'agreements') return open ? <AgreementsStep {...p} /> : null
   if (step === 'agents') return open || w.agents.some(a => a.agentId) ? <AgentsStep {...p} /> : null
-  if (step === 'scan') return open ? <ScanStep {...p} /> : w.scan ? <p className="pt-2 text-[13px] text-grey-h">Read {w.scan.resourcesScanned} variants · {w.scan.issuesOpened} new issues.</p> : null
+  if (step === 'scan') return open ? <ScanStep {...p} /> : w.scan ? <p className="pt-2 text-[13px] text-grey-h">Read {w.scan.resourcesScanned} variant{w.scan.resourcesScanned === 1 ? '' : 's'} · {w.scan.issuesOpened} new issue{w.scan.issuesOpened === 1 ? '' : 's'}.</p> : null
   return <DoneStep {...p} />
 }
 
@@ -222,13 +222,13 @@ function AgentsStep({ w, busy, op, grant, base, open }: StepProps) {
   if (!w.productsChosen) return null
   if (!w.products.includes('commerce')) return <p className="pt-2 text-[14px] text-grey-h">Deploi Office agents are set up in <Link href={ROUTES.office} className="text-ink underline">Deploi Office</Link>.</p>
   if (!w.store.connected) return <p className="pt-2 text-[14px] text-grey-h">Connect your store first; the agents work on it.</p>
-  const created = w.agents.some(a => a.agentId)
+  const missing = w.agents.filter(a => !a.agentId).length
   return (
     <div className="mt-3 flex flex-col gap-3">
-      {!created && open && (
+      {missing > 0 && open && (
         <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" onClick={() => void op<AutoSetupResult>('agents', { op: 'agents' }, r => r.failed.length ? <>Set up {r.created.length + r.existing.length} of {w.agents.length}. Not set up: {r.failed.map(f => `${f.key.replace(/_/g, ' ')} (${f.message})`).join('; ')}.</> : <>Your agents are ready at drafts only. Read what each may do, then grant it.</>)} disabled={busy !== null}>
-            <Icon name="bolt" size={15} />{busy === 'agents' ? 'Setting up…' : `Set up ${w.agents.length} recommended agents`}
+            <Icon name="bolt" size={15} />{busy === 'agents' ? 'Setting up…' : missing === w.agents.length ? `Set up ${w.agents.length} recommended agents` : `Set up the ${missing} remaining agent${missing === 1 ? '' : 's'}`}
           </Button>
           <span className="text-[13px] text-grey-h">Created at drafts only. Nothing runs until you grant each one.</span>
         </div>
@@ -241,7 +241,7 @@ function AgentsStep({ w, busy, op, grant, base, open }: StepProps) {
               <span className="flex flex-wrap gap-2"><Badge tone="muted">Drafts only</Badge><Badge tone={a.status === 'active' ? 'ok' : a.status === 'not_created' ? 'muted' : 'warn'}>{a.status === 'active' ? 'Granted' : a.status === 'not_created' ? 'Not set up' : a.status === 'draft' ? 'Waiting for your grant' : a.status}</Badge></span>
             </div>
             <p className="pt-2 text-[14px] text-grey"><span className="text-ink">Its job: </span>{a.job}</p>
-            <div className="flex flex-wrap gap-2 pt-2">{a.tools.map(t => <Badge key={t} tone="muted">{templateToolWords(t as 'shopify' | 'email' | 'public_web')}</Badge>)}</div>
+            <div className="flex flex-wrap gap-2 pt-2">{a.tools.filter(t => t !== 'email' || w.mailboxes).map(t => <Badge key={t} tone="muted">{templateToolWords(t as 'shopify' | 'email' | 'public_web')}</Badge>)}</div>
             {(a.pending?.summary ?? a.summary) && (
               <details className="mt-3" open={a.status === 'draft'}>
                 <summary className="cursor-pointer text-[14px] text-ink">What it may do</summary>

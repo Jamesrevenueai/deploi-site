@@ -47,6 +47,7 @@ test.afterAll(async ({ browser }) => {
   const page = await browser.newPage({ baseURL: BASE })
   await signIn(page, NORTHWIND)
   for (const id of pausedBySpec) await api(page, 'POST', `/api/store/agents/${id}/resume`, {})
+  for (const a of (await wizard(page)).agents) if (a.agentId && !createdByWizard.includes(a.agentId)) createdByWizard.push(a.agentId)
   for (const id of createdByWizard) await api(page, 'DELETE', `/api/store/agents/${id}`)
   await page.close()
 })
@@ -79,12 +80,13 @@ test('setup wizard: from the first step to done, agents at drafts only and grant
       if (await cont.count()) await cont.click()
       else if (await read.count()) { await api(page, 'POST', '/api/store/onboarding', { op: 'agreements', status: 'skipped' }); await page.reload() }
     } else if (w.current === 'agents') {
-      const setup = step.getByRole('button', { name: /Set up 2 recommended agents/ })
+      const setup = step.getByRole('button', { name: /Set up (2 recommended agents|the \d remaining agent)/ })
       if (await setup.count()) {
         await setup.click()
         await expect(page.getByText(/ready at drafts only|Set up \d of 2/)).toBeVisible()
       }
       // pressing it again never creates a second agent
+      expect((await api(page, 'POST', '/api/store/onboarding', { op: 'agents' })).status).toBe(200)
       const before = (await agentIds(page)).length
       expect((await api(page, 'POST', '/api/store/onboarding', { op: 'agents' })).status).toBe(200)
       expect((await agentIds(page)).length).toBe(before)
@@ -92,7 +94,7 @@ test('setup wizard: from the first step to done, agents at drafts only and grant
       for (const a of (await wizard(page)).agents) {
         if (a.agentId && !createdByWizard.includes(a.agentId)) createdByWizard.push(a.agentId)
         const card = page.locator(`[data-agent-key="${a.key}"]`)
-        await expect(card.getByText('Drafts only')).toBeVisible()
+        await expect(card.getByText('Drafts only', { exact: true })).toBeVisible()
         if (a.status !== 'draft') continue
         await expect(card.getByText('What it may do')).toBeVisible()
         const grant = card.getByRole('button', { name: /Grant .* at drafts only/ })
@@ -173,7 +175,7 @@ test('Integrations: every tool with an honest status; agent pages show permissio
   await expect(page.getByRole('heading', { level: 1, name: 'Integrations' })).toBeVisible()
   await expect(page.locator('[data-integration="shopify"]')).toHaveAttribute('data-status', 'connected')
   for (const k of ['woocommerce', 'agent_mailbox', 'gmail', 'microsoft', 'hubspot', 'google_calendar', 'stripe']) await expect(page.locator(`[data-integration="${k}"]`)).toBeVisible()
-  await expect(page.locator('[data-integration="gmail"]').getByText('Not live-verified')).toBeVisible()
+  await expect(page.locator('[data-integration="gmail"]').getByText('Not live-verified', { exact: true })).toBeVisible()
   // WooCommerce and Office pages ship separately: until they exist the card says so and offers no link
   await expect(page.locator('[data-integration="hubspot"]')).not.toHaveAttribute('data-status', 'connected')
   await shoot(page, 'integrations')

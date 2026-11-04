@@ -19,7 +19,8 @@ const GROUPS: { key: Integration['group']; title: string; sub: string }[] = [
 
 /** A page that is not deployed yet turns any status into "not available yet" and hides its link. */
 export function effectiveStatus(i: Integration, availability: Availability | undefined): { status: IntegrationStatus; linkable: boolean } {
-  if (!i.probe) return { status: i.status, linkable: true }
+  // nothing to set up when it is not switched on here (the Shopify page still explains how to install)
+  if (!i.probe) return { status: i.status, linkable: i.status !== 'not_available' || i.key === 'shopify' }
   if (availability === 'missing') return { status: i.status === 'connected' ? 'connected' : 'not_available', linkable: false }
   return { status: i.status, linkable: availability === 'available' }
 }

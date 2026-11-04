@@ -21,8 +21,8 @@ Severity: **Critical** (cross-tenant or privilege compromise reachable by an out
 | F-07 | Medium | Shopify `customers/redact` and `customers/data_request` answer "no customer data held"; untrue once order/customer agents or agent e-mail hold shopper data | Open |
 | F-08 | Medium | Any member of an organization (or any Shopify admin user of the store) can grant agent authorizations; no owner-only role | Open |
 | F-09 | Medium | With billing on, `/api/store/plan` would let a merchant switch to any tier for free | Fixed |
-| F-10 | Low | Monthly agent-action allowance is shown but not enforced at run time | Open |
-| F-11 | Low | A downgrade arriving by Stripe webhook updates the tier but does not switch off library agents the new tier excludes (the merchant-initiated path does) | Open |
+| F-10 | Low | Monthly agent-action allowance is shown but not enforced at run time | Fixed |
+| F-11 | Low | A downgrade arriving by Stripe webhook updates the tier but does not switch off library agents the new tier excludes (the merchant-initiated path does) | Fixed |
 | F-12 | Low | No rate limit on the public early-access form or on sign-in link requests (beyond Supabase's own) | Open |
 | F-13 | Info | Dev sign-in on production (`AUTH_MODE=dev`, `ALLOW_DEV_LOGIN=true`) per `PRODUCTION-SAFETY.md` §2 | Open (owner action, not re-verified here) |
 | F-14 | Info | `email_messages.reply_token` is readable by the owning organization | Accepted |
@@ -94,12 +94,23 @@ without payment. Harmless in the free beta; with `BILLING_MODE` on it would bypa
 now refuses while billing is on (one line); the tier follows the Stripe subscription
 (`lib/billing/webhooks.ts`). Tested in `tests/billing/stripe-flow.test.ts`.
 
-### F-10, F-11, F-12 Low (Open)
-- F-10: `PLAN_LIMITS.monthlyActions` (= the tier allowance) is exposed by `orgEntitlements` but the
-  library runner does not refuse at the allowance (`allowance_exhausted` exists but is unused). Owner:
-  library.
-- F-11: `setTier`'s downgrade clean-up needs a merchant actor; the webhook path updates the tier only.
-  Agents the lower tier excludes stay switched on until the merchant changes them. Owner: library/billing.
+### F-10, F-11 Low (Fixed), F-12 Low (Open)
+- F-10 (fixed): `lib/plans/allowance.ts` counts carried-out agent actions per UTC calendar month (agent
+  store writes executing/applied/verified/unknown, agent email sending/accepted/delivery_unknown, Office
+  actions executing/succeeded/unknown, library writes done; never drafts, proposals, refused, blocked,
+  stale, cancelled or failed attempts). While `BILLING_MODE` is on, `authorizeAgentAction` (store and
+  email), the store write's last gate, Office's execution claim and the library runner hold work at the
+  allowance under a per-organization lock: a store write goes back to "waiting for your approval" (its
+  approval withdrawn), an email or Office action waits for approval, a library auto-run write stays a
+  draft and approving one answers `allowance_exhausted`. Individually approved items are held too.
+  Usage is in the Control Room (`usage`) and on the billing page. Tests: `tests/plans/enforcement.test.ts`.
+- F-11 (fixed): `lib/plans/enforce.ts` runs after every processed Stripe event (same transaction) and
+  hourly for subscriptions not in good standing: library agents the applicable tier excludes are switched
+  off (`switchOffExcluded`, shared with `setTier`, no merchant actor needed), the most recently created
+  active engine agents beyond `maxAgents` and Office agents beyond `officeSeats` are paused, each audited,
+  plus one `plan.enforced` entry. A lapse (cancelled, unpaid, paused, past due beyond grace) applies the
+  lowest tier. Nothing is deleted; an upgrade resumes nothing; resume and first grant refuse beyond the
+  plan. Office connections are checked at connect.
 - F-12: add per-IP rate limits (Vercel Firewall rules) for `/api/public/lead` and `/login`.
 
 ## Billing and legal controls added (for reference)

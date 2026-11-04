@@ -13,12 +13,16 @@
  *   validity       a "without asking" grant has an end date that has not passed (expired grants fail closed)
  *   scope          the product or the recipients are inside the version's scope
  *   store access   for store writes: the connection is the agent's, active, and enabled for changes
- * Pure reads of the database; nothing here changes state.
+ *   allowance      for store writes and agent email: the plan's monthly action allowance is not used up
+ *                  (lib/plans/allowance.ts; only while BILLING_MODE is on). Checked last, so a refused
+ *                  attempt reports its own reason. Code 'allowance' means "hold the item", never "drop it".
+ * Reads of the database (the allowance count takes a per-organization transaction lock); nothing here changes state.
  */
 import type { Db } from '../db'
 import { actionField, actionType, inScope, parsePolicy, permissionRank, recipientAllowed, tierOfMode, writableFields, type AgentPolicy, type Tier } from '../agents/policy'
 import { writeBlockReason } from './access'
 import { orgStopReason } from './kill-switch'
+import { allowanceBlock } from '../plans/allowance'
 import type { ConnectionRow, Platform } from './types'
 
 export type AgentAction =
@@ -26,7 +30,7 @@ export type AgentAction =
   | { tool: 'store'; actionKey: string; tier: Exclude<Tier, 'draft'>; connectionId?: string; target?: { productId: string; productTags: string[] } }
   | { tool: 'email'; taskKey: string; tier: Tier; accountId?: string; recipients?: string[] }
 
-export type AuthzCode = 'not_found' | 'wrong_org' | 'org_stopped' | 'agent_inactive' | 'no_grant' | 'capability' | 'tier' | 'expired' | 'scope' | 'store_access'
+export type AuthzCode = 'not_found' | 'wrong_org' | 'org_stopped' | 'agent_inactive' | 'no_grant' | 'capability' | 'tier' | 'expired' | 'scope' | 'store_access' | 'allowance'
 export type AuthzResult =
   | { ok: true; orgId: string; agentId: string; policyId: string; policyVersion: number; tier: Tier; policy: AgentPolicy }
   | { ok: false; code: AuthzCode; reason: string }
@@ -66,6 +70,8 @@ export async function authorizeAgentAction(db: Db, req: { agentId: string; orgId
     if (conn.status !== 'active') return deny('store_access', `store connection is ${conn.status}`)
     const access = await writeBlockReason(db, conn)
     if (access) return deny('store_access', access)
+    const held = await allowanceBlock(db, agent.org_id, { now, lock: true })
+    if (held) return deny('allowance', held.reason)
     return ok(tier)
   }
 
@@ -80,6 +86,11 @@ export async function authorizeAgentAction(db: Db, req: { agentId: string; orgId
   if (a.tier === 'send_autonomous' && a.recipients) {
     const outside = a.recipients.filter(r => !recipientAllowed(e, r))
     if (outside.length) return deny('scope', `recipients outside the allowed list: ${outside.join(', ')}`)
+  }
+  // a person's own reply is not an agent action and never uses the allowance
+  if (a.taskKey !== 'human_reply') {
+    const held = await allowanceBlock(db, agent.org_id, { now, lock: true })
+    if (held) return deny('allowance', held.reason)
   }
   return ok(e.permission)
 }

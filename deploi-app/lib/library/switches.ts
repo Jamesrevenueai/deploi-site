@@ -8,12 +8,14 @@
 import { admin, type Db } from '../db'
 import { audit } from '../engine/audit'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
-import { createAgent, grantPolicy, pauseAgent, resumeAgent } from '../agents/lifecycle'
+import { createAgent, grantPolicy, pauseAgent, pauseAgentInTx, resumeAgent } from '../agents/lifecycle'
 import { templatePolicy, type TemplateKey } from '../agents/templates'
 import { LIBRARY, agentByKey, isPermissionLevel, isTierKey, isUpgrade, lowestTierFor, tierByKey, tierIncludes, type LibraryAgent, type PermissionLevel, type TierKey } from './config'
 import { LibraryError } from './errors'
 import { APPROVAL_ONLY, type SwitchRow } from './actions'
 import { usageSummary, type UsageSummary } from './usage'
+import { billingMode } from '../billing/config'
+import { effectiveTier } from '../plans/entitlements'
 
 export type GrantView = { actionType: string; label: string; maxPerDay: number; grantedAt: string; grantedBy: string }
 export type TeamAgent = LibraryAgent & {
@@ -81,7 +83,8 @@ export async function teamView(actor: Actor, now = new Date()): Promise<TeamView
 
 /** Refuses when the merchant's tier does not include the agent. The error names the tier that does. */
 export async function assertUnlocked(db: Db, orgId: string, agentKey: string) {
-  const tier = await orgTier(db, orgId)
+  // with billing on, the plan that applies now (a lapsed subscription falls back to the lowest tier)
+  const tier = billingMode() === 'off' ? await orgTier(db, orgId) : (await effectiveTier(db, orgId)).tier
   if (!tierIncludes(tier, agentKey)) {
     const up = lowestTierFor(agentKey)
     throw new LibraryError('upgrade_required', `${agentByKey(agentKey)?.name ?? agentKey} is not included in the ${tierByKey(tier)?.name ?? tier} tier${up ? `; it is included from ${up.name}` : ''}`, { tier, upgradeTo: up?.key ?? null, agentKey })
@@ -222,19 +225,28 @@ export async function setTier(actor: Actor, tier: unknown) {
   return admin(async db => {
     const from = await orgTier(db, orgId)
     await db.query(`update agencies set plan_tier = $2, plan_changed_at = now(), onboarding = onboarding || '{"tierChosen": true}'::jsonb where id = $1`, [orgId, tier])
-    const switchedOff: string[] = []
-    if (!isUpgrade(from, tier)) {
-      const on = await db.query<SwitchRow>('select * from library_switches where org_id = $1 and enabled', [orgId])
-      for (const sw of on) {
-        if (tierIncludes(tier, sw.agent_key)) continue
-        await db.query('update library_switches set enabled = false, switched_by = $3, switched_at = now() where org_id = $1 and agent_key = $2', [orgId, sw.agent_key, actor.label])
-        await db.query(`update library_actions set status = 'expired', status_reason = 'the plan no longer includes this agent' where org_id = $1 and agent_key = $2 and status = 'draft'`, [orgId, sw.agent_key])
-        if (sw.engine_agent_id) { const a = await db.one<{ status: string }>('select status from agents where id = $1', [sw.engine_agent_id]); if (a?.status === 'active') await pauseAgent(actor, sw.engine_agent_id) }
-        switchedOff.push(sw.agent_key)
-      }
-      if (!tierByKey(tier)?.buildYourOwn) await db.query('update custom_agents set enabled = false where org_id = $1', [orgId])
-    }
+    const switchedOff = isUpgrade(from, tier) ? [] : await switchOffExcluded(db, orgId, tier, actor.label)
     await audit(db, { orgId, entityType: 'library', entityId: 'plan', event: 'library.tier', actor: actor.label, detail: { from, to: tier, switched_off: switchedOff } })
     return { from, to: tier, switchedOff }
   })
+}
+
+/**
+ * Switch off every library agent the tier does not include (in the caller's transaction): its open drafts
+ * expire, its engine agent is paused (audited), and custom agents are switched off when the tier has no
+ * build-your-own. Nothing is deleted. Used by a merchant's downgrade and by plan enforcement
+ * (lib/plans/enforce.ts) when Stripe reports a lower plan or a lapse. Returns the agents switched off.
+ */
+export async function switchOffExcluded(db: Db, orgId: string, tier: TierKey, actor: string, reason = 'the plan no longer includes this agent'): Promise<string[]> {
+  const switchedOff: string[] = []
+  const on = await db.query<SwitchRow>('select * from library_switches where org_id = $1 and enabled order by agent_key for update', [orgId])
+  for (const sw of on) {
+    if (tierIncludes(tier, sw.agent_key)) continue
+    await db.query('update library_switches set enabled = false, switched_by = $3, switched_at = now() where org_id = $1 and agent_key = $2', [orgId, sw.agent_key, actor])
+    await db.query(`update library_actions set status = 'expired', status_reason = $3 where org_id = $1 and agent_key = $2 and status = 'draft'`, [orgId, sw.agent_key, reason])
+    if (sw.engine_agent_id) await pauseAgentInTx(db, orgId, sw.engine_agent_id, actor, reason)
+    switchedOff.push(sw.agent_key)
+  }
+  if (!tierByKey(tier)?.buildYourOwn) await db.query('update custom_agents set enabled = false where org_id = $1 and enabled', [orgId])
+  return switchedOff
 }

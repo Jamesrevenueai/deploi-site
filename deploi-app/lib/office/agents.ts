@@ -9,6 +9,7 @@ import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { orgStopReason } from '../engine/kill-switch'
 import { assertProduct } from '../products'
+import { assertOfficeSeat } from '../plans/entitlements'
 import { officeAudit } from './audit'
 import { cancelAgentActions, type AgentRow } from './actions'
 import { officeExpansion, officePolicyHash, parseOfficePolicy, summarizeOfficePolicy, type OfficeKind, type OfficePolicy } from './policy'
@@ -70,6 +71,7 @@ export async function createOfficeAgent(actor: Actor, input: { kind: OfficeKind;
   if (!name || name.length > 80) throw new EngineError('invalid_input', 'name must be 1 to 80 characters')
   return admin(async db => {
     await assertProduct(db, actor.orgId, 'office')
+    await assertOfficeSeat(db, actor.orgId) // the plan's Office seats (only while billing is on)
     const ctx = await checkResources(db, actor.orgId, policy)
     const agent = (await db.one<{ id: string }>(`insert into office_agents (org_id, kind, name, status, created_by) values ($1,$2,$3,'draft',$4) returning id`, [actor.orgId, input.kind, name, actor.label]))!
     const summary = summarizeOfficePolicy(policy, ctx)
@@ -120,6 +122,7 @@ export async function grantOfficePolicy(actor: Actor, agentId: string, policyId:
     const pr = await db.one<PolicyRow>('select * from office_agent_policies where id = $1 and agent_id = $2 for update', [policyId, agentId])
     if (!pr || pr.status !== 'pending_grant') throw new EngineError('not_pending', 'this version is not waiting for a grant')
     if (pr.policy_hash !== shownHash) throw new EngineError('hash_mismatch', 'the authorization you reviewed is not the current version; review it again')
+    if (agent.status !== 'active') await assertOfficeSeat(db, a0.org_id, agentId)
     const policy = parseOfficePolicy(pr.policy)
     await checkResources(db, a0.org_id, policy)
     if (agent.active_policy_id) await db.query(`update office_agent_policies set status = 'superseded' where id = $1 and status = 'active'`, [agent.active_policy_id])
@@ -136,12 +139,19 @@ export async function pauseOfficeAgent(actor: Actor, agentId: string) {
   merchant(actor)
   const a0 = await visibleAgent(actor, agentId)
   return admin(async db => {
-    const r = await db.query(`update office_agents set status = 'paused', next_run_at = null where id = $1 and status = 'active' returning id`, [agentId])
-    if (!r.length) throw new EngineError('not_pending', 'only an active agent can be paused')
-    const n = await cancelAgentActions(db, agentId, 'the agent was paused; queued items are not carried out', false)
-    await officeAudit(db, { orgId: a0.org_id, entityType: 'office_agent', entityId: agentId, event: 'agent.paused', actor: actor.label, detail: { actions_cancelled: n.actions, emails_cancelled: n.emails } })
-    return { actionsCancelled: n.actions, emailsCancelled: n.emails }
+    const r = await pauseOfficeAgentInTx(db, a0.org_id, agentId, actor.label)
+    if (!r) throw new EngineError('not_pending', 'only an active agent can be paused')
+    return r
   })
+}
+
+/** Pause inside the caller's transaction (also used by plan enforcement). Null when the agent was not active. */
+export async function pauseOfficeAgentInTx(db: Db, orgId: string, agentId: string, actor: string, reason?: string) {
+  const r = await db.query(`update office_agents set status = 'paused', next_run_at = null where id = $1 and org_id = $2 and status = 'active' returning id`, [agentId, orgId])
+  if (!r.length) return null
+  const n = await cancelAgentActions(db, agentId, `${reason ?? 'the agent was paused'}; queued items are not carried out`, false)
+  await officeAudit(db, { orgId, entityType: 'office_agent', entityId: agentId, event: 'agent.paused', actor, detail: { actions_cancelled: n.actions, emails_cancelled: n.emails, ...(reason ? { reason } : {}) } })
+  return { actionsCancelled: n.actions, emailsCancelled: n.emails }
 }
 
 export async function resumeOfficeAgent(actor: Actor, agentId: string) {
@@ -151,6 +161,7 @@ export async function resumeOfficeAgent(actor: Actor, agentId: string) {
     await assertProduct(db, a0.org_id, 'office')
     const stopped = await orgStopReason(db, a0.org_id)
     if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before resuming an agent`)
+    await assertOfficeSeat(db, a0.org_id, agentId)
     const r = await db.query(`update office_agents set status = 'active', next_run_at = now() where id = $1 and status = 'paused' and active_policy_id is not null returning id`, [agentId])
     if (!r.length) throw new EngineError('not_pending', 'only a paused agent with an active authorization can resume')
     await officeAudit(db, { orgId: a0.org_id, entityType: 'office_agent', entityId: agentId, event: 'agent.resumed', actor: actor.label })

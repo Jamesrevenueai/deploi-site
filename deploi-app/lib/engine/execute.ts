@@ -20,6 +20,7 @@ import { invalidateProposal, type ProposalRow } from './proposals'
 import { assertMerchant, withActor, type Actor } from './actor'
 import { authorizeAgentAction, type AuthzResult } from './authorize'
 import { orgStopReason } from './kill-switch'
+import { allowanceBlock } from '../plans/allowance'
 import type { ApplyResult, ConnectionRow, Correction, ResourceRecord } from './types'
 
 export type ExecutionStatus = 'queued' | 'prechecking' | 'blocked' | 'stale' | 'executing' | 'applied' | 'unknown' | 'verified' | 'failed' | 'verification_failed'
@@ -124,6 +125,21 @@ async function finish(execId: string, p: ProposalRow, status: ExecutionStatus, p
   })
 }
 
+/**
+ * The monthly action allowance is used: nothing is written. The approval is withdrawn and the proposal waits
+ * for approval again with the reason, so it can be approved next month or after an upgrade.
+ */
+async function holdForAllowance(execId: string, p: ProposalRow, reason: string, actor: string): Promise<ExecutionResult> {
+  const why = `held: ${reason}`
+  await admin(async db => {
+    await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where id = $1 and status in ('prechecking','queued')`, [execId, why])
+    await db.query(`update approvals set revoked_at = now(), revoke_reason = $2 where proposal_id = $1 and revoked_at is null`, [p.id, why])
+    await db.query(`update proposals set status = 'pending_approval', status_reason = $2 where id = $1`, [p.id, `waiting for your approval: ${why}`])
+    await audit(db, { orgId: p.org_id, connectionId: p.connection_id, entityType: 'execution', entityId: execId, event: 'execution.held', actor, detail: { reason, cause: 'allowance', proposal_id: p.id } })
+  })
+  return { executionId: execId, status: 'blocked', reason: why }
+}
+
 /** Fresh read of a target: a variant by id, or a product-level target via any of its variants. */
 async function readOne(conn: ConnectionRow, id: string): Promise<ResourceRecord | null> {
   const m = await getConnector(conn.platform).readResources(conn, [id])
@@ -166,7 +182,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
     : (p.policy_version ?? null) !== agentCtx.policyRow.version ? null // handled as stale below (recompute)
     : !writableFields(agentCtx.policy, conn.platform).includes(field) ? `field "${field}" is not writable for this agent`
     : standing && (ctx.approval.policy_id !== agentCtx.policyRow.id || ctx.approval.policy_version !== agentCtx.policyRow.version) ? 'the standing authorization that covered this change was changed or revoked'
-    : ctx.authz && !ctx.authz.ok ? ctx.authz.reason
+    : ctx.authz && !ctx.authz.ok && ctx.authz.code !== 'allowance' ? ctx.authz.reason
     : null
   const block =
     !field ? `no connector declares the action ${p.action_key}`
@@ -182,6 +198,8 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
     await finish(execId, p, 'stale', 'stale', reason, {}, opts.actor)
     return { executionId: execId, status: 'stale', reason }
   }
+  // the month's action allowance is used: held for approval again, not dropped (lib/plans/allowance.ts)
+  if (ctx.authz && !ctx.authz.ok && ctx.authz.code === 'allowance') return holdForAllowance(execId, p, ctx.authz.reason, opts.actor)
 
   // ---- recheck: fresh read, scope, preconditions, and the check must still produce the same approved change
   let fresh: ResourceRecord | null
@@ -245,6 +263,7 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
   // the store still connected. The agent row is share-locked, so a pause, revoke or delete either commits first
   // (and this write never starts) or waits until the write has been claimed. A pause that closed this execution
   // while it was prechecking also stops it here (status is no longer 'prechecking').
+  let heldAtGate: string | null = null
   const lastGate = await admin(async db => {
     const stopped = await orgStopReason(db, p.org_id)
     if (stopped && p.agent_id) return stopped
@@ -255,10 +274,13 @@ async function runExecution(execId: string, opts: { actor: string; now?: Date })
     }
     const c = await db.one<{ status: string }>('select status from store_connections where id = $1 for share', [conn.id])
     if (!c || c.status !== 'active') return `store connection is ${c?.status ?? 'missing'}`
+    // the allowance again, counted under the organization's lock in the same transaction as the claim
+    if (p.agent_id) { const held = await allowanceBlock(db, p.org_id, { lock: true }); if (held) { heldAtGate = held.reason; return held.reason } }
     const claimed = await db.query(`update executions set status = 'executing', precheck = $2, before_value = $3, qualification = $4 where id = $1 and status = 'prechecking' returning id`,
       [execId, JSON.stringify(precheck), JSON.stringify(current ?? null), qualification ? JSON.stringify(qualification) : null])
     return claimed.length ? null : 'the change was stopped before it was written (paused, revoked or already handled)'
   })
+  if (heldAtGate) return holdForAllowance(execId, p, heldAtGate, opts.actor)
   if (lastGate) {
     await admin(async db => {
       await db.query(`update executions set status = 'blocked', status_reason = $2, finished_at = now() where id = $1 and status in ('prechecking','queued')`, [execId, lastGate])

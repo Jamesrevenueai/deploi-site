@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { admin } from '@/lib/db'
 import { resolveActor, errorResponse } from '@/lib/store/request'
 import { orgEntitlements } from '@/lib/plans/entitlements'
+import { planUsage } from '@/lib/plans/allowance'
 import { billingMode, priceIdFor, stripeConfig } from '@/lib/billing/config'
 import { LIBRARY, TIER_KEYS } from '@/lib/library/config'
 
@@ -17,6 +18,7 @@ export async function GET(req: Request) {
     const actor = await resolveActor(req)
     if (actor.kind === 'staff') return NextResponse.json({ ok: true, mode: billingMode(), staff: true })
     const e = await admin(db => orgEntitlements(db, actor.orgId))
+    const usage = await admin(db => planUsage(db, actor.orgId))
     const portal = await admin(db => db.one<{ id: string }>('select id from billing_customers where org_id = $1', [actor.orgId]))
     return NextResponse.json({
       ok: true,
@@ -28,6 +30,7 @@ export async function GET(req: Request) {
       plans: TIER_KEYS.map(k => ({ key: k, name: LIBRARY.tiers.find(t => t.key === k)?.name ?? k, available: Boolean(priceIdFor(k)) })),
       pricingStatus: LIBRARY.pricingStatus,
       hasPortal: Boolean(portal),
+      usage,
     })
   } catch (e) { return errorResponse(e) }
 }

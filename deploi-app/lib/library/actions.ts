@@ -19,6 +19,7 @@ import { storeDataFor, type StoreData } from './store-data'
 import { recordUsage } from './usage'
 import { runAgent } from '../agents/run'
 import { orgStopReason } from '../engine/kill-switch'
+import { allowanceBlock } from '../plans/allowance'
 
 /** Action types that move money or publish to the outside world: approval-only at every permission level. */
 export const APPROVAL_ONLY = new Set(['approve_return', 'create_discount', 'end_discount', 'send_customer_reply'])
@@ -136,6 +137,14 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
           counts.approvedUnsent++
           return
         }
+        // the month's action allowance (lib/plans/allowance.ts): kept as a draft with the reason, never dropped
+        const held = await allowanceBlock(db, opts.orgId, { now, lock: true })
+        if (held) {
+          const id = await insert(db, { orgId: opts.orgId, agentKey: logKey, runId, d, payload, mode: 'draft', status: 'draft', basis: `act: held, ${held.reason}; approve it to carry it out then`, proof: null })
+          await recordUsage(db, { orgId: opts.orgId, agentKey: logKey, actionType: d.actionType, actionId: id })
+          counts.drafted++
+          return
+        }
         const r = await performWrite(data, d.actionType, payload, now)
         const id = await insert(db, { orgId: opts.orgId, agentKey: logKey, runId, d, payload, mode: 'auto', status: r.ok ? 'done' : 'failed', basis: `act: auto-run granted for "${at.label}" (max ${grant.max_per_day} a day)`, proof: r.proof, reason: r.ok ? null : r.reason, executedAt: now })
         await recordUsage(db, { orgId: opts.orgId, agentKey: logKey, actionType: d.actionType, actionId: id })
@@ -198,6 +207,9 @@ export async function approveAction(actor: Actor, id: string, now = new Date()) 
     })
     return { status: 'approved' as const, executed: false }
   }
+  // the month's action allowance: the draft stays waiting (approve it again next month or after an upgrade)
+  const held = await admin(db => allowanceBlock(db, a.org_id, { now }))
+  if (held) throw new LibraryError('allowance_exhausted', `held: ${held.reason}`, { limit: held.limit, used: held.used, resetsAt: held.resetsAt })
   const src = await storeDataFor(a.org_id, now)
   const r = await performWrite(src.data, a.action_type, a.payload, now)
   await admin(async db => {

@@ -43,6 +43,9 @@ export async function seed(databaseUrl = process.env.DATABASE_URL, opts: { clien
   counts.profiles = users.length
 
   await runSeedParts({ c, counts })
+  // every merchant organization uses Commerce (the org_products migration backfills only merchants that existed when it ran)
+  if ((await c.query(`select to_regclass('org_products') as t`)).rows[0]?.t)
+    await c.query(`insert into org_products (org_id, product, enabled_by) select id, 'commerce', 'seed' from agencies where org_type = 'merchant' on conflict (org_id, product) do nothing`)
 
   await c.end()
   return counts

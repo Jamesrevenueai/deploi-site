@@ -5,6 +5,7 @@
  */
 import '../merchant/env'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { createHmac } from 'node:crypto'
 import { wooRequest, wooPages, wooClientHooks, validCreds, decodeCreds, encodeCreds, buildUrl, WooApiError, type WooSite } from '../../lib/connectors/woocommerce/client'
 import { fakeWooTransport, type WooSynthState } from '../../lib/connectors/woocommerce/synthetic'
 import { wooDemoState } from '../../lib/connectors/woocommerce/demo-store'
@@ -167,7 +168,7 @@ describe('webhook signatures and targets', () => {
   it('base64 HMAC-SHA256 of the raw body, compared in constant time', () => {
     const body = '{"id":101}'
     const sig = webhookSignature(body, 'secret-1')
-    expect(sig).toBe(require('node:crypto').createHmac('sha256', 'secret-1').update(body).digest('base64'))
+    expect(sig).toBe(createHmac('sha256', 'secret-1').update(body).digest('base64'))
     expect(verifyWooSignature(body, sig, 'secret-1')).toBe(true)
     expect(verifyWooSignature(body + ' ', sig, 'secret-1')).toBe(false)
     expect(verifyWooSignature(body, sig, 'secret-2')).toBe(false)

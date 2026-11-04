@@ -21,8 +21,8 @@ describe('Nav', () => {
     render(<MemoryRouter><Nav /></MemoryRouter>)
     expect(screen.getByLabelText('Deploi AI home')).toHaveTextContent('deploi ai')
     for (const l of NAV_LINKS) expect(screen.getAllByText(l.label).length).toBeGreaterThan(0)
-    expect(NAV_LINKS.map(l => l.to)).toEqual(['/agents', '/pricing', '/#how', '/#shopify', '/#controls', '/#faq'])
-    const ctas = screen.getAllByRole('link', { name: 'Apply for Early Access' })
+    expect(NAV_LINKS.map(l => l.to)).toEqual(['/#products', '/agents', '/pricing', '/#how', '/#shopify', '/#controls', '/#faq'])
+    const ctas = screen.getAllByRole('link', { name: 'Apply for a paid pilot' })
     expect(ctas.length).toBeGreaterThan(0)
     for (const a of ctas) expect(a).toHaveAttribute('href', '/#early-access')
     expect(screen.getByRole('button', { name: 'Open menu' })).toBeInTheDocument()
@@ -42,23 +42,24 @@ describe('Footer', () => {
 })
 
 describe('Home', () => {
-  it('shows Apply for Early Access and the honest Shopify status line', () => {
+  it('shows Apply for a paid pilot and the honest Shopify status line', () => {
     render(<MemoryRouter><Home /></MemoryRouter>)
-    expect(screen.getAllByText('Apply for Early Access').length).toBeGreaterThan(0)
-    expect(screen.getByRole('form', { name: 'Apply for Early Access' })).toBeInTheDocument()
+    expect(screen.getAllByText('Apply for a paid pilot').length).toBeGreaterThan(0)
+    expect(screen.getByRole('form', { name: 'Apply for a paid pilot' })).toBeInTheDocument()
     expect(screen.getByText(SHOPIFY_STATUS_LINE)).toBeInTheDocument()
     expect(SHOPIFY_STATUS_LINE).toBe('Early access. Tested on a synthetic store; not yet in the Shopify App Store.')
   })
 
-  it('labels WooCommerce and Amazon Seller Central as Planned and Shopify as Early access', () => {
+  it('labels Shopify Early access, WooCommerce Paid pilot and Amazon Seller Central Planned', () => {
     const { container } = render(<MemoryRouter><Home /></MemoryRouter>)
     const cards = Array.from(container.querySelectorAll<HTMLElement>('.platform-card'))
     expect(cards).toHaveLength(3)
     const byName = (n: string) => cards.find(c => within(c).queryByText(n, { selector: '.icard-title' }))!
     expect(within(byName('Shopify')).getByText('Early access')).toBeInTheDocument()
-    expect(within(byName('WooCommerce')).getByText('Planned')).toBeInTheDocument()
+    expect(within(byName('WooCommerce')).getByText('Paid pilot')).toBeInTheDocument()
     expect(within(byName('Amazon Seller Central')).getByText('Planned')).toBeInTheDocument()
-    expect(PLATFORM_CARDS.filter(p => p.status === 'planned').map(p => p.name)).toEqual(['WooCommerce', 'Amazon Seller Central'])
+    expect(PLATFORM_CARDS.filter(p => p.status === 'planned').map(p => p.name)).toEqual(['Amazon Seller Central'])
+    expect(PLATFORM_CARDS.filter(p => p.status === 'pilot').map(p => p.name)).toEqual(['WooCommerce'])
     expect(container.textContent).toMatch(/not partnerships/)
     for (const c of cards) expect(c.querySelectorAll('img')).toHaveLength(0) // no vendor logos
   })
@@ -116,7 +117,7 @@ describe('Legacy routes', () => {
         </MemoryRouter>,
       )
       await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/))
-      expect(screen.getAllByText('Apply for Early Access').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('Apply for a paid pilot').length).toBeGreaterThan(0)
     })
   }
 })

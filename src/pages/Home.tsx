@@ -11,9 +11,9 @@ import { Icon } from '../lib/icons'
 import { AGENTS, TIERS, lowestTierFor } from '../lib/library'
 import { AgentCharacter } from '../components/AgentCharacter'
 
-export const HOME_TITLE = `${BRAND} — Name an agent. Authorize what it may fix. See every change verified.`
+export const HOME_TITLE = `${BRAND} — Agents for your store and your office. Only what you grant. Every action on the record.`
 export const HOME_DESCRIPTION =
-  'Deploi AI is subscription software in which you create named AI agents that find and correct stock and listing problems in your online store: overselling settings, publication, prices and SKUs. Each agent works only within the authorization you grant, makes changes through the platform’s official API and re-reads your store to confirm them. Shopify first, in early access.'
+  'Deploi AI gives a small business named AI agents that work only within the permissions you grant. Deploi Commerce finds and corrects stock and listing problems in Shopify and WooCommerce stores; Deploi Office follows up leads and schedules meetings with HubSpot and Google Calendar. Every agent starts at drafts only, approvals wait in one inbox, and every action is audited and verified. Apply for a paid pilot.'
 
 export const SHOPIFY_STATUS_LINE = 'Early access. Tested on a synthetic store; not yet in the Shopify App Store.'
 
@@ -22,6 +22,8 @@ export default function Home() {
   return (
     <div className="home">
       <Hero />
+      <Products />
+      <OwnerControl />
       <HowItWorks />
       <Agents />
       <ShopifyToday />
@@ -41,26 +43,109 @@ function Hero() {
     <section id="top" className="hero">
       <div className="hero-art" style={{ backgroundImage: art('hero') }} aria-hidden="true" />
       <div className="container hero-inner">
-        <span className="eyebrow reveal">AI agents for stock and listing problems</span>
+        <span className="eyebrow reveal">AI agents for your store and your office</span>
         <h1 className="two-tone reveal">
           <span className="grey">Name an agent.</span><br />
-          <span className="grey">Authorize what it may fix.</span><br />
-          <span className="white">See every change verified.</span>
+          <span className="grey">Grant only what it may do.</span><br />
+          <span className="white">See every action verified.</span>
         </h1>
         <p className="lead reveal" style={{ maxWidth: 700 }}>
-          {BRAND} is subscription software for online stores. You create named agents, tell each one in plain English
-          what to look after, and approve exactly what it is allowed to change. Agents find overselling settings,
-          publication, price and SKU problems, make the corrections you authorized through your platform&rsquo;s
-          official API, and re-read your store to confirm each one took effect.
+          {BRAND} gives your business named agents. <strong>Deploi Commerce</strong> looks after a Shopify or
+          WooCommerce store: overselling settings, publication, prices and SKUs. <strong>Deploi Office</strong> follows
+          up new leads in HubSpot and proposes meeting times from Google Calendar. Every agent starts at drafts only,
+          asks before anything you have not granted, and keeps a record of every action it takes.
         </p>
         <div className="hero-ctas reveal">
           <CtaButton />
-          <Link to="/#how" className="btn btn-ghost">How it works</Link>
+          <Link to="/#products" className="btn btn-ghost">See the products</Link>
         </div>
         <div className="hero-trust reveal">
-          <span>Shopify first, in early access</span>
-          <span>Agents act only within your authorization</span>
-          <span>No customer or order data read</span>
+          <span>Shopify in early access</span>
+          <span>WooCommerce and Deploi Office in paid pilots</span>
+          <span>Agents act only within your grant</span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Products                                                                  */
+/* -------------------------------------------------------------------------- */
+export const PRODUCTS: { key: 'commerce' | 'office'; name: string; status: ProductStatus; platforms: string; body: string; points: string[]; art: ArtTheme }[] = [
+  {
+    key: 'commerce', name: 'Deploi Commerce', status: 'early_access', platforms: 'Shopify · WooCommerce',
+    body: 'Agents that find stock and listing problems in your store, show the evidence, and correct only what you grant.',
+    points: ['Overselling settings, publication, prices and SKUs', 'Supplier restock requests from the agent’s own address', 'Shopify in early access; WooCommerce in paid pilots'],
+    art: 'rings',
+  },
+  {
+    key: 'office', name: 'Deploi Office', status: 'pilot', platforms: 'HubSpot · Google Calendar',
+    body: 'Agents that follow up new leads and book meetings, drafting every message and invite for you first.',
+    points: ['Follow-up drafts for new and stalled HubSpot leads', 'Meeting times proposed from your Google Calendar', 'Paid pilots only; not generally available'],
+    art: 'blocks',
+  },
+]
+
+export function Products() {
+  return (
+    <section id="products">
+      <div className="container">
+        <div className="section-head reveal">
+          <span className="eyebrow">Products</span>
+          <h2 className="two-tone">
+            <span className="grey">One platform for your agents.</span><br />
+            <span className="white">Your store, your office, or both.</span>
+          </h2>
+          <p className="lead">Choose one product or both when you set up. The same permissions, approvals and audit trail apply to every agent.</p>
+        </div>
+        <div className="card-grid two">
+          {PRODUCTS.map(p => (
+            <div className="reveal" key={p.key}>
+              <ImageCard tag={p.platforms} tagIcon={<Icon.Store />} title={p.name} art={p.art} className="product-card">
+                <div className="icard-bottom svc" data-product={p.key}>
+                  <div className="icard-title">{p.name}</div>
+                  <StatusBadge status={p.status} />
+                  <p className="svc-desc">{p.body}</p>
+                  <ul className="product-points">{p.points.map(x => <li key={x}>{x}</li>)}</ul>
+                </div>
+              </ImageCard>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Owner control: permissions, approvals, audit                              */
+/* -------------------------------------------------------------------------- */
+export const OWNER_CONTROL: { title: string; body: string; icon: ReactNode }[] = [
+  { title: 'Permissions', icon: <Icon.Lock />, body: 'Every agent starts at drafts only. You raise one tool at a time to “after my approval” or “without asking, within limits”, with an end date at most a year away. Giving an agent more always needs a new grant.' },
+  { title: 'Approvals', icon: <Icon.UserCheck />, body: 'Everything waiting for you is in one inbox: the exact store change, email or invite. Approving runs that exact version and nothing else. One switch stops every agent at once.' },
+  { title: 'Audit', icon: <Icon.History />, body: 'Every action records which agent did it, under which permission, with the before and after values. A change counts as done only when a fresh read confirms it.' },
+]
+
+export function OwnerControl() {
+  return (
+    <section id="control" className="alt">
+      <div className="container">
+        <div className="section-head reveal">
+          <span className="eyebrow">You stay in control</span>
+          <h2 className="two-tone">
+            <span className="grey">Permissions, approvals and audit,</span><br />
+            <span className="white">the same for every agent.</span>
+          </h2>
+        </div>
+        <div className="why-grid owner-grid">
+          {OWNER_CONTROL.map(c => (
+            <div className="why-item reveal" key={c.title}>
+              <span className="ico" aria-hidden="true">{c.icon}</span>
+              <h3>{c.title}</h3>
+              <p>{c.body}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -451,9 +536,9 @@ export const PLATFORM_CARDS: { name: string; status: ProductStatus; order: strin
   },
   {
     name: 'WooCommerce',
-    status: 'planned',
-    order: 'Next',
-    body: 'A similar check for products with managed stock at or below zero that still allow backorders, with the fix written through the WooCommerce REST API.',
+    status: 'pilot',
+    order: 'Paid pilots',
+    body: 'Connected with your own WooCommerce API keys: products with managed stock at or below zero that still allow backorders, with the fix written through the WooCommerce REST API. For paid pilot customers.',
     art: 'blocks',
   },
   {
@@ -472,7 +557,7 @@ export function Platforms() {
         <div className="section-head reveal">
           <span className="eyebrow">Platforms</span>
           <h2 className="two-tone">
-            <span className="grey">Shopify first.</span><br />
+            <span className="grey">Shopify and WooCommerce.</span><br />
             <span className="white">One platform is all you need.</span>
           </h2>
           <p className="lead">
@@ -520,7 +605,7 @@ export const FAQS: { q: string; a: ReactNode }[] = [
   },
   {
     q: 'Do I need more than one platform?',
-    a: <>No. One platform is enough. A Shopify store needs only Shopify, and the same will apply to WooCommerce and Amazon Seller Central once they are available. Comparing stock across channels is a possible later add-on, not part of the product today.</>,
+    a: <>No. One platform is enough. A Shopify store needs only Shopify, and a WooCommerce store only WooCommerce. Amazon Seller Central is planned. Comparing stock across channels is a possible later add-on, not part of the product today.</>,
   },
   {
     q: 'What does it read?',
@@ -529,6 +614,14 @@ export const FAQS: { q: string; a: ReactNode }[] = [
   {
     q: 'What happens if my store or my file changes before a change runs?',
     a: <>The change does not run. Deploi re-reads the record and re-checks the agent&rsquo;s authorization just before writing, and a new version of your file cancels changes based on the old one. You see the reason next to the change.</>,
+  },
+  {
+    q: 'What is Deploi Office?',
+    a: <>Agents for the front office: they follow up new leads in HubSpot and propose meeting times from Google Calendar. They draft every message and invite for your approval first, with the same permissions and audit trail as the store agents. Deploi Office is available in paid pilots.</>,
+  },
+  {
+    q: 'What is a paid pilot?',
+    a: <>A short, paid engagement for one business: we set up the products you choose, agree the price with you before anything starts, and you approve every charge. Apply below and tell us about your business.</>,
   },
   {
     q: 'What does it cost?',
@@ -577,14 +670,15 @@ export function EarlyAccess() {
     <section id="early-access" className="alt">
       <div className="container">
         <div className="section-head reveal">
-          <span className="eyebrow">Apply for Early Access</span>
+          <span className="eyebrow">Apply for a paid pilot</span>
           <h2 className="two-tone">
-            <span className="grey">Access is limited.</span><br />
-            <span className="white">Tell us about your store.</span>
+            <span className="grey">Pilots are limited.</span><br />
+            <span className="white">Tell us about your business.</span>
           </h2>
           <p className="lead">
-            Shopify stores come first. WooCommerce and Amazon Seller Central stores can apply now, and we will be in
-            touch when those integrations are ready.
+            Pilots are paid and priced with you before they start; you approve every charge. Shopify and WooCommerce
+            stores can apply for Deploi Commerce. For Deploi Office, tell us about your leads and calendar in the
+            message. Amazon Seller Central stores can apply now, and we will be in touch when it is ready.
           </p>
         </div>
         <div className="book-inner reveal">

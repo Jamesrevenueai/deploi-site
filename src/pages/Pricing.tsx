@@ -23,6 +23,12 @@ export default function Pricing() {
           <p className="lead">{PRICING_STATUS_LINE}</p>
         </div>
 
+        <div className="pilot-banner reveal" id="pilot">
+          <h2>Start with a paid pilot</h2>
+          <p>Deploi Commerce (Shopify or WooCommerce), Deploi Office (HubSpot and Google Calendar), or both. We agree the pilot price with you before it starts, and you approve every charge.</p>
+          <CtaButton />
+        </div>
+
         <div className="plan-row">
           {TIERS.map(t => (
             <div key={t.key} className={`plan-card reveal ${t.key === 'growth' ? 'featured' : ''}`} data-tier={t.key}>

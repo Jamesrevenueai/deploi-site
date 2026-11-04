@@ -1,7 +1,8 @@
-import { OverviewScreen } from '@/components/store/Overview'
+import { ControlRoomScreen } from '@/components/cx/ControlRoom'
 
-export const metadata = { title: 'Overview' }
+export const metadata = { title: 'Control Room' }
 
-export default function StoreOverviewPage() {
-  return <OverviewScreen />
+/** The store home is the Control Room; the store overview is one click away (/store/control-room/overview). */
+export default function StoreHomePage() {
+  return <ControlRoomScreen />
 }

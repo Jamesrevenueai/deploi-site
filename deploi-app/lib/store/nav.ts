@@ -2,17 +2,18 @@
 import type { NavItem } from '../nav'
 
 export const MERCHANT_NAV: NavItem[] = [
-  { href: '/store/team', label: 'Team', icon: 'users' },
+  { href: '/store', label: 'Control Room', short: 'Home', icon: 'home', exact: true, also: ['/store/control-room'] },
   { href: '/store/agents', label: 'Agents', icon: 'bolt' },
   { href: '/store/inbox', label: 'Approvals', icon: 'inbox' },
-  { href: '/store/connections', label: 'Connections', icon: 'mail' },
-  { href: '/store', label: 'Overview', icon: 'home', exact: true },
-  { href: '/store/issues', label: 'Issues', icon: 'inbox' },
+  { href: '/store/integrations', label: 'Integrations', short: 'Connect', icon: 'spark', also: ['/store/connections', '/store/connect'] },
+  { href: '/store/issues', label: 'Issues', icon: 'alert' },
   { href: '/store/activity', label: 'Activity', icon: 'list' },
   { href: '/store/rules', label: 'Rules', icon: 'shield' },
-  { href: '/store/connect', label: 'Store', icon: 'spark' },
+  { href: '/store/team', label: 'Team', icon: 'users' },
   { href: '/store/plan', label: 'Plan', icon: 'badge' },
+  { href: '/store/onboarding', label: 'Setup', icon: 'check' },
 ]
+
 
 /** The embedded app's home route (App Bridge marks it rel="home"; it is the app's landing page, not a menu entry). */
 export const EMBEDDED_HOME = '/shopify'

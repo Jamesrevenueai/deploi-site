@@ -69,8 +69,8 @@ grant all on legal_acceptances to service_role;
 create or replace function legal_acceptances_append_only() returns trigger
 language plpgsql set search_path = public as $$
 begin
-  if tg_op = 'UPDATE' then
-    raise exception 'legal_acceptances is append-only: an acceptance can never be changed';
+  if tg_op in ('UPDATE', 'TRUNCATE') then
+    raise exception 'legal_acceptances is append-only: an acceptance can never be changed or truncated';
   end if;
   -- a delete is allowed only as the cascade from deleting the organization (depth > 1: fired from the FK action)
   if tg_op = 'DELETE' and pg_trigger_depth() < 2 then

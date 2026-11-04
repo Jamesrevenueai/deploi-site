@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto'
 import { cancelAgentEmail } from '../email/engine'
 import { closeAgentMailbox, provisionMailbox } from '../email/mailbox'
 import { recheckTasks } from './tasks'
-import { assertWithinPlan } from '../plans/entitlements'
+import { assertActiveAgentSlot, assertWithinPlan } from '../plans/entitlements'
 import { cancelJobs } from '../jobs/queue'
 import { orgStopReason } from '../engine/kill-switch'
 
@@ -166,6 +166,7 @@ export async function grantPolicy(actor: Actor, agentId: string, policyId: strin
     const pr = await db.one<PolicyRow>('select * from agent_policies where id = $1 and agent_id = $2 for update', [policyId, agentId])
     if (!pr || pr.status !== 'pending_grant') throw new EngineError('not_pending', 'this version is not waiting for a grant')
     if (pr.policy_hash !== shownHash) throw new EngineError('hash_mismatch', 'the authorization you reviewed is not the current version; review it again')
+    if (agent.status !== 'active') await assertActiveAgentSlot(db, a0.org_id, agentId)
     const policy = parsePolicy(pr.policy)
     await checkSources(db, a0.org_id, policy, agentId)
     const others = await db.query<{ name: string; policy: AgentPolicy }>(
@@ -197,14 +198,25 @@ async function retireAgentProposals(db: Db, agentId: string, status: 'stale' | '
 export async function pauseAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
   return admin(async db => {
-    const r = await db.query(`update agents set status = 'paused', next_run_at = null where id = $1 and status = 'active' returning id`, [agentId])
-    if (!r.length) throw new EngineError('not_pending', 'only an active agent can be paused')
-    const n = await retireAgentProposals(db, agentId, 'blocked', 'the agent was paused', actor.label)
-    const m = await cancelAgentEmail(db, agentId, 'the agent was paused; queued messages are not sent', false)
-    const j = await cancelJobs(db, { agentId, reason: 'the agent was paused', actor: actor.label })
-    await audit(db, { orgId: a0.org_id, entityType: 'agent', entityId: agentId, event: 'agent.paused', actor: actor.label, detail: { proposals_blocked: n, emails_cancelled: m, jobs_cancelled: j } })
-    return { proposalsBlocked: n, emailsCancelled: m, jobsCancelled: j }
+    const r = await pauseAgentInTx(db, a0.org_id, agentId, actor.label)
+    if (!r) throw new EngineError('not_pending', 'only an active agent can be paused')
+    return r
   })
+}
+
+/**
+ * Pause inside the caller's transaction (also used by plan enforcement, which has no merchant actor): exactly
+ * what Pause does. Returns null when the agent was not active. `reason` is recorded with the audit entry.
+ */
+export async function pauseAgentInTx(db: Db, orgId: string, agentId: string, actor: string, reason?: string) {
+  const r = await db.query(`update agents set status = 'paused', next_run_at = null where id = $1 and org_id = $2 and status = 'active' returning id`, [agentId, orgId])
+  if (!r.length) return null
+  const why = reason ?? 'the agent was paused'
+  const n = await retireAgentProposals(db, agentId, 'blocked', why, actor)
+  const m = await cancelAgentEmail(db, agentId, `${why}; queued messages are not sent`, false)
+  const j = await cancelJobs(db, { agentId, reason: why, actor })
+  await audit(db, { orgId, entityType: 'agent', entityId: agentId, event: 'agent.paused', actor, detail: { proposals_blocked: n, emails_cancelled: m, jobs_cancelled: j, ...(reason ? { reason } : {}) } })
+  return { proposalsBlocked: n, emailsCancelled: m, jobsCancelled: j }
 }
 
 export async function resumeAgent(actor: Actor, agentId: string) {
@@ -214,6 +226,7 @@ export async function resumeAgent(actor: Actor, agentId: string) {
     if (!agent || agent.status !== 'paused' || !agent.active_policy_id) throw new EngineError('not_pending', 'only a paused agent with an active authorization can resume')
     const stopped = await orgStopReason(db, a0.org_id)
     if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before resuming an agent`)
+    await assertActiveAgentSlot(db, a0.org_id, agentId)
     const next = nextRunAt(agent.schedule, new Date())
     await db.query(`update agents set status = 'active', next_run_at = $2 where id = $1`, [agentId, next?.toISOString() ?? null])
     await audit(db, { orgId: a0.org_id, entityType: 'agent', entityId: agentId, event: 'agent.resumed', actor: actor.label })

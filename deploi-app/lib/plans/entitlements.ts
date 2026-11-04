@@ -112,6 +112,51 @@ export async function billingSendBlock(db: Db, orgId: string, now = new Date()):
 /** Throws when an Office seat or connection count would exceed the plan (for the Office workstream's entry points). */
 export async function assertOfficeWithinPlan(db: Db, orgId: string, what: { seats?: number; connections?: number }) {
   const e = await orgEntitlements(db, orgId)
-  if (what.seats !== undefined && what.seats > e.officeSeats) throw new EngineError('invalid_input', `the ${e.label} allows ${e.officeSeats} Office seats`)
-  if (what.connections !== undefined && what.connections > e.officeConnections) throw new EngineError('invalid_input', `the ${e.label} allows ${e.officeConnections} Office connections`)
+  if (what.seats !== undefined && what.seats > e.officeSeats) throw new EngineError('invalid_input', `the ${e.label} allows ${e.officeSeats} Office seats; pause or delete an Office agent first`)
+  if (what.connections !== undefined && what.connections > e.officeConnections) throw new EngineError('invalid_input', `the ${e.label} allows ${e.officeConnections} Office connections; disconnect one first`)
+}
+
+/*
+ * Seats and slots, enforced only while BILLING_MODE is on (the free beta keeps its PLAN_MAX_AGENTS rule only):
+ *   Office seat        an Office agent that is active (granted and working). Creating a new Office agent,
+ *                      granting a draft one and resuming a paused one each need a free seat. Drafts, paused,
+ *                      revoked and deleted agents use none.
+ *   Office connection  a HubSpot or Google Calendar connection that is not disconnected (synthetic ones too).
+ *                      A new connection needs a free one; reconnecting the same account does not.
+ *   engine agent slot  creating counts every agent that is not deleted (assertWithinPlan); in addition a
+ *                      paused or draft agent may become active (resume, first grant) only while fewer than
+ *                      maxAgents are active, so a downgrade cannot be undone by resuming.
+ */
+
+/** Before an Office agent becomes active (or is created): a seat must be free. `exceptAgentId` is the agent itself. */
+export async function assertOfficeSeat(db: Db, orgId: string, exceptAgentId: string | null = null) {
+  if (billingMode() === 'off') return
+  const n = await db.one<{ n: string }>(`select count(*)::text as n from office_agents where org_id = $1 and status = 'active' and ($2::uuid is null or id <> $2)`, [orgId, exceptAgentId])
+  await assertOfficeWithinPlan(db, orgId, { seats: Number(n?.n ?? 0) + 1 })
+}
+
+/** Before a new Office connection is saved: a connection must be free. */
+export async function assertOfficeConnectionSlot(db: Db, orgId: string) {
+  if (billingMode() === 'off') return
+  const n = await db.one<{ n: string }>(`select count(*)::text as n from office_connections where org_id = $1 and status <> 'disconnected'`, [orgId])
+  await assertOfficeWithinPlan(db, orgId, { connections: Number(n?.n ?? 0) + 1 })
+}
+
+/** Before a paused or draft engine agent becomes active: fewer than maxAgents may be active. */
+export async function assertActiveAgentSlot(db: Db, orgId: string, agentId: string) {
+  if (billingMode() === 'off') return
+  const e = await orgEntitlements(db, orgId)
+  const n = await db.one<{ n: string }>(`select count(*)::text as n from agents where org_id = $1 and status = 'active' and id <> $2`, [orgId, agentId])
+  if (Number(n?.n ?? 0) >= e.maxAgents) throw new EngineError('invalid_input', `the ${e.label} allows ${e.maxAgents} active agents; pause one first or upgrade`)
+}
+
+/**
+ * The tier whose limits apply now. Billing off: the organization's tier. Billing on: the plan, except that a
+ * lapsed Stripe subscription (cancelled, unpaid, paused, or past due beyond the grace period) falls back to
+ * the lowest tier until it is paid again. A subscription that never started (incomplete, none) is not a lapse.
+ */
+export async function effectiveTier(db: Db, orgId: string, now = new Date()): Promise<{ tier: TierKey; lapsed: boolean; entitlements: OrgEntitlements }> {
+  const e = await orgEntitlements(db, orgId, now)
+  const lapsed = e.billing.mode !== 'off' && e.billing.provider === 'stripe' && e.billing.readOnly && ['canceled', 'unpaid', 'paused', 'past_due'].includes(e.billing.status)
+  return { tier: lapsed ? LIBRARY.tiers.reduce((lo, t) => (t.order < lo.order ? t : lo)).key : e.tier, lapsed, entitlements: e }
 }

@@ -3,6 +3,7 @@ import '@/lib/connectors'
 import { runQueuedTasks } from '@/lib/agents/tasks'
 import { enqueueDueWork, recordHeartbeat, runDueJobs } from '@/lib/jobs'
 import { cronAuthorized } from '@/lib/cron-auth'
+import { enforceLapsedPlans } from '@/lib/plans/enforce'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -16,10 +17,12 @@ export const maxDuration = 300
 export async function GET(req: Request) {
   const cronOk = cronAuthorized(req)
   if (!cronOk) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  // subscriptions past due beyond their grace period lapse by time alone: apply the lower limits first (billing on only)
+  const plans = await enforceLapsedPlans()
   const queued = await enqueueDueWork()
   // plain-language tasks left queued (for example while their agent was paused)
   const tasks = await runQueuedTasks()
   const r = await runDueJobs({ deadlineMs: 200_000, limit: 200 })
   await recordHeartbeat('cron.agents', r.paused ? 'paused' : 'ok', { ran: r.ran.length })
-  return NextResponse.json({ ok: true, paused: r.paused, queued: { agentRuns: queued.agentRuns.filter(q => q.created).length, sends: queued.sends.filter(q => q.created).length }, ran: r.ran.length, results: r.ran, tasks })
+  return NextResponse.json({ ok: true, paused: r.paused, queued: { agentRuns: queued.agentRuns.filter(q => q.created).length, sends: queued.sends.filter(q => q.created).length }, ran: r.ran.length, results: r.ran, tasks, plansEnforced: plans.length })
 }

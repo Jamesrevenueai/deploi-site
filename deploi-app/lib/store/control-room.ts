@@ -18,6 +18,8 @@ import { enabledProducts, type Product } from '../products'
 import { setSwitch } from '../library/switches'
 import { shopifyConfig } from '../connectors/shopify/config'
 import type { Outcome } from '../engine/outcomes'
+import { admin } from '../db'
+import { planUsage, type PlanUsage } from '../plans/allowance'
 
 export type Tier = 'draft' | 'send_approved' | 'send_autonomous'
 export type AgentHealth = 'active' | 'paused' | 'needs_attention' | 'draft' | 'revoked'
@@ -49,6 +51,8 @@ export type ControlRoom = {
   weekly: { minutes: number; formula: string; label: 'Estimate' }
   /** the organization stop switch: while on, no agent runs, writes or sends, and grants and resumes are refused */
   orgStop: { reason: string | null; by: string | null; at: string | null } | null
+  /** this month's carried-out agent actions and emails against the plan (limits null while billing is off; lib/plans/allowance.ts) */
+  usage: PlanUsage
 }
 
 const DAY = 864e5
@@ -112,7 +116,7 @@ export async function controlRoom(actor: Actor, now = new Date()): Promise<Contr
     const control = await orgControl(db, orgId)
     return { org, agents, issues, stores, mailboxes: mailboxes?.n ?? 0, switchedOn: switches?.n ?? 0, products, estimate: facts.estimate, control }
   })
-  const [inbox, act, accounts] = await Promise.all([listInbox(actor), activity(actor, { limit: 50 }), listAccounts(actor)])
+  const [inbox, act, accounts, usage] = await Promise.all([listInbox(actor), activity(actor, { limit: 50 }), listAccounts(actor), admin(db => planUsage(db, orgId, now))])
 
   const agents: ControlRoomAgent[] = base.agents.map(r => {
     const h = agentHealth(r, now)
@@ -150,6 +154,7 @@ export async function controlRoom(actor: Actor, now = new Date()): Promise<Contr
     },
     issues: { high: sev('high'), medium: sev('medium'), low: sev('low'), needsPerson: base.issues.filter(i => i.kind === 'needs_person').reduce((n, i) => n + i.n, 0), total: base.issues.reduce((n, i) => n + i.n, 0) },
     weekly: base.estimate,
+    usage,
   }
 }
 

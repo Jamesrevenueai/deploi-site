@@ -15,6 +15,7 @@ import { deleteOfficeCredential, saveOfficeTokens } from './credentials'
 import { hubspotAuthorizeUrl, hubspotExchange, hubspotIdentity, HUBSPOT_SCOPES, type OAuthTokens } from './hubspot'
 import { calendarScopesOk, googleAuthorizeUrl, googleExchange, googleIdentity } from './calendar'
 import { demoContacts, mutateOfficeSynth, syntheticToken } from './synthetic'
+import { assertOfficeConnectionSlot } from '../plans/entitlements'
 
 export type OfficeConnectionRow = {
   id: string; org_id: string; provider: OfficeProvider; status: 'active' | 'needs_reauth' | 'disconnected'; status_reason: string | null; is_synthetic: boolean
@@ -86,6 +87,8 @@ export async function completeOfficeConnect(actor: Actor, input: { provider: Off
 async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvider; actor: string; synthetic: boolean; externalId: string; displayName: string | null; tokens: OAuthTokens; timezone?: string }) {
   const live = await db.one<OfficeConnectionRow>(`select * from office_connections where org_id = $1 and provider = $2 and status <> 'disconnected' for update`, [i.orgId, i.provider])
   if (live && (live.is_synthetic !== i.synthetic || live.external_account_id !== i.externalId)) throw new EngineError('invalid_input', `another ${PROVIDER_LABEL[i.provider]} account is connected; disconnect it first`)
+  // the plan's Office connections (only while billing is on); reconnecting the same account needs no new one
+  if (!live) await assertOfficeConnectionSlot(db, i.orgId)
   const row = live
     ? (await db.one<OfficeConnectionRow>(`update office_connections set status = 'active', status_reason = null, scopes = $2, display_name = $3 where id = $1 returning *`, [live.id, i.tokens.scopes, i.displayName]))!
     : (await db.one<OfficeConnectionRow>(`insert into office_connections (org_id, provider, is_synthetic, external_account_id, display_name, scopes, calendar_id, timezone, connected_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,

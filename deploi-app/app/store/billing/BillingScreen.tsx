@@ -21,6 +21,7 @@ type BillingResp = {
   billing: { provider: 'stripe' | 'shopify'; status: string; plan: string | null; readOnly: boolean; reason: string | null; graceEndsAt: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean }
   plan: { tier: string; label: string; priced: boolean; writesAllowed: boolean; limits: Limits }
   plans: { key: string; name: string; available: boolean }[]
+  usage: { actions: number; actionsLimit: number | null; emails: number; emailsLimit: number | null; resetsAt: string; enforced: boolean }
 }
 
 export function BillingScreen() {
@@ -73,10 +74,11 @@ export function BillingScreen() {
         <dl className="au-kv mt-2">
           <dt>Agents</dt><dd>{l.maxAgents}</dd>
           <dt>Watched competitor stores</dt><dd>{l.maxCompetitorStores}</dd>
-          <dt>Agent actions a month</dt><dd>{l.monthlyActions}</dd>
-          <dt>Emails a month</dt><dd>{l.monthlyEmails}</dd>
+          <dt>Agent actions this month</dt><dd>{data.usage.enforced ? `${data.usage.actions} of ${l.monthlyActions} used` : `${data.usage.actions} (not limited in the beta)`}</dd>
+          <dt>Emails this month</dt><dd>{data.usage.enforced ? `${data.usage.emails} of ${l.monthlyEmails} used` : `${data.usage.emails} (not limited in the beta)`}</dd>
           <dt>Office seats / connections</dt><dd>{l.officeSeats} / {l.officeConnections}</dd>
         </dl>
+        {data.usage.enforced && <p className="mt-2 text-[13px] text-grey">Counts reset on {data.usage.resetsAt.slice(0, 10)} (UTC). When the actions are used, agents hold their work for your approval until then or until you upgrade; nothing is dropped.</p>}
       </section>
     </>
   )

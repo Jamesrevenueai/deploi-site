@@ -247,6 +247,8 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
     // the central agent authorization check, at the moment of sending
     if (m.agent_id) {
       const az = await authorizeAgentAction(db, { agentId: m.agent_id, orgId: m.org_id, now, action: { tool: 'email', taskKey: m.task_key, tier: m.approval_kind === 'standing' ? 'send_autonomous' : 'send_approved', accountId: m.account_id, recipients: [...m.to_addresses, ...m.cc_addresses] } })
+      // the month's action allowance is used: held for approval, never dropped (lib/plans/allowance.ts)
+      if (!az.ok && az.code === 'allowance') return stop('awaiting_approval', `held: ${az.reason}`, { approval_kind: null, approved_hash: null, approved_by: null, approved_at: null })
       if (!az.ok) return stop('awaiting_approval', `cannot send: ${az.reason}`)
     }
     // recipients who bounced, complained or unsubscribed are never written to again

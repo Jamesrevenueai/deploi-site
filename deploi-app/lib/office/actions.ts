@@ -18,6 +18,7 @@ import { canonicalJson } from '../engine/hash'
 import { EngineError } from '../engine/errors'
 import { encryptSecret } from '../connectors/credentials'
 import { orgStopReason } from '../engine/kill-switch'
+import { allowanceBlock } from '../plans/allowance'
 import { registerOfficeSendGate, sendMessage, type EmailMessageRow, type EmailStatus } from '../email/engine'
 import { contentHash } from '../email/content'
 import { newInternetMessageId } from '../email/mime'
@@ -242,6 +243,10 @@ async function claim(actionId: string, now: Date, actorOverride?: string): Promi
       const b = await baseBlockers(db, ctx, a)
       if (b.length) return stop('cancelled', `cannot be carried out: ${b.join('; ')}`)
     } else return stop('awaiting_approval', 'waiting for your approval')
+    // the month's action allowance (lib/plans/allowance.ts), counted under the organization's lock with this claim:
+    // held for approval again (standing or individually approved), never dropped
+    const held = await allowanceBlock(db, a.org_id, { now, lock: true })
+    if (held) return stop('awaiting_approval', `held: ${held.reason}`, { approval_kind: null, approved_hash: null, approved_by: null, approved_at: null, next_attempt_at: null })
     if (a.kind === 'send_email' && ctx.policy.email) {
       const quiet = quietUntil(ctx.policy.email.quietHours, ctx.policy.timezone, now)
       if (quiet) { await db.query('update office_actions set next_attempt_at = $2, status_reason = $3 where id = $1', [a.id, quiet.toISOString(), `quiet hours: waits until ${formatInTimeZone(quiet, ctx.policy.timezone, 'HH:mm')} (${ctx.policy.timezone})`]); return { kind: 'skip', status: 'queued', reason: 'quiet hours' } }

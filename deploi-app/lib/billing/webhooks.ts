@@ -6,6 +6,7 @@
  * Handled: checkout.session.completed, customer.subscription.created/updated/deleted,
  * invoice.payment_failed, invoice.paid. Everything else is recorded as ignored.
  * Out-of-order deliveries: a subscription event older than the last one applied is ignored.
+ * After each processed event the organization is brought within the plan that now applies (lib/plans/enforce.ts).
  */
 import type { Db } from '../db'
 import { audit } from '../engine/audit'
@@ -138,6 +139,13 @@ export async function handleStripeEvent(db: Db, ev: StripeEvent): Promise<{ dupl
     case 'customer.subscription.created': case 'customer.subscription.updated': case 'customer.subscription.deleted': r = await onSubscription(db, ev); break
     case 'invoice.payment_failed': case 'invoice.paid': r = await onInvoice(db, ev); break
     default: r = { outcome: 'ignored', orgId: null, detail: 'event type not handled' }
+  }
+  // a lower plan or a lapse takes effect at once and safely: the organization is brought within its limits in
+  // this same transaction (lib/plans/enforce.ts; idempotent, nothing deleted, an upgrade resumes nothing)
+  if (r.outcome === 'processed' && r.orgId) {
+    const { enforcePlanLimits } = await import('../plans/enforce')
+    const enforced = await enforcePlanLimits(db, r.orgId, { actor: 'stripe:webhook', cause: ev.type })
+    if (enforced?.changed) r = { ...r, detail: `${r.detail}; plan limits applied` }
   }
   await db.query(`update billing_events set outcome = $2, org_id = $3, detail = $4, processed_at = now() where id = $1`, [ev.id, r.outcome, r.orgId, r.detail.slice(0, 300)])
   return { duplicate: false, ...r }

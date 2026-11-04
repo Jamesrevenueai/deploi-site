@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     const actor = await resolveActor(req, { mutating: true })
     const body = await readJson(req)
     if (actor.kind === 'staff') throw new HttpError(403, 'forbidden', 'Deploi staff cannot change a merchant plan')
+    if ((await import('@/lib/billing/config')).billingMode() !== 'off') throw new HttpError(409, 'use_billing', 'with billing on, the plan follows the subscription: change it on the billing page') // SECURITY-REVIEW F-09
     return NextResponse.json({ ok: true, ...(await setTier(actor, body.tier)) })
   } catch (e) { return errorResponse(e) }
 }

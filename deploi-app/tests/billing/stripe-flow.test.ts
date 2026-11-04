@@ -15,6 +15,8 @@ import { billingProviderFor, billingWriteBlock } from '../../lib/billing/state'
 import { orgEntitlements, billingSendBlock, entitlements } from '../../lib/plans/entitlements'
 import { writeBlockReason } from '../../lib/engine/access'
 import { POST as webhook } from '../../app/api/billing/stripe/webhook/route'
+import { POST as planPost } from '../../app/api/store/plan/route'
+import { signSessionToken } from '../../lib/connectors/shopify/auth'
 
 const ready = await prepareDb()
 const ORG = uuidFrom(`billing-flow-org:${process.pid}`)
@@ -165,6 +167,13 @@ describe.skipIf(!ready)('Stripe billing flow', () => {
     expect((await deliver(ev)).json).toMatchObject({ outcome: 'ignored' })
     expect(await admin(db => db.one(`select id from billing_subscriptions where org_id = $1`, [NW.org]))).toBeNull()
     expect(await subRow()).toEqual(before)
+  })
+
+  it('with billing on, the free plan switch is refused: the tier follows the paid subscription', async () => {
+    const auth = `Bearer ${signSessionToken({ dest: `https://${NW.domain}`, sub: '7' }, process.env.SHOPIFY_API_SECRET!, process.env.SHOPIFY_API_KEY!)}`
+    const res = await planPost(new Request('http://localhost/api/store/plan', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/json' }, body: JSON.stringify({ tier: 'pro' }) }))
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('use_billing')
   })
 
   it('with BILLING_MODE off the free beta is unchanged: no read-only, env limits', async () => {

@@ -77,8 +77,8 @@ export async function getSession(): Promise<Session | null> {
   let s = await profileFor(data.user.id)
   if (!s && data.user.email) {
     // profile trigger did not run (e.g. user predates migration): create it from the
-    // invite metadata (agency_id / role), falling back to staff-by-email or a client with no agency.
-    const meta = (data.user.user_metadata ?? {}) as { agency_id?: string; role?: string }
+    // server-set app metadata (agency_id / role), falling back to staff-by-email or a client with no agency.
+    const meta = (data.user.app_metadata ?? {}) as { agency_id?: string; role?: string } // server-set only: user_metadata is chosen by whoever signs up (SECURITY-REVIEW F-02)
     const isStaff = env.staffEmails.includes(data.user.email.toLowerCase())
     const role: Role = isStaff ? 'staff' : meta.role === 'staff' || meta.role === 'client' ? meta.role : 'client'
     const agencyId = /^[0-9a-f-]{36}$/i.test(meta.agency_id ?? '') ? meta.agency_id! : null

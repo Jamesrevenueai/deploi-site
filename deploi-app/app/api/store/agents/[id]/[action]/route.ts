@@ -26,6 +26,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     const body = await readJson(req).catch(() => ({} as Record<string, unknown>))
     switch (action) {
       case 'grant': {
+        await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)
         const hash = String(body.policyHash ?? '')
         if (!/^[0-9a-f]{64}$/.test(hash) || typeof body.policyId !== 'string') throw new HttpError(400, 'invalid_input', 'policyId and policyHash are required')
         return NextResponse.json({ ok: true, ...(await grantPolicy(actor, id, body.policyId, hash)) })

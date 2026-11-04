@@ -27,6 +27,7 @@ export async function POST(req: Request) {
   try {
     const actor = await resolveActor(req, { mutating: true })
     const body = await readJson(req)
+    if (body.op !== 'parse') await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)
     if (body.op === 'parse') {
       const text = String(body.text ?? '').slice(0, 2000)
       if (!text.trim()) throw new HttpError(400, 'invalid_input', 'describe the task in a sentence or two')

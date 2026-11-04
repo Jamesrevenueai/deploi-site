@@ -23,6 +23,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string; a
     const { key, action } = await ctx.params
     const body = await readJson(req).catch(() => ({} as Record<string, unknown>))
     if (actor.kind === 'staff') throw new HttpError(403, 'forbidden', 'Deploi staff can view but not change a merchant team')
+    if (action === 'grant' || (action === 'switch' && body.enabled === true) || (action === 'permission' && body.level !== 'read')) await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)
     switch (action) {
       case 'switch': return NextResponse.json({ ok: true, ...(await setSwitch(actor, key, body.enabled === true, { settings: body.settings && typeof body.settings === 'object' ? body.settings as Record<string, unknown> : undefined })) })
       case 'run': return NextResponse.json({ ok: true, ...(await runLibraryAgent({ orgId: actor.orgId, agentKey: key, trigger: 'manual', actor: actor.label })) })

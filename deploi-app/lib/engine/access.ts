@@ -99,12 +99,14 @@ export async function getAccess(db: Db, conn: ConnRef): Promise<AccessState> {
 export async function writeBlockReason(db: Db, conn: ConnRef): Promise<string | null> {
   if (conn.is_synthetic) return null
   if (accessConfig.writesPaused) return 'writes to live stores are paused by Deploi (LIVE_WRITES=off)'
+  { const billing = await (await import('../billing/state')).billingWriteBlock(db, conn.org_id); if (billing) return billing } // plan read-only (lib/billing/state.ts); no query while BILLING_MODE=off
   const a = await getAccess(db, conn)
   return a.eligible ? null : a.status === 'denied' ? 'Deploi has not enabled changes for this store' : 'this store is not enabled for changes yet (beta access)'
 }
 
 /** Real email for an organization needs at least one enabled store connection. */
 export async function emailBlockReason(db: Db, orgId: string): Promise<string | null> {
+  { const billing = await (await import('../plans/entitlements')).billingSendBlock(db, orgId); if (billing) return billing } // plan read-only or monthly email allowance (lib/plans/entitlements.ts)
   const conns = await db.query<ConnRef & { status: string }>(`select id, org_id, platform, external_id, is_synthetic, status from store_connections where org_id = $1 and status = 'active'`, [orgId])
   for (const c of conns) if (c.is_synthetic || (await getAccess(db, c)).eligible) return null
   return conns.length ? 'this store is not enabled for real email yet (beta access)' : 'no connected store is enabled for real email'

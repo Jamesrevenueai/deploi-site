@@ -47,7 +47,7 @@ export function WorkOverview() {
       {firstRun && (
         <div className="panel mb-4 flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between md:p-5" data-testid="first-run-cta">
           <div><div className="font-semibold text-ink">See what your AI team can handle</div><p className="text-[14px] text-grey">Deploi reads your connected tools and lists the work it found, with the team it recommends.</p></div>
-          <Link href="/store/welcome" className="btn sm">See what Deploi found<Icon name="arrow-right" size={15} /></Link>
+          <Link href="/store/setup" className="btn sm">See what Deploi found<Icon name="arrow-right" size={15} /></Link>
         </div>
       )}
       <div className="stat-grid" data-testid="home-tiles">

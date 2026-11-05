@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
 import {
-  autoSetupAgents, chooseProducts, completeOnboarding, completeWizard, firstScan, onboardingView, saveBusiness, setAgreements, skipAgents, wizardView,
+  autoSetupAgents, chooseProducts, completeOnboarding, completeWizard, firstScan, onboardingView, saveBusiness, setAgreements, skipAgents, skipDiscovery, wizardView,
 } from '@/lib/library/onboarding'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +20,9 @@ export async function GET(req: Request) {
  * Body { op }:
  *  business { name, timezone } · products { commerce, office, platform? } · agreements { status: 'satisfied' | 'skipped' }
  *  agents: create the recommended agents at drafts only (idempotent; each waits for the owner's grant)
- *  agents-skip · scan: the first read of the store (writes nothing to it) · complete
+ *  agents-skip · scan: the first read of the store (writes nothing to it) · discover-skip · complete
+ *  (agreements, agents and scan are kept for older clients; the setup reads agreements from the acceptances
+ *  and sets the team up through discovery)
  * Without op: marks the agent library's onboarding complete (store connected and plan chosen).
  * Every op returns the updated wizard state.
  */
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
       case 'agents': result = await autoSetupAgents(actor); break
       case 'agents-skip': result = await skipAgents(actor); break
       case 'scan': result = await firstScan(actor); break
+      case 'discover-skip': result = await skipDiscovery(actor); break
       case 'complete': result = await completeWizard(actor); break
       default: throw new HttpError(400, 'invalid_input', 'unknown step')
     }

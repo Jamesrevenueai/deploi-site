@@ -12,8 +12,9 @@ export type Session = {
   orgRole?: string | null
 }
 
-/** Where a signed-in user lands. */
-export function homeFor(s: Pick<Session, 'role' | 'orgType'>): string {
+/** Where a signed-in user lands: staff → staff area; a merchant → the store; nobody's organization yet → /start (first run). */
+export function homeFor(s: Pick<Session, 'role' | 'orgType'> & { agencyId?: string | null }): string {
   if (s.role === 'staff') return '/staff/early-access'
-  return s.orgType === 'merchant' ? '/store' : '/no-store'
+  if (s.orgType === 'merchant') return '/store'
+  return s.agencyId === null || (s.agencyId === undefined && !s.orgType) ? '/start' : '/no-store'
 }

@@ -102,7 +102,7 @@ export function ControlRoomScreen({ title = 'Control Room', sub, top, tiles = tr
       ) : undefined)}
 
       <div aria-live="polite" className="flex flex-col gap-3">
-        {wizard && !wizard.completedAt && <Banner icon="spark"><strong>Finish setting up.</strong> {wizard.steps.filter(s => s.state === 'done' || s.state === 'skipped').length} of {wizard.steps.length} steps done. <Link href={`${base}/onboarding`} className="text-ink underline">Continue setup</Link></Banner>}
+        {wizard && !wizard.completedAt && <Banner icon="spark"><strong>Finish setting up.</strong> {wizard.steps.filter(s => s.state === 'done' || s.state === 'skipped').length} of {wizard.steps.length} steps done. <Link href={`${base}/setup`} className="text-ink underline">Continue setup</Link></Banner>}
         {cr.orgStop && <div data-testid="org-stopped"><Banner tone="warn"><strong>All agents are stopped.</strong> {cr.orgStop.reason ? `${cr.orgStop.reason}. ` : ''}Nothing runs, changes your store or sends email until you turn the stop off; then resume each agent from its page.{cr.canAct && <> <Button size="sm" variant="ghost" onClick={clearOrgStop} disabled={clearing} data-testid="clear-stop">Turn the stop off</Button></>}</Banner></div>}
         {stop.kind === 'done' && <Banner icon="check"><strong>All agents stopped.</strong> {stop.r.paused} paused{stop.r.librarySwitchedOff ? `, ${stop.r.librarySwitchedOff} library agent${stop.r.librarySwitchedOff === 1 ? '' : 's'} switched off` : ''}{stop.r.alreadyStopped ? `; ${stop.r.alreadyStopped} were not running` : ''}. Queued changes and emails were cancelled. Turn the stop off when you are ready, then resume each agent from its page.{stop.r.failed.length ? ` Not stopped: ${stop.r.failed.map(f => `${f.name} (${f.message})`).join(', ')}.` : ''}</Banner>}
         {stop.kind === 'error' && <Banner tone="warn"><strong>Not stopped.</strong> {stop.e.message}</Banner>}
@@ -127,7 +127,7 @@ export function ControlRoomScreen({ title = 'Control Room', sub, top, tiles = tr
 
       <Section id="agents" title="Agent status" sub="Live status, last and next run, and the permission each one holds. Open an agent to change, pause or revoke it.">
         {cr.agents.length === 0 ? (
-          <Empty title="No agents yet">Set up your first agents at drafts only. <Link href={`${base}/onboarding`} className="text-ink underline">Start setup</Link> or <Link href={`${base}/agents/new`} className="text-ink underline">create one</Link>.</Empty>
+          <Empty title="No agents yet">Set up your first agents at drafts only. <Link href={`${base}/setup`} className="text-ink underline">Start setup</Link> or <Link href={`${base}/agents/new`} className="text-ink underline">create one</Link>.</Empty>
         ) : (
           <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="Agents">
             {cr.agents.map(a => {

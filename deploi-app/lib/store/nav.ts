@@ -10,7 +10,7 @@ import type { NavItem } from '../nav'
 import type { CaseView } from '../cases'
 
 export const MERCHANT_NAV: NavItem[] = [
-  { href: '/store', label: 'Home', icon: 'home', exact: true, also: ['/store/control-room', '/store/welcome'], mobile: true },
+  { href: '/store', label: 'Home', icon: 'home', exact: true, also: ['/store/control-room'], mobile: true },
   { href: '/store/my-team', label: 'My AI Team', short: 'Team', icon: 'users', also: ['/store/agents', '/store/team', '/office'] },
   { href: '/store/work', label: 'Work in Progress', short: 'Work', icon: 'pipeline', also: ['/store/issues', '/store/purchase-orders'], mobile: true },
   { href: '/store/approvals', label: 'Needs My Approval', short: 'Approvals', icon: 'check', mobile: true },
@@ -19,7 +19,7 @@ export const MERCHANT_NAV: NavItem[] = [
   { href: '/store/insights', label: 'Business Insights', short: 'Insights', icon: 'spark', also: ['/store/discover'] },
   { href: '/store/integrations', label: 'Integrations', short: 'Connect', icon: 'plug', also: ['/store/connections', '/store/connect'] },
   { href: '/store/billing', label: 'Billing', icon: 'dollar', also: ['/store/plan'] },
-  { href: '/store/settings', label: 'Settings', icon: 'shield', also: ['/store/rules', '/store/legal', '/store/onboarding'] },
+  { href: '/store/settings', label: 'Settings', icon: 'shield', also: ['/store/rules', '/store/legal', '/store/setup', '/store/onboarding', '/store/welcome', '/store/support'] },
 ]
 
 /** The exact labels, in order (the brief's navigation). */
@@ -33,6 +33,12 @@ export const LEGACY_REDIRECTS: Record<string, string> = {
   '/store/control-room': '/store',
   '/store/inbox': '/store/approvals',
 }
+
+/**
+ * The one first-run path (sign-up → agreements → products → connect → discovery → team). The earlier setup
+ * wizard (/store/onboarding) and discovery first run (/store/welcome) redirect here.
+ */
+export const SETUP_PATH = '/store/setup'
 
 /** Which Resolution Engine views each case page lists (GET /api/store/cases?view=...). */
 export const CASE_VIEWS: Record<'work' | 'approvals' | 'completed', CaseView[]> = {

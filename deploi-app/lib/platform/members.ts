@@ -2,8 +2,8 @@
  * Members of a merchant organization and their roles (lib/platform/rbac.ts). Owners and admins manage
  * members; only an owner makes or unmakes an owner, and the last owner can be neither demoted nor removed.
  * Removing a member detaches their sign-in from the organization (their account stays, with no store).
- * Invites carry the role the person gets when they first sign in (admin, member or viewer; an owner is
- * made by promotion). Every change is audited.
+ * Invites (lib/platform/invites.ts) carry the role the person gets when they accept the signed link (admin,
+ * member or viewer; an owner is made by promotion). Every change is audited.
  */
 import { admin, type Db } from '../db'
 import { audit } from '../engine/audit'
@@ -12,7 +12,7 @@ import type { Actor } from '../engine/actor'
 import { assertCan, actorRole, isOrgRole, type OrgRole } from './rbac'
 
 export type Member = { userId: string; email: string; fullName: string | null; role: OrgRole; joinedAt: string; you: boolean }
-export type PendingInvite = { email: string; role: string; invitedAt: string; status: string }
+export type PendingInvite = { id: string; email: string; role: string; invitedAt: string; status: string; expiresAt: string | null; expired: boolean; lastSentAt: string | null; sentCount: number }
 
 function orgOf(actor: Actor): string {
   if (actor.kind === 'staff') throw new EngineError('forbidden', 'members belong to a customer organization')
@@ -28,11 +28,12 @@ export async function listMembers(actor: Actor): Promise<{ members: Member[]; in
     if (!yourRole) throw new EngineError('forbidden', 'you are not a member of this organization')
     const rows = await db.query<{ id: string; email: string; full_name: string | null; org_role: OrgRole; created_at: string }>(
       `select id, email, full_name, org_role, created_at::text from profiles where agency_id = $1 and org_role is not null order by array_position(array['owner','admin','member','viewer'], org_role), created_at`, [orgId])
-    const invites = await db.query<{ email: string; org_role: string; invited_at: string; status: string }>(`select email, org_role, invited_at::text, status from invites where agency_id = $1 and accepted_at is null and status <> 'revoked' order by invited_at desc`, [orgId])
+    const invites = await db.query<{ id: string; email: string; org_role: string; invited_at: string; status: string; expires_at: string | null; expired: boolean; last_sent_at: string | null; sent_count: number }>(
+      `select id, email, org_role, invited_at::text, status, expires_at::text, coalesce(expires_at <= now(), false) as expired, last_sent_at::text, sent_count from invites where agency_id = $1 and accepted_at is null and status <> 'revoked' order by invited_at desc`, [orgId])
     const org = await db.one<{ members_can_approve: boolean }>('select members_can_approve from agencies where id = $1', [orgId])
     return {
       members: rows.map(r => ({ userId: r.id, email: r.email, fullName: r.full_name, role: r.org_role, joinedAt: r.created_at, you: r.id === youId(actor) })),
-      invites: invites.map(i => ({ email: i.email, role: i.org_role, invitedAt: i.invited_at, status: i.status })),
+      invites: invites.map(i => ({ id: i.id, email: i.email, role: i.org_role, invitedAt: i.invited_at, status: i.status, expiresAt: i.expires_at, expired: i.expired, lastSentAt: i.last_sent_at, sentCount: i.sent_count })),
       yourRole, membersCanApprove: Boolean(org?.members_can_approve),
     }
   })
@@ -76,26 +77,7 @@ export async function removeMember(actor: Actor, userId: string) {
   })
 }
 
-const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
-
-/** Record an invite with its role; the person joins with that role when they first sign in with this address. */
-export async function inviteMember(actor: Actor, email: unknown, role: unknown = 'member') {
-  const orgId = orgOf(actor)
-  if (typeof email !== 'string' || !EMAIL.test(email.trim())) throw new EngineError('invalid_input', 'a valid e-mail address is required')
-  if (role !== 'admin' && role !== 'member' && role !== 'viewer') throw new EngineError('invalid_input', 'an invite gives admin, member or viewer (promote to owner after they join)')
-  return admin(async db => {
-    await assertCan(actor, orgId, 'members.manage', db)
-    const addr = email.trim().toLowerCase()
-    const existing = await db.one<{ agency_id: string | null }>('select agency_id from profiles where lower(email) = $1', [addr])
-    if (existing?.agency_id === orgId) throw new EngineError('invalid_input', 'that person is already a member')
-    if (existing) throw new EngineError('invalid_input', 'that address already has a Deploi account; ask Deploi support to move it to this organization')
-    const inviter = actor.kind === 'profile' ? actor.session.uid : null
-    await db.query(`insert into invites (agency_id, email, role, org_role, invited_by, status) values ($1,$2,'client',$3,$4,'pending')
-      on conflict (agency_id, lower(email)) do update set org_role = excluded.org_role, invited_by = excluded.invited_by, invited_at = now(), status = 'pending', accepted_at = null`, [orgId, addr, role, inviter])
-    await audit(db, { orgId, entityType: 'org', entityId: orgId, event: 'members.invited', actor: actor.label, detail: { role } })
-    return { email: addr, role }
-  })
-}
+export { inviteMember, resendInvite, revokeInvite } from './invites'
 
 /** Owner only: may members (not only owners and admins) approve individual items? */
 export async function setApprovalPolicy(actor: Actor, membersCanApprove: unknown) {

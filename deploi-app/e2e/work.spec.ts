@@ -61,8 +61,10 @@ test('the navigation has the customer labels, and old URLs still work', async ({
   await expect(page.locator('[data-settings="members"]')).toBeVisible()
   await page.goto('/store/insights')
   await expect(page.getByTestId('estimate')).toContainText('Formula:')
+  // the discovery first run is a step of the one setup path now; the old URL redirects there
   await page.goto('/store/welcome')
-  await expect(page.getByTestId('first-run')).toContainText('We found work your AI team can handle.')
+  await expect(page).toHaveURL(/\/store\/setup$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Set up Deploi' })).toBeVisible()
 })
 
 test('Home -> Work in Progress -> case -> Needs My Approval -> approve -> Completed Work', async ({ page }) => {

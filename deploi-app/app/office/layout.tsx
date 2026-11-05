@@ -13,7 +13,7 @@ export const metadata = { title: { default: 'Office', template: '%s · Deploi Of
 /** Deploi Office, in the same light shell and navigation as the rest of the customer app (its own pages are tabs). CRM, calendar and lead follow-up agents. Any signed-in customer organization may enable it; it is gated by org_products, not org_type. */
 export default async function OfficeLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole('client')
-  if (session.orgType !== 'merchant') redirect('/no-store')
+  if (session.orgType !== 'merchant') redirect(session.agencyId ? '/no-store' : '/start')
   return (
     <AppShell items={MERCHANT_NAV} session={session} subnav={<SubNav items={OFFICE_NAV} label="Deploi Office" />}>
       <StoreProvider base="/store"><OfficeGate>{children}</OfficeGate></StoreProvider>

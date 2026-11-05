@@ -1,3 +1,5 @@
-import { OnboardingWizard } from '@/components/cx/Onboarding'
-export const metadata = { title: 'Set up' }
-export default function StoreOnboardingPage() { return <OnboardingWizard /> }
+import { redirect } from 'next/navigation'
+import { SETUP_PATH } from '@/lib/store/nav'
+
+/** The setup wizard moved to /store/setup (one path with discovery). */
+export default function StoreOnboardingPage() { redirect(SETUP_PATH) }

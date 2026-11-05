@@ -130,6 +130,20 @@ export async function redactShop(db: Db, shop: string): Promise<{ deleted: boole
     await db.query('delete from email_messages where agent_id = any($1::uuid[]) or account_id = any($2::uuid[])', [agentIds, accounts])
     if (accounts.length) await db.query('delete from email_accounts where id = any($1::uuid[])', [accounts])
   }
+  // what Deploi built from this store: its cases (and their history), purchase orders, discovery profile, AI usage
+  // and customer data exports. The organization's other stores keep theirs; a deleted organization takes everything.
+  const caseIds = (await db.query<{ id: string }>(`select id from cases where org_id = $1 and (dedupe_key like $2 or dedupe_key like $3
+      or verification->'rule'->>'connectionId' = $4 or (agent_kind = 'engine' and agent_ref = any($5::text[])))`,
+    [c.org_id, `store:${c.id}:%`, `low_stock:${c.id}:%`, c.id, agentIds])).map(r => r.id)
+  if (caseIds.length) {
+    await db.query('delete from ai_usage where org_id = $1 and case_id = any($2::uuid[])', [c.org_id, caseIds])
+    await db.query('delete from cases where id = any($1::uuid[])', [caseIds])
+  }
+  if (agentIds.length) await db.query('delete from ai_usage where org_id = $1 and agent_ref = any($2::text[])', [c.org_id, agentIds])
+  await db.query('delete from purchase_orders where org_id = $1 and connection_id = $2', [c.org_id, c.id])
+  await db.query('delete from business_profiles where org_id = $1', [c.org_id])
+  await db.query('delete from discovery_runs where org_id = $1', [c.org_id])
+  await db.query('delete from privacy_exports where org_id = $1 and connection_id = $2', [c.org_id, c.id])
   await db.query('delete from store_connections where id = $1', [c.id])
   await db.query(`delete from store_access where platform = 'shopify' and external_id = $1`, [shop])
   const others = await db.one<{ n: string }>('select count(*)::text as n from store_connections where org_id = $1', [c.org_id])

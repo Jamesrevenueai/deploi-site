@@ -153,12 +153,29 @@ fresh Partner API read, never trusts the payload. `BILLING_REQUIRED` stays off.
 
 - `app/uninstalled`: credentials deleted, every agent paused, queued writes, email and rescans cancelled, live
   proposals blocked, subscriptions marked cancelled.
-- `customers/data_request`: the app holds no customer data from Shopify (no customer or order scopes). The only
-  place a customer's address can appear is an agent mailbox; the request records how many messages from or to that
-  address are held (count only) in the work log so the merchant can answer.
-- `customers/redact`: deletes that mail for the shop's organization only.
-- `shop/redact` (48 hours after uninstall): erases the connection, its agents' mail and everything under it, and the
-  organization when it has no other store. If the shop reinstalled, nothing is erased and the request is recorded as deferred.
+- Where a shopper can appear: the app reads no Shopify customers or orders (no customer or order scopes), but a
+  shopper's address can still be in what Deploi holds once agents work with it: agent mail sent to or received from
+  them, agent library drafts and reports (e.g. an order delay note), Resolution Engine cases and their history,
+  Office leads, meetings and invoices with the same address, opt-outs. Purchase orders and restock requests hold
+  suppliers only, never shoppers. The full list, with what each step does per table, is `PRIVACY_COVERAGE` in
+  `lib/privacy/customer-data.ts`; `tests/privacy/customer-privacy.test.ts` fails when a new table with an email,
+  address, customer, recipient, phone or contact column is neither covered nor exempt with a reason.
+- `customers/data_request`: builds a JSON export of everything held for that customer (matched on the email in the
+  payload, any case, and on the Shopify customer and order ids where a record carries them), within the shop's
+  organization only, and stores it encrypted (`privacy_exports`, AES-256-GCM with the credentials key). Owners and
+  admins download it from **Settings → Privacy requests** (`/store/privacy`, API `GET /api/store/privacy[/<id>]`) and
+  send it to the customer themselves; Deploi sends nothing. The request is recorded as fulfilled with counts per
+  table (never the address). Exports are kept 60 days (Shopify gives the merchant 30 days to answer), then purged.
+- `customers/redact`: deletes the customer's mail; anonymizes what the business must keep (opt-outs kept as a
+  one-way hash so they still block sending, invoice amounts kept without the name or address, leads stopped with
+  the address replaced by a hash, the address erased from agent drafts, Office actions, cases and case history);
+  withdraws waiting drafts and actions; deletes earlier exports for that customer; records what was done per table.
+  The tamper-evident audit trail is retained unchanged for audit (it holds record ids, never addresses or content).
+  Idempotent: the same delivery is answered once, and a repeat request finds nothing more to change. Deploi does
+  not delete the contact from the merchant's own HubSpot or QuickBooks: those are the merchant's systems.
+- `shop/redact` (48 hours after uninstall): erases the connection, its agents' mail and everything under it (issues,
+  proposals, agents), the store's cases and their history, its purchase orders, the discovery profile, AI usage
+  records and customer data exports, and the organization (with everything in it) when it has no other store. If the shop reinstalled, nothing is erased and the request is recorded as deferred.
 - Every delivery is HMAC-checked (401 otherwise), de-duplicated by webhook id, recorded in
   `shopify_compliance_requests` with the customer as a one-way hash, and a failure returns 500 so Shopify retries.
 

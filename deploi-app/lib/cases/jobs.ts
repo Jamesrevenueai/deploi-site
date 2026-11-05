@@ -8,6 +8,12 @@ import { dueCases, runCaseCheck } from './index'
 // case kinds with a checker register themselves on import
 import '../office/receivables'
 import '../office/resolution'
+import '../connectors'
+import { registerEngineCaseKinds } from '../engine/case-sync'
+import '../agents/case-sync'
+import '../library/case-sync'
+import '../competitors/case-sync'
+registerEngineCaseKinds()
 
 registerJobHandler('case.check', async payload => {
   const caseId = String(payload.caseId ?? '')

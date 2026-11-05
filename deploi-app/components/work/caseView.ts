@@ -22,7 +22,9 @@ export type CaseItem = {
 export type CaseEventItem = { id: string; at: string; actor: string; type: string; from_status: string | null; to_status: string | null; summary: string; detail: Record<string, unknown>; ref_type: string | null; ref_id: string | null }
 export type CaseCounts = { in_progress: number; needs_approval: number; completed: number; attention: number; total: number; resolved_30d: number }
 export type CasesResponse = { ok: true; cases: CaseItem[]; counts: CaseCounts }
-export type CaseResponse = { ok: true; case: CaseItem; events: CaseEventItem[] }
+export type CaseResponse = { ok: true; case: CaseItem; events: CaseEventItem[]
+  /** set when you may close this case yourself (restock requests, market signals, library work): never a resolution */
+  close?: { label: string; needsReason: boolean } | null }
 
 /** An item from the unified approvals API (GET /api/store/approvals). */
 export type ApprovalEntry = {
@@ -50,7 +52,7 @@ export const PRIORITY_WORDS: Record<Priority, { label: string; tone: Tone }> = {
 }
 const SOURCE_APP: Record<string, string> = {
   shopify: 'Shopify', woocommerce: 'WooCommerce', hubspot: 'HubSpot', google_calendar: 'Google Calendar', quickbooks: 'QuickBooks', deploi_email: 'Deploi Email',
-  outlook: 'Outlook', gmail: 'Gmail', import: 'Import', stripe: 'Stripe',
+  outlook: 'Outlook', gmail: 'Gmail', import: 'Import', stripe: 'Stripe', public_web: 'Public web pages',
 }
 export const sourceAppLabel = (s: string) => SOURCE_APP[s] ?? humanize(s)
 export const SUITE_LABEL = { commerce: 'Deploi Commerce', office: 'Deploi Office' } as const

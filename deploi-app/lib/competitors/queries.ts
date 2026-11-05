@@ -7,6 +7,7 @@ import { admin } from '../db'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import type { Evidence, FindingKind } from './compare'
+import { closeFindingCases } from './case-sync'
 
 export type CompetitorSourceView = { id: string; url: string; host: string; platform: string; status: string; status_reason: string | null; checks_done: number; baseline_at: string | null; last_checked_at: string | null; products: number }
 export type CompetitorFindingView = { id: string; kind: FindingKind; basis: 'observed' | 'inference'; title: string; summary: string; evidence: Evidence[]; status: 'new' | 'seen' | 'dismissed'; created_at: string; host: string | null }
@@ -40,6 +41,7 @@ export async function setFindingsStatus(actor: Actor, agentId: string, status: '
     const rows = ids
       ? await db.query<{ id: string }>(`update competitor_findings set status = $3 where agent_id = $1 and id = any($2::uuid[]) and status <> 'dismissed' returning id`, [agentId, ids, status])
       : await db.query<{ id: string }>(`update competitor_findings set status = $2 where agent_id = $1 and status = 'new' returning id`, [agentId, status])
+    await closeFindingCases(db, a.org_id, rows.map(r => r.id), status, actor.label)
     return rows.length
   })
 }

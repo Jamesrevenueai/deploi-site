@@ -5,8 +5,9 @@
  * The case is the same problem as the issue: it is resolved when a fresh read of the store no longer shows it.
  */
 import { admin, type Db } from '../../db'
-import { allChecks, getCheck } from '../../engine/registry'
-import { registerCaseKind, resolveCase, type CaseRow, type Priority } from '../../cases'
+import { getCheck } from '../../engine/registry'
+import type { CaseRow, Priority } from '../../cases'
+import { checkIssueCase, issueCaseKind, issueDedupeKey, registerEngineCaseKinds } from '../../engine/case-sync'
 import { OVERSELL_CHECK, OVERSOLD_CHECK } from '../../connectors/shopify/checks'
 import { WOO_BACKORDERS_CHECK, WOO_OVERSOLD_CHECK } from '../../connectors/woocommerce/checks'
 import { registerDetector, type DiscoveryFinding, type Detector } from '../registry'
@@ -16,14 +17,8 @@ import '../../connectors'
 export const STORE_ISSUES = 'store-issues'
 const STOCK_CHECKS = new Set([OVERSELL_CHECK, OVERSOLD_CHECK, WOO_BACKORDERS_CHECK, WOO_OVERSOLD_CHECK])
 const MAX_CASES = 100
-const RECHECK_MS = 24 * 3600e3
 
-/** The case kind for an issue: its check key in case-kind form (shopify.oversell_policy -> shopify_oversell_policy). */
-export function issueCaseKind(checkKey: string): string {
-  const k = checkKey.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)
-  return /^[a-z]/.test(k) && k.length >= 3 ? k : `store_${k}`.slice(0, 60)
-}
-export const issueDedupeKey = (connectionId: string, fingerprint: string) => `store:${connectionId}:${fingerprint}`.slice(0, 300)
+export { issueCaseKind, issueDedupeKey } from '../../engine/case-sync'
 const PRIORITY: Record<string, Priority> = { high: 'high', medium: 'normal', low: 'low' }
 
 type IssueLite = { id: string; connection_id: string; platform: string; check_key: string; resource_type: string; resource_id: string; resource_label: string | null; fingerprint: string; severity: string; evidence: { summary?: string; humanAction?: string | null }; last_seen_at: string }
@@ -77,24 +72,10 @@ export const storeIssuesDetector: Detector = {
   },
 }
 
-/** Checker for store-issue cases: resolved once the latest read no longer shows the problem (the issue is resolved). */
-export async function checkStoreIssueCase(c: CaseRow, now: Date) {
-  const rule = (c.verification as { rule?: { connectionId?: string; fingerprint?: string } }).rule
-  if (!rule?.connectionId || !rule.fingerprint) return
-  const latest = await admin(db => db.one<{ status: string; resolved_at: string | null; resolution: string | null; platform: string }>(
-    `select status, resolved_at, resolution, platform from issues where connection_id = $1 and fingerprint = $2 order by first_detected_at desc limit 1`, [rule.connectionId, rule.fingerprint]))
-  if (latest && latest.status === 'resolved' && latest.resolved_at) {
-    const resolvedAt = latest.resolved_at
-    await admin(db => resolveCase(db, c.id, {
-      actor: 'system:discovery', summary: latest.resolution === 'verified_fix' ? 'Fixed and verified on a fresh read of the store' : 'No longer detected on the latest read of the store',
-      verifiedBy: `${latest.platform} read`, evidence: [{ label: 'The problem is no longer present in the store', source: latest.platform, observedAt: resolvedAt, detail: { resolution: latest.resolution } }],
-    }))
-    return
-  }
-  await admin(db => setNextCheck(db, c.id, new Date(now.getTime() + RECHECK_MS)))
-}
+/** Checker for store-issue cases: the engine's case adapter (lib/engine/case-sync.ts) re-reads the issue and moves the case. */
+export async function checkStoreIssueCase(c: CaseRow, now: Date) { await checkIssueCase(c, now) }
 
 export const setNextCheck = (db: Db, caseId: string, at: Date) => db.query('update cases set next_check_at = $2 where id = $1', [caseId, at.toISOString()])
 
 registerDetector(storeIssuesDetector)
-for (const check of allChecks()) registerCaseKind(issueCaseKind(check.key), checkStoreIssueCase)
+registerEngineCaseKinds()

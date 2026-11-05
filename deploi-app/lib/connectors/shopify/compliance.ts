@@ -1,18 +1,24 @@
 /**
- * Shopify's mandatory privacy webhooks. Each delivery is recorded once (shopify_compliance_requests,
- * keyed by the webhook id) without keeping the customer's contact details: the customer is stored as a
- * one-way hash. What the app holds about a customer is limited by its scopes (no customer or order
- * scopes): the only place a customer's address can appear is an agent mailbox, when a customer writes to
- * an agent's address or an agent's message was addressed to them. So:
- *  - customers/data_request: counts what is held for that address and tells the merchant (audit event
- *    shown in the work log) so they can answer the customer; nothing is sent anywhere by the app.
- *  - customers/redact: deletes that mail (received from, or sent to, the address) for the shop's organization.
+ * Shopify's mandatory privacy webhooks. Each delivery is recorded once (shopify_compliance_requests, keyed by
+ * the webhook id) without keeping the customer's contact details: the customer is stored as a one-way hash.
+ * The app reads no Shopify customers or orders, but a shopper can still appear in what Deploi holds: agent
+ * mail to and from their address, agent library drafts, Resolution Engine cases and their history, Office
+ * leads, meetings and invoices with the same address (lib/privacy/customer-data.ts lists every table). So:
+ *  - customers/data_request: builds a JSON export of everything held for that customer (matched on the
+ *    email and the Shopify customer and order ids, within the shop's organization only), stores it
+ *    encrypted for the merchant to download (/store/privacy), and records that the request was fulfilled.
+ *    Nothing is sent anywhere by the app.
+ *  - customers/redact: deletes the customer's mail and anonymizes the rest (opt-outs kept as a hash, the
+ *    accounting copies keep their amounts, case history keeps its shape); records what was done, per table.
+ *    Idempotent: the same delivery is answered once, and a repeat request finds nothing more to change.
  *  - shop/redact (48 hours after uninstall): erases the shop (install.ts#redactShop), unless it reinstalled.
  */
 import { createHash } from 'node:crypto'
 import type { Db } from '../../db'
 import { audit } from '../../engine/audit'
 import { redactShop } from './install'
+import { collectCustomerData, redactCustomerData, type Subject } from '../../privacy/customer-data'
+import { storeExport, purgeExpiredExports } from '../../privacy/exports'
 
 export type ComplianceTopic = 'customers/data_request' | 'customers/redact' | 'shop/redact'
 type Payload = { customer?: { id?: number | string; email?: string | null; phone?: string | null } | null; orders_requested?: unknown[]; orders_to_redact?: unknown[] }
@@ -38,19 +44,26 @@ export async function handleCompliance(db: Db, input: { topic: ComplianceTopic; 
     const r = await redactShop(db, input.shop)
     if (r.skipped) status = 'deferred'
     result = { shop_data_erased: r.deleted, organization_erased: r.orgDeleted, ...(r.skipped ? { skipped: r.skipped } : {}) }
-  } else if (!input.conn || !email) {
-    // no store connection (never installed, or already erased), or no address to look for: nothing is held
-    result = { customer_data_held: false, reason: !input.conn ? 'no data held for this shop' : 'the request names no email address; the app holds no data keyed by customer id' }
-  } else if (input.topic === 'customers/data_request') {
-    const inbound = await db.one<{ n: string }>('select count(*)::text as n from email_inbound where org_id = $1 and from_address = $2', [input.conn.org_id, email])
-    const sent = await db.one<{ n: string }>('select count(*)::text as n from email_messages where org_id = $1 and ($2 = any(to_addresses) or $2 = any(cc_addresses))', [input.conn.org_id, email])
-    const held = { inbound_messages: Number(inbound?.n ?? 0), sent_messages: Number(sent?.n ?? 0) }
-    result = { customer_data_held: held.inbound_messages + held.sent_messages > 0, ...held }
+  } else if (!input.conn || (!email && !customerId)) {
+    // no store connection (never installed, or already erased), or nothing to look for: nothing is held
+    result = { customer_data_held: false, reason: !input.conn ? 'no data held for this shop' : 'the request names no email address or customer id' }
   } else {
-    const inbound = await db.query('delete from email_inbound where org_id = $1 and from_address = $2 returning id', [input.conn.org_id, email])
-    // a message is erased whole when the customer is on it; supplier requests that pointed at it lose the link only
-    const sent = await db.query('delete from email_messages where org_id = $1 and ($2 = any(to_addresses) or $2 = any(cc_addresses)) returning id', [input.conn.org_id, email])
-    result = { inbound_deleted: inbound.length, sent_deleted: sent.length }
+    const ids = (v: unknown) => (Array.isArray(v) ? v : []).map(x => String(typeof x === 'object' && x && 'id' in x ? (x as { id: unknown }).id : x)).filter(x => /^\d{1,20}$/.test(x)).slice(0, 500)
+    const subject: Subject = { orgId: input.conn.org_id, email, customerId, orderIds: ids(input.topic === 'customers/data_request' ? p.orders_requested : p.orders_to_redact) }
+    if (input.topic === 'customers/data_request') {
+      await purgeExpiredExports(db)
+      const data = await collectCustomerData(db, subject, input.shop)
+      const exportId = await storeExport(db, { orgId: input.conn.org_id, connectionId: input.conn.id, requestId: row.id, shop: input.shop, subjectHash: hash!, data })
+      const held = Object.values(data.counts).reduce((a, b) => a + b, 0)
+      result = { customer_data_held: held > 0, export_id: exportId, tables: data.counts, inbound_messages: data.counts.email_inbound ?? 0, sent_messages: data.counts.email_messages ?? 0,
+        fulfilled: 'export ready for the merchant to download in the app (Privacy requests)' }
+    } else {
+      const done = await redactCustomerData(db, subject)
+      // exports already built for this customer hold the same data: erased with it
+      const exports = await db.query(`delete from privacy_exports where org_id = $1 and subject_hash = $2 returning id`, [input.conn.org_id, hash])
+      result = { tables: { ...done, privacy_exports: exports.length }, inbound_deleted: done.email_inbound ?? 0, sent_deleted: done.email_messages ?? 0,
+        retained: done.engine_audit_retained ? 'audit entries naming the customer kept unchanged for audit' : 'nothing' }
+    }
   }
   await db.query(`update shopify_compliance_requests set status = $2, result = $3, completed_at = case when $2 = 'completed' then now() else null end where id = $1`, [row.id, status, JSON.stringify(result)])
   // the merchant sees data requests in the work log (counts only, never the address)

@@ -41,6 +41,30 @@ function EvidenceList({ items, empty }: { items: CaseEvidence[]; empty: string }
   )
 }
 
+/** Close a case yourself (cancelled with your reason, never marked resolved). Only for kinds that allow it. */
+function CloseBlock({ caseRef, kind, close, onDone, onError }: { caseRef: string; kind: string; close: { label: string; needsReason: boolean }; onDone: (text: string) => Promise<void>; onError: (text: string) => void }) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const info = kind === 'market_signal'
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await storeFetch(`/api/store/cases/${encodeURIComponent(caseRef)}`, { method: 'POST', body: close.needsReason ? { reason } : {} })
+      await onDone(info ? 'Acknowledged. The case is closed; it is not counted as resolved work.' : 'Closed with your reason. It is not counted as resolved work.')
+    } catch (err) { onError((err as Error).message) } finally { setBusy(false) }
+  }
+  return (
+    <Block id="close" title={info ? 'For your information' : 'Close it yourself'} icon="check">
+      <form onSubmit={submit} className="flex flex-col gap-2" aria-label={close.label}>
+        <p className="text-[13.5px] text-grey">{info ? 'Nothing needs fixing. Acknowledge it once you have read it.' : 'If this is no longer needed, close it and say why. It is recorded as closed by you, not as resolved.'}</p>
+        {close.needsReason && <label className="text-[13px] text-grey-h">Reason<textarea className="input mt-1 w-full" rows={2} maxLength={500} required value={reason} onChange={e => setReason(e.target.value)} /></label>}
+        <div><button type="submit" className="btn" disabled={busy || (close.needsReason && !reason.trim())}>{close.label}</button></div>
+      </form>
+    </Block>
+  )
+}
+
 export function CaseDetailScreen({ caseRef }: { caseRef: string }) {
   const { data, error, loading, reload } = useLoad(async () => {
     const [c, approvals, team] = await Promise.all([storeFetch<CaseResponse>(`/api/store/cases/${encodeURIComponent(caseRef)}`), loadApprovals().catch(() => null), loadTeam()])
@@ -102,6 +126,7 @@ export function CaseDetailScreen({ caseRef }: { caseRef: string }) {
             {agent ? <p className="text-[15px]">{agent.href ? <Link href={agent.href} className="link font-medium">{agent.name}</Link> : agent.name}</p> : <p className="text-[14px] text-grey-h">Not assigned to an agent yet.</p>}
             <p className="pt-1 text-[13px] text-grey-h">An agent acts only within the permissions you granted it.</p>
           </Block>
+          {open && data.close && <CloseBlock caseRef={c.ref} kind={c.kind} close={data.close} onDone={async text => { setMsg({ ok: true, text }); await reload() }} onError={text => setMsg({ ok: false, text })} />}
           <Block id="next" title="Next steps" icon="arrow-right">
             {open ? (
               <dl className="kv">

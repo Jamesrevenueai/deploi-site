@@ -158,6 +158,12 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
       counts.drafted++
     })
   }
+  // the run's work is carried onto Resolution Engine cases (lib/library/case-sync.ts)
+  {
+    const { syncLibraryRun } = await import('./case-sync')
+    const produced = new Set(drafts.map(d => `${d.actionType}|${String(d.payload.dedupeKey ?? '')}`))
+    await syncLibraryRun(opts.orgId, logKey, runId, produced, { now, engineBacked: Boolean(sw?.engine_agent_id) }).catch(() => undefined)
+  }
   return finish('completed', undefined, engine)
 }
 
@@ -207,6 +213,7 @@ export async function approveAction(actor: Actor, id: string, now = new Date()) 
         [id, SENDS.has(a.action_type) ? 'approved; email sending is off in this environment, so nothing was sent. Copy the text to send it yourself.' : 'approved', actor.label, now.toISOString(), JSON.stringify({ approvedBy: actor.label, sent: false })])
       await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: 'library.action.approved', actor: actor.label, detail: { action_id: id, action_type: a.action_type, executed: false } })
     })
+    await syncCase(id)
     return { status: 'approved' as const, executed: false }
   }
   // the month's action allowance: the draft stays waiting (approve it again next month or after an upgrade)
@@ -219,7 +226,14 @@ export async function approveAction(actor: Actor, id: string, now = new Date()) 
       [id, r.ok ? 'done' : 'failed', r.ok ? null : r.reason ?? null, actor.label, now.toISOString(), JSON.stringify({ ...r.proof, approvedBy: actor.label })])
     await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: r.ok ? 'library.action.done' : 'library.action.failed', actor: actor.label, detail: { action_id: id, action_type: a.action_type, reason: r.reason ?? null } })
   })
+  await syncCase(id, now)
   return { status: r.ok ? ('done' as const) : ('failed' as const), executed: r.ok, reason: r.reason, proof: { ...r.proof, approvedBy: actor.label } }
+}
+
+/** The action's Resolution Engine case follows the decision (lib/library/case-sync.ts). */
+async function syncCase(id: string, now?: Date) {
+  const { syncLibraryAction } = await import('./case-sync')
+  await syncLibraryAction(id, { now }).catch(() => undefined)
 }
 
 export async function declineAction(actor: Actor, id: string, reason?: string, now = new Date()) {
@@ -230,6 +244,7 @@ export async function declineAction(actor: Actor, id: string, reason?: string, n
     await db.query(`update library_actions set status = 'declined', status_reason = $2, decided_by = $3, decided_at = $4 where id = $1`, [id, reason?.slice(0, 300) || 'declined by you', actor.label, now.toISOString()])
     await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: 'library.action.declined', actor: actor.label, detail: { action_id: id, action_type: a.action_type, reason: reason ?? null } })
   })
+  await syncCase(id, now)
 }
 
 export type LogEntry = { at: string; kind: 'action' | 'run' | 'switch' | 'engine'; what: string; status: string; permission: string; ref: { type: string; id: string | null }; detail?: Record<string, unknown> }

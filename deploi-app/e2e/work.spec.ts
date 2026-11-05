@@ -122,3 +122,24 @@ test('the demo case action refuses a real store and needs demo controls', async 
   await signIn(page, 'owner@harbor-supply.example')
   expect((await api(page, 'POST', '/api/store/demo', { connectionId, action: 'open_case' })).status).toBe(404)
 })
+
+test('Privacy requests: the page lists exports and requests (merchant only); a case decided elsewhere cannot be closed from its page', async ({ page }) => {
+  await signIn(page, NORTHWIND)
+  await page.goto('/store/settings')
+  await page.getByRole('link', { name: 'Privacy requests' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy requests' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Customer data exports' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'All requests' })).toBeVisible()
+  await expect(page.getByText('Deploi does not read your Shopify customers or orders')).toBeVisible()
+  const list = await api<{ exports: unknown[]; requests: unknown[] }>(page, 'GET', '/api/store/privacy')
+  expect(list.status).toBe(200)
+  expect(Array.isArray(list.json.exports)).toBe(true)
+  expect((await api(page, 'GET', '/api/store/privacy/00000000-0000-4000-8000-000000000000')).status).toBe(404)
+  await shoot(page, 'privacy')
+  if (ref) {
+    const c = await api<{ close: unknown }>(page, 'GET', `/api/store/cases/${ref}`)
+    expect(c.json.close).toBeNull()
+    await page.goto(`/store/work/${ref}`)
+    await expect(page.locator('#close')).toHaveCount(0)
+  }
+})

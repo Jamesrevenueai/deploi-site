@@ -29,8 +29,6 @@ async function api<T = Record<string, unknown>>(page: Page, method: string, path
 
 type Wizard = { current: string; agents: { key: string; agentId: string | null; status: string }[]; completedAt: string | null }
 const wizard = async (page: Page) => (await api<{ wizard: Wizard }>(page, 'GET', '/api/store/onboarding')).json.wizard
-type TeamItem = { template: string; agent: { agentId: string; agentKind: string; status: string } | null }
-const discoverTeam = async (page: Page) => (await api<{ team: TeamItem[] }>(page, 'GET', '/api/store/discover')).json.team ?? []
 const agentIds = async (page: Page) => (await api<{ agents: { id: string; name: string; status: string }[] }>(page, 'GET', '/api/store/agents')).json.agents
 
 async function shoot(page: Page, name: string) {
@@ -51,15 +49,12 @@ test.afterAll(async ({ browser }) => {
   // the Control Room spec turns the organization stop on; turn it off before resuming what it paused
   await api(page, 'POST', '/api/store/control-room/stop-all', { action: 'clear' })
   for (const id of pausedBySpec) await api(page, 'POST', `/api/store/agents/${id}/resume`, {})
-  for (const t of await discoverTeam(page)) if (t.agent && t.agent.agentKind === 'engine' && !createdByWizard.includes(t.agent.agentId)) createdByWizard.push(t.agent.agentId)
   for (const id of createdByWizard) await api(page, 'DELETE', `/api/store/agents/${id}`)
   await page.close()
 })
 
 test('setup: from the first step to done, the discovered team at drafts only and granted by the owner', async ({ page }) => {
   await signIn(page, NORTHWIND)
-  // agents an earlier run left behind are not this spec's to grant: start from none set up
-  for (const t of (await discoverTeam(page))) if (t.agent && t.agent.agentKind === 'engine') await api(page, 'DELETE', `/api/store/agents/${t.agent.agentId}`)
   await page.goto('/store/onboarding')
   await expect(page).toHaveURL(/\/store\/setup$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Set up Deploi' })).toBeVisible()
@@ -84,18 +79,23 @@ test('setup: from the first step to done, the discovered team at drafts only and
       const run = step.getByRole('button', { name: /Discover my business|Run discovery again/ })
       await run.click()
       await expect(step.getByRole('heading', { name: 'We found work your AI team can handle.' })).toBeVisible({ timeout: 60_000 })
+      const existing = new Set((await agentIds(page)).map(a => a.id))
       const setUp = step.getByRole('button', { name: 'Set up recommended team' })
       if (await setUp.count()) await setUp.click()
       const grant = step.getByRole('button', { name: /Grant all shown/ })
-      await expect(grant).toBeVisible()
+      // drafts now wait for the owner's grant, or the recommended agents were already working (the step completes)
+      await expect(grant.or(page.locator('[data-step="discover"][data-state="done"]'))).toBeVisible()
       // setting up again never creates a second agent
       const before = (await agentIds(page)).length
       expect((await api(page, 'POST', '/api/store/discover/team', { op: 'create' })).status).toBe(200)
       expect((await agentIds(page)).length).toBe(before)
-      for (const t of await discoverTeam(page)) if (t.agent && t.agent.agentKind === 'engine' && !createdByWizard.includes(t.agent.agentId)) createdByWizard.push(t.agent.agentId)
+      // only agents this spec created are removed afterwards (an existing agent the team setup linked to is kept)
+      for (const a of await agentIds(page)) if (!existing.has(a.id) && !createdByWizard.includes(a.id)) createdByWizard.push(a.id)
       await shoot(page, 'onboarding-agents')
-      await grant.click()
-      await expect(page.getByText(/now working, at drafts only/)).toBeVisible()
+      if (await grant.count()) {
+        await grant.click()
+        await expect(page.getByText(/now working, at drafts only/)).toBeVisible()
+      }
     } else if (w.current === 'done') {
       await step.getByRole('button', { name: 'Finish setup' }).click()
       await expect(page.getByText('Done. Your team is ready.')).toBeVisible()

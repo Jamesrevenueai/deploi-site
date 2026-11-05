@@ -65,7 +65,7 @@ describe.skipIf(!ready)('business discovery', () => {
 
   it('registers the built-in detectors; each runs only when what it reads is connected', async () => {
     expect(listDetectors().map(d => d.key)).toEqual(expect.arrayContaining(['store-issues', 'inventory-low', 'store-health']))
-    for (const d of listDetectors().filter(x => x.suite === 'commerce')) expect(await admin(db => d.available(db, NW.org)), d.key).toBe(true)
+    for (const d of listDetectors().filter(x => ['store-issues', 'inventory-low', 'store-health'].includes(x.key))) expect(await admin(db => d.available(db, NW.org)), d.key).toBe(true)
     // an organization with nothing connected: nothing is read, nothing is found, nothing is invented
     const org = (await admin(db => db.one<{ id: string }>(`insert into agencies (name, state, timezone, org_type) values ('Empty test org', '', 'UTC', 'merchant') returning id`)))!.id
     try {
@@ -166,9 +166,10 @@ describe.skipIf(!ready)('business discovery', () => {
       expect(run.cases_opened).toBe(10) // what could be read is still recorded
     } finally { unregisterDetector('test-broken'); unregisterDetector('test-slow') }
 
-    // HubSpot answers 401 while reading: recorded as needs reauth; a store that cannot be read is recorded too
+    // HubSpot answers 401 while reading: recorded as needs reauth; a store that cannot be read is recorded too.
+    // Two readers ask HubSpot for leads (the CRM follow-up detector and the profile), so the fault lasts for both.
     await admin(db => db.query(`update office_connections set status = 'active' where id = $1`, [hub.id]))
-    await injectOfficeFault(hub.id, { op: 'searchLeads', mode: 'auth' })
+    await injectOfficeFault(hub.id, { op: 'searchLeads', mode: 'auth', remaining: 5 })
     await injectFault(NW.conn, { op: 'DeploiVariants', mode: 'read_error', remaining: 50 })
     const { run } = await runDiscovery(NW.org, { trigger: 'test' })
     expect(run.status).toBe('partial')

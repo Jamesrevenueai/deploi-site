@@ -38,3 +38,16 @@ describe('2026-11-04 release migration set', () => {
     expect(() => setFrom(['--set=nope'])).toThrow(/unknown migration set/)
   })
 })
+
+describe('2026-11-05 release migration set', () => {
+  it('lists exactly the 2026-11-05 migrations on disk, in order, each with a rollback, and needs the 2026-11-04 release applied', async () => {
+    const { readdirSync, existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { RELEASE_2026_11_05, RELEASE_2026_11_04, SETS, setFrom } = await import('../../scripts/launch-migrations')
+    const dir = join(__dirname, '..', '..', 'supabase')
+    expect(RELEASE_2026_11_05).toEqual(readdirSync(join(dir, 'migrations')).filter(f => f.startsWith('20261105')).sort())
+    for (const f of RELEASE_2026_11_05) expect(existsSync(join(dir, 'rollback', f.replace(/\.sql$/, '.down.sql'))), f).toBe(true)
+    expect(SETS['2026-11-05'].prereq).toBe(RELEASE_2026_11_04[RELEASE_2026_11_04.length - 1])
+    expect(setFrom(['--set=2026-11-05']).files).toBe(RELEASE_2026_11_05)
+  })
+})

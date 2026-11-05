@@ -20,6 +20,7 @@ import { classifyInbound, crmMarker, customerReplyDraft, firstTouch, followUp, m
 import { proposeSlots, type Slot } from './slots'
 import { eventIdFor } from './calendar'
 import type { OfficePolicy } from './policy'
+import { ReceivablesBlocked, runReceivables, syncReceivables } from './receivables'
 
 export type LeadRow = { id: string; org_id: string; agent_id: string; hubspot_contact_id: string; email: string; first_name: string | null; company: string | null; lifecycle_stage: string | null; status: string; touches: number; next_touch_at: string | null; thread_message_id: string | null; replied_at: string | null; stop_reason: string | null }
 export type MeetingRow = { id: string; org_id: string; agent_id: string; lead_id: string | null; contact_email: string; hubspot_contact_id: string | null; status: string; proposed_slots: Slot[]; chosen_slot: Slot | null; proposal_message_id: string | null; calendar_event_id: string | null; source_inbound_id: string | null }
@@ -317,10 +318,12 @@ export async function runOfficeAgent(agentId: string, opts: { trigger?: 'manual'
     if (p.kind === 'meeting_scheduler') await schedulerInbound(ctx, now, counts)
     if (p.kind === 'customer_reply') await customerReplyInbound(ctx, now, counts)
     if (p.kind === 'crm_updater') await crmUpdates(ctx, now, counts)
+    if (p.kind === 'accounts_receivable') await runReceivables(ctx, now, counts)
     if (opts.execute !== false) counts.executed = (await executeDue(ctx.agent.org_id, { agentId, now })).length
+    if (p.kind === 'accounts_receivable' && opts.execute !== false) await syncReceivables(ctx, now, counts)
   } catch (e) {
-    status = e instanceof Blocked ? 'blocked' : 'failed'
-    reason = e instanceof Blocked || e instanceof OfficeAuthError ? e.message : e instanceof OfficeHttpError ? e.message : 'the run stopped on an unexpected error'
+    status = e instanceof Blocked || e instanceof ReceivablesBlocked ? 'blocked' : 'failed'
+    reason = e instanceof Blocked || e instanceof ReceivablesBlocked || e instanceof OfficeAuthError ? e.message : e instanceof OfficeHttpError ? e.message : 'the run stopped on an unexpected error'
     if (e instanceof OfficeAuthError) status = 'blocked'
     if (status === 'failed') log.error('office.run.failed', { agent_id: agentId, error: (e as Error).message?.slice(0, 300) })
   }

@@ -32,6 +32,7 @@ const WEBHOOKS: Record<string, { evidence: RegExp; lib?: { file: string; evidenc
   'app/api/shopify/webhooks/route.ts': { evidence: /handleShopifyWebhook/, lib: { file: 'lib/connectors/shopify/webhooks.ts', evidence: /verifyWebhookHmac\(raw/ } },
   'app/api/webhooks/agent-mail/route.ts': { evidence: /verifySvix\(/ },
   'app/api/woocommerce/webhooks/route.ts': { evidence: /handleWooWebhook/, lib: { file: 'lib/connectors/woocommerce/webhooks.ts', evidence: /verifyWooSignature\(raw, signature, secret\)/ } },
+  'app/api/office/webhooks/quickbooks/route.ts': { evidence: /handleQuickBooksWebhook\(raw, req\.headers\.get\('intuit-signature'\)\)/, lib: { file: 'lib/office/quickbooks-webhook.ts', evidence: /verifyIntuitSignature\(rawBody, signature, verifier\)/ } },
   'app/api/billing/stripe/webhook/route.ts': { evidence: /verifyStripeSignature\(raw, req\.headers\.get\('stripe-signature'\)/ },
 }
 /** Routes that are deliberately outside the merchant session, with the guard each must show. */
@@ -56,12 +57,13 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/woocommerce/disconnect/route.ts': { why: 'merchant session', evidence: /resolveActor\(req, \{ mutating: true \}\)/ },
   'app/api/woocommerce/status/route.ts': { why: 'merchant session', evidence: /resolveActor\(req\)/ },
   'app/api/office/oauth/hubspot/callback/route.ts': { why: 'HubSpot OAuth callback: session + one-time state', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
+  'app/api/office/oauth/quickbooks/callback/route.ts': { why: 'Intuit OAuth callback: session + one-time state + realmId', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/office/oauth/google/callback/route.ts': { why: 'Google OAuth callback: session + one-time state + PKCE', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/email/oauth/synthetic/route.ts': { why: 'synthetic consent page, off unless synthetic mail is allowed', evidence: /syntheticAllowed/ },
 }
 
 /** Deploi Office API: every handler resolves the session through officeActor (session, CSRF, staff refused, product enabled). */
-const isOfficeApi = (f: string) => f.startsWith('app/api/office/') && !f.startsWith('app/api/office/oauth/')
+const isOfficeApi = (f: string) => f.startsWith('app/api/office/') && !f.startsWith('app/api/office/oauth/') && !f.startsWith('app/api/office/webhooks/')
 
 describe('API route sweep', () => {
   const all = routes(API)

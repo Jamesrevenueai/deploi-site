@@ -13,10 +13,11 @@ import { canonicalJson } from '../engine/hash'
 import { MAX_AUTONOMY_MS, TIERS, TIER_LABEL, type Tier } from '../agents/policy'
 export { TIERS, TIER_LABEL, type Tier }
 
-export const OFFICE_KINDS = ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply'] as const
+export const OFFICE_KINDS = ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply', 'accounts_receivable'] as const
 export type OfficeKind = typeof OFFICE_KINDS[number]
 export const OFFICE_KIND_LABEL: Record<OfficeKind, string> = {
   lead_followup: 'Lead Follow-up', meeting_scheduler: 'Meeting Scheduler', crm_updater: 'CRM Updater', customer_reply: 'Customer Reply',
+  accounts_receivable: 'Accounts Receivable',
 }
 export const ACTION_KINDS = ['send_email', 'create_event', 'patch_event', 'delete_event', 'crm_note', 'crm_task', 'crm_update_contact', 'crm_deal_stage'] as const
 export type ActionKind = typeof ACTION_KINDS[number]
@@ -40,6 +41,8 @@ export const OfficePolicySchema = z.object({
   timezone: tz.default('UTC'),
   hubspotConnectionId: z.string().uuid().nullable().default(null),
   calendarConnectionId: z.string().uuid().nullable().default(null),
+  /** Accounts Receivable: the QuickBooks Online company invoices are read from (read only) */
+  quickbooksConnectionId: z.string().uuid().nullable().default(null),
   /** the email account every message is sent from (the organization's office mailbox or a connected account) */
   mailboxAccountId: z.string().uuid().nullable().default(null),
   email: z.object({
@@ -84,6 +87,21 @@ export const OfficePolicySchema = z.object({
     /** categories whose drafted reply may go out at the email tier; anything else always waits for a person */
     sendCategories: z.array(z.enum(CUSTOMER_CATEGORIES)).max(3).default([]),
   }).optional(),
+  receivables: z.object({
+    /** an invoice qualifies once its due date is this many days past */
+    overdueDays: z.number().int().min(1).max(120).default(7),
+    /** days between reminders for one invoice */
+    cadenceDays: z.number().int().min(3).max(60).default(7),
+    /** reminders per invoice at most; then the case goes to you */
+    maxReminders: z.number().int().min(1).max(5).default(3),
+    /** invoices with a smaller open balance are left alone (in the invoice's currency) */
+    minBalance: z.number().min(0).max(1_000_000).default(0),
+    /** QuickBooks customer ids that never get reminders */
+    excludeCustomerIds: z.array(z.string().regex(/^\d{1,20}$/)).max(200).default([]),
+    /** after "we have paid": reminders wait this many days while QuickBooks is checked */
+    paidClaimGraceDays: z.number().int().min(1).max(14).default(3),
+    senderName: z.string().trim().min(1).max(80),
+  }).optional(),
   schedule: z.object({ everyMinutes: z.number().int().min(15).max(1440).default(60) }).default({ everyMinutes: 60 }),
 }).superRefine((p, ctx) => {
   const need = (cond: unknown, path: string, message: string) => { if (!cond) ctx.addIssue({ code: 'custom', path: [path], message }) }
@@ -110,6 +128,12 @@ export const OfficePolicySchema = z.object({
     need(p.mailboxAccountId, 'mailboxAccountId', 'choose the mailbox replies are sent from')
     need(p.email, 'email', 'customer reply needs the email tool')
     need(p.customerReply, 'customerReply', 'set the sender name and which replies may be sent')
+  }
+  if (p.kind === 'accounts_receivable') {
+    need(p.quickbooksConnectionId, 'quickbooksConnectionId', 'connect QuickBooks: overdue invoices are read from it')
+    need(p.mailboxAccountId, 'mailboxAccountId', 'choose the mailbox reminders are sent from')
+    need(p.email, 'email', 'payment reminders need the email tool')
+    need(p.receivables, 'receivables', 'set when an invoice is overdue, the reminder cadence and the sender name')
   }
   for (const t of ['email', 'calendar', 'crm'] as const) {
     const x = p[t]
@@ -147,6 +171,13 @@ export function officeExpansion(prev: OfficePolicy, next: OfficePolicy): string[
   if (next.hubspotConnectionId !== prev.hubspotConnectionId && next.hubspotConnectionId) r.push('different HubSpot connection')
   if (next.calendarConnectionId !== prev.calendarConnectionId && next.calendarConnectionId) r.push('different calendar')
   if (next.mailboxAccountId !== prev.mailboxAccountId && next.mailboxAccountId) r.push('different mailbox')
+  if (next.quickbooksConnectionId !== prev.quickbooksConnectionId && next.quickbooksConnectionId) r.push('different QuickBooks company')
+  const pr = prev.receivables, nr = next.receivables
+  if (nr && pr) {
+    if (nr.overdueDays < pr.overdueDays || nr.cadenceDays < pr.cadenceDays || nr.maxReminders > pr.maxReminders) r.push('earlier, more or more frequent payment reminders')
+    if (nr.minBalance < pr.minBalance || !sub(pr.excludeCustomerIds, nr.excludeCustomerIds)) r.push('reminders for more invoices or customers')
+    if (nr.paidClaimGraceDays < pr.paidClaimGraceDays) r.push('reminders resume sooner after a customer says they paid')
+  }
   const end = (x: string | null | undefined) => (x ? new Date(x).getTime() : Infinity)
   for (const t of ['email', 'calendar', 'crm'] as const) {
     const a = prev[t], b = next[t]
@@ -171,7 +202,7 @@ export function officeExpansion(prev: OfficePolicy, next: OfficePolicy): string[
   return [...new Set(r)]
 }
 
-export type OfficeSummaryCtx = { hubspot?: string | null; calendar?: string | null; mailbox?: string | null }
+export type OfficeSummaryCtx = { hubspot?: string | null; calendar?: string | null; mailbox?: string | null; quickbooks?: string | null }
 
 const tierText = (t: Tier, until: string | null, what: string) =>
   t === 'draft' ? `drafts only: shows you the exact ${what} and never does it`
@@ -208,6 +239,15 @@ export function summarizeOfficePolicy(p: OfficePolicy, ctx: OfficeSummaryCtx = {
     grants.push(`Sorts replies that arrive in ${box} (question, meeting request, unsubscribe, other) and drafts an answer to the sender.`)
     grants.push(p.customerReply.sendCategories.length ? `Replies to ${p.customerReply.sendCategories.join(', ')} messages may go out at the email permission below; everything else waits for you.` : 'Every reply waits for you.')
     never.push('Answers only the person who wrote; nothing in a message can add a recipient.')
+  }
+  if (p.kind === 'accounts_receivable' && p.receivables) {
+    const r = p.receivables
+    grants.push(`Reads open invoices, payments and customers from ${ctx.quickbooks ?? 'QuickBooks Online'}; never writes to QuickBooks.`)
+    grants.push(`For each invoice ${r.overdueDays} or more days past its due date${r.minBalance > 0 ? ` with at least ${r.minBalance} open` : ''}, writes a payment reminder from ${box} with the invoice number, amount and due date exactly as QuickBooks shows them; up to ${r.maxReminders} reminder${r.maxReminders === 1 ? '' : 's'}, ${r.cadenceDays} days apart.`)
+    grants.push('Counts an invoice as paid only when a fresh QuickBooks read shows its balance at zero; a part payment keeps it open with the new balance.')
+    never.push("Emails only the invoice's own billing address (BillEmail) as QuickBooks shows it at the moment of sending: no one else, no copies.")
+    never.push('Stops reminding, and hands the invoice to you, when the customer disputes it or replies with anything it cannot act on; waits until the promised date when they promise to pay.')
+    if (r.excludeCustomerIds.length) never.push(`Never reminds customer${r.excludeCustomerIds.length === 1 ? '' : 's'} ${r.excludeCustomerIds.join(', ')}.`)
   }
   if (p.email) {
     grants.push(`Email: ${tierText(p.email.tier, p.email.validUntil, 'email')}.`)

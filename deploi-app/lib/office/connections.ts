@@ -11,10 +11,12 @@ import { EngineError } from '../engine/errors'
 import { decryptSecret, encryptSecret } from '../connectors/credentials'
 import { officeAudit } from './audit'
 import { officeConfig, providerConfigured, PROVIDER_LABEL, type OfficeProvider } from './config'
-import { deleteOfficeCredential, saveOfficeTokens } from './credentials'
+import { deleteOfficeCredential, loadOfficeTokens, saveOfficeTokens } from './credentials'
 import { hubspotAuthorizeUrl, hubspotExchange, hubspotIdentity, HUBSPOT_SCOPES, type OAuthTokens } from './hubspot'
 import { calendarScopesOk, googleAuthorizeUrl, googleExchange, googleIdentity } from './calendar'
 import { demoContacts, mutateOfficeSynth, syntheticToken } from './synthetic'
+import { isRealmId, quickbooksAuthorizeUrl, quickbooksClient, quickbooksExchange, quickbooksRevoke, QBO_SCOPES } from './quickbooks'
+import { demoInvoices, mutateQboSynth } from './quickbooks-synthetic'
 import { assertOfficeConnectionSlot } from '../plans/entitlements'
 
 export type OfficeConnectionRow = {
@@ -47,13 +49,21 @@ export async function startOfficeConnect(actor: Actor, provider: OfficeProvider,
     await db.query(`delete from office_oauth_states where expires_at < now() - interval '1 day'`)
     await officeAudit(db, { orgId: actor.orgId, entityType: 'office_connection', event: 'connection.started', actor: actor.label, detail: { provider } })
   })
-  const url = provider === 'hubspot' ? hubspotAuthorizeUrl(state) : googleAuthorizeUrl(state, b64url(createHash('sha256').update(verifier!).digest()))
+  const url = provider === 'hubspot' ? hubspotAuthorizeUrl(state) : provider === 'quickbooks' ? quickbooksAuthorizeUrl(state) : googleAuthorizeUrl(state, b64url(createHash('sha256').update(verifier!).digest()))
   return { url, state }
 }
 
 /** tests only: replace the code exchange + identity read */
-type Exchanger = (provider: OfficeProvider, code: string, verifier: string | null) => Promise<{ tokens: OAuthTokens; externalId: string; displayName: string | null }>
-const realExchange: Exchanger = async (provider, code, verifier) => {
+type Exchanger = (provider: OfficeProvider, code: string, verifier: string | null, extra?: { realmId?: string | null }) => Promise<{ tokens: OAuthTokens; externalId: string; displayName: string | null }>
+const realExchange: Exchanger = async (provider, code, verifier, extra) => {
+  if (provider === 'quickbooks') {
+    // the company Intuit returned on the callback; reading its name with the new token proves token and company belong together
+    const realmId = extra?.realmId
+    if (!isRealmId(realmId)) throw new EngineError('invalid_input', 'QuickBooks did not return a company id')
+    const tokens = await quickbooksExchange(code)
+    const company = await quickbooksClient(async () => tokens.accessToken, realmId).companyInfo()
+    return { tokens, externalId: realmId, displayName: company.name ?? `QuickBooks company ${realmId}` }
+  }
   if (provider === 'hubspot') {
     const tokens = await hubspotExchange(code)
     const who = await hubspotIdentity(tokens.accessToken)
@@ -68,7 +78,7 @@ let exchanger: Exchanger = realExchange
 export function setOfficeExchanger(x: Exchanger | null) { exchanger = x ?? realExchange }
 
 /** OAuth callback: single-use, unexpired state of the same organization and user; then exchange, identity, encrypted storage. */
-export async function completeOfficeConnect(actor: Actor, input: { provider: OfficeProvider; state: string; code: string | null; error: string | null }) {
+export async function completeOfficeConnect(actor: Actor, input: { provider: OfficeProvider; state: string; code: string | null; error: string | null; realmId?: string | null }) {
   merchantOnly(actor)
   const st = await admin(db => db.one<{ state: string; org_id: string; provider: OfficeProvider; created_by: string; key_id: string | null; verifier_ciphertext: string | null }>(
     `update office_oauth_states set used_at = now() where state = $1 and used_at is null and expires_at > now() returning *`, [input.state]))
@@ -78,7 +88,9 @@ export async function completeOfficeConnect(actor: Actor, input: { provider: Off
   if (input.error || !input.code) throw new EngineError('invalid_input', input.error === 'access_denied' ? 'you did not grant access, so nothing was connected' : 'the provider did not return an authorization code')
   if (!providerConfigured(st.provider)) throw new OfficeNotConfigured(st.provider)
   const verifier = st.verifier_ciphertext && st.key_id ? decryptSecret(st.key_id, st.verifier_ciphertext, `office-oauth-state:${st.state}`) : null
-  const got = await exchanger(st.provider, input.code, verifier)
+  if (st.provider === 'quickbooks' && !isRealmId(input.realmId)) throw new EngineError('invalid_input', 'QuickBooks did not return a company id (realmId); start again')
+  const got = await exchanger(st.provider, input.code, verifier, { realmId: input.realmId ?? null })
+  if (st.provider === 'quickbooks' && (got.externalId !== input.realmId || !QBO_SCOPES.every(s => got.tokens.scopes.includes(s)))) throw new EngineError('invalid_input', 'QuickBooks did not grant access to the company that was chosen; connect again')
   if (st.provider === 'hubspot' && !HUBSPOT_SCOPES.every(s => got.tokens.scopes.includes(s))) throw new EngineError('invalid_input', 'HubSpot did not grant every permission Deploi Office needs (contacts and deals, read and write); connect again and approve all of them')
   if (st.provider === 'google_calendar' && !calendarScopesOk(got.tokens.scopes)) throw new EngineError('invalid_input', 'Google did not grant calendar access (events and availability); connect again and tick both boxes')
   return admin(db => saveConnection(db, { orgId: st.org_id, provider: st.provider, actor: actor.label, synthetic: false, externalId: got.externalId, displayName: got.displayName, tokens: got.tokens }))
@@ -102,9 +114,10 @@ async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvid
 export async function connectSyntheticOffice(actor: Actor, provider: OfficeProvider, opts: { demoData?: boolean; timezone?: string } = {}) {
   merchantOnly(actor)
   if (!officeConfig.syntheticAllowed) throw new EngineError('forbidden', 'synthetic connections are not available on this deployment')
-  const row = await admin(db => saveConnection(db, { orgId: actor.orgId, provider, actor: actor.label, synthetic: true, externalId: provider === 'hubspot' ? 'synthetic-portal' : 'calendar@synthetic.example',
-    displayName: provider === 'hubspot' ? 'Synthetic HubSpot (test only)' : 'Synthetic calendar (test only)', tokens: syntheticToken(provider), timezone: opts.timezone ?? 'America/New_York' }))
-  await mutateOfficeSynth(row.id, s => { if (opts.demoData !== false && provider === 'hubspot' && !s.contacts.length) s.contacts.push(...demoContacts()) })
+  const row = await admin(db => saveConnection(db, { orgId: actor.orgId, provider, actor: actor.label, synthetic: true, externalId: provider === 'hubspot' ? 'synthetic-portal' : provider === 'quickbooks' ? 'synthetic-realm' : 'calendar@synthetic.example',
+    displayName: provider === 'hubspot' ? 'Synthetic HubSpot (test only)' : provider === 'quickbooks' ? 'Synthetic QuickBooks (test only)' : 'Synthetic calendar (test only)', tokens: syntheticToken(provider), timezone: opts.timezone ?? 'America/New_York' }))
+  if (provider === 'quickbooks') await mutateQboSynth(row.id, s => { if (opts.demoData !== false && !s.invoices.length) s.invoices.push(...demoInvoices()) })
+  else await mutateOfficeSynth(row.id, s => { if (opts.demoData !== false && provider === 'hubspot' && !s.contacts.length) s.contacts.push(...demoContacts()) })
   return row
 }
 
@@ -114,16 +127,26 @@ export async function connectSyntheticOffice(actor: Actor, provider: OfficeProvi
  */
 export async function disconnectOffice(actor: Actor, connectionId: string) {
   merchantOnly(actor)
+  // QuickBooks: revoke the grant at Intuit first (best effort; the credential is deleted here either way)
+  const qb = await admin(db => db.one<OfficeConnectionRow>(`select * from office_connections where id = $1 and org_id = $2 and provider = 'quickbooks' and not is_synthetic`, [connectionId, actor.orgId]))
+  let revoked: boolean | null = null
+  if (qb) {
+    const t = await admin(db => loadOfficeTokens(db, qb.id)).catch(() => null)
+    if (t) revoked = await quickbooksRevoke(t.refreshToken ?? t.accessToken)
+  }
   return admin(async db => {
     const c = await db.one<OfficeConnectionRow>('select * from office_connections where id = $1 for update', [connectionId])
     if (!c || c.org_id !== actor.orgId) throw new EngineError('not_found', 'connection not found')
     const removed = await deleteOfficeCredential(db, c.id)
     await db.query(`update office_connections set status = 'disconnected', status_reason = 'disconnected by you', disconnected_at = now() where id = $1`, [c.id])
-    const kinds = c.provider === 'hubspot' ? ['crm_note', 'crm_task', 'crm_update_contact', 'crm_deal_stage'] : ['create_event', 'patch_event', 'delete_event']
+    const kinds = c.provider === 'hubspot' ? ['crm_note', 'crm_task', 'crm_update_contact', 'crm_deal_stage'] : c.provider === 'quickbooks' ? [] : ['create_event', 'patch_event', 'delete_event']
     const cancelled = await db.query(`update office_actions set status = 'cancelled', status_reason = $3, next_attempt_at = null where org_id = $1 and kind = any($2::text[]) and status in ('draft','awaiting_approval','queued') returning id`,
       [c.org_id, kinds, `${PROVIDER_LABEL[c.provider]} was disconnected`])
-    await officeAudit(db, { orgId: c.org_id, entityType: 'office_connection', entityId: c.id, event: 'connection.disconnected', actor: actor.label, detail: { provider: c.provider, credential_deleted: removed, actions_cancelled: cancelled.length } })
-    return { credentialDeleted: removed, actionsCancelled: cancelled.length }
+    // QuickBooks: invoice reminders not yet sent are cancelled (they could no longer be checked against QuickBooks)
+    if (c.provider === 'quickbooks') cancelled.push(...await db.query(`update office_actions set status = 'cancelled', status_reason = $2, next_attempt_at = null where org_id = $1 and kind = 'send_email'
+      and payload->'recipientSource'->>'kind' = 'invoice' and status in ('draft','awaiting_approval','queued') returning id`, [c.org_id, `${PROVIDER_LABEL[c.provider]} was disconnected`]))
+    await officeAudit(db, { orgId: c.org_id, entityType: 'office_connection', entityId: c.id, event: 'connection.disconnected', actor: actor.label, detail: { provider: c.provider, credential_deleted: removed, actions_cancelled: cancelled.length, ...(revoked !== null ? { revoked_at_provider: revoked } : {}) } })
+    return { credentialDeleted: removed, actionsCancelled: cancelled.length, ...(revoked !== null ? { revokedAtProvider: revoked } : {}) }
   })
 }
 

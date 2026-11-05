@@ -169,7 +169,7 @@ export function syntheticCalendar(connectionId: string): CalendarApi {
 }
 
 /** Create a synthetic connection's encrypted placeholder credential, so the token path is the same as for real ones. */
-export function syntheticToken(provider: P) {
+export function syntheticToken(provider: P | 'quickbooks') {
   return { accessToken: `synthetic-${provider}:${randomBytes(8).toString('hex')}`, refreshToken: `synthetic-refresh-${provider}`, expiresIn: 3600, scopes: ['synthetic'] }
 }
 

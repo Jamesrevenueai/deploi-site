@@ -34,7 +34,7 @@ import { parseOfficePolicy, tierRank, TOOL_OF, type ActionKind, type OfficePolic
 export type ActionStatus = 'draft' | 'awaiting_approval' | 'queued' | 'executing' | 'succeeded' | 'failed' | 'unknown' | 'cancelled' | 'rejected'
 
 /** Where the only allowed recipient of an email comes from: always a database record, never the message text. */
-export type RecipientSource = { kind: 'lead'; leadId: string } | { kind: 'meeting'; meetingId: string } | { kind: 'inbound'; inboundId: string }
+export type RecipientSource = { kind: 'lead'; leadId: string } | { kind: 'meeting'; meetingId: string } | { kind: 'inbound'; inboundId: string } | { kind: 'invoice'; invoiceId: string }
 
 export type EmailPayload = { type: 'email'; to: string; subject: string; body: string; inReplyToMessageId: string | null; recipientSource: RecipientSource; meta: Record<string, unknown> }
 export type EventPayload = { type: 'event'; eventId: string; summary: string; description: string; start: string; end: string; timeZone: string; attendees: string[]; meet: boolean; bufferMin: number }
@@ -74,6 +74,8 @@ export const actorFor = (ctx: AgentCtx) => `office-agent:${ctx.agent.name.slice(
 export async function allowedRecipient(db: Db, orgId: string, src: RecipientSource): Promise<string | null> {
   if (src.kind === 'lead') return (await db.one<{ email: string }>(`select email from office_leads where id = $1 and org_id = $2`, [src.leadId, orgId]))?.email ?? null
   if (src.kind === 'meeting') return (await db.one<{ contact_email: string }>(`select contact_email from office_meetings where id = $1 and org_id = $2`, [src.meetingId, orgId]))?.contact_email ?? null
+  // an invoice reminder: the invoice's billing address as last read from QuickBooks, only while reminders are allowed for it
+  if (src.kind === 'invoice') return (await db.one<{ bill_email: string | null }>(`select bill_email from office_invoices where id = $1 and org_id = $2 and status = 'open'`, [src.invoiceId, orgId]))?.bill_email ?? null
   return (await db.one<{ from_address: string }>(`select from_address from email_inbound where id = $1 and org_id = $2 and status = 'accepted'`, [src.inboundId, orgId]))?.from_address ?? null
 }
 
@@ -418,9 +420,18 @@ export async function stopLead(leadId: string, reason: string, actor: string, st
   })
 }
 
+/**
+ * Checks other Office modules run just before an email goes out (e.g. Accounts Receivable re-reads the invoice in
+ * QuickBooks). A non-null answer stops this send with that outcome; nothing is sent.
+ */
+export type EmailPrecheck = (a: OfficeActionRow, ctx: AgentCtx) => Promise<{ status: 'cancelled' | 'failed' | 'queued'; reason: string; nextAttemptAt?: string | null } | null>
+const emailPrechecks: EmailPrecheck[] = []
+export function registerEmailPrecheck(f: EmailPrecheck) { if (!emailPrechecks.includes(f)) emailPrechecks.push(f) }
+
 async function performEmail(a: OfficeActionRow, ctx: AgentCtx, conn: OfficeConnectionRow | null, actor: string, now: Date): Promise<Outcome> {
   const pre = await leadPrecheck(a, conn)
   if (pre) return pre
+  for (const f of emailPrechecks) { const r = await f(a, ctx); if (r) return r }
   const m = await ensureMessage(a, ctx)
   if ('error' in m) return { status: 'failed', reason: m.error }
   const out = await sendMessage(m.id, { actor, now })

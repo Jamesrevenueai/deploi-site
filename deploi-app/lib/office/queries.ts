@@ -52,7 +52,7 @@ export async function officeConnections(actor: Actor) {
     `select id, provider, status, status_reason, is_synthetic, display_name, external_account_id, scopes, timezone, connected_at from office_connections where org_id = $1 and status <> 'disconnected' order by provider`, [org]))
   const mailboxes = await withActor(actor, db => db.query<{ id: string; provider: string; address: string; status: string; can_send: boolean; can_read: boolean; is_synthetic: boolean; office_mailbox: boolean }>(
     `select id, provider, address, status, can_send, can_read, is_synthetic, office_mailbox from email_accounts where org_id = $1 and status <> 'disconnected' and (provider <> 'deploi' or office_mailbox) order by connected_at`, [org]))
-  const providers = (['hubspot', 'google_calendar'] as OfficeProvider[]).map(p => ({ provider: p, label: PROVIDER_LABEL[p], configured: providerConfigured(p), connection: rows.find(r => r.provider === p) ?? null }))
+  const providers = (['hubspot', 'google_calendar', 'quickbooks'] as OfficeProvider[]).map(p => ({ provider: p, label: PROVIDER_LABEL[p], configured: providerConfigured(p), connection: rows.find(r => r.provider === p) ?? null }))
   return { providers, mailboxes, syntheticAllowed: officeConfig.syntheticAllowed, officeMailboxAvailable: Boolean(emailConfig.agentMailDomain), liveSends: emailConfig.liveSends }
 }
 

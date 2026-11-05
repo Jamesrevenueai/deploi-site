@@ -17,8 +17,8 @@ export async function GET(req: Request) {
 }
 
 const provider = (v: unknown): OfficeProvider => {
-  if (v === 'hubspot' || v === 'google_calendar') return v
-  throw new HttpError(400, 'invalid_input', 'provider must be hubspot or google_calendar')
+  if (v === 'hubspot' || v === 'google_calendar' || v === 'quickbooks') return v
+  throw new HttpError(400, 'invalid_input', 'provider must be hubspot, google_calendar or quickbooks')
 }
 
 /**

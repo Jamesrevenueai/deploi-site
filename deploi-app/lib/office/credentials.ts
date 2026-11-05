@@ -9,6 +9,7 @@ import { officeAudit } from './audit'
 import { officeConfig, type OfficeProvider } from './config'
 import { hubspotRefresh, type OAuthTokens } from './hubspot'
 import { googleRefresh } from './calendar'
+import { quickbooksRefresh } from './quickbooks'
 
 const aad = (connectionId: string, kind: 'access' | 'refresh') => `office-connection:${connectionId}:${kind}`
 
@@ -16,8 +17,9 @@ export class OfficeAuthError extends Error { constructor(message: string) { supe
 
 /** tests only: replace the provider refresh call */
 type Refresher = (provider: OfficeProvider, refreshToken: string, scopes: string[]) => Promise<OAuthTokens>
-let refresher: Refresher = (p, t, s) => (p === 'hubspot' ? hubspotRefresh(t, s) : googleRefresh(t, s))
-export function setOfficeRefresher(r: Refresher | null) { refresher = r ?? ((p, t, s) => (p === 'hubspot' ? hubspotRefresh(t, s) : googleRefresh(t, s))) }
+const defaultRefresher: Refresher = (p, t, s) => (p === 'hubspot' ? hubspotRefresh(t, s) : p === 'quickbooks' ? quickbooksRefresh(t) : googleRefresh(t, s))
+let refresher: Refresher = defaultRefresher
+export function setOfficeRefresher(r: Refresher | null) { refresher = r ?? defaultRefresher }
 
 export async function saveOfficeTokens(db: Db, connectionId: string, orgId: string, t: OAuthTokens) {
   const main = encryptSecret(t.accessToken, aad(connectionId, 'access'))

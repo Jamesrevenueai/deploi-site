@@ -41,7 +41,10 @@ export async function POST(req: Request) {
       const tz = await withActor(actor, db => db.one<{ timezone: string | null }>('select timezone from store_connections where id = $1', [connectionId]))
       const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 40) : [])
       const c = body.competitor && typeof body.competitor === 'object' ? body.competitor as Record<string, unknown> : {}
+      // Supplier Coordinator: the allowed recipients are the supplier addresses on the organization's imported purchase orders (shown in the summary the merchant grants)
+      const poSuppliers = t.key === 'supplier_coordinator' ? (await withActor(actor, db => db.query<{ a: string }>(`select distinct lower(supplier_email) as a from purchase_orders where status <> 'cancelled' order by 1 limit 50`))).map(r => r.a) : []
       const policy = templatePolicy(t.key, { connectionId, timezone: tz?.timezone || 'UTC', notify: typeof body.notify === 'string' ? body.notify : null, supplierAddress: typeof body.supplierAddress === 'string' ? body.supplierAddress : null,
+        ...(poSuppliers.length ? { supplier: { mappedAddresses: poSuppliers } } : {}),
         competitor: { stores: strings(c.stores), keywords: strings(c.keywords), alerts: strings(c.alerts), cadence: c.cadence === 'weekly' ? 'weekly' : 'daily',
           minPriceChangePct: typeof c.minPriceChangePct === 'number' ? c.minPriceChangePct : undefined, emailSummary: c.emailSummary === true } })
       const name = typeof body.name === 'string' && body.name.trim() ? body.name : t.name

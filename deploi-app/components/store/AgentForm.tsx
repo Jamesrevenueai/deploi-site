@@ -114,7 +114,7 @@ function productIds(s: string): { ids: string[]; bad: string[] } {
 }
 const showIds = (ids: string[]) => ids.map(id => id.replace(/^gid:\/\/shopify\/Product\//, '')).join(', ')
 const allAlerts = (): Record<CompetitorAlertKey, boolean> => Object.fromEntries(COMPETITOR_ALERTS.map(a => [a, true])) as Record<CompetitorAlertKey, boolean>
-const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false, supplier_followup: false })
+const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false, supplier_followup: false, supplier_exception: false })
 
 // same formats the server accepts (lib/agents/policy.ts)
 const EMAIL_RE = /^[^\s@<>(),;:"\[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/

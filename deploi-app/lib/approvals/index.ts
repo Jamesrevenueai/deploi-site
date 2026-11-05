@@ -9,9 +9,12 @@
 import { registerApprovalSource } from './registry'
 import { BUILT_IN_SOURCES } from './sources'
 import { officeSource } from './office-source'
+import { purchaseOrderSource } from '../commerce/approval-source'
 
 for (const s of BUILT_IN_SOURCES) registerApprovalSource(s)
 registerApprovalSource(officeSource)
+// purchase-order resolution options from the Supplier Coordinator (lib/commerce)
+registerApprovalSource(purchaseOrderSource)
 
 export { registerApprovalSource, listPendingApprovals, decideApproval, approvalSources, getApprovalSource } from './registry'
 export type { ApprovalItem, ApprovalSource, ApprovalDecision, DecisionInput, DecisionResult } from './registry'

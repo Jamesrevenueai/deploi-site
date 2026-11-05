@@ -19,6 +19,7 @@ import { runEmailStep, type EmailRunCounts } from '../email/run'
 import { runCompetitorStep, type CompetitorRunCounts } from '../competitors/run'
 import { syncSupplierRequests, type SupplierCounts } from './supplier'
 import { flushRescans } from '../connectors/shopify/rescans'
+import { runSupplierCoordinator, type CoordinatorCounts } from '../commerce/supplier-coordinator'
 
 export type AgentRunTrigger = 'manual' | 'schedule' | 'webhook' | 'test'
 export type AgentRunCounts = {
@@ -32,6 +33,8 @@ export type AgentRunCounts = {
   competitors?: CompetitorRunCounts
   /** Supplier Chaser: the agent's restock requests after this run (sent, followed up, replied) */
   supplier?: SupplierCounts
+  /** Supplier Coordinator: purchase-order exception cases after this run (lib/commerce/supplier-coordinator.ts) */
+  coordinator?: CoordinatorCounts
 }
 export type AgentRunResult = { runId: string; status: 'completed' | 'failed' | 'blocked'; reason?: string; counts: AgentRunCounts; executions: ExecutionResult[] }
 
@@ -81,7 +84,9 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
   let records: ResourceRecord[] | null = null
   // a competitor-only agent that does not compare with your catalog never reads your store
   const p = ctx.policy
-  const readsStore = !p.competitors || p.correctionTypes.length > 0 || p.watch.length > 0 || Boolean(p.email?.tasks.includes('supplier_reorder')) || p.competitors.compareOwnCatalog
+  // a Supplier Coordinator works on imported purchase orders, not on the store's records
+  const poOnly = !p.competitors && !p.correctionTypes.length && !p.watch.length && Boolean(p.email?.tasks.length) && p.email!.tasks.every(t => t === 'supplier_exception')
+  const readsStore = !poOnly && (!p.competitors || p.correctionTypes.length > 0 || p.watch.length > 0 || Boolean(p.email?.tasks.includes('supplier_reorder')) || p.competitors.compareOwnCatalog)
   if (readsStore) {
     try {
       const scan = await runScan(ctx.agent.connection_id, { trigger: opts.trigger === 'test' ? 'test' : opts.trigger, actor: opts.actor, plan: ctx.plan, now, onRecords: r => { records = r } })
@@ -170,6 +175,11 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
     }
     if (ctx.policy.email.tasks.includes('supplier_reorder')) {
       try { counts.supplier = { ...await syncSupplierRequests(agentId), skipped: counts.email.supplierSkipped ?? 0 } } catch { /* status mirror only; the messages themselves are recorded */ }
+    }
+    if (ctx.policy.email.tasks.includes('supplier_exception')) {
+      try { counts.coordinator = await runSupplierCoordinator(agentId, { now, actor: label }) } catch (e) {
+        return finishRun('failed', `purchase order step failed: ${(e as Error).message.slice(0, 160)}`, scanId)
+      }
     }
   }
   return finishRun('completed', undefined, scanId)

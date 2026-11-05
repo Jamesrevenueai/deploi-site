@@ -47,17 +47,19 @@ export type ChangePreview = {
 }
 
 const CHANGE_TTL_MS = 30 * 60e3
+// Idempotency keys for cancel and reactivate name the subscription state they act on (the last event Stripe
+// confirmed): a double submit replays one request, while the next change after Stripe confirms gets a new key.
 
 function assertOn() {
   if (billingMode() === 'off') throw new HttpError(409, 'billing_off', 'billing is not switched on yet: the private beta is free')
   if (!stripeConfig.configured) throw new HttpError(503, 'billing_not_configured', 'billing is not configured in this environment')
 }
 
-type LocalSub = { external_id: string | null; customer_external_id: string | null; status: string; plan: string | null; plan_key: string | null; schedule_external_id: string | null; cancel_at_period_end: boolean; current_period_end: string | null }
+type LocalSub = { last_event_at: string | null; external_id: string | null; customer_external_id: string | null; status: string; plan: string | null; plan_key: string | null; schedule_external_id: string | null; cancel_at_period_end: boolean; current_period_end: string | null }
 
 async function currentSub(db: Db, orgId: string): Promise<LocalSub & { external_id: string }> {
   if ((await billingProviderFor(db, orgId)) !== 'stripe') throw new HttpError(409, 'use_shopify_billing', 'this store is billed through Shopify: change the plan in the Shopify admin')
-  const s = await db.one<LocalSub>(`select external_id, customer_external_id, status, plan, plan_key, schedule_external_id, cancel_at_period_end, current_period_end::text from billing_subscriptions where org_id = $1 and provider = 'stripe' for update`, [orgId])
+  const s = await db.one<LocalSub>(`select extract(epoch from last_event_at)::bigint::text as last_event_at, external_id, customer_external_id, status, plan, plan_key, schedule_external_id, cancel_at_period_end, current_period_end::text from billing_subscriptions where org_id = $1 and provider = 'stripe' for update`, [orgId])
   if (!s?.external_id || !/^sub_[A-Za-z0-9]+$/.test(s.external_id)) throw new HttpError(409, 'no_subscription', 'there is no subscription to change: choose a plan first')
   return s as LocalSub & { external_id: string }
 }
@@ -199,12 +201,13 @@ export async function cancelSubscription(db: Db, input: { orgId: string; reason:
     if (local.schedule_external_id) await stripeRequest('POST', `/v1/subscription_schedules/${local.schedule_external_id}/release`, {}, { idempotencyKey: `deploi-release-${local.schedule_external_id}-cancel`, fetchImpl: input.fetchImpl })
     return stripeRequest<StripeSub>('POST', `/v1/subscriptions/${local.external_id}`, {
       cancel_at_period_end: true, cancellation_details: { feedback: input.reason, comment: comment || undefined },
-    }, { idempotencyKey: `deploi-cancel-at-end-${local.external_id}-${Date.now() - (Date.now() % 60e3)}`, fetchImpl: input.fetchImpl })
+    }, { idempotencyKey: `deploi-cancel-at-end-${local.external_id}-${local.last_event_at ?? 0}`, fetchImpl: input.fetchImpl })
   })
   if (local.schedule_external_id) await db.query(`update billing_plan_changes set status = 'cancelled' where org_id = $1 and status = 'scheduled'`, [input.orgId])
-  // Stripe's response is its confirmation of the flag; the reason is ours
-  await db.query(`update billing_subscriptions set cancel_at_period_end = $2, cancel_reason = $3, cancel_comment = $4, cancel_requested_at = now(), schedule_external_id = null, pending_plan_key = null, pending_change_at = null
-    where org_id = $1 and provider = 'stripe'`, [input.orgId, res.cancel_at_period_end === true, input.reason, comment || null])
+  // the reason is ours; the flag itself is recorded when Stripe's customer.subscription.updated arrives
+  if (res.cancel_at_period_end !== true) throw new HttpError(502, 'stripe_error', 'Stripe did not confirm the cancellation; nothing was changed')
+  await db.query(`update billing_subscriptions set cancel_reason = $2, cancel_comment = $3, cancel_requested_at = now(), schedule_external_id = null, pending_plan_key = null, pending_change_at = null
+    where org_id = $1 and provider = 'stripe'`, [input.orgId, input.reason, comment || null])
   await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: local.external_id, event: 'billing.cancel_requested', actor: input.actor, detail: { reason: input.reason, at_period_end: true } })
   return { cancelled: true, endsAt: local.current_period_end }
 }
@@ -217,8 +220,10 @@ export async function reactivateSubscription(db: Db, input: { orgId: string; act
   if (!local.cancel_at_period_end) throw new HttpError(409, 'not_cancelling', 'the subscription is not set to end')
   if (local.current_period_end && new Date(local.current_period_end) <= (input.now ?? new Date())) throw new HttpError(409, 'already_ended', 'the period has ended')
   const res = await viaStripe(() => stripeRequest<StripeSub>('POST', `/v1/subscriptions/${local.external_id}`, { cancel_at_period_end: false },
-    { idempotencyKey: `deploi-reactivate-${local.external_id}-${Date.now() - (Date.now() % 60e3)}`, fetchImpl: input.fetchImpl }))
-  await db.query(`update billing_subscriptions set cancel_at_period_end = $2, cancel_reason = null, cancel_comment = null, cancel_requested_at = null where org_id = $1 and provider = 'stripe'`, [input.orgId, res.cancel_at_period_end === true])
+    { idempotencyKey: `deploi-reactivate-${local.external_id}-${local.last_event_at ?? 0}`, fetchImpl: input.fetchImpl }))
+  if (res.cancel_at_period_end !== false) throw new HttpError(502, 'stripe_error', 'Stripe did not confirm the reactivation; nothing was changed')
+  // the flag is cleared when Stripe's customer.subscription.updated arrives
+  await db.query(`update billing_subscriptions set cancel_reason = null, cancel_comment = null, cancel_requested_at = null where org_id = $1 and provider = 'stripe'`, [input.orgId])
   await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: local.external_id, event: 'billing.reactivated', actor: input.actor })
   return { done: true }
 }

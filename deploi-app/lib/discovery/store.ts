@@ -36,7 +36,8 @@ export function storeSnapshot(ctx: DetectorContext, conn: ConnectionRow): Promis
   const p = (async (): Promise<StoreSnapshot> => {
     let records: ResourceRecord[] = []
     try {
-      const scan = await runScan(conn.id, { trigger: 'manual', actor: 'system:discovery', onRecords: r => { records = r } })
+      // discovery opens its own `detected` cases for what it found (lib/discovery/run.ts); later scans, decisions and checks move them
+      const scan = await runScan(conn.id, { trigger: 'manual', actor: 'system:discovery', syncCases: false, onRecords: r => { records = r } })
       return { conn, records, scan, error: null, readAt: new Date().toISOString() }
     } catch (e) {
       return { conn, records: [], scan: null, error: (e as Error).message.slice(0, 200), readAt: new Date().toISOString() }

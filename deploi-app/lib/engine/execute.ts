@@ -148,7 +148,16 @@ async function readOne(conn: ConnectionRow, id: string): Promise<ResourceRecord 
   return m.get(id) ?? [...m.values()].find(r => r.productId === id) ?? null
 }
 
+/** Run one claimed execution, then carry its outcome onto the issue's case (lib/engine/case-sync.ts). */
 async function runExecution(execId: string, opts: { actor: string; now?: Date }): Promise<ExecutionResult> {
+  try { return await runExecutionSteps(execId, opts) } finally {
+    const { syncProposalCase } = await import('./case-sync')
+    const row = await admin(db => db.one<{ proposal_id: string }>('select proposal_id from executions where id = $1', [execId])).catch(() => null)
+    if (row) await syncProposalCase(row.proposal_id, { actor: opts.actor }).catch(() => undefined)
+  }
+}
+
+async function runExecutionSteps(execId: string, opts: { actor: string; now?: Date }): Promise<ExecutionResult> {
   const ctx = await admin(async db => {
     const exec = await db.one<ExecRow>('select * from executions where id = $1', [execId])
     const p = await db.one<ProposalRow>('select * from proposals where id = $1', [exec!.proposal_id])

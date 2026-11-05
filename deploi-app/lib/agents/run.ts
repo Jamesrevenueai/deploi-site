@@ -19,6 +19,8 @@ import { runEmailStep, type EmailRunCounts } from '../email/run'
 import { runCompetitorStep, type CompetitorRunCounts } from '../competitors/run'
 import { syncSupplierRequests, type SupplierCounts } from './supplier'
 import { flushRescans } from '../connectors/shopify/rescans'
+import { syncAgentCases } from '../engine/case-sync'
+import { log } from '../log'
 import { runSupplierCoordinator, type CoordinatorCounts } from '../commerce/supplier-coordinator'
 
 export type AgentRunTrigger = 'manual' | 'schedule' | 'webhook' | 'test'
@@ -45,6 +47,7 @@ export const agentActorLabel = (name: string, version: number) => `agent:${name}
 
 export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger; actor: string; now?: Date }): Promise<AgentRunResult> {
   const now = opts.now ?? new Date()
+  const runStarted = new Date(Date.now() - 1000)
   // claim: one run per agent at a time; the agent must be active with a granted authorization
   const claim = await admin(async db => {
     const agent = await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId])
@@ -89,7 +92,7 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
   const readsStore = !poOnly && (!p.competitors || p.correctionTypes.length > 0 || p.watch.length > 0 || Boolean(p.email?.tasks.includes('supplier_reorder')) || p.competitors.compareOwnCatalog)
   if (readsStore) {
     try {
-      const scan = await runScan(ctx.agent.connection_id, { trigger: opts.trigger === 'test' ? 'test' : opts.trigger, actor: opts.actor, plan: ctx.plan, now, onRecords: r => { records = r } })
+      const scan = await runScan(ctx.agent.connection_id, { trigger: opts.trigger === 'test' ? 'test' : opts.trigger, actor: opts.actor, plan: ctx.plan, now, syncCases: false, onRecords: r => { records = r } })
       scanId = scan.scanId
     } catch (e) {
       const reason = e instanceof EngineError ? e.message : `could not read the store: ${(e as Error).message.slice(0, 160)}`
@@ -152,6 +155,9 @@ export async function runAgent(agentId: string, opts: { trigger: AgentRunTrigger
     else if (r.status === 'stale') counts.stale++
     else counts.unconfirmed++
   }
+
+  // every issue of this agent is carried onto its case once its proposals are decided (lib/engine/case-sync.ts)
+  if (readsStore) await syncAgentCases(agentId, { since: runStarted }).catch(e => log.error('agent.case_sync_failed', { agent_id: agentId, error: (e as Error).message }))
 
   // competitor monitoring: public pages of other stores, under the same authorization version
   if (p.competitors) {

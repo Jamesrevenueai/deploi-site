@@ -162,6 +162,16 @@ function requestStatus(m: MsgRow, f: FollowRow | undefined, replies: number): { 
  * time; it never sends anything. A follow-up that has not gone out is withdrawn once the supplier replied.
  */
 export async function syncSupplierRequests(agentId: string): Promise<SupplierCounts> {
+  const counts = await syncRequestRows(agentId)
+  // each request's Resolution Engine case follows it (lib/agents/case-sync.ts)
+  if (counts.requests) {
+    const { syncRestockCases } = await import('./case-sync')
+    await syncRestockCases(agentId).catch(() => undefined)
+  }
+  return counts
+}
+
+async function syncRequestRows(agentId: string): Promise<SupplierCounts> {
   return admin(async db => {
     const agent = await db.one<{ org_id: string; connection_id: string }>('select org_id, connection_id from agents where id = $1', [agentId])
     const counts: SupplierCounts = { requests: 0, awaitingYou: 0, sent: 0, followedUp: 0, replied: 0, skipped: 0 }

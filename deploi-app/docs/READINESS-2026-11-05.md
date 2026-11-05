@@ -1,6 +1,6 @@
 # Deploi readiness — 2026-11-05 (Final Master Build Brief)
 
-Branch `claude/deploi-operating-system`, draft PR #16 (Jamesrevenueai/deploi-site). It contains the
+Branch `claude/deploi-operating-system`, draft PR #16 (deploi-site). It contains the
 2026-11-04 full-platform build plus today's work. **Not merged, not deployed.** Production still runs
 `main` @ e7d2b6c with migrations through 035. No migration on this branch has been applied to any real
 database.

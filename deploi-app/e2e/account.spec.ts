@@ -144,7 +144,8 @@ test('a new sign-up: own organization as owner, then products, connect, discover
   await expect(step.getByTestId('policy-summary').first()).toBeVisible()
   await page.screenshot({ path: 'proof/account-first-run-1440.png', fullPage: true })
   await grant.click()
-  await expect(page.getByText(/now working, at drafts only/)).toBeVisible()
+  // the step closes once the team is granted; its summary (or the flow's note while it is still open) says so
+  await expect(page.getByText(/(now working, at drafts only|\d+ agents? working at drafts only)/).first()).toBeVisible()
 
   type Team = { template: string; agent: { agentKind: string; agentId: string; status: string; summary: { grants: string[] } | null } | null }[]
   const team = (await api<{ team: Team }>(page, 'GET', '/api/store/discover')).json.team

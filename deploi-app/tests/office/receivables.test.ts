@@ -92,6 +92,30 @@ describe.skipIf(!ready)('Accounts Receivable agent (synthetic QuickBooks and mai
     expect(c.evidence.some(e => /part payment/.test(e.label))).toBe(true)
   })
 
+  it('an approved reminder held by quiet hours moves the case on: no longer waiting for the owner, and why it waits', async () => {
+    const hm = (d: Date) => d.toISOString().slice(11, 16)
+    const now = new Date()
+    const pol = officeTemplatePolicy('accounts_receivable', { quickbooksConnectionId: s.qbId, mailboxAccountId: s.mailboxId, timezone: 'UTC', senderName: 'Sam at Northwind' }) as Record<string, Record<string, unknown>>
+    pol.email = { ...pol.email, tier: 'send_approved', validUntil: null, quietHours: { start: hm(new Date(now.getTime() - 3600e3)), end: hm(new Date(now.getTime() + 2 * 3600e3)) } }
+    pol.receivables.excludeCustomerIds = ['77']
+    const { createOfficeAgent: create, grantOfficePolicy } = await import('../../lib/office/agents')
+    const r = await create(s.actor, { kind: 'accounts_receivable', name: 'Receivables', policy: pol })
+    await grantOfficePolicy(s.actor, r.agentId, r.policyId, r.policyHash)
+    await run(r.agentId, now)
+    const [a] = await arActions(r.agentId)
+    expect(a.status).toBe('awaiting_approval')
+    const caseId = (await invoices(r.agentId))[0].case_id!
+    const out = await approveOfficeAction(s.actor, a.id, a.payload_hash)
+    expect(out).toMatchObject({ status: 'queued', reason: 'quiet hours' })
+    expect(await sent(s)).toHaveLength(0)
+    const c = await caseOf(caseId)
+    expect(c).toMatchObject({ status: 'executing', approval_required: false })
+    expect(c.status_reason).toMatch(/approved by you; quiet hours: waits until/)
+    expect(c.next_action).toMatch(/^Send reminder 1 at \d\d:\d\d UTC$/)
+    // Needs My Approval no longer lists it
+    expect(await admin(db => db.query(`select id from office_actions where id = $1 and status = 'awaiting_approval'`, [a.id]))).toHaveLength(0)
+  })
+
   it('declining a reminder stops reminders for that invoice; payment is still checked', async () => {
     const agent = await arAgent(s, 'send_approved')
     await run(agent, T)

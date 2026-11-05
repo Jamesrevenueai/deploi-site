@@ -16,7 +16,7 @@ import { ErrorState, Loading } from '@/components/store/bits'
 import { fmtTime, fmtAgo } from '@/components/store/format'
 import { ApprovalCard, CaseStatusBadge, Notice, PriorityBadge } from './bits'
 import { loadApprovals, loadTeam, directoryOf } from './data'
-import { STATUS_WORDS, SUITE_LABEL, agentLabel, caseActions, caseTimeline, humanize, pendingDecisionsFor, sourceAppLabel, type CaseEvidence, type CaseResponse } from './caseView'
+import { STATUS_WORDS, SUITE_LABEL, agentLabel, caseActions, caseTimeline, distinctEvidence, humanize, pendingDecisionsFor, sourceAppLabel, type CaseEvidence, type CaseResponse } from './caseView'
 
 function Block({ id, title, children, icon }: { id: string; title: string; children: React.ReactNode; icon: string }) {
   return (
@@ -117,7 +117,7 @@ export function CaseDetailScreen({ caseRef }: { caseRef: string }) {
           </Block>
 
           <Block id="evidence" title="Evidence" icon="file">
-            <EvidenceList items={c.evidence} empty="No evidence recorded yet." />
+            <EvidenceList items={distinctEvidence(c.evidence)} empty="No evidence recorded yet." />
           </Block>
         </div>
 

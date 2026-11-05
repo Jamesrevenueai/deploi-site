@@ -15,12 +15,29 @@ function title(a: OfficeApproval): string {
   return a.purpose || a.kind.replace(/_/g, ' ')
 }
 
+/** internal bookkeeping on a payload: never sent, so not part of what the owner reads */
+const INTERNAL = new Set(['type', 'meta', 'recipientSource', 'inReplyToMessageId', 'eventId', 'externalId'])
+
+/**
+ * What the owner reads before deciding: the recipient, subject and full text (or the event / CRM change) exactly
+ * as it will go out, then the purpose. Internal ids and bookkeeping stay out; the approval is still bound to the
+ * hash of the whole payload, so nothing hidden here can change after approval.
+ */
+export function shownContent(a: Pick<OfficeApproval, 'purpose' | 'payload'>): Record<string, unknown> {
+  const p = a.payload as unknown as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const k of ['to', 'cc', 'subject', 'body', 'summary', 'start', 'end', 'attendees', 'description']) if (p[k] != null && p[k] !== '') out[k] = p[k]
+  for (const [k, v] of Object.entries(p)) if (!(k in out) && !INTERNAL.has(k) && v != null && v !== '') out[k] = v
+  out.purpose = a.purpose
+  return out
+}
+
 function item(a: OfficeApproval): ApprovalItem {
   return {
     source: 'office', id: a.id, orgId: a.orgId, kind: `office_${a.kind}`, title: title(a),
     agent: { id: a.agentId, name: a.agentName }, createdAt: new Date(a.createdAt).toISOString(), expiresAt: null,
     version: a.payloadHash, decisions: ['approve', 'reject'], why: a.statusReason,
-    content: { purpose: a.purpose, action: a.kind, agentKind: a.agentKind, policyVersion: a.policyVersion, ...(a.payload as unknown as Record<string, unknown>) },
+    content: shownContent(a),
   }
 }
 

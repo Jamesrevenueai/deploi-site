@@ -148,6 +148,12 @@ export function approvalsWithoutCase(approvals: ApprovalEntry[], cases: Pick<Cas
 }
 
 /** What the person sees and decides, flattened to label/value rows. Long text stays whole; objects are shown as key: value lines. */
+/** The evidence list without repeats: the same fact from the same source about the same record shows once (the first observation). */
+export function distinctEvidence<T extends { label: string; source?: string | null; ref?: { type?: string; id?: string } | null }>(items: T[] | null | undefined): T[] {
+  const seen = new Set<string>()
+  return (items ?? []).filter(e => { const k = JSON.stringify([e.label, e.source ?? null, e.ref?.type ?? null, e.ref?.id ?? null]); if (seen.has(k)) return false; seen.add(k); return true })
+}
+
 export function approvalContentRows(content: Record<string, unknown>): { label: string; value: string }[] {
   const rows: { label: string; value: string }[] = []
   const fmt = (v: unknown): string => {

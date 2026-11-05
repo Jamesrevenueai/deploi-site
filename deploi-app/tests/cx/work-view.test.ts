@@ -132,3 +132,23 @@ describe('first-run discovery reading', () => {
     expect(readDiscovery(null)).toMatchObject({ findings: [], recommendations: [], state: 'not_run' })
   })
 })
+
+describe('an Office approval shows what goes out, not internal bookkeeping', () => {
+  it('recipient, subject and body first, then the purpose; no ids, metadata or machine names', async () => {
+    const { shownContent } = await import('../../lib/approvals/office-source')
+    const c = shownContent({ purpose: 'Payment reminder 1 for invoice 1037', payload: { type: 'email', to: 'accounts@brightpath.example', subject: 'Invoice 1037', body: 'Hello', inReplyToMessageId: null,
+      recipientSource: { kind: 'invoice', invoiceId: '32bf6cc6-825d-452c-b295-eac05890147a' }, meta: { reminder: 1, invoiceRowId: '32bf6cc6-825d-452c-b295-eac05890147a' } } as never })
+    expect(Object.keys(c)).toEqual(['to', 'subject', 'body', 'purpose'])
+    expect(JSON.stringify(approvalContentRows(c))).not.toMatch(/32bf6cc6|send_email|Policy/)
+  })
+})
+
+describe('the case page evidence list', () => {
+  it('shows a repeated observation of the same fact once', async () => {
+    const { distinctEvidence } = await import('../../components/work/caseView')
+    const a = { label: 'QuickBooks: invoice 1037 has USD 1,250.00 open', source: 'quickbooks', observedAt: '1', ref: { type: 'qbo_invoice', id: 'r:1037' } }
+    const b = { ...a, label: 'QuickBooks: invoice 1037 balance USD 0.00 (paid)' }
+    expect(distinctEvidence([a, { ...a, observedAt: '2' }, b])).toEqual([a, b])
+    expect(distinctEvidence(null)).toEqual([])
+  })
+})

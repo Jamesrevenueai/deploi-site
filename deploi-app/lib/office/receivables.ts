@@ -33,7 +33,7 @@ import { officeAudit } from './audit'
 import { OfficeHttpError } from './http'
 import { OfficeAuthError } from './credentials'
 import { quickbooksFor } from './providers'
-import { agentCtx, proposeAction, registerEmailPrecheck, type AgentCtx, type EmailPayload, type OfficeActionRow } from './actions'
+import { agentCtx, onOfficeActionSettled, proposeAction, registerEmailPrecheck, type AgentCtx, type EmailPayload, type OfficeActionRow } from './actions'
 import { newText, type EmailDraft } from './content'
 import { QBO_PAGE, type QboInvoice, type QuickBooksApi } from './quickbooks'
 import type { OfficeConnectionRow } from './connections'
@@ -596,6 +596,29 @@ registerEmailPrecheck(async a => {
     : fresh.dueDate !== (m.dueDate ?? null) || (fresh.docNumber ?? null) !== (m.docNumber ?? null) ? 'the invoice number or due date changed in QuickBooks'
     : null
   return why ? { status: 'cancelled', reason: `not sent: ${why}; the next check prepares a reminder from the current figures` } : null
+})
+
+/**
+ * An approved reminder that cannot go out yet (quiet hours, the day's limit, a provider asking to slow down) is no
+ * longer waiting for the owner: the case moves on to sending, with the real reason it waits. Sent, refused or
+ * declined reminders are taken up by the next sync (syncReceivables reads settled actions in order).
+ */
+onOfficeActionSettled(async (actionId, now) => {
+  const a = await admin(db => db.one<OfficeActionRow>('select * from office_actions where id = $1', [actionId]))
+  if (!a || a.kind !== 'send_email' || a.status !== 'queued' || !a.approval_kind) return
+  const p = a.payload as EmailPayload
+  if (p.type !== 'email' || p.recipientSource.kind !== 'invoice') return
+  const invoiceId = p.recipientSource.invoiceId
+  await admin(async db => {
+    const row = await db.one<{ case_id: string | null }>('select case_id from office_invoices where id = $1 and org_id = $2', [invoiceId, a.org_id])
+    if (!row?.case_id) return
+    const c = await db.one<{ status: string }>('select status from cases where id = $1', [row.case_id])
+    if (c?.status !== 'awaiting_approval') return
+    const n = Number((p.meta as { reminder?: number } | undefined)?.reminder ?? 1)
+    const when = a.next_attempt_at ? new Date(a.next_attempt_at) : null
+    await moveCase(db, row.case_id, 'executing', `Reminder ${n} ${a.approval_kind === 'individual' ? 'approved by you' : 'covered by the standing authorization'}; ${a.status_reason && a.status_reason !== 'approved by you' ? a.status_reason : 'sending'}`, 'system:office-receivables',
+      { nextAction: when && when > now ? `Send reminder ${n} at ${when.toISOString().slice(11, 16)} UTC` : `Send reminder ${n}`, nextCheckAt: when && when > now ? when : new Date(now.getTime() + 3600e3) })
+  })
 })
 
 export type ReceivablesPolicy = NonNullable<OfficePolicy['receivables']>

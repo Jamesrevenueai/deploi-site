@@ -278,9 +278,22 @@ export async function runCaseCheck(caseId: string, now = new Date()): Promise<{ 
     await admin(db => db.query('update cases set next_check_at = null where id = $1', [c.id]))
     return { status: 'skipped', reason: `no checker for ${c.kind}` }
   }
-  await check(c, now)
-  const after = await admin(db => db.one<{ status: CaseStatus; next_check_at: string | null }>('select status, next_check_at from cases where id = $1', [c.id]))
-  // a checker that neither moved nor rescheduled the case must not leave it due forever
-  if (after && after.next_check_at && new Date(after.next_check_at) <= now) await admin(db => db.query(`update cases set next_check_at = now() + interval '1 hour' where id = $1`, [c.id]))
+  // Claim the check before running it (reliability fix R-1, tests/reliability/runtime.test.ts): two case.check
+  // jobs for one case (queued for two due times by overlapping sweeps) used to run the checker twice at once.
+  // The claim moves next_check_at forward one hour atomically, so only one worker wins; a checker that neither
+  // moves nor reschedules the case is then checked again in an hour (as before). A checker that throws gives
+  // the claim back, so the job's retry runs it.
+  const lease = new Date(now.getTime() + 3600e3).toISOString()
+  const claimed = await admin(db => db.one<{ id: string }>(`update cases set next_check_at = $3 where id = $1 and (next_check_at is null or next_check_at <= $2::timestamptz) and status not in ('resolved','cancelled') returning id`, [c.id, now.toISOString(), lease]))
+  if (!claimed) return { status: 'skipped', reason: 'already being checked' }
+  try {
+    await check(c, now)
+  } catch (e) {
+    await admin(db => db.query('update cases set next_check_at = $2 where id = $1 and next_check_at = $3', [c.id, c.next_check_at, lease]))
+    throw e
+  }
+  // a case that had no scheduled check and was not rescheduled by its checker keeps having none
+  if (c.next_check_at === null) await admin(db => db.query('update cases set next_check_at = null where id = $1 and next_check_at = $2', [c.id, lease]))
+  const after = await admin(db => db.one<{ status: CaseStatus }>('select status from cases where id = $1', [c.id]))
   return { status: after?.status ?? 'skipped' }
 }

@@ -77,7 +77,18 @@ export async function officeRequest<T = Record<string, unknown>>(provider: Offic
     if (res.status === 429 && attempt < officeConfig.maxRetries) { await sleeper(retryAfterMs(res, attempt)); continue }
     if (init.retryServer && method === 'GET' && res.status >= 500 && attempt < officeConfig.maxRetries) { await sleeper(Math.min(500 * 2 ** attempt, officeConfig.maxRetryWaitMs)); continue }
     if (res.status === 204) return { status: 204, body: {} as T }
-    if (res.ok) return { status: res.status, body: (await res.json().catch(() => ({}))) as T }
+    if (res.ok) {
+      // reliability fix R-3 (tests/reliability/providers.test.ts): a 2xx whose body is not JSON (an HTML error page
+      // from a proxy, a truncated page) used to read as an empty object, so a search page looked like "no more
+      // results" and a write looked done with no id. It is a server error now: retried for reads that allow it,
+      // uncertain (reconciled, never blindly repeated) for writes. An empty body is still an empty object.
+      const text = await res.text().catch(() => null)
+      if (text === null || text.trim() === '') return { status: res.status, body: {} as T }
+      try { return { status: res.status, body: JSON.parse(text) as T } } catch {
+        if (init.retryServer && method === 'GET' && attempt < officeConfig.maxRetries) { await sleeper(Math.min(500 * 2 ** attempt, officeConfig.maxRetryWaitMs)); continue }
+        throw new OfficeHttpError(res.status, 'server', `${HOST_LABEL[provider]} answered ${res.status} with a body that is not JSON`, provider)
+      }
+    }
     const code = classify(res.status)
     throw new OfficeHttpError(res.status, code, `${HOST_LABEL[provider]} answered ${res.status}${code === 'rate_limited' ? ' (rate limited after retries)' : ''}: ${await reason(res)}`, provider)
   }

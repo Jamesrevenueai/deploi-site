@@ -23,7 +23,9 @@ const ready = await prepareDb()
 let fails = 0
 registerJobHandler('test.ops_fail', async () => { if (fails-- > 0) throw new Error('provider said no to owner@northwind-goods.example'); return { ok: true } }, { agentWork: false, maxAttempts: 1 })
 
-const audits = (event: string) => admin(db => db.query<{ actor: string; org_id: string | null; entity_id: string | null; detail: Record<string, unknown> }>(`select actor, org_id, entity_id, detail from engine_audit where event = $1 order by id`, [event]))
+/** the audit trail is append-only: each test reads only what it wrote */
+let since = new Date().toISOString()
+const audits = (event: string) => admin(db => db.query<{ actor: string; org_id: string | null; entity_id: string | null; detail: Record<string, unknown> }>(`select actor, org_id, entity_id, detail from engine_audit where event = $1 and at >= $2 order by id`, [event, since]))
 async function clean() {
   await cleanInfra()
   await admin(async db => {
@@ -33,7 +35,7 @@ async function clean() {
     await db.query(`delete from cases where org_id = any($1) and kind = 'ops_test'`, [[NW.org, HB.org]])
   })
 }
-beforeEach(async () => { fails = 0; if (ready) { await clean(); await resetMerchant(NW); await resetMerchant(HB) } setOpsNotifier(recordingNotifier()) })
+beforeEach(async () => { fails = 0; since = new Date().toISOString(); if (ready) { await clean(); await resetMerchant(NW); await resetMerchant(HB) } setOpsNotifier(recordingNotifier()) })
 afterAll(async () => { setOpsNotifier(null); if (ready) await clean() })
 
 describe.skipIf(!ready)('staff operations console', () => {

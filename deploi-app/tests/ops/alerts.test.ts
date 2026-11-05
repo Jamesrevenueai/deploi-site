@@ -85,12 +85,13 @@ describe.skipIf(!ready)('alerts', () => {
 
   it('queue age: the oldest due job waiting past the threshold fires; once it runs the alert clears', async () => {
     process.env.OPS_QUEUE_AGE_SEC = '600'
-    await admin(db => db.query(`update jobs set status = 'cancelled', finished_at = now() where status = 'queued' and run_after <= now()`))
-    const id = (await admin(db => db.one<{ id: string }>(`insert into jobs (kind, run_after) values ('test.ops_waiting', now() - interval '20 minutes') returning id`)))!.id
-    await evaluateAlerts({ rules: ['queue.age'] })
-    expect((await live('queue.age'))[0]).toMatchObject({ severity: 'warn', title: expect.stringMatching(/waited (19|20|21) minutes/) })
+    // evaluated as of yesterday, so only this test's job is due then (other suites' jobs are newer)
+    const then = new Date(Date.now() - 864e5)
+    const id = (await admin(db => db.one<{ id: string }>(`insert into jobs (kind, run_after, created_at) values ('test.ops_waiting', $1, $1) returning id`, [new Date(then.getTime() - 20 * 60e3).toISOString()])))!.id
+    await evaluateAlerts({ rules: ['queue.age'], now: then })
+    expect((await live('queue.age'))[0]).toMatchObject({ severity: 'warn', title: 'The oldest due job has waited 20 minutes' })
     await admin(db => db.query(`update jobs set status = 'succeeded', finished_at = now() where id = $1`, [id]))
-    await evaluateAlerts({ rules: ['queue.age'] })
+    await evaluateAlerts({ rules: ['queue.age'], now: then })
     expect(await live('queue.age')).toEqual([])
   })
 

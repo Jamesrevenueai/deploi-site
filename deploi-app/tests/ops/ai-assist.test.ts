@@ -27,7 +27,7 @@ import { afterPoImport, listResolutions, processSupplierReplies, runSupplierCoor
 import { getCase, type CaseRow } from '../../lib/cases'
 import { encryptSecret } from '../../lib/connectors/credentials'
 import { runOfficeAgent } from '../../lib/office/run'
-import { setupOffice, grantedAgent as officeAgent, actions as officeActions, type OfficeSetup } from '../office/helpers'
+import { setupOffice, resetOffice, grantedAgent as officeAgent, actions as officeActions, type OfficeSetup } from '../office/helpers'
 import type { Actor } from '../../lib/engine/actor'
 
 const ready = await prepareDb()
@@ -62,7 +62,7 @@ const AMBIGUOUS = 'Hi, we can ship 6 units of the oat throws now and the rest is
 
 beforeEach(async () => { restoreEnv(); aiOn(); calls = []; answer = () => '{}'; if (ready) await cleanAi() })
 afterEach(() => restoreEnv())
-afterAll(async () => { restoreEnv(); setFakeProvider(null); if (ready) await cleanAi() })
+afterAll(async () => { restoreEnv(); setFakeProvider(null); if (ready) { await cleanAi(); await resetOffice(NW, { enable: false }); await resetMerchant(NW) } })
 
 describe.skipIf(!ready)('AI-assisted steps: the shared rules', () => {
   it('AI_PROVIDER=off: the rules run, nothing is called, nothing is recorded', async () => {

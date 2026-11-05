@@ -72,7 +72,7 @@ export async function requeueJob(actor: Actor, jobId: string, reason = ''): Prom
     if (!j) throw new EngineError('not_found', 'job not found')
     if (j.status !== 'dead' && j.status !== 'failed') throw new EngineError('not_pending', `only a dead or failed job can be requeued (this one is ${j.status})`)
     await db.query(`update jobs set status = 'queued', attempts = 0, run_after = now(), lease_until = null, lease_owner = null, finished_at = null, cancel_reason = null where id = $1`, [jobId])
-    await audit(db, { orgId: j.org_id, entityType: 'job', entityId: j.id, event: 'job.requeued_by_staff', actor: actor.label, detail: { kind: j.kind, previous_status: j.status, previous_attempts: j.attempts, last_error: j.last_error?.slice(0, 200) ?? null, reason: reason.slice(0, 300) } })
+    await audit(db, { orgId: j.org_id, entityType: 'job', entityId: j.id, event: 'job.requeued_by_staff', actor: actor.label, detail: { kind: j.kind, previous_status: j.status, previous_attempts: j.attempts, last_error: j.last_error ? maskText(j.last_error).slice(0, 200) : null, reason: reason.slice(0, 300) } })
     await writeOpsLog({ level: 'warn', event: 'staff.job_requeued', orgId: j.org_id, jobId: j.id, summary: `${actor.label} requeued ${j.kind}`, detail: { kind: j.kind } }, db)
     return { status: 'queued' as const }
   })

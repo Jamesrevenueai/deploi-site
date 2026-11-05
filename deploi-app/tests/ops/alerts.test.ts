@@ -38,7 +38,7 @@ async function clean() {
     await db.query(`delete from email_suppressions where org_id = any($1) and created_by = 'ops-test'`, [[NW.org, HB.org]])
     await db.query(`delete from email_messages where org_id = any($1) and dedupe_key like 'ops-test:%'`, [[NW.org, HB.org]])
   })
-  await withOwner(c => c.query('drop view if exists connection_health').catch(() => null).then(() => c.query('drop table if exists connection_health')))
+  await admin(db => db.query(`delete from connection_health where org_id = any($1)`, [[NW.org, HB.org]]))
 }
 async function deadJob(kind = 'test.ops_dead') {
   return (await admin(db => db.one<{ id: string }>(`insert into jobs (kind, status, attempts, max_attempts, last_error, finished_at) values ($1, 'dead', 3, 3, 'boom', now()) returning id`, [kind])))!.id
@@ -147,17 +147,18 @@ describe.skipIf(!ready)('alerts', () => {
     expect(r.resolved).toContain(a.id)
   })
 
-  it('connection health: nothing when the table does not exist; a flip to needs_reauth alerts the owner, recovery clears it', async () => {
+  it('connection health: a flip to needs_reauth alerts the owner with the integration named; recovery clears it', async () => {
     expect(await evaluateAlerts({ rules: ['connection.health'] })).toMatchObject({ opened: [], errors: {} })
-    await withOwner(c => c.query(`create table connection_health (id bigserial primary key, org_id uuid not null, connection_id uuid not null, provider text, previous_status text, status text not null, checked_at timestamptz not null default now());
-      alter table connection_health enable row level security; grant all on connection_health to service_role; grant usage on sequence connection_health_id_seq to service_role`))
     const conn = randomUUID()
-    await admin(db => db.query(`insert into connection_health (org_id, connection_id, provider, previous_status, status, checked_at) values ($1,$2,'hubspot',null,'active', now() - interval '1 hour'), ($1,$2,'hubspot','active','needs_reauth', now())`, [NW.org, conn]))
+    const row = (prev: string | null, status: string, at: string) => admin(db => db.query(
+      `insert into connection_health (org_id, integration, connection_id, ok, previous_status, status, message, checked_at) values ($1, 'hubspot', $2, $3, $4, $5, 'test', ${at})`, [NW.org, conn, status === 'connected', prev, status]))
+    await row(null, 'connected', `now() - interval '1 hour'`)
+    await row('connected', 'needs_reauth', 'now()')
     await evaluateAlerts({ rules: ['connection.health'] })
     const [a] = await live('connection.health')
-    expect(a).toMatchObject({ org_id: NW.org, subject: `${NW.org}:${conn}`, title: 'A hubspot connection is asking to be reconnected (was active)' })
-    expect(rec.sent.find(n => n.audience === 'owner')!.text).toMatch(/Your hubspot connection needs to be reconnected/)
-    await admin(db => db.query(`insert into connection_health (org_id, connection_id, provider, previous_status, status) values ($1,$2,'hubspot','needs_reauth','active')`, [NW.org, conn]))
+    expect(a).toMatchObject({ org_id: NW.org, subject: `${NW.org}:${conn}`, title: 'A HubSpot connection is asking to be reconnected (was connected)' })
+    expect(rec.sent.find(n => n.audience === 'owner')!.text).toMatch(/Your HubSpot connection needs to be reconnected/)
+    await row('needs_reauth', 'connected', `now() + interval '1 minute'`)
     expect((await evaluateAlerts({ rules: ['connection.health'] })).resolved).toEqual([a.id])
   })
 
@@ -207,17 +208,15 @@ describe.skipIf(!ready)('alerts', () => {
 
   it('a rule that fails to evaluate leaves its alerts alone (an error never resolves anything)', async () => {
     const conn = randomUUID()
-    await withOwner(c => c.query(`create table connection_health (org_id uuid not null, connection_id uuid not null, previous_status text, status text not null);
-      grant all on connection_health to service_role; insert into connection_health values ('${NW.org}', '${conn}', 'active', 'error')`))
+    await admin(db => db.query(`insert into connection_health (org_id, integration, connection_id, ok, previous_status, status, message) values ($1, 'hubspot', $2, false, 'connected', 'error', 'test')`, [NW.org, conn]))
     await evaluateAlerts({ rules: ['connection.health'] })
     const [a] = await live('connection.health')
     expect(a).toBeTruthy()
-    // the source starts failing at query time (division by zero): the rule errors, the alert stays
-    await withOwner(c => c.query(`drop table connection_health; create view connection_health as select '${NW.org}'::uuid as org_id, '${conn}'::uuid as connection_id, 'active'::text as previous_status,
-      ('ok' || (1 / (select count(*) from pg_class where false))::text) as status; grant select on connection_health to service_role`))
+    // the source is unreadable at query time: the rule errors, and the alert stays open
+    await withOwner(c => c.query('alter table connection_health rename to connection_health_unreadable'))
     let r
-    try { r = await evaluateAlerts({ rules: ['connection.health'] }) } finally { await withOwner(c => c.query('drop view if exists connection_health')) }
-    expect(r.errors['connection.health']).toMatch(/division by zero/)
+    try { r = await evaluateAlerts({ rules: ['connection.health'] }) } finally { await withOwner(c => c.query('alter table connection_health_unreadable rename to connection_health')) }
+    expect(r.errors['connection.health']).toMatch(/connection_health/)
     expect(r.resolved).toEqual([])
     expect((await live('connection.health'))[0].id).toBe(a.id)
   })

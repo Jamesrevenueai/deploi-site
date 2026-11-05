@@ -17,7 +17,7 @@
  *                        cron.health [2h], platform.retention [30h]
  *   org.case_failures    an organization's cases moved to failed or escalated more than OPS_ORG_CASE_FAILURES_24H [5] times in 24h
  *   case.deadline        an open case past its deadline
- *   connection.health    the latest connection_health row for a connection is needs_reauth or error (only when that table exists)
+ *   connection.health    the latest connection_health row for a connection is needs_reauth or error
  *   ai.spend             this month's model spend at or above OPS_AI_SPEND_RATIO [0.8] of the organization's budget (page at 100%)
  *   email.bounce_rate    bounces + complaints / sent over 7 days above OPS_BOUNCE_RATE [0.05], with at least OPS_BOUNCE_MIN_SENT [20] sent
  *   execution.unknown    at least OPS_UNKNOWN_24H [3] outcomes in 24h that Deploi cannot confirm (store writes, Office actions, emails)
@@ -29,6 +29,8 @@ import { monthOf } from '../ai/meter'
 import { log } from '../log'
 import { opsNotifier, ownerRecipients, staffRecipients, type OpsNotice } from './notify'
 import { writeOpsLog } from './logs'
+
+const INTEGRATION_LABEL: Record<string, string> = { shopify: 'Shopify', woocommerce: 'WooCommerce', hubspot: 'HubSpot', google_calendar: 'Google Calendar', quickbooks: 'QuickBooks', agent_mailbox: 'agent mailbox', gmail: 'Gmail', microsoft: 'Microsoft 365', stripe: 'Stripe' }
 
 export const ALERT_RULES = ['jobs.dead', 'queue.age', 'cron.missing', 'org.case_failures', 'case.deadline', 'connection.health', 'ai.spend', 'email.bounce_rate', 'execution.unknown'] as const
 export type AlertRule = (typeof ALERT_RULES)[number]
@@ -101,21 +103,19 @@ const RULES: Record<AlertRule, RuleFn> = {
       ownerText: `Case ${c.ref} passed its deadline and is still ${c.status.replace('_', ' ')}.`, detail: { case_ref: c.ref, status: c.status, deadline_at: iso(new Date(c.deadline_at)) } }))
   },
   async 'connection.health'(db) {
-    // written by the connection health checks when that module is installed: feature-detected, never assumed
-    const cols = (await db.query<{ column_name: string }>(`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'connection_health'`)).map(c => c.column_name)
-    if (!['org_id', 'status', 'previous_status'].every(c => cols.includes(c))) return []
-    const key = ['connection_id', 'connection_ref', 'connection', 'provider'].find(c => cols.includes(c))
-    const at = ['checked_at', 'observed_at', 'created_at', 'at'].find(c => cols.includes(c))
-    const order = [at ? `${at} desc` : null, cols.includes('id') ? 'id desc' : null].filter(Boolean).join(', ') || 'status'
-    const subj = key ? `${key}::text` : `'connection'`
-    const provider = cols.includes('provider') ? 'provider::text' : 'null::text'
-    const r = await db.query<{ org_id: string; subject: string; status: string; previous_status: string | null; provider: string | null }>(
-      `select distinct on (org_id, ${subj}) org_id::text, ${subj} as subject, status::text, previous_status::text, ${provider} as provider from connection_health order by org_id, ${subj}, ${order}`)
-    return r.filter(x => ['needs_reauth', 'error'].includes(x.status)).map(x => ({
-      rule: 'connection.health' as const, subject: `${x.org_id}:${x.subject}`.slice(0, 200), orgId: x.org_id, severity: 'warn' as const,
-      title: `A ${x.provider ?? 'connection'} connection is ${x.status === 'needs_reauth' ? 'asking to be reconnected' : 'failing'}${x.previous_status ? ` (was ${x.previous_status})` : ''}`,
-      ownerText: x.status === 'needs_reauth' ? `Your ${x.provider ?? ''} connection needs to be reconnected; agents that use it are waiting. Open Integrations to reconnect it.`.replace('  ', ' ') : `Your ${x.provider ?? ''} connection is failing; agents that use it are waiting. Open Integrations to check it.`.replace('  ', ' '),
-      detail: { status: x.status, previous_status: x.previous_status, provider: x.provider } }))
+    // the latest health check per connection (connection_health, migration 20261106000055, written by lib/integrations/health.ts)
+    const r = await db.query<{ org_id: string; connection_id: string; integration: string; status: string; previous_status: string | null }>(
+      `select distinct on (org_id, connection_id) org_id::text, connection_id::text, integration, status, previous_status
+       from connection_health order by org_id, connection_id, checked_at desc, id desc`)
+    return r.filter(x => ['needs_reauth', 'error'].includes(x.status)).map(x => {
+      const name = INTEGRATION_LABEL[x.integration] ?? x.integration
+      return {
+        rule: 'connection.health' as const, subject: `${x.org_id}:${x.connection_id}`.slice(0, 200), orgId: x.org_id, severity: 'warn' as const,
+        title: `A ${name} connection is ${x.status === 'needs_reauth' ? 'asking to be reconnected' : 'failing'}${x.previous_status ? ` (was ${x.previous_status.replace('_', ' ')})` : ''}`,
+        ownerText: x.status === 'needs_reauth' ? `Your ${name} connection needs to be reconnected; agents that use it are waiting. Open Integrations to reconnect it.` : `Your ${name} connection is failing; agents that use it are waiting. Open Integrations to check it.`,
+        detail: { status: x.status, previous_status: x.previous_status, integration: x.integration },
+      }
+    })
   },
   async 'ai.spend'(db, now) {
     const month = monthOf(now), ratio = alertThresholds().aiSpendRatio

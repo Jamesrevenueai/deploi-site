@@ -31,7 +31,7 @@ export function CaseListScreen({ page }: { page: 'work' | 'completed' }) {
         {header}
         <div className="mb-2 flex flex-wrap gap-2"><Badge tone="ok">{data.counts.completed} verified</Badge><Badge tone="muted">{data.counts.resolved_30d} in the last 30 days</Badge></div>
         <CaseList cases={data.cases} dir={dir} label="Completed work" empty={<Empty title="Nothing completed yet">When your team resolves a problem and a fresh read confirms it, it shows here with its evidence. <Link href="/store/work" className="link">See work in progress</Link>.</Empty>} />
-        <p className="pt-6 text-[13px] text-grey-h">Earlier store corrections and their verification are in <Link href="/store/activity" className="link">Activity</Link>.</p>
+        <p className="pt-6 text-[13px] text-grey-h">Cases you closed yourself (an acknowledged market signal, a request you no longer need) are not counted here: nothing was verified. Earlier store corrections and their verification are in <Link href="/store/activity" className="link">Activity</Link>.</p>
       </>
     )
   }

@@ -199,11 +199,15 @@ async function retireAgentProposals(db: Db, agentId: string, status: 'stale' | '
 /** Pause: no runs and no writes, including changes already approved and queued. Authorization is kept. */
 export async function pauseAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
-  return admin(async db => {
+  const out = await admin(async db => {
     const r = await pauseAgentInTx(db, a0.org_id, agentId, actor.label)
     if (!r) throw new EngineError('not_pending', 'only an active agent can be paused')
     return r
   })
+  // its cases show the changes the pause retired (blocked, with the reason)
+  const { syncAgentCases } = await import('../engine/case-sync')
+  await syncAgentCases(agentId, { since: new Date(Date.now() - 60_000), actor: actor.label }).catch(() => undefined)
+  return out
 }
 
 /**

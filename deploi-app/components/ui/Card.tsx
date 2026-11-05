@@ -20,7 +20,7 @@ type Props = {
 /** Full-bleed image card: brushed-metal ground, glass tag, big title, glass facts row. */
 export function ImageCard({ tag, tagIcon, tagMuted, title, body, facts, href, bordered, ratio = '16/9', className = '' }: Props) {
   const inner = (
-    <div className={`metal ${bordered ? 'ring-1 ring-white' : ''} ${className}`} style={ratio === '16/9' ? { aspectRatio: '16 / 9' } : undefined}>
+    <div className={`metal ${bordered ? 'ring-1 ring-accent' : ''} ${className}`} style={ratio === '16/9' ? { aspectRatio: '16 / 9' } : undefined}>
       <div className="absolute inset-0 flex flex-col justify-between p-5 md:p-6">
         <div className="flex items-start justify-between gap-3">
           {tag ? <GlassPill icon={tagIcon} muted={tagMuted}>{tag}</GlassPill> : <span />}

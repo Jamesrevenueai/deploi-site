@@ -1,6 +1,6 @@
 'use client'
 /**
- * Approval inbox (/store/inbox): every exact change and email an agent is waiting on you for.
+ * Detailed approval review (/store/approvals/review; embedded: /shopify/inbox): every exact change and email an agent is waiting on you for.
  * Approve runs the change now (re-read, write, verify) or sends the exact message; Reject closes it.
  * Drafts from drafts-only agents can only be rejected: those agents may never make changes.
  */
@@ -93,7 +93,7 @@ function ChangeItem({ c, base, busy, onApprove, onReject }: { c: Change; base: s
         </div>
         <p className="pt-1 text-[13px] text-grey-h">From <Link href={`${base}/agents/${c.agent_id}`} className="text-ink underline">{c.agent_name}</Link> · {fmtTime(c.created_at)}</p>
         {c.summary && <p className="pt-2 text-[15px] text-grey">{c.summary}</p>}
-        <div className="mt-3 rounded-[14px] border border-line bg-[#0A0A0A] p-3">
+        <div className="mt-3 rounded-[14px] border border-line bg-sunken p-3">
           <div className="text-[13px] text-grey-h">{cw.label}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[1.05rem] font-semibold text-ink break-all"><span>{cw.from}</span><Icon name="arrow-right" size={16} /><span>{cw.to}</span></div>
         </div>

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
-import { BRAND, CONTACT_EMAIL, WORDMARK } from '../lib/brand'
+import { BRAND, CONTACT_EMAIL } from '../lib/brand'
 import { CTA_HREF, CTA_LABEL } from './Button'
-import { NAV_LINKS } from './Nav'
+import { NAV_LINKS, Wordmark } from './Nav'
 import { env } from '../lib/env'
+import { CORE_MESSAGE } from '../lib/site-config'
 
 /** Marks a legal document as a draft until counsel has reviewed it (VITE_LEGAL_REVIEWED=true). */
 export function LegalDraftTag() {
@@ -12,35 +13,42 @@ export function LegalDraftTag() {
 export function Footer() {
   const year = new Date().getFullYear()
   return (
-    <footer>
+    <footer className="footer">
       <div className="container">
-        <div className="footer-brand">{WORDMARK[0]} <span className="brand-ai">{WORDMARK[1]}</span></div>
-        <p className="footer-tag">Agents for your store and your office. Only what you grant. Every action on the record.</p>
-
-        <div className="footer-cols">
-          <div className="footer-col">
-            <div className="footer-col-title">Product</div>
-            <ul>
-              {NAV_LINKS.map(l => (
-                <li key={l.to}><Link to={l.to}>{l.label}</Link></li>
-              ))}
-              <li><Link to={CTA_HREF}>{CTA_LABEL}</Link></li>
-            </ul>
+        <div className="footer-top">
+          <div>
+            <div className="footer-brand"><Wordmark /></div>
+            <p className="footer-tag">{CORE_MESSAGE}</p>
           </div>
-          <div className="footer-col">
-            <div className="footer-col-title">Company and legal</div>
-            <ul>
-              <li><Link to="/privacy">Privacy Policy</Link><LegalDraftTag /></li>
-              <li><Link to="/terms">Terms of Service</Link><LegalDraftTag /></li>
-              <li><Link to="/support">Support</Link></li>
-              <li><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></li>
-            </ul>
+          <div className="footer-cols">
+            <div className="footer-col">
+              <div className="footer-col-title">Product</div>
+              <ul>
+                {NAV_LINKS.map(l => <li key={l.to}><Link to={l.to}>{l.label}</Link></li>)}
+              </ul>
+            </div>
+            <div className="footer-col">
+              <div className="footer-col-title">Get started</div>
+              <ul>
+                <li><Link to={CTA_HREF}>{CTA_LABEL}</Link></li>
+                <li><Link to="/signup">Sign up</Link></li>
+                <li><Link to="/contact">Contact</Link></li>
+                <li><Link to="/support">Support</Link></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <div className="footer-col-title">Legal</div>
+              <ul>
+                <li><Link to="/privacy">Privacy Policy</Link><LegalDraftTag /></li>
+                <li><Link to="/terms">Terms of Service</Link><LegalDraftTag /></li>
+                <li><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></li>
+              </ul>
+            </div>
           </div>
         </div>
-
         <p className="footer-fine">
-          Shopify, WooCommerce, Amazon, HubSpot and Google Calendar are trademarks of their respective owners. {BRAND} connects through each
-          platform&rsquo;s official API and is not affiliated with or endorsed by them.
+          Shopify, WooCommerce, HubSpot, Google Calendar, QuickBooks and the other names on this site are trademarks of their respective owners.
+          {' '}{BRAND} connects through each service&rsquo;s official API and is not affiliated with or endorsed by them; integrations are not partnerships.
         </p>
         <div className="footer-copy">© {year} {BRAND}. All rights reserved.</div>
       </div>

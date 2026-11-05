@@ -4,7 +4,7 @@
  * whether they were verified, connection health, issues by severity, the weekly estimate, and an
  * organization-wide Stop all agents control behind a confirmation.
  */
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Banner } from '@/components/ui/Banner'
@@ -44,7 +44,8 @@ async function unifiedApprovals(): Promise<UnifiedApprovals> {
 type Stop = { kind: 'idle' } | { kind: 'busy' } | { kind: 'done'; r: StopAllResult; via: 'org' | 'agents' } | { kind: 'error'; e: StoreApiError }
 type Scan = { kind: 'idle' } | { kind: 'running' } | { kind: 'done'; r: ScanResult['scan'] } | { kind: 'error'; e: StoreApiError }
 
-export function ControlRoomScreen() {
+/** `title`/`top` let Home reuse the Control Room under its own heading, with the case overview above it (components/work/Home.tsx). */
+export function ControlRoomScreen({ title = 'Control Room', sub, top, tiles = true }: { title?: string; sub?: string; top?: ReactNode; tiles?: boolean } = {}) {
   const { base } = useStore()
   const { data, error, loading, reload } = useLoad(async () => {
     const [cr, approvals, wizard] = await Promise.all([
@@ -60,7 +61,7 @@ export function ControlRoomScreen() {
   const [clearing, setClearing] = useState(false)
   const [scan, setScan] = useState<Scan>({ kind: 'idle' })
 
-  const header = (actions?: React.ReactNode) => <PageHeader eyebrow={data?.cr.org.name ?? 'Your organization'} title="Control Room" sub="Every agent, what waits for you, and what was verified. Agents act only within what you granted; you can stop them all at once." actions={actions} />
+  const header = (actions?: React.ReactNode) => <PageHeader eyebrow={data?.cr.org.name ?? 'Your organization'} title={title} sub={sub ?? 'Every agent, what waits for you, and what was verified. Agents act only within what you granted; you can stop them all at once.'} actions={actions} />
   if (loading && !data) return <>{header()}<Loading label="Loading the Control Room" rows={4} /></>
   if (error && !data) return <>{header()}<ErrorState error={error} onRetry={reload} /></>
   if (!data) return null
@@ -115,15 +116,16 @@ export function ControlRoomScreen() {
       {store && store.status === 'active' && !store.synthetic && <div className="mt-3"><StoreAccessCard connectionId={store.id} canAct={cr.canAct} /></div>}
       {store && store.platform === 'shopify' && store.status === 'active' && <BillingBanner connectionId={store.id} canAct={cr.canAct} />}
 
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" data-testid="cr-tiles">
+      {top}
+      {tiles && <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" data-testid="cr-tiles">
         <Tile label="Agents running" value={running} sub={`${cr.counts.total} agent${cr.counts.total === 1 ? '' : 's'} in all`} href={`${base}/agents`} tone={running ? 'ok' : 'none'} />
         <Tile label="Need attention" value={cr.counts.needsAttention + cr.counts.draft} href="#agents" tone={cr.counts.needsAttention + cr.counts.draft ? 'warn' : 'none'} />
-        <Tile label="Waiting for approval" value={<span data-testid="approvals-count">{pendingCount}</span>} sub={cr.approvals.drafts ? `${cr.approvals.drafts} draft${cr.approvals.drafts === 1 ? '' : 's'} to review` : undefined} href={`${base}/inbox`} />
+        <Tile label="Waiting for approval" value={<span data-testid="cr-approvals-count">{pendingCount}</span>} sub={cr.approvals.drafts ? `${cr.approvals.drafts} draft${cr.approvals.drafts === 1 ? '' : 's'} to review` : undefined} href={`${base === '/store' ? '/store/approvals' : `${base}/inbox`}`} />
         <Tile label="High-severity issues" value={cr.issues.high} href={`${base}/issues`} tone={cr.issues.high ? 'danger' : 'none'} />
         <Tile label="Time saved this week" value={minutesInWords(cr.weekly.minutes)} sub="Estimate" />
-      </div>
+      </div>}
 
-      <Section id="agents" title="Agents" sub="Live status, last and next run, and the permission each one holds. Open an agent to change, pause or revoke it.">
+      <Section id="agents" title="Agent status" sub="Live status, last and next run, and the permission each one holds. Open an agent to change, pause or revoke it.">
         {cr.agents.length === 0 ? (
           <Empty title="No agents yet">Set up your first agents at drafts only. <Link href={`${base}/onboarding`} className="text-ink underline">Start setup</Link> or <Link href={`${base}/agents/new`} className="text-ink underline">create one</Link>.</Empty>
         ) : (
@@ -155,7 +157,7 @@ export function ControlRoomScreen() {
       </Section>
 
       <div className="grid grid-cols-1 gap-x-6 lg:grid-cols-2">
-        <Section id="approvals" title="Waiting for you" sub={approvals ? 'From the approvals inbox.' : 'Exact changes and emails your agents are waiting on.'} actions={<Link href={`${base}/inbox`} className="btn ghost xs">Open approvals<Icon name="arrow-right" size={14} /></Link>}>
+        <Section id="approvals" title="Waiting for you" sub={approvals ? 'From the approvals inbox.' : 'Exact changes and emails your agents are waiting on.'} actions={<Link href={base === '/store' ? '/store/approvals' : `${base}/inbox`} className="btn ghost xs">Open approvals<Icon name="arrow-right" size={14} /></Link>}>
           {(approvals?.items ?? cr.approvals.items).length === 0 ? <Empty title="Nothing waiting">No approvals right now.</Empty> : (
             <ul className="flex flex-col gap-2" aria-label="Waiting for approval">
               {(approvals?.items ?? cr.approvals.items).map(i => (

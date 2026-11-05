@@ -4,7 +4,8 @@ export type NavItem = {
   /** shorter label for the mobile bottom bar */ short?: string
   /** highlight only on this exact path (for an area's home link) */ exact?: boolean
   /** other paths (and their sub-paths) that belong to this entry */ also?: string[]
-  icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' | 'dollar' | 'file' | 'alert' | 'check'
+  /** shown in the mobile bottom bar (the rest are under More) */ mobile?: boolean
+  icon: 'pipeline' | 'chat' | 'clipboard' | 'bolt' | 'shield' | 'list' | 'mail' | 'home' | 'users' | 'calendar' | 'badge' | 'inbox' | 'spark' | 'dollar' | 'file' | 'alert' | 'check' | 'map' | 'plug'
 }
 
 /** Is this entry the current page? */

@@ -297,14 +297,14 @@ function TagList({ tags }: { tags: string[] }) {
 function ProposalCard({ p, pending, expired, children }: { p: ProposalView; pending: boolean; expired: boolean; children?: ReactNode }) {
   const c = changeInWords(p.change)
   return (
-    <div className={`rounded-[20px] border p-4 md:p-6 ${pending ? 'border-white/40' : 'border-line'}`}>
+    <div className={`rounded-[20px] border p-4 md:p-6 ${pending ? 'border-accent' : 'border-line'}`}>
       <div className="flex flex-wrap items-center gap-2">
         <OutcomeBadge outcome={p.outcome} />
         {(PROPOSAL_STATUS_LABEL[p.status] ?? p.status) !== OUTCOME_LABEL[p.outcome] && <span className="text-[14px] text-grey">{PROPOSAL_STATUS_LABEL[p.status] ?? p.status}</span>}
       </div>
       <div className="mt-3 text-[14px] text-grey-h">Change on</div>
       <div className="text-ink font-medium break-words">{p.target_label ?? shortId(p.target_id)}</div>
-      <div className="mt-3 rounded-[14px] border border-line bg-[#0A0A0A] p-3 md:p-4">
+      <div className="mt-3 rounded-[14px] border border-line bg-sunken p-3 md:p-4">
         <div className="text-[14px] text-grey-h">{c.label}</div>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-[1.25rem] font-semibold text-ink">
           <span>{c.from}</span><Icon name="arrow-right" size={18} aria-hidden="true" /><span>{c.to}</span>

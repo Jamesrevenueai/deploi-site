@@ -77,7 +77,7 @@ function ThreadView({ threadKey, onChanged }: { threadKey: string; onChanged: ()
     <div className="mt-3 flex flex-col gap-3">
       <ol className="flex flex-col gap-2">
         {items.map(i => (
-          <li key={i.id} className={`rounded-[14px] border border-line p-3 ${i.direction === 'outbound' ? 'bg-[#0A0A0A]' : ''}`}>
+          <li key={i.id} className={`rounded-[14px] border border-line p-3 ${i.direction === 'outbound' ? 'bg-sunken' : ''}`}>
             <div className="flex flex-wrap items-center gap-2 text-[13px] text-grey-h">
               <Badge tone={i.direction === 'outbound' ? 'muted' : 'none'}>{i.direction === 'outbound' ? (i.byPerson ? 'You replied' : 'Agent sent') : 'Received'}</Badge>
               {i.direction === 'inbound' && i.status === 'quarantined' && <Badge tone="danger">Quarantined</Badge>}

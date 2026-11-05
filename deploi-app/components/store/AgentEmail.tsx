@@ -179,7 +179,7 @@ function WaitingMessage({ m, busy, agentActive, h }: { m: EmailMessageDetail; bu
           ]} />
         </div>
         {c && !edit && (
-          <pre className="mt-3 max-h-[480px] overflow-auto whitespace-pre-wrap break-words rounded-[14px] border border-line bg-[#0A0A0A] p-3 text-[14px] text-ink" style={{ fontFamily: 'inherit' }} aria-label="Message body">{c.bodyText}</pre>
+          <pre className="mt-3 max-h-[480px] overflow-auto whitespace-pre-wrap break-words rounded-[14px] border border-line bg-sunken p-3 text-[14px] text-ink" style={{ fontFamily: 'inherit' }} aria-label="Message body">{c.bodyText}</pre>
         )}
         {c && edit && (
           <div className="mt-3 flex flex-col gap-3 rounded-[14px] border border-line p-3">
@@ -204,7 +204,7 @@ function WaitingMessage({ m, busy, agentActive, h }: { m: EmailMessageDetail; bu
             {c.attachments.map(a => (
               <div key={a.filename} className="rounded-[14px] border border-line p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[14px] text-ink"><Icon name="file" size={15} /><span className="break-all">{a.filename}</span><span className="text-grey-h">{a.contentType} · {fmtBytes(a.bytes)}</span></div>
-                {a.preview !== null && <pre className="mt-2 max-h-[240px] overflow-auto whitespace-pre rounded-[10px] bg-[#0A0A0A] p-2 text-[13px] text-grey" aria-label={`Preview of ${a.filename}`}>{a.preview}</pre>}
+                {a.preview !== null && <pre className="mt-2 max-h-[240px] overflow-auto whitespace-pre rounded-[10px] bg-sunken p-2 text-[13px] text-grey" aria-label={`Preview of ${a.filename}`}>{a.preview}</pre>}
               </div>
             ))}
           </div>

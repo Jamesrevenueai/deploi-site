@@ -1,7 +1,7 @@
-import { InboxScreen } from '@/components/store/Inbox'
+import { redirect } from 'next/navigation'
+import { LEGACY_REDIRECTS } from '@/lib/store/nav'
 
-export const metadata = { title: 'Approvals' }
-
+/** Approvals moved to Needs My Approval (/store/approvals); the customer inbox is /store/inbox/mail. */
 export default function StoreInboxPage() {
-  return <InboxScreen />
+  redirect(LEGACY_REDIRECTS['/store/inbox'])
 }

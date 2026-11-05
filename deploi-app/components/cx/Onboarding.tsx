@@ -64,7 +64,7 @@ export function OnboardingWizard() {
     <>
       {header}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-[14px] text-grey-h">
-        <div className="h-2 w-48 overflow-hidden rounded-full bg-[#141a2b]" role="progressbar" aria-label="Setup progress" aria-valuemin={0} aria-valuemax={w.steps.length} aria-valuenow={doneCount}>
+        <div className="h-2 w-48 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-label="Setup progress" aria-valuemin={0} aria-valuemax={w.steps.length} aria-valuenow={doneCount}>
           <div className="h-full bg-[var(--au-blue,#5b8cff)]" style={{ width: `${(doneCount / w.steps.length) * 100}%` }} />
         </div>
         <span>{doneCount} of {w.steps.length} done</span>
@@ -134,7 +134,7 @@ function ProductsStep({ w, busy, op }: StepProps) {
   const [commerce, setCommerce] = useState(w.productsChosen ? w.products.includes('commerce') : true)
   const [office, setOffice] = useState(w.productsChosen ? w.products.includes('office') : false)
   const [platform, setPlatform] = useState<'shopify' | 'woocommerce'>(w.commercePlatform ?? (w.store.platform === 'woocommerce' ? 'woocommerce' : 'shopify'))
-  const box = 'flex gap-3 rounded-[16px] border border-line p-4 cursor-pointer focus-within:ring-2 focus-within:ring-white/60'
+  const box = 'flex gap-3 rounded-[16px] border border-line p-4 cursor-pointer focus-within:ring-2 focus-within:ring-accent'
   return (
     <form className="mt-3 flex flex-col gap-3" onSubmit={e => { e.preventDefault(); void op('products', { op: 'products', commerce, office, platform }) }}>
       <fieldset className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -277,7 +277,7 @@ function ScanStep({ busy, op }: StepProps) {
 }
 
 function DoneStep({ w, busy, op, base }: StepProps) {
-  if (w.completedAt) return <div className="mt-3"><Link href={`${base}/control-room`} className="btn sm">Open the Control Room<Icon name="arrow-right" size={14} /></Link></div>
+  if (w.completedAt) return <div className="mt-3"><Link href={base} className="btn sm">Go to Home<Icon name="arrow-right" size={14} /></Link></div>
   if (w.current !== 'done') return null
   return <div className="mt-3"><Button size="sm" onClick={() => void op('complete', { op: 'complete' }, () => 'Done. Your team is ready.')} disabled={busy !== null}><Icon name="check" size={15} />{busy === 'complete' ? 'Finishing…' : 'Finish setup'}</Button></div>
 }

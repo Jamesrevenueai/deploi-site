@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: 'Deploi operating system',
   robots: { index: false, follow: false },
 }
-export const viewport: Viewport = { themeColor: '#000000', width: 'device-width', initialScale: 1 }
+export const viewport: Viewport = { themeColor: '#F6F7F9', width: 'device-width', initialScale: 1 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Embedded Shopify pages (/shopify/*, marked by the middleware) load App Bridge from Shopify's CDN as

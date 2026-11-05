@@ -89,7 +89,7 @@ export function AgentsScreen() {
               </div>
               {a.active_summary && <div className="mt-3"><SummaryView s={a.active_summary} /></div>}
               {a.pending && (
-                <div className="mt-4 rounded-[14px] border border-[#4a3a1a] p-3">
+                <div className="mt-4 rounded-[14px] border border-warn-line p-3">
                   <div className="text-[14px]"><Badge tone="warn">Version {a.pending.version} waits for your grant</Badge> <span className="text-grey">{a.pending.expansion.join('; ')}</span></div>
                   <div className="mt-2"><SummaryView s={a.pending.summary} /></div>
                   <Button size="sm" className="mt-3" disabled={busy !== null} onClick={() => act(`g:${a.id}`, async () => { await op(a.id, { op: 'grant', policyId: a.pending!.id, policyHash: a.pending!.policy_hash }); return `Granted version ${a.pending!.version} of ${a.name}.` })}>Grant exactly this</Button>

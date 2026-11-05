@@ -1,8 +1,8 @@
-import { ControlRoomScreen } from '@/components/cx/ControlRoom'
+import { HomeScreen } from '@/components/work/Home'
 
-export const metadata = { title: 'Control Room' }
+export const metadata = { title: 'Home' }
 
-/** The store home is the Control Room; the store overview is one click away (/store/control-room/overview). */
+/** Home: the Control Room with the work overview (components/work/Home.tsx). */
 export default function StoreHomePage() {
-  return <ControlRoomScreen />
+  return <HomeScreen />
 }

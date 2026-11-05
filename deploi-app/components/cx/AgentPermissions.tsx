@@ -56,7 +56,7 @@ export function EditPreview({ current, next }: { current: AgentPolicy | null; ne
   const changes = describePolicyChange(current, next)
   const grant = needsNewGrant(changes)
   return (
-    <div className={`rounded-[20px] border p-4 ${grant ? 'border-[#4a3a1a]' : 'border-line'}`} aria-live="polite" data-testid="edit-preview" data-needs-grant={grant}>
+    <div className={`rounded-[20px] border p-4 ${grant ? 'border-warn-line' : 'border-line'}`} aria-live="polite" data-testid="edit-preview" data-needs-grant={grant}>
       <div className="flex flex-wrap items-center gap-2">
         <Icon name={grant ? 'alert' : 'check'} size={16} />
         <span className="font-medium text-ink">{grant ? 'This needs a new grant' : 'Takes effect when you save'}</span>

@@ -322,7 +322,7 @@ const VERSION_STATUS: Record<string, string> = { pending_grant: 'waiting for you
 function ChangeBox({ field, from, to }: { field: string; from: unknown; to: unknown }) {
   const c = changeInWords({ field, from, to })
   return (
-    <div className="rounded-[14px] border border-line bg-[#0A0A0A] p-3">
+    <div className="rounded-[14px] border border-line bg-sunken p-3">
       <div className="text-[13px] text-grey-h">{c.label}</div>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-[1.1rem] font-semibold text-ink break-all"><span>{c.from}</span><Icon name="arrow-right" size={16} /><span>{c.to}</span></div>
     </div>

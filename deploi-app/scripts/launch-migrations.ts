@@ -94,10 +94,22 @@ export async function apply(url: string, opts: { dryRun?: boolean } = {}, set = 
   } finally { await c.end() }
 }
 
+/** Migrations recorded after this set's last file: a set rolls back only once every later one is gone. */
+export function laterApplied(applied: Iterable<string>, set: { files: string[] }): string[] {
+  const last = [...set.files].sort().at(-1)!
+  return [...applied].filter(f => f > last && !RETIRED_SAFE(f)).sort()
+}
+const RETIRED_SAFE = (f: string) => !/^\d{14}_/.test(f)
+function assertNothingLater(applied: Iterable<string>, set: { files: string[] }) {
+  const later = laterApplied(applied, set)
+  if (later.length) throw new Error(`rollback refused: later migrations are applied (${later.join(', ')}); roll back the later release first`)
+}
+
 export async function rollback(url: string, opts: { discardData?: boolean } = {}, set = SETS['2026-10-28']) {
   const c = new Client({ connectionString: url }); await c.connect()
   try {
     const a = await applied(c)
+    assertNothingLater(a, set)
     const undo = [...set.files].reverse().filter(f => a.has(f))
     const guard = readFileSync(join(ROOT, 'rollback', '_guard.sql'), 'utf8')
     // all or nothing: a refusal at any step leaves every launch migration in place
@@ -143,6 +155,7 @@ export async function applyHttp(run: SqlRunner, opts: { dryRun?: boolean } = {},
 }
 
 export async function rollbackHttp(run: SqlRunner, opts: { discardData?: boolean } = {}, set = SETS['2026-10-28']) {
+  assertNothingLater((await run(`${ledger} select name from _migrations`)).map(r => String(r.name)), set)
   const st = await statusHttp(run, set)
   const undo = [...st.launch].reverse().filter(l => l.applied).map(l => l.file)
   if (!undo.length) return { rolledBack: [] }

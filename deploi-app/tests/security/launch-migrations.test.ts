@@ -51,3 +51,14 @@ describe('2026-11-05 release migration set', () => {
     expect(setFrom(['--set=2026-11-05']).files).toBe(RELEASE_2026_11_05)
   })
 })
+
+describe('release rollback order', () => {
+  it('a release cannot be rolled back while a later one is applied', async () => {
+    const { laterApplied, SETS } = await import('../../scripts/launch-migrations')
+    const applied = ['20261030000035_role_switch_grants.sql', '20261031000001_signup_trust_hotfix.sql', ...SETS['2026-11-04'].files, '20261105000045_resolution_engine.sql']
+    expect(laterApplied(applied, SETS['2026-11-04'])).toEqual(['20261105000045_resolution_engine.sql'])
+    expect(laterApplied(applied, SETS['2026-11-05'])).toEqual([])
+    // the hotfix sits before the 2026-11-04 set, so it never blocks that set's rollback
+    expect(laterApplied(['20261031000001_signup_trust_hotfix.sql', ...SETS['2026-11-04'].files], SETS['2026-11-04'])).toEqual([])
+  })
+})

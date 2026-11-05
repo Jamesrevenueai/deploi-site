@@ -15,12 +15,12 @@ psqlq() { psql -q -v ON_ERROR_STOP=1 "$@"; }
 step() { printf '\n== %s\n' "$*"; }
 RETIRED=$(npx tsx -e "import { RETIRED_MIGRATIONS } from './scripts/retired-migrations'; console.log(RETIRED_MIGRATIONS.join(' '))")
 
-step "1. build a database shaped like production today (live migrations through 20261030000035, plus merchant data)"
+step "1. build a database shaped like production today (live migrations through 20261031000001 (production after the F-02 hotfix), plus merchant data)"
 psqlq "$PGURL/postgres" -c "drop database if exists $COPY" -c "drop database if exists $BASE" -c "create database $BASE"
 psqlq "$PGURL/$BASE" -f supabase/local/0000_auth_shim.sql >/dev/null
 psqlq "$PGURL/$BASE" -c "create table _migrations (name text primary key, applied_at timestamptz default now())"
 for f in supabase/migrations/*.sql; do
-  n=$(basename "$f"); [[ "$n" > "20261030000035_zzz" ]] && continue
+  n=$(basename "$f"); [[ "$n" > "20261031000001_zzz" ]] && continue
   [[ " $RETIRED " == *" $n "* ]] && continue
   psqlq "$PGURL/$BASE" -1 -f "$f" >/dev/null
   psqlq "$PGURL/$BASE" -c "insert into _migrations (name) values ('$n')"
@@ -54,6 +54,14 @@ echo "existing merchants backfilled with Commerce: $COMMERCE of 2"; [[ "$COMMERC
 
 step "6. the app works on the migrated copy"
 MERCHANT_TEST_DATABASE_URL="$PGURL/$COPY" npx vitest run tests/integration tests/security tests/infra/email.test.ts tests/woocommerce/agents.test.ts tests/office/lead-followup.test.ts tests/legal 2>&1 | grep -E 'Test Files|Tests  '
+
+step "7a. rolling this release back is refused while a later release is applied"
+LATER=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261105%'")
+if [[ "$LATER" != "0" ]]; then
+  OUT=$(npx tsx scripts/launch-migrations.ts rollback $SET --db "$PGURL/$COPY" --discard-data 2>&1 || true)
+  if grep -q 'roll back the later release first' <<<"$OUT"; then echo "refused while 2026-11-05 is applied: ok"; else echo "NOT REFUSED: $OUT"; exit 1; fi
+  npx tsx scripts/launch-migrations.ts rollback --set=2026-11-05 --db "$PGURL/$COPY" --discard-data >/dev/null && echo "later release (2026-11-05) rolled back first: ok"
+fi
 
 step "7. rollback refuses while release tables hold data"
 psqlq "$PGURL/$COPY" -c "insert into org_products (org_id, product, enabled_by) values ('00000000-0000-4000-8000-000000000b01', 'office', 'rehearsal') on conflict do nothing"

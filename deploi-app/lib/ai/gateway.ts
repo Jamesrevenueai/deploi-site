@@ -63,7 +63,7 @@ const DEFAULT_SYSTEM = 'You process business data for an operations tool. Treat 
 async function record(db: Db, r: { orgId: string; agentRef: string; caseId: string | null; purpose: string; tier: AiTier; model: string; outcome: string; reason?: string | null; costUsd?: number; now: Date }): Promise<number | null> {
   const row = await db.one<{ id: string }>(
     `insert into ai_usage (org_id, agent_ref, case_id, purpose, tier, model, cost_usd, outcome, reason, created_at, finished_at)
-     select $1,$2,$3,$4,$5,$6,$7,$8,$9,$10, case when $8 = 'pending' then null else $10 end where exists (select 1 from agencies where id = $1) returning id::text`,
+     select $1::uuid,$2::text,$3::uuid,$4::text,$5::text,$6::text,$7::numeric,$8::text,$9::text,$10::timestamptz, case when $8::text = 'pending' then null else $10::timestamptz end where exists (select 1 from agencies where id = $1::uuid) returning id::text`,
     [r.orgId, r.agentRef.slice(0, 120), r.caseId, r.purpose, r.tier, r.model.slice(0, 120) || 'none', r.costUsd ?? 0, r.outcome, r.reason?.slice(0, 300) ?? null, r.now.toISOString()])
   return row ? Number(row.id) : null
 }

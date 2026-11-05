@@ -19,7 +19,7 @@ Severity: **Critical** (cross-tenant or privilege compromise reachable by an out
 | F-05 | Medium | `_migrations` had no RLS and was writable by user roles | Fixed |
 | F-06 | Medium | No script/style Content-Security-Policy (only `frame-ancestors`) | Fixed (script policy, enforced; styles not restricted) |
 | F-07 | Medium | Shopify `customers/redact` and `customers/data_request` answer "no customer data held"; untrue once order/customer agents or agent e-mail hold shopper data | Open |
-| F-08 | Medium | Any member of an organization (or any Shopify admin user of the store) can grant agent authorizations; no owner-only role | Open |
+| F-08 | Medium | Any member of an organization (or any Shopify admin user of the store) can grant agent authorizations; no owner-only role | Fixed (2026-11-05) |
 | F-09 | Medium | With billing on, `/api/store/plan` would let a merchant switch to any tier for free | Fixed |
 | F-10 | Low | Monthly agent-action allowance is shown but not enforced at run time | Fixed |
 | F-11 | Low | A downgrade arriving by Stripe webhook updates the tier but does not switch off library agents the new tier excludes (the merchant-initiated path does) | Fixed |
@@ -104,10 +104,20 @@ customer data is stored". Order Tracker, Customer Care, Returns and agent e-mail
 on a real store, the handlers must export/erase those rows, and the public privacy text must change
 (`docs/legal/REVIEW-CHECKLIST.md` P-1). Owner: Shopify workstream.
 
-### F-08 Medium — no owner-only grants (Open)
-Every signed-in member and every Shopify admin user of the store can grant and widen agents. The AI Agent
-Authorization Terms place the responsibility on the customer (REVIEW-CHECKLIST A-2); a product control
-(owner/admin role for grants and billing) is recommended before general availability.
+### F-08 Medium — no owner-only grants (Fixed 2026-11-05)
+Was: every signed-in member and every Shopify admin user of the store could grant and widen agents.
+Now (migration 20261105000051, `lib/platform/rbac.ts`): each person has an organization role, owner / admin /
+member / viewer, read from the database at the moment of each decision. Only owners and admins grant a policy
+version (engine `grantPolicy`, Office `grantOfficePolicy`), resume an agent, switch a library agent on, widen a
+library or Build-your-own permission, grant auto-run, change the plan, use billing checkout and portal, and
+connect or disconnect accounts (Office, mailboxes, WooCommerce). Approving an individual item (engine proposals
+and retries, email messages, Office actions, library drafts, the unified approvals inbox) needs an owner or
+admin, or a member when the owner allows it (`agencies.members_can_approve`, default off). Viewers are read-only:
+`resolveActor` refuses every state-changing call. Rejecting, pausing and stopping stay open to members (they only
+reduce what agents do). Existing organizations kept their behaviour: the oldest member became the owner and every
+other member an admin. Embedded Shopify admin sessions act as admin (the session token does not say whether the
+user is the shop owner), so owner-only actions (deleting the organization, owner changes, the approval policy)
+need a signed-in owner in the Deploi web app. Tested in `tests/platform/rbac.test.ts`.
 
 ### F-09 Medium — free tier switch with billing on (Fixed)
 `POST /api/store/plan` sets `agencies.plan_tier` (which decides which library agents can be switched on)

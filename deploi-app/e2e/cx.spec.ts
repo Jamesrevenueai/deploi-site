@@ -128,21 +128,23 @@ test('setup wizard: from the first step to done, agents at drafts only and grant
     if (p.email) expect(p.email.permission).toBe('draft')
   }
   await page.goto('/store/onboarding')
-  await expect(page.getByRole('link', { name: 'Open the Control Room' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to Home' })).toBeVisible()
 })
 
-test('Control Room: agents, approvals, connections and issues; Stop all asks first and pauses everything', async ({ page }) => {
+test('Home (the Control Room): agents, approvals, connections and issues; Stop all asks first and pauses everything', async ({ page }) => {
   await signIn(page, NORTHWIND)
   await expect(page).toHaveURL(/\/store$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Control Room' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
   const cr = await api<{ agents: { id: string; name: string; status: string }[]; approvals: { count: number }; org: { id: string } }>(page, 'GET', '/api/store/control-room')
   expect(cr.status).toBe(200)
   for (const a of cr.json.agents) await expect(page.locator(`[data-agent="${a.name}"]`).first()).toBeVisible()
   await expect(page.getByTestId('approvals-count')).toHaveText(/\d+/)
   await expect(page.getByRole('list', { name: 'Connection health' })).toContainText('Shopify')
   await expect(page.getByRole('heading', { name: 'Issues by severity' })).toBeVisible()
+  // the old Control Room URL still works: it redirects to Home
   await page.goto('/store/control-room')
-  await expect(page.getByRole('heading', { level: 1, name: 'Control Room' })).toBeVisible()
+  await expect(page).toHaveURL(/\/store$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
   await shoot(page, 'control-room')
 
   // another organization sees only its own agents

@@ -1,6 +1,6 @@
 /**
  * Office discovery: unanswered inbox messages. Counts accepted inbound mail on the organization's mailboxes
- * (the Deploi office mailbox and synthetic test mailboxes; connected Gmail and Outlook inboxes are not read)
+ * (the Deploi office mailbox, synthetic test mailboxes, and connected Gmail / Outlook inboxes once Email Operations reads them)
  * with no reply in its conversation for N business hours, excluding automatic replies, suppressed senders,
  * spam-ish mail and conversations an Office lead or meeting owns — the same rule the Email Operations agent
  * applies (lib/office/email-ops.ts#unansweredInbound). Findings hold sender and time only, never the text.
@@ -13,7 +13,7 @@ import { registerDetector, type DiscoveryFinding } from '../registry'
 export const UNANSWERED_HOURS = 4
 
 async function mailboxes(db: Db, orgId: string) {
-  return db.query<{ id: string; address: string }>(`select id, address from email_accounts where org_id = $1 and status = 'active' and ((provider = 'deploi' and office_mailbox) or provider = 'synthetic')`, [orgId])
+  return db.query<{ id: string; address: string }>(`select id, address from email_accounts where org_id = $1 and status = 'active' and ((provider = 'deploi' and office_mailbox) or provider = 'synthetic' or (provider in ('gmail', 'microsoft') and exists (select 1 from email_sync_state s where s.account_id = email_accounts.id and s.last_sync_at is not null)))`, [orgId])
 }
 
 export const officeEmailDetector = {

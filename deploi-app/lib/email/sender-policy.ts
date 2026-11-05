@@ -102,9 +102,9 @@ export async function decideSender(db: Db, i: SenderInput): Promise<SenderDecisi
     const got = AUTH_KEYS.map(k => `${k}=${String(i.auth?.[k] ?? 'missing').toLowerCase().slice(0, 20)}`).join(', ')
     return q('auth_unverified', got)
   }
-  if (i.autoReply) return q('automated', i.autoReply)
   const bulk = bulkReason(i.headers)
   if (bulk) return q('bulk', bulk)
+  if (i.autoReply) return q('automated', i.autoReply)
   if (await db.one('select 1 from email_suppressions where org_id = $1 and address = $2', [i.orgId, from])) return q('suppressed')
   const since = new Date(new Date(i.receivedAt).getTime() - 864e5).toISOString()
   const per = await db.one<{ n: string }>(`select count(*)::text as n from email_inbound where account_id = $1 and lower(from_address) = $2 and first_contact and received_at > $3`, [i.accountId, from, since])

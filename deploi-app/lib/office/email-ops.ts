@@ -19,9 +19,13 @@
  *  - or the owner marks it handled (lib/office/resolution.ts#markOfficeCaseHandled) with the reply message or
  *    their own confirmation as evidence.
  * A follow-up that asks something else moves the case back to investigating and a new reply is drafted.
- * Outlook / Microsoft 365 and Gmail accounts connected with read access give reply senders and times only
- * (lib/email/adapters); Deploi does not list or read their inboxes, so no unanswered-message case is opened
- * for them (the run counts this). Message text is data: it only chooses a category.
+ * Mailboxes: the Deploi office mailbox (inbound webhook), and a connected Gmail or Outlook account whose inbox is
+ * read when the owner turned on "read my inbox" (emailOps.readInbox, a granted permission) and connected the
+ * account with gmail.readonly / Mail.Read (lib/email/inbox-sync.ts; otherwise the run counts inbox_not_read or
+ * inbox_needs_permission). A reply the owner sent from Gmail or Outlook itself counts as an answer.
+ * First contact (lib/email/sender-policy.ts): the first reply to a sender the organization never wrote to always
+ * waits for an owner's or admin's individual approval, whatever the tier; quarantined mail is never answered
+ * until the owner releases it. Message text is data: it only chooses a category, never a recipient, tier or tool.
  */
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { admin, type Db } from '../db'

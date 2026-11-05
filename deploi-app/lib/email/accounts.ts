@@ -120,7 +120,8 @@ export const accountRef = (a: EmailAccountRow): AccountRef => ({ id: a.id, orgId
 
 /** A usable access token, refreshed under a row lock when close to expiry. Auth failures mark the account for reconnection. */
 export async function accessToken(accountId: string): Promise<string> {
-  return admin(async db => {
+  // the reconnect mark is written after the refresh transaction, so the failure that caused it cannot roll it back
+  const r = await admin(async (db): Promise<string | { reauth: string }> => {
     const acc = await db.one<EmailAccountRow>('select * from email_accounts where id = $1', [accountId])
     if (!acc || acc.status === 'disconnected') throw new EmailAuthError('the email account is disconnected')
     // agent mailboxes send with Deploi's server key; there is no per-account token
@@ -129,17 +130,20 @@ export async function accessToken(accountId: string): Promise<string> {
     if (!c) throw new EmailAuthError('the email account has no stored authorization; reconnect it')
     const access = decryptSecret(c.key_id, c.ciphertext, aad(accountId, 'access'))
     if (!c.expires_at || new Date(c.expires_at).getTime() - Date.now() > 120_000) return access
-    if (!c.refresh_ciphertext) { await markAuth(db, acc, 'the provider did not issue a refresh token; reconnect the account'); throw new EmailAuthError('reconnect the account') }
+    if (!c.refresh_ciphertext) return { reauth: 'the provider did not issue a refresh token; reconnect the account' }
     const refreshToken = decryptSecret(c.key_id, c.refresh_ciphertext, aad(accountId, 'refresh'))
     try {
       const t = await emailAdapter(acc.provider).refresh(refreshToken, c.scopes)
       await saveTokens(db, accountId, acc.org_id, { ...t, scopes: t.scopes.length ? t.scopes : c.scopes })
       return t.accessToken
     } catch (e) {
-      if ((e as { auth?: boolean }).auth) { await markAuth(db, acc, 'the provider no longer accepts this connection (revoked or expired); reconnect the account'); throw new EmailAuthError('reconnect the account') }
+      if ((e as { auth?: boolean }).auth) return { reauth: 'the provider no longer accepts this connection (revoked or expired); reconnect the account' }
       throw e
     }
   })
+  if (typeof r === 'string') return r
+  await markAccountAuthFailure(accountId, r.reauth)
+  throw new EmailAuthError('reconnect the account')
 }
 
 async function markAuth(db: Db, acc: EmailAccountRow, reason: string) {

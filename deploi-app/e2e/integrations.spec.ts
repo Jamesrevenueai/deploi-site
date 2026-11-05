@@ -36,17 +36,20 @@ async function shoot(page: Page, name: string) {
 }
 
 let connectionId: string | null = null
+let officeWasEnabled: boolean | null = null
 
 test.afterAll(async ({ browser }) => {
-  if (!connectionId) return
   const page = await browser.newPage({ baseURL: BASE })
   await signIn(page, HARBOR)
-  await api(page, 'POST', '/api/store/integrations/hubspot', { op: 'disconnect', connectionId })
+  if (connectionId) await api(page, 'POST', '/api/store/integrations/hubspot', { op: 'disconnect', connectionId })
+  // leave Harbor Supply as the seed had it, so later specs see the same organization
+  if (officeWasEnabled === false) await api(page, 'POST', '/api/office/product', { enable: false })
   await page.close()
 })
 
 test('Test a synthetic connection, break it, see Reconnect, reconnect, and it is connected again', async ({ page }) => {
   await signIn(page, HARBOR)
+  officeWasEnabled = Boolean(((await api(page, 'GET', '/api/office/product')).json as { enabled?: boolean }).enabled)
   expect((await api(page, 'POST', '/api/office/product', { enable: true })).status).toBe(200)
   // a leftover from an interrupted run is disconnected first
   const before = await api<{ integrations: { key: string; connections: { id: string }[] }[] }>(page, 'GET', '/api/store/integrations')

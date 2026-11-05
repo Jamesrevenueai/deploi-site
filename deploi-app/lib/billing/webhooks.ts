@@ -67,6 +67,8 @@ async function onCheckoutCompleted(db: Db, ev: StripeEvent): Promise<Outcome> {
      on conflict (org_id, provider) do update set external_id = coalesce(billing_subscriptions.external_id, excluded.external_id),
        customer_external_id = coalesce(billing_subscriptions.customer_external_id, excluded.customer_external_id), plan = coalesce(billing_subscriptions.plan, excluded.plan)`,
     [orgId, subId, customer, plan, ev.livemode])
+  // a plan from the plans table chosen at checkout (its limits apply; the tier above decides the library agents)
+  if (typeof md.plan_key === 'string' && /^[a-z][a-z0-9_]{1,40}$/.test(md.plan_key)) await db.query(`update agencies set plan_key = $2 where id = $1 and exists (select 1 from plans where key = $2)`, [orgId, md.plan_key])
   // last_event_at is left to subscription events: the subscription is created before checkout completes,
   // so its created event must not look older than this one
   return { outcome: 'processed', orgId, detail: 'checkout completed' }

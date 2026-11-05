@@ -12,6 +12,7 @@ import { refreshAccessToken, TokenRequestError, type AccessToken } from './auth'
 import type { ConnectionRow } from '../../engine/types'
 import { syntheticTransport } from './synthetic'
 import { shopifyConfig } from './config'
+import { countWorkflow } from '../../ai/meter'
 
 export type GqlBody = { query: string; operationName: string; variables?: Record<string, unknown> }
 export type Transport = (body: GqlBody) => Promise<{ status: number; json: unknown }>
@@ -151,6 +152,7 @@ export async function shopifyGraphql<T>(conn: ConnectionRow, body: GqlBody, opts
     if (pace > 0) await sleep(pace)
     let res: { status: number; json: unknown }
     try {
+      if (!conn.is_synthetic) countWorkflow(conn.org_id, 'provider_call', 'shopify') // workflow cost (lib/ai/meter.ts)
       res = await transport(body)
     } catch (e) {
       if (!opts.mutation && attempt < maxAttempts) { await sleep(200 * 2 ** attempt); continue }

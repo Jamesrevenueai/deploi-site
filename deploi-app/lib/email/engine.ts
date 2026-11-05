@@ -33,6 +33,7 @@ import { suppressedAmong } from './suppression'
 import { unsubscribeUrl } from './unsubscribe'
 import { log } from '../log'
 import { assertCan } from '../platform/rbac'
+import { recordWorkflow } from '../ai/meter'
 
 export type EmailStatus = 'draft' | 'awaiting_approval' | 'queued' | 'sending' | 'accepted' | 'failed' | 'delivery_unknown' | 'cancelled'
 export type EmailMessageRow = {
@@ -320,6 +321,8 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
 
 async function finish(m: EmailMessageRow, status: EmailStatus, reason: string | null, actor: string, extra: Record<string, unknown> = {}) {
   await admin(async db => {
+    // workflow cost: one email the provider accepted (lib/ai/meter.ts)
+    if (status === 'accepted' && m.status !== 'accepted') await recordWorkflow(db, m.org_id, 'email_sent')
     const sets = ['status = $2', 'status_reason = $3'], vals: unknown[] = [m.id, status, reason]
     for (const [k, v] of Object.entries(extra)) { vals.push(v); sets.push(`${k} = $${vals.length}`) }
     await db.query(`update email_messages set ${sets.join(', ')} where id = $1`, vals)

@@ -28,7 +28,7 @@ import { setSwitch, setPermission, grantAutoRun } from '../../lib/library/switch
 import { runLibraryAgent, approveAction } from '../../lib/library/actions'
 import { handleStripeEvent } from '../../lib/billing/webhooks'
 import { billingWriteBlock } from '../../lib/billing/state'
-import { PLAN_LIMITS } from '../../lib/plans/entitlements'
+import { setLimit, restoreLimits } from './limits'
 import { actionsUsed, allowanceBlock, planUsage, monthEnd } from '../../lib/plans/allowance'
 import { enforcePlanLimits, enforceLapsedPlans } from '../../lib/plans/enforce'
 import { controlRoom } from '../../lib/store/control-room'
@@ -40,7 +40,6 @@ const ready = await prepareDb()
 const { P } = NORTHWIND_IDS
 const UNTIL = new Date(Date.now() + 300 * 864e5).toISOString()
 const STOCK = { correctionTypes: ['oversell_policy'], rules: { oversell_policy: { exemptTags: DEFAULT_EXEMPT_TAGS, flagInStockVariants: true } } }
-const SAVED_LIMITS = JSON.parse(JSON.stringify(PLAN_LIMITS)) as typeof PLAN_LIMITS
 const BILLING_ENV: Record<string, string> = {
   BILLING_MODE: 'test', STRIPE_PRICE_STARTER_MONTHLY: 'price_EnfStarter', STRIPE_PRICE_GROWTH_MONTHLY: 'price_EnfGrowth', STRIPE_PRICE_PRO_MONTHLY: 'price_EnfPro', BILLING_GRACE_DAYS: '7',
 }
@@ -90,12 +89,12 @@ describe.skipIf(!ready)('plan enforcement', () => {
   beforeEach(async () => {
     since = new Date().toISOString()
     billingOff()
-    Object.assign(PLAN_LIMITS.starter, SAVED_LIMITS.starter); Object.assign(PLAN_LIMITS.growth, SAVED_LIMITS.growth); Object.assign(PLAN_LIMITS.pro, SAVED_LIMITS.pro)
+    await restoreLimits()
     await resetMerchant(NW, { ruleOn: false }); await resetMerchant(HB, { ruleOn: false })
     await cleanOrg(NW); await cleanOrg(HB)
     await setTierOf(NW, 'starter'); await setTierOf(HB, 'starter')
   })
-  afterEach(() => { billingOff(); Object.assign(PLAN_LIMITS.starter, SAVED_LIMITS.starter); Object.assign(PLAN_LIMITS.growth, SAVED_LIMITS.growth); Object.assign(PLAN_LIMITS.pro, SAVED_LIMITS.pro) })
+  afterEach(async () => { billingOff(); await restoreLimits() })
   afterAll(async () => {
     if (!ready) return
     await resetOffice(NW, { enable: false }); await resetLibrary(NW, 'starter'); await cleanOrg(NW)
@@ -135,7 +134,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
 
   it('store writes: at the allowance autonomous work is held for approval with the reason (not dropped); an individually approved item is held too; after an upgrade it can be approved and runs', async () => {
     billingOn()
-    PLAN_LIMITS.starter.monthlyActions = 3
+    await setLimit('starter', 'monthlyActions', 3)
     const actor = await merchantActor(NW)
     const auto = await engineAgent(actor, 'Stock Guardian', { ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL })
     const before = await writes()
@@ -175,7 +174,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
   })
 
   it('with BILLING_MODE off (the free beta) the allowance is never enforced or queried', async () => {
-    PLAN_LIMITS.starter.monthlyActions = 1
+    await setLimit('starter', 'monthlyActions', 1)
     const actor = await merchantActor(NW)
     const auto = await engineAgent(actor, 'Stock Guardian', { ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL })
     const r = await runAgent(auto, { trigger: 'test', actor: actor.label })
@@ -189,7 +188,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
     const acc = await mailbox(actor)
     const id = await mailAgent(actor, acc.id)
     billingOn()
-    PLAN_LIMITS.starter.monthlyActions = 0
+    await setLimit('starter', 'monthlyActions', 0)
     await runAgent(id, { trigger: 'test', actor: actor.label })
     const [m] = (await messagesOf(id)).filter(x => x.task_key === 'supplier_reorder')
     expect(m).toMatchObject({ status: 'awaiting_approval', approval_kind: null })
@@ -211,7 +210,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
   })
 
   it('email with billing off: sent at once, no allowance', async () => {
-    PLAN_LIMITS.starter.monthlyActions = 0
+    await setLimit('starter', 'monthlyActions', 0)
     const actor = await merchantActor(NW)
     const acc = await mailbox(actor)
     const id = await mailAgent(actor, acc.id)
@@ -224,7 +223,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
     const s = await setupOffice(NW, [lead('801', 'ana@acme-studio.example', new Date(T.getTime() - 3600e3))])
     const agent = await grantedAgent(s, 'lead_followup', { email: 'send_autonomous' })
     billingOn()
-    PLAN_LIMITS.starter.monthlyActions = 0
+    await setLimit('starter', 'monthlyActions', 0)
     await runOfficeAgent(agent, { trigger: 'test', now: T })
     let [a] = await officeActions(agent)
     expect(a).toMatchObject({ status: 'awaiting_approval', approval_kind: null, approved_hash: null })
@@ -251,7 +250,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
     await setPermission(actor, 'listing_writer', 'act')
     await grantAutoRun(actor, 'listing_writer', 'draft_description', 5)
     billingOn()
-    PLAN_LIMITS.starter.monthlyActions = 1
+    await setLimit('starter', 'monthlyActions', 1)
     const r = await runLibraryAgent({ orgId: NW.org, agentKey: 'listing_writer', trigger: 'test', actor: actor.label, now: NOW })
     expect(r.counts.done).toBe(1)
     const rows = await actionsOf(NW, 'listing_writer')
@@ -261,14 +260,14 @@ describe.skipIf(!ready)('plan enforcement', () => {
     expect(await used(NW, NOW)).toBe(1) // drafts do not count
     await expect(approveAction(actor, held[0].id, NOW)).rejects.toMatchObject({ code: 'allowance_exhausted' })
     expect((await actionsOf(NW, 'listing_writer')).find(x => x.id === held[0].id)!.status).toBe('draft')
-    PLAN_LIMITS.starter.monthlyActions = 2
+    await setLimit('starter', 'monthlyActions', 2)
     expect(await approveAction(actor, held[0].id, NOW)).toMatchObject({ status: 'done' })
     expect(await used(NW, NOW)).toBe(2)
   })
 
   it('usage is per organization: one organization at its allowance does not hold another; the Control Room reports each one\'s own usage', async () => {
     billingOn()
-    PLAN_LIMITS.starter.monthlyActions = 3
+    await setLimit('starter', 'monthlyActions', 3)
     const actor = await merchantActor(NW)
     const auto = await engineAgent(actor, 'Stock Guardian', { ...STOCK, approvalMode: 'autonomous', validUntil: UNTIL })
     await runAgent(auto, { trigger: 'test', actor: actor.label })
@@ -277,7 +276,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
     expect(await admin(db => allowanceBlock(db, NW.org))).not.toBeNull()
     expect(await admin(db => allowanceBlock(db, HB.org))).toBeNull()
     const nw = await controlRoom(actor)
-    expect(nw.usage).toMatchObject({ actions: 3, actionsLimit: 3, emailsLimit: PLAN_LIMITS.starter.monthlyEmails, enforced: true, resetsAt: monthEnd(new Date()).toISOString() })
+    expect(nw.usage).toMatchObject({ actions: 3, actionsLimit: 3, emailsLimit: 200, enforced: true, resetsAt: monthEnd(new Date()).toISOString() })
     const hb = await controlRoom(await merchantActor(HB))
     expect(hb.usage).toMatchObject({ actions: 0, actionsLimit: 3 })
   })
@@ -286,8 +285,8 @@ describe.skipIf(!ready)('plan enforcement', () => {
     await resetOffice(NW)
     const actor = await merchantActor(NW)
     billingOn()
-    PLAN_LIMITS.starter.officeConnections = 1
-    PLAN_LIMITS.starter.officeSeats = 1
+    await setLimit('starter', 'officeConnections', 1)
+    await setLimit('starter', 'officeSeats', 1)
     await connectSyntheticOffice(actor, 'hubspot', { demoData: false })
     await connectSyntheticOffice(actor, 'hubspot', { demoData: false }) // reconnecting the same account needs no new one
     await expect(connectSyntheticOffice(actor, 'google_calendar', { timezone: 'UTC' })).rejects.toMatchObject({ code: 'invalid_input', message: expect.stringMatching(/allows 1 Office connections/) })
@@ -335,8 +334,8 @@ describe.skipIf(!ready)('plan enforcement', () => {
         await db.query(`insert into billing_customers (org_id, external_id) values ($1, 'cus_Enf1')`, [NW.org])
       })
       billingOn()
-      PLAN_LIMITS.starter.maxAgents = 2
-      PLAN_LIMITS.starter.officeSeats = 1
+      await setLimit('starter', 'maxAgents', 2)
+      await setLimit('starter', 'officeSeats', 1)
     })
 
     it('a Stripe downgrade switches off library agents the tier excludes and pauses the newest agents beyond the plan, audited, nothing deleted; repeating changes nothing; an upgrade resumes nothing', async () => {

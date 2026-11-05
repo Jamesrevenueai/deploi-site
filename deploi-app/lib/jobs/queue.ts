@@ -22,6 +22,7 @@ import { admin, type Db } from '../db'
 import { audit } from '../engine/audit'
 import { log } from '../log'
 import { orgStopReason } from '../engine/kill-switch'
+import { flushWorkflowCounters, recordWorkflow } from '../ai/meter'
 
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'dead' | 'cancelled'
 export type JobRow = {
@@ -158,6 +159,9 @@ export async function extendLease(jobId: string, workerId: string, ms: number): 
 export type JobOutcome = { jobId: string; kind: string; status: JobStatus | 'lost_lease'; attempts: number; error?: string; result?: Record<string, unknown> | null }
 
 async function settle(job: JobRow, workerId: string, outcome: { ok: true; result: Record<string, unknown> | null } | { ok: false; error: string; permanent: boolean }, now: () => Date): Promise<JobOutcome> {
+  // workflow cost: one job run for the organization (lib/ai/meter.ts), plus provider calls counted during the run
+  if (job.org_id) await admin(db => recordWorkflow(db, job.org_id!, 'job_run', '', 1, now())).catch(() => {})
+  await flushWorkflowCounters(now())
   return admin(async db => {
     if (outcome.ok) {
       const r = await db.query(`update jobs set status = 'succeeded', result = $3, finished_at = now(), lease_until = null, last_error = null where id = $1 and lease_owner = $2 and status = 'running' returning id`,

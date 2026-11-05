@@ -4,7 +4,7 @@
  */
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe' | 'hubspot' | 'google_calendar', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe' | 'hubspot' | 'google_calendar' | 'ai', string[]> = {
   shopify: [], // <shop>.myshopify.com only, checked by suffix below
   shopify_partners: ['partners.shopify.com'], // Partner API: Shopify App Pricing subscription status
   amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
@@ -17,6 +17,8 @@ export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'sho
   // Deploi Office: Google OAuth token endpoint, OpenID userinfo and the Calendar API (accounts.google.com is a browser redirect)
   google_calendar: ['oauth2.googleapis.com', 'openidconnect.googleapis.com', 'www.googleapis.com'],
   competitor_public: [], // a public https store the merchant chose to monitor; never a private address or an IP, and never a provider above
+  // the model provider (lib/ai/gateway.ts): exactly the https host of AI_ENDPOINT, a public name, never a provider above
+  ai: [],
 }
 
 export class OutboundBlocked extends Error { constructor(public host: string, public purpose: string) { super(`outbound request to ${host} is not approved for ${purpose}`); this.name = 'OutboundBlocked' } }
@@ -44,6 +46,11 @@ export function assertApprovedHost(url: string, purpose: keyof typeof APPROVED_H
     && !/^https:\/\/[^/]*@/.test(url) && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.myshopify.com')
   else if (purpose === 'competitor_public') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
     && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.supabase.co')
+  else if (purpose === 'ai') {
+    const configured = hostOf((process.env.AI_ENDPOINT ?? '').trim())
+    ok = url.startsWith('https://') && Boolean(configured) && host === configured && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host)
+      && !Object.values(APPROVED_HOSTS).flat().includes(host)
+  }
   else ok = APPROVED_HOSTS[purpose].includes(host)
   if (!ok) throw new OutboundBlocked(host || url, purpose)
   return host

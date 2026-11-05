@@ -11,6 +11,7 @@ import { isTierKey, type TierKey } from '../library/config'
 import { pricingPlansUrl } from '../connectors/shopify/billing'
 import { billingMode, priceIdFor, stripeConfig } from './config'
 import { stripeRequest } from './stripe'
+import { checkoutRefusal, planByKey } from '../plans/catalog'
 import { billingProviderFor, subscriptionOf } from './state'
 
 type FetchOpt = { fetchImpl?: typeof fetch }
@@ -42,17 +43,23 @@ export async function ensureCustomer(db: Db, orgId: string, opts: FetchOpt & { e
 }
 
 /** Idempotency key for a checkout: the same organization, plan and price within ten minutes reuse one session. */
-export function checkoutIdempotencyKey(orgId: string, plan: TierKey, priceId: string, now = new Date()) {
+export function checkoutIdempotencyKey(orgId: string, plan: TierKey | string, priceId: string, now = new Date()) {
   const bucket = Math.floor(now.getTime() / 600e3)
   return `deploi-checkout-${createHash('sha256').update(`${orgId}|${plan}|${priceId}|${bucket}`).digest('hex').slice(0, 40)}`
 }
 
 export async function createCheckoutSession(db: Db, input: { orgId: string; plan: unknown; email?: string | null; actor: string; appUrl: string; now?: Date } & FetchOpt) {
   assertStripeBilling()
-  if (!isTierKey(input.plan)) throw new HttpError(400, 'invalid_input', 'plan must be starter, growth or pro')
-  const plan = input.plan
-  const price = priceIdFor(plan)
-  if (!price) throw new HttpError(503, 'billing_not_configured', `no Stripe price is configured for the ${plan} plan`)
+  // a plan from the plans table (lib/plans/catalog.ts), or one of the library tiers
+  const row = typeof input.plan === 'string' ? await planByKey(input.plan, db) : null
+  if (!row && !isTierKey(input.plan)) throw new HttpError(400, 'invalid_input', 'plan must be one of the plans on sale')
+  const plan: TierKey = row?.tier_key ?? input.plan as TierKey
+  // owner approval before any price is final: a hypothesis is sold in Stripe test mode only
+  const refused = row ? checkoutRefusal(row, billingMode()) : billingMode() === 'live' ? `the ${plan} plan has no approved price record` : null
+  if (refused) throw new HttpError(409, 'plan_not_approved', refused)
+  const price = row?.stripe_price_id ?? priceIdFor(plan)
+  if (!price) throw new HttpError(503, 'billing_not_configured', `no Stripe price is configured for the ${row?.key ?? plan} plan`)
+  const planMeta: Record<string, string> = row && row.key !== plan ? { plan, plan_key: row.key } : { plan }
   await assertStripeProvider(db, input.orgId)
   const sub = await subscriptionOf(db, input.orgId, 'stripe')
   if (sub && ['active', 'trialing', 'past_due'].includes(sub.status)) throw new HttpError(409, 'already_subscribed', 'this organization already has a subscription: change or cancel it in the billing portal')
@@ -65,11 +72,11 @@ export async function createCheckoutSession(db: Db, input: { orgId: string; plan
     line_items: [{ price, quantity: 1 }],
     success_url: `${base}/store/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${base}/store/billing?checkout=cancelled`,
-    metadata: { org_id: input.orgId, plan },
-    subscription_data: { metadata: { org_id: input.orgId, plan } },
-  }, { idempotencyKey: checkoutIdempotencyKey(input.orgId, plan, price, input.now), fetchImpl: input.fetchImpl })
+    metadata: { org_id: input.orgId, ...planMeta },
+    subscription_data: { metadata: { org_id: input.orgId, ...planMeta } },
+  }, { idempotencyKey: checkoutIdempotencyKey(input.orgId, row?.key ?? plan, price, input.now), fetchImpl: input.fetchImpl })
   if (!s.url || !/^https:\/\/checkout\.stripe\.com\//.test(s.url)) throw new HttpError(502, 'stripe_error', 'unexpected checkout URL from Stripe')
-  await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: s.id, event: 'billing.checkout_started', actor: input.actor, detail: { plan, provider: 'stripe' } })
+  await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: s.id, event: 'billing.checkout_started', actor: input.actor, detail: { plan, plan_key: row?.key ?? null, plan_status: row?.status ?? null, provider: 'stripe' } })
   return { id: s.id, url: s.url }
 }
 
@@ -82,4 +89,18 @@ export async function createPortalSession(db: Db, input: { orgId: string; actor:
   if (!s.url || !/^https:\/\/billing\.stripe\.com\//.test(s.url)) throw new HttpError(502, 'stripe_error', 'unexpected portal URL from Stripe')
   await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: s.id, event: 'billing.portal_opened', actor: input.actor })
   return { url: s.url }
+}
+
+/**
+ * Cancel the organization's Stripe subscription at once (organization deletion). No-op without one or with
+ * billing off. Shopify-billed stores are cancelled by Shopify when the app is uninstalled.
+ */
+export async function cancelStripeSubscription(db: Db, orgId: string, opts: FetchOpt & { actor: string; reason: string }): Promise<'cancelled' | 'none' | 'billing_off'> {
+  if (billingMode() === 'off' || !stripeConfig.configured) return 'billing_off'
+  const sub = await subscriptionOf(db, orgId, 'stripe')
+  if (!sub?.external_id || ['canceled'].includes(sub.status) || !/^sub_[A-Za-z0-9]+$/.test(sub.external_id)) return 'none'
+  await stripeRequest('DELETE', `/v1/subscriptions/${sub.external_id}`, { cancellation_details: { comment: opts.reason.slice(0, 200) } }, { idempotencyKey: `deploi-cancel-${sub.external_id}`, fetchImpl: opts.fetchImpl })
+  await db.query(`update billing_subscriptions set status = 'canceled', cancel_at_period_end = false where org_id = $1 and provider = 'stripe'`, [orgId])
+  await audit(db, { orgId, entityType: 'subscription', entityId: sub.external_id, event: 'billing.cancelled', actor: opts.actor, detail: { provider: 'stripe', reason: opts.reason } })
+  return 'cancelled'
 }

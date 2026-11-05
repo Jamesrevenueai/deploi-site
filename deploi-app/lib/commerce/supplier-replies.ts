@@ -91,6 +91,9 @@ const STATUS: [LineStatus, RegExp][] = [
   ['shipped', /\b(shipped|dispatched|on its way|in transit)\b/i],
 ]
 
+/** the supplier speaks of what is left over after a first shipment (a split delivery) */
+const REMAINDER = /\b(?:the|any)\s+(?:rest|remainder|balance|remaining\s+(?:units|items|pieces|quantity|qty))\b|\bremaining\s+\d{1,7}\b/i
+
 type Segment = { qty: number[]; price: number[]; status: LineStatus | null; dates: string[] }
 
 function readSegment(text: string, sku: string | null, poNumber: string, receivedAt: Date): Segment {
@@ -190,9 +193,22 @@ export function parseSupplierReply(input: { text: string; attachments?: ReplyAtt
   const lower = body.toLowerCase()
   const keywords: ParsedReply['keywords'] = []
   const negated = /\b(not|cannot|can't|unable to|won't be able to)\s+(?:yet\s+)?(?:be\s+)?confirm/i.test(body)
-  if (!negated && /\b(confirmed|we confirm|i confirm|confirming|can confirm|in full|all items (?:are )?available)\b/i.test(body)) keywords.push('confirmed')
+  // "only 6 now, the rest go out in full later" is a split delivery, not a confirmation of the order in full
+  const split = REMAINDER.test(body)
+  if (!negated && (split ? /\b(confirmed|we confirm|i confirm|confirming|can confirm)\b/i : /\b(confirmed|we confirm|i confirm|confirming|can confirm|in full|all items (?:are )?available)\b/i).test(body)) keywords.push('confirmed')
   if (negated) reasons.push('the supplier says they cannot confirm yet')
   for (const [k, r] of STATUS) if (r.test(lower)) keywords.push(k)
+  if (split) {
+    keywords.push('partial')
+    for (const line of lines) {
+      const ordered = open.find(l => l.sku === line.sku)!.qtyOrdered
+      if (line.qty !== null && line.qty < ordered && !line.status) line.status = 'partial'
+    }
+    // unless the rest is plainly backordered or unavailable, the supplier promises a second shipment: which
+    // quantity goes when must be confirmed before anything is recorded (no reorder for units still coming)
+    if (!/\b(back[\s-]?order(?:ed)?|out of stock|discontinued|unavailable|cannot supply|can't supply|unable to supply)\b/i.test(body))
+      reasons.push('the supplier ships part of the order now and the rest later; the quantity and date of each shipment need confirming')
+  }
 
   // the delivery date: per-line dates are kept on the lines; one order-level date, ignoring a repeat of the PO's own date
   let dates = findDates(own, receivedAt)

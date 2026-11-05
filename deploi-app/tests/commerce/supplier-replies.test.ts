@@ -117,6 +117,20 @@ describe('reading a supplier reply as data', () => {
     expect(opts[0].change.changes).toContainEqual({ entity: 'purchase_order_line', id: 'l1', sku: 'NW-LTB-OAT', field: 'qty_ordered', from: 10, to: 6 })
   })
 
+  it('a split delivery ("only 6 now, the rest go out in full later") is not a confirmation and asks before anything changes', () => {
+    const p = po({}, [{ sku: 'NW-LTB-OAT' }])
+    for (const text of ['We can only send 6 this week, the rest go out in full by Nov 20.', 'Only 6 available now; the remainder will follow in full next month.']) {
+      const r = parseSupplierReply({ po: ctx(p, 'missing_confirmation'), receivedAt: NOW, text })
+      expect(r.keywords).not.toContain('confirmed')
+      expect(r.keywords).toContain('partial')
+      expect(r.lines).toEqual([expect.objectContaining({ sku: 'NW-LTB-OAT', qty: 6, status: 'partial' })])
+      expect(r.outcome).toBe('ambiguous')
+      expect(r.reasons.join(' ')).toMatch(/rest later/)
+    }
+    // a plain confirmation in full is still a confirmation
+    expect(parseSupplierReply({ po: ctx(p, 'missing_confirmation'), receivedAt: NOW, text: 'Confirmed, shipping in full on Nov 12.' })).toMatchObject({ outcome: 'clear', keywords: ['confirmed'] })
+  })
+
   it('price change: the stated unit price becomes "accept the new price" or "cancel the line"', () => {
     const p = po({ status: 'confirmed' }, [{ sku: 'NW-GSJ-S', qty_confirmed: 10, unit_price_confirmed: 13.5 }])
     const r = parseSupplierReply({ po: ctx(p, 'price_change'), receivedAt: NOW, text: 'Sorry, NW-GSJ-S is now $13.50 each due to costs.' })

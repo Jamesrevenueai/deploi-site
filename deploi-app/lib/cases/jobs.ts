@@ -5,6 +5,8 @@
 import { admin } from '../db'
 import { enqueue, registerJobHandler, type EnqueueResult } from '../jobs/queue'
 import { dueCases, runCaseCheck } from './index'
+// case kinds with a checker register themselves on import
+import '../office/receivables'
 
 registerJobHandler('case.check', async payload => {
   const caseId = String(payload.caseId ?? '')

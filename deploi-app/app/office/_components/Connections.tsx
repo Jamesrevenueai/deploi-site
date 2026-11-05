@@ -14,13 +14,14 @@ import { ErrorState, Facts, Loading, Panel, Section } from '@/components/store/b
 import { StatusBadge, fmt } from './shared'
 
 type Conn = { id: string; provider: string; status: string; status_reason: string | null; is_synthetic: boolean; display_name: string | null; external_account_id: string; scopes: string[]; timezone: string | null; connected_at: string }
-type Data = { providers: { provider: 'hubspot' | 'google_calendar'; label: string; configured: boolean; connection: Conn | null }[]
+type Data = { providers: { provider: 'hubspot' | 'google_calendar' | 'quickbooks'; label: string; configured: boolean; connection: Conn | null }[]
   mailboxes: { id: string; provider: string; address: string; status: string; can_send: boolean; can_read: boolean; is_synthetic: boolean; office_mailbox: boolean }[]
   syntheticAllowed: boolean; officeMailboxAvailable: boolean; liveSends: 'off' | 'allowlist' | 'all' }
 
 const WHAT: Record<string, string> = {
   hubspot: 'Reads leads and contacts; writes notes, tasks, lifecycle and deal stages only when an agent with CRM permission does so.',
   google_calendar: 'Reads only your free/busy times; creates, moves or cancels the meetings an agent books.',
+  quickbooks: 'Reads open invoices, payments and customers (QuickBooks Online). Deploi never writes to QuickBooks.',
 }
 
 export function ConnectionsScreen() {
@@ -44,7 +45,7 @@ export function ConnectionsScreen() {
     <>
       {header}
       <div aria-live="polite" className="mb-3 flex flex-col gap-3">
-        {q.get('connected') && <Banner icon="check">Connected {q.get('connected') === 'hubspot' ? 'HubSpot' : 'Google Calendar'}.</Banner>}
+        {q.get('connected') && <Banner icon="check">Connected {q.get('connected') === 'hubspot' ? 'HubSpot' : q.get('connected') === 'quickbooks' ? 'QuickBooks' : 'Google Calendar'}.</Banner>}
         {q.get('error') && <Banner tone="warn">{q.get('error')}</Banner>}
         {err && <ErrorState error={err} />}
         {d.liveSends !== 'all' && <Banner tone="warn">Real email sending is {d.liveSends === 'off' ? 'off' : 'limited to test recipients'} in this environment (EMAIL_LIVE_SENDS). Approved emails to real recipients are held and marked failed with the reason.</Banner>}

@@ -40,7 +40,7 @@ async function visibleAgent(actor: Actor, agentId: string) {
  */
 export async function checkResources(db: Db, orgId: string, p: OfficePolicy) {
   const flags: boolean[] = []
-  const conn = async (id: string | null, provider: 'hubspot' | 'google_calendar', label: string) => {
+  const conn = async (id: string | null, provider: 'hubspot' | 'google_calendar' | 'quickbooks', label: string) => {
     if (!id) return null
     const c = await db.one<{ org_id: string; provider: string; status: string; is_synthetic: boolean; display_name: string | null; external_account_id: string }>('select * from office_connections where id = $1', [id])
     if (!c || c.org_id !== orgId || c.provider !== provider || c.status === 'disconnected') throw new EngineError('invalid_input', `the ${label} chosen is not connected to this organization`)
@@ -49,6 +49,7 @@ export async function checkResources(db: Db, orgId: string, p: OfficePolicy) {
   }
   const hubspot = await conn(p.hubspotConnectionId, 'hubspot', 'HubSpot account')
   const calendar = await conn(p.calendarConnectionId, 'google_calendar', 'calendar')
+  const quickbooks = await conn(p.quickbooksConnectionId, 'quickbooks', 'QuickBooks company')
   let mailbox: string | null = null
   if (p.mailboxAccountId) {
     const a = await db.one<{ org_id: string; status: string; can_send: boolean; provider: string; is_synthetic: boolean; office_mailbox: boolean; address: string }>('select * from email_accounts where id = $1', [p.mailboxAccountId])
@@ -59,7 +60,7 @@ export async function checkResources(db: Db, orgId: string, p: OfficePolicy) {
     mailbox = a.address
   }
   if (flags.length && flags.some(f => f !== flags[0])) throw new EngineError('invalid_input', 'a synthetic (test) connection cannot be combined with a real account in one agent')
-  return { hubspot, calendar, mailbox }
+  return { hubspot, calendar, mailbox, quickbooks }
 }
 
 export async function createOfficeAgent(actor: Actor, input: { kind: OfficeKind; name: string; policy: unknown }) {

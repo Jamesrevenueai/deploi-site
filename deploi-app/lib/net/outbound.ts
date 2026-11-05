@@ -4,7 +4,7 @@
  */
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe' | 'hubspot' | 'google_calendar', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe' | 'hubspot' | 'google_calendar' | 'quickbooks', string[]> = {
   shopify: [], // <shop>.myshopify.com only, checked by suffix below
   shopify_partners: ['partners.shopify.com'], // Partner API: Shopify App Pricing subscription status
   amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
@@ -16,6 +16,9 @@ export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'sho
   hubspot: ['api.hubapi.com'],
   // Deploi Office: Google OAuth token endpoint, OpenID userinfo and the Calendar API (accounts.google.com is a browser redirect)
   google_calendar: ['oauth2.googleapis.com', 'openidconnect.googleapis.com', 'www.googleapis.com'],
+  // Deploi Office: Intuit OAuth token + revoke endpoints and the QuickBooks Online Accounting API (production and sandbox);
+  // appcenter.intuit.com (consent) is a browser redirect, never fetched
+  quickbooks: ['oauth.platform.intuit.com', 'developer.api.intuit.com', 'quickbooks.api.intuit.com', 'sandbox-quickbooks.api.intuit.com'],
   competitor_public: [], // a public https store the merchant chose to monitor; never a private address or an IP, and never a provider above
 }
 

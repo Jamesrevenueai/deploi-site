@@ -31,8 +31,8 @@ export async function POST(req: Request) {
     if (typeof b.template === 'string') {
       const t = officeTemplate(b.template)
       if (!t) throw new HttpError(400, 'invalid_input', 'unknown template')
-      const [hs, cal] = await admin(db => Promise.all([activeConnection(db, actor.orgId, 'hubspot'), activeConnection(db, actor.orgId, 'google_calendar')]))
-      const policy = officeTemplatePolicy(t.key, { hubspotConnectionId: hs?.id ?? null, calendarConnectionId: cal?.id ?? null, mailboxAccountId: str(b.mailboxAccountId) ?? null,
+      const [hs, cal, qb] = await admin(db => Promise.all([activeConnection(db, actor.orgId, 'hubspot'), activeConnection(db, actor.orgId, 'google_calendar'), activeConnection(db, actor.orgId, 'quickbooks')]))
+      const policy = officeTemplatePolicy(t.key, { hubspotConnectionId: hs?.id ?? null, calendarConnectionId: cal?.id ?? null, quickbooksConnectionId: qb?.id ?? null, mailboxAccountId: str(b.mailboxAccountId) ?? null,
         timezone: str(b.timezone) ?? cal?.timezone ?? 'UTC', senderName: str(b.senderName), pitch: str(b.pitch) })
       return NextResponse.json({ ok: true, ...(await createOfficeAgent(actor, { kind: t.key, name: str(b.name) ?? t.name, policy })) })
     }

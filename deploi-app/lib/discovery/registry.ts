@@ -20,6 +20,8 @@ export type DiscoveryFinding = {
   records: CaseRecord[]
   /** what must be observed for the case to count as resolved */
   verification: { criteria: string; rule?: Record<string, unknown> }
+  /** the application the problem is in, when it differs from the detector's sourceApp (optional) */
+  sourceApp?: string
 }
 
 export type AgentRecommendation = {
@@ -33,8 +35,23 @@ export type AgentRecommendation = {
   needs: string[]
 }
 
-export type DetectorContext = { orgId: string; now: Date }
-export type DetectorResult = { findings: DiscoveryFinding[]; recommendation: AgentRecommendation | null; sourcesRead: string[]; notes?: string[] }
+/**
+ * `shared` (optional) lives for one discovery run: detectors that read the same source (two store detectors
+ * reading one catalog) cache the read there instead of reading it twice. `deadline` (epoch ms, optional) is
+ * when the run stops waiting for this detector; a detector that can stop early should.
+ */
+export type DetectorContext = { orgId: string; now: Date; shared?: Map<string, unknown>; deadline?: number }
+
+/** A fact for the business profile: a count or plain value read from an authorized source, never inferred. */
+export type ProfileFact = { key: string; label: string; value: number | string | boolean; source: string; observedAt: string; /** the count stopped at a read limit: "at least" */ capped?: boolean }
+
+export type DetectorResult = {
+  findings: DiscoveryFinding[]; recommendation: AgentRecommendation | null; sourcesRead: string[]; notes?: string[]
+  /** further recommendations, when one detector's findings call for more than one agent (optional) */
+  recommendations?: AgentRecommendation[]
+  /** profile facts the detector observed while reading (optional) */
+  facts?: ProfileFact[]
+}
 
 export type Detector = {
   key: string
@@ -48,4 +65,6 @@ export type Detector = {
 
 const detectors = new Map<string, Detector>()
 export function registerDetector(d: Detector) { detectors.set(d.key, d) }
+/** Tests only: remove a detector registered for one test. */
+export function unregisterDetector(key: string) { detectors.delete(key) }
 export const listDetectors = () => [...detectors.values()]

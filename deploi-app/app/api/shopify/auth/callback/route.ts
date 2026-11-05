@@ -8,6 +8,7 @@ import { runScan } from '@/lib/engine/scan'
 import { log } from '@/lib/log'
 import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 import '@/lib/connectors'
+import { requestDiscovery } from '@/lib/discovery/jobs'
 
 /** Authorization code callback: HMAC, state and shop are verified before the code is exchanged. */
 export async function GET(req: Request) {
@@ -29,5 +30,6 @@ export async function GET(req: Request) {
   store.delete('deploi_shopify_state')
   const r = await ensureInstalled(shop, '', { exchange: s => exchangeAuthorizationCode(s, code), force: true })
   after(() => runScan(r.connectionId, { trigger: 'install', actor: `shopify:${shop}:install` }).then(() => undefined, () => undefined))
+  after(() => requestDiscovery(r.orgId, `shopify:${r.connectionId}`))
   return NextResponse.redirect(`https://${shop}/admin/apps/${shopifyConfig.apiKey}`)
 }

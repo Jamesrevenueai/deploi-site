@@ -7,6 +7,7 @@
  *                     after a crash) runs the agent once; the second attempt is a recorded skip.
  *  email.send         one queued message: sendMessage moves a row Queued -> Sending once, so a repeat is a no-op.
  *  email.reconcile    interrupted and unknown sends (never resent blindly).
+ *  discovery.run      read what an organization connected, open cases, recommend a team (lib/discovery).
  *  engine.recover     interrupted store writes: queued/prechecking resume through every gate; a write that
  *                     may have happened becomes "unknown" for the merchant (lib/engine/recover.ts).
  *
@@ -20,6 +21,8 @@ import { runAgent } from '../agents/run'
 import { reconcileOpen, sendMessage } from '../email/engine'
 import { recoverInterruptedExecutions } from '../engine/recover'
 import { enqueue, registerJobHandler, type EnqueueResult } from './queue'
+// discovery.run (lib/discovery/jobs.ts registers the handler; its detectors register case checkers)
+import '../discovery/jobs'
 
 registerJobHandler('agent.run', async payload => {
   const agentId = String(payload.agentId ?? '')

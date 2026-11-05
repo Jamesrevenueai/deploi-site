@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { HttpError, limitActor, readJson } from '@/lib/store/request'
 import { officeActor, officeError } from '@/lib/office/request'
 import { requireAgreements } from '@/lib/legal'
@@ -6,6 +6,7 @@ import { officeConnections } from '@/lib/office/queries'
 import { connectSyntheticOffice, disconnectOffice, startOfficeConnect } from '@/lib/office/connections'
 import { connectSyntheticMailbox, createOfficeMailbox } from '@/lib/office/mailbox'
 import type { OfficeProvider } from '@/lib/office/config'
+import { requestDiscovery } from '@/lib/discovery/jobs'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,10 +35,15 @@ export async function POST(req: Request) {
     if (body.op === 'connect' || body.op === 'mailbox') await requireAgreements(actor, 'office')
     if (body.op === 'connect') await limitActor('oauth_start', actor)
     if (body.op === 'connect') return NextResponse.json({ ok: true, url: (await startOfficeConnect(actor, provider(body.provider))).url })
-    if (body.op === 'synthetic') return NextResponse.json({ ok: true, connection: { id: (await connectSyntheticOffice(actor, provider(body.provider))).id } })
+    if (body.op === 'synthetic') {
+      const conn = await connectSyntheticOffice(actor, provider(body.provider))
+      after(() => requestDiscovery(conn.org_id, `${conn.provider}:${conn.id}`))
+      return NextResponse.json({ ok: true, connection: { id: conn.id } })
+    }
     if (body.op === 'disconnect') return NextResponse.json({ ok: true, ...(await disconnectOffice(actor, String(body.id ?? ''))) })
     if (body.op === 'mailbox') {
       const acc = body.kind === 'synthetic' ? await connectSyntheticMailbox(actor) : await createOfficeMailbox(actor)
+      after(() => requestDiscovery(acc.org_id, `mailbox:${acc.id}`))
       return NextResponse.json({ ok: true, mailbox: { id: acc.id, address: acc.address } })
     }
     throw new HttpError(400, 'invalid_input', 'unknown operation')

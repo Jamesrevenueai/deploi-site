@@ -11,6 +11,7 @@ import { runScan } from '@/lib/engine/scan'
 import { log } from '@/lib/log'
 import { hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 import '@/lib/connectors'
+import { requestDiscovery } from '@/lib/discovery/jobs'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
   after(async () => {
     const f = await finalizeAuthorization(stateId).catch(() => null)
     if (f?.status === 'connected' && f.connectionId) await runScan(f.connectionId, { trigger: 'install', actor: 'woocommerce:install' }).catch(() => undefined)
+    if (f?.status === 'connected' && f.connectionId) await requestDiscovery(f.orgId, `woocommerce:${f.connectionId}`)
   })
   return NextResponse.json({ ok: true })
 }

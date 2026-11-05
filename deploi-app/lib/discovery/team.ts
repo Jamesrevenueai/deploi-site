@@ -177,7 +177,7 @@ export function aggregateRecommendations(items: RecommendationInput[]): TeamReco
     return {
       template, suite: s?.suite ?? sorted[0].rec.suite, name: s?.name ?? sorted[0].rec.name,
       reason: sorted[0].rec.reason, reasons: [...new Set(sorted.map(r => r.rec.reason))],
-      findings: recs.reduce((n, r) => n + r.findings, 0), detectors: [...new Set(recs.map(r => r.detector))],
+      findings: recs.reduce((n, r) => n + r.findings, 0), detectors: [...new Set(sorted.map(r => r.detector))],
       monitors: s?.monitors ?? null, schedule: s?.schedule ?? null, approval: DRAFTS_ONLY, limits: s?.limits ?? [],
       needs: [...new Set(recs.flatMap(r => r.rec.needs ?? []))],
       setup: s ? 'automatic' : 'manual',

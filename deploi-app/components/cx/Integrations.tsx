@@ -105,7 +105,6 @@ function IntegrationCard({ i, onChanged, onAdvanced }: { i: IntegrationView; onC
         ))}
         {note && <p className={`mt-3 text-[14px] ${note.tone === 'danger' ? 'text-danger' : note.tone === 'warn' ? 'text-warn' : 'text-ok'}`} role="status" data-testid="test-result">{note.text}</p>}
         <div className="mt-4 flex flex-wrap gap-2">
-          {!available && <span className="text-[14px] text-grey-h">Not available yet.</span>}
           {available && i.connections.length === 0 && i.can.connect && (
             <Link href={i.connectHref} className="btn ghost xs" aria-label={`Connect ${i.name}`}>Connect<Icon name="arrow-right" size={14} /></Link>
           )}

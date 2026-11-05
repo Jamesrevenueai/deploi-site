@@ -62,7 +62,7 @@ export default function DiscoverPage() {
   if (error && !data) return <><PageHeader title="Business discovery" /><ErrorState error={error} onRetry={reload} /></>
   const v = data!
   const found = v.findings.total > 0
-  const notCreated = v.team.filter(t => !t.agent && t.setup === 'automatic')
+  const notCreated = v.team.filter(t => !t.agent && t.setup === 'automatic' && t.needs.length === 0)
 
   return (
     <>

@@ -10,11 +10,47 @@ import { audit } from '../engine/audit'
 import { isTierKey, type TierKey } from '../library/config'
 import { pricingPlansUrl } from '../connectors/shopify/billing'
 import { billingMode, priceIdFor, stripeConfig } from './config'
-import { stripeRequest } from './stripe'
-import { checkoutRefusal, planByKey } from '../plans/catalog'
+import { StripeError, stripeFailureMessage, stripeRequest } from './stripe'
+import { checkoutRefusal, planByKey, type PlanRow } from '../plans/catalog'
 import { billingProviderFor, subscriptionOf } from './state'
+import { priceIdForPlan } from './plans'
 
 type FetchOpt = { fetchImpl?: typeof fetch }
+
+/** Run Stripe calls and turn a Stripe failure into an honest API error (card, rate limit, outage). */
+export async function viaStripe<T>(fn: () => Promise<T>): Promise<T> {
+  try { return await fn() } catch (e) {
+    if (e instanceof StripeError) { const m = stripeFailureMessage(e); throw new HttpError(m.status, m.code, m.message) }
+    throw e
+  }
+}
+
+/** Normalized SHA-256 of a billing e-mail address (one trial per address; the address itself is not stored here). */
+export function emailHash(email: string | null | undefined): string | null {
+  const e = (email ?? '').trim().toLowerCase()
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return null
+  const [local, domain] = e.split('@')
+  // plus-addressing is the same mailbox
+  return createHash('sha256').update(`${local.split('+')[0]}@${domain}`).digest('hex')
+}
+
+export type TrialEligibility = { eligible: boolean; reason: string | null }
+
+/**
+ * One trial per organization, per Stripe customer and per e-mail address: refused when any of them already
+ * had a trial, or when the organization already had a subscription that started.
+ */
+export async function trialEligibility(db: Db, input: { orgId: string; customer?: string | null; emailHash?: string | null }): Promise<TrialEligibility> {
+  const t = await db.one<{ org: boolean; cust: boolean; mail: boolean }>(
+    `select exists (select 1 from billing_trials where org_id = $1) as org,
+            exists (select 1 from billing_trials where $2::text is not null and customer_external_id = $2) as cust,
+            exists (select 1 from billing_trials where $3::text is not null and email_hash = $3) as mail`, [input.orgId, input.customer ?? null, input.emailHash ?? null])
+  if (t?.org) return { eligible: false, reason: 'this organization already had its trial' }
+  if (t?.cust || t?.mail) return { eligible: false, reason: 'a trial was already used with this billing account' }
+  const prior = await db.one<{ id: string }>(`select id from billing_subscriptions where org_id = $1 and provider = 'stripe' and status <> 'incomplete'`, [input.orgId])
+  if (prior) return { eligible: false, reason: 'this organization already had a subscription' }
+  return { eligible: true, reason: null }
+}
 
 function assertStripeBilling() {
   if (billingMode() === 'off') throw new HttpError(409, 'billing_off', 'billing is not switched on yet: the private beta is free')
@@ -31,14 +67,18 @@ async function assertStripeProvider(db: Db, orgId: string) {
 
 /** Reuse the organization's Stripe customer, or create one (idempotent per organization). */
 export async function ensureCustomer(db: Db, orgId: string, opts: FetchOpt & { email?: string | null } = {}): Promise<string> {
+  const hash = emailHash(opts.email)
   const existing = await db.one<{ external_id: string }>('select external_id from billing_customers where org_id = $1', [orgId])
-  if (existing) return existing.external_id
+  if (existing) {
+    if (hash) await db.query('update billing_customers set email_hash = coalesce(email_hash, $2) where org_id = $1', [orgId, hash])
+    return existing.external_id
+  }
   const org = await db.one<{ name: string }>('select name from agencies where id = $1', [orgId])
   if (!org) throw new HttpError(404, 'not_found', 'organization not found')
   const c = await stripeRequest<{ id: string; livemode: boolean }>('POST', '/v1/customers', { name: org.name.slice(0, 200), email: opts.email ?? undefined, metadata: { org_id: orgId } },
     { idempotencyKey: `deploi-customer-${orgId}`, fetchImpl: opts.fetchImpl })
   if (!/^cus_[A-Za-z0-9]+$/.test(c.id)) throw new HttpError(502, 'stripe_error', 'unexpected customer id from Stripe')
-  await db.query(`insert into billing_customers (org_id, external_id, livemode) values ($1,$2,$3) on conflict (org_id) do nothing`, [orgId, c.id, Boolean(c.livemode)])
+  await db.query(`insert into billing_customers (org_id, external_id, livemode, email_hash) values ($1,$2,$3,$4) on conflict (org_id) do nothing`, [orgId, c.id, Boolean(c.livemode), hash])
   return (await db.one<{ external_id: string }>('select external_id from billing_customers where org_id = $1', [orgId]))!.external_id
 }
 
@@ -51,21 +91,26 @@ export function checkoutIdempotencyKey(orgId: string, plan: TierKey | string, pr
 export async function createCheckoutSession(db: Db, input: { orgId: string; plan: unknown; email?: string | null; actor: string; appUrl: string; now?: Date } & FetchOpt) {
   assertStripeBilling()
   // a plan from the plans table (lib/plans/catalog.ts), or one of the library tiers
-  const row = typeof input.plan === 'string' ? await planByKey(input.plan, db) : null
+  const row: PlanRow | null = typeof input.plan === 'string' ? await planByKey(input.plan, db) : null
   if (!row && !isTierKey(input.plan)) throw new HttpError(400, 'invalid_input', 'plan must be one of the plans on sale')
   const plan: TierKey = row?.tier_key ?? input.plan as TierKey
   // owner approval before any price is final: a hypothesis is sold in Stripe test mode only
   const refused = row ? checkoutRefusal(row, billingMode()) : billingMode() === 'live' ? `the ${plan} plan has no approved price record` : null
   if (refused) throw new HttpError(409, 'plan_not_approved', refused)
-  const price = row?.stripe_price_id ?? priceIdFor(plan)
+  const price = row ? priceIdForPlan(row) : priceIdFor(plan)
   if (!price) throw new HttpError(503, 'billing_not_configured', `no Stripe price is configured for the ${row?.key ?? plan} plan`)
-  const planMeta: Record<string, string> = row && row.key !== plan ? { plan, plan_key: row.key } : { plan }
+  const planMeta: Record<string, string> = row ? { plan, plan_key: row.key } : { plan }
   await assertStripeProvider(db, input.orgId)
   const sub = await subscriptionOf(db, input.orgId, 'stripe')
-  if (sub && ['active', 'trialing', 'past_due'].includes(sub.status)) throw new HttpError(409, 'already_subscribed', 'this organization already has a subscription: change or cancel it in the billing portal')
-  const customer = await ensureCustomer(db, input.orgId, { email: input.email, fetchImpl: input.fetchImpl })
+  if (sub && ['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status)) throw new HttpError(409, 'already_subscribed', 'this organization already has a subscription: change or cancel it on the billing page')
+  const customer = await viaStripe(() => ensureCustomer(db, input.orgId, { email: input.email, fetchImpl: input.fetchImpl }))
+  // the plan's trial (plans.trial_days), once per organization, customer and e-mail
+  const hash = (await db.one<{ email_hash: string | null }>('select email_hash from billing_customers where org_id = $1', [input.orgId]))?.email_hash ?? emailHash(input.email)
+  const trialDays = row?.trial_days ?? 0
+  const trial = trialDays > 0 ? await trialEligibility(db, { orgId: input.orgId, customer, emailHash: hash }) : { eligible: false, reason: null }
+  const withTrial = trialDays > 0 && trial.eligible
   const base = input.appUrl.replace(/\/$/, '')
-  const s = await stripeRequest<{ id: string; url: string }>('POST', '/v1/checkout/sessions', {
+  const s = await viaStripe(() => stripeRequest<{ id: string; url: string }>('POST', '/v1/checkout/sessions', {
     mode: 'subscription',
     customer,
     client_reference_id: input.orgId,
@@ -73,11 +118,18 @@ export async function createCheckoutSession(db: Db, input: { orgId: string; plan
     success_url: `${base}/store/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${base}/store/billing?checkout=cancelled`,
     metadata: { org_id: input.orgId, ...planMeta },
-    subscription_data: { metadata: { org_id: input.orgId, ...planMeta } },
-  }, { idempotencyKey: checkoutIdempotencyKey(input.orgId, row?.key ?? plan, price, input.now), fetchImpl: input.fetchImpl })
+    // a trial needs no card up front; at its end Stripe invoices, and without a payment method the
+    // subscription goes past due: the grace period, then read-only (lib/billing/state.ts)
+    ...(withTrial ? { payment_method_collection: 'if_required' } : {}),
+    subscription_data: {
+      metadata: { org_id: input.orgId, ...planMeta },
+      ...(withTrial ? { trial_period_days: trialDays, trial_settings: { end_behavior: { missing_payment_method: 'create_invoice' } } } : {}),
+    },
+  }, { idempotencyKey: checkoutIdempotencyKey(input.orgId, `${row?.key ?? plan}${withTrial ? ':trial' : ''}`, price, input.now), fetchImpl: input.fetchImpl }))
   if (!s.url || !/^https:\/\/checkout\.stripe\.com\//.test(s.url)) throw new HttpError(502, 'stripe_error', 'unexpected checkout URL from Stripe')
-  await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: s.id, event: 'billing.checkout_started', actor: input.actor, detail: { plan, plan_key: row?.key ?? null, plan_status: row?.status ?? null, provider: 'stripe' } })
-  return { id: s.id, url: s.url }
+  await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: s.id, event: 'billing.checkout_started', actor: input.actor,
+    detail: { plan, plan_key: row?.key ?? null, plan_status: row?.status ?? null, provider: 'stripe', trial_days: withTrial ? trialDays : 0, trial_refused: trialDays > 0 && !trial.eligible ? trial.reason : null } })
+  return { id: s.id, url: s.url, trialDays: withTrial ? trialDays : 0, trialRefused: trialDays > 0 && !trial.eligible ? trial.reason : null }
 }
 
 export async function createPortalSession(db: Db, input: { orgId: string; actor: string; appUrl: string } & FetchOpt) {
@@ -85,7 +137,7 @@ export async function createPortalSession(db: Db, input: { orgId: string; actor:
   await assertStripeProvider(db, input.orgId)
   const c = await db.one<{ external_id: string }>('select external_id from billing_customers where org_id = $1', [input.orgId])
   if (!c) throw new HttpError(409, 'no_customer', 'start a subscription first')
-  const s = await stripeRequest<{ id: string; url: string }>('POST', '/v1/billing_portal/sessions', { customer: c.external_id, return_url: `${input.appUrl.replace(/\/$/, '')}/store/billing` }, { fetchImpl: input.fetchImpl })
+  const s = await viaStripe(() => stripeRequest<{ id: string; url: string }>('POST', '/v1/billing_portal/sessions', { customer: c.external_id, return_url: `${input.appUrl.replace(/\/$/, '')}/store/billing` }, { idempotencyKey: `deploi-portal-${input.orgId}-${Math.floor(Date.now() / 60e3)}`, fetchImpl: input.fetchImpl }))
   if (!s.url || !/^https:\/\/billing\.stripe\.com\//.test(s.url)) throw new HttpError(502, 'stripe_error', 'unexpected portal URL from Stripe')
   await audit(db, { orgId: input.orgId, entityType: 'subscription', entityId: s.id, event: 'billing.portal_opened', actor: input.actor })
   return { url: s.url }

@@ -10,6 +10,7 @@ import { log } from '@/lib/log'
 import { billingMode, stripeConfig } from '@/lib/billing/config'
 import { verifyStripeSignature } from '@/lib/billing/stripe'
 import { handleStripeEvent, isStripeEvent } from '@/lib/billing/webhooks'
+import { deliverNotices } from '@/lib/billing/notify'
 import { limitRejectedWebhook } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -36,6 +37,8 @@ export async function POST(req: Request) {
   }
   try {
     const r = await admin(db => handleStripeEvent(db, event))
+    // notices queued by the event are sent now that it is committed; a send failure is retried by the cron
+    if (r.orgId) await deliverNotices({ orgId: r.orgId }).catch(e => log.warn('stripe.webhook.notice_failed', { error: (e as Error).message.slice(0, 200) }))
     return NextResponse.json({ ok: true, duplicate: r.duplicate, outcome: r.outcome ?? null })
   } catch (e) {
     // rolled back: the event id was not claimed, so Stripe's retry processes it again

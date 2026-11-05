@@ -19,4 +19,5 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/staff/audit', label: 'Audit', icon: 'list' },
   { href: '/staff/store-access', label: 'Store access', icon: 'shield' },
   { href: '/staff/unit-economics', label: 'Unit economics', icon: 'dollar' },
+  { href: '/staff/finance', label: 'Finance', icon: 'file' },
 ]

@@ -4,6 +4,7 @@
  * item, a decision the item does not offer, and staff.
  */
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
+import { resetOffice } from '../office/helpers'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { listPendingApprovals, decideApproval, registerApprovalSource, approvalSources } from '../../lib/approvals'
@@ -26,7 +27,7 @@ async function emailAwaiting(actor: Actor, m: typeof NW) {
   return { ...c, messageId: r.created[0].id }
 }
 
-beforeEach(async () => { fakeResend(); if (ready) { await cleanInfra(); await resetMerchant(NW); await resetMerchant(HB); await admin(db => db.query(`delete from library_actions where org_id = any($1::uuid[]) and agent_key = 'campaign'`, [[NW.org, HB.org]])) } })
+beforeEach(async () => { fakeResend(); if (ready) { await cleanInfra(); await resetMerchant(NW); await resetMerchant(HB); await resetOffice(NW, { enable: false }); await resetOffice(HB, { enable: false }); await admin(db => db.query(`delete from library_actions where org_id = any($1::uuid[]) and agent_key = 'campaign'`, [[NW.org, HB.org]])) } })
 afterEach(restoreEmail)
 afterAll(async () => { if (ready) { await cleanInfra(); await admin(db => db.query(`delete from library_actions where agent_key = 'campaign'`)) } })
 

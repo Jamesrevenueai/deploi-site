@@ -41,6 +41,9 @@ export const PRIVACY_COVERAGE: Record<string, TableStep> = {
 /** Tables with a personal-looking column that never hold a Shopify shopper's data, and why. */
 export const PRIVACY_EXEMPT: Record<string, string> = {
   profiles: 'the merchant\'s own users (sign-in accounts), not shoppers',
+  billing_customers: 'the merchant\'s own Stripe billing customer (the business paying Deploi), never a shopper',
+  billing_trials: 'the merchant\'s own trial record (an e-mail hash for one trial per business), never a shopper',
+  billing_notices: 'billing notices sent to the merchant\'s owner about Deploi\'s own invoices, never to a shopper',
   invites: 'invitations to the merchant\'s own team',
   legal_acceptances: 'the merchant users who accepted the terms (append-only legal evidence)',
   email_accounts: 'the agent mailboxes and connected merchant mailboxes themselves',

@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
-    const m = merchantFor(await resolveActor(req, { mutating: true }))
+    const m = await merchantFor(await resolveActor(req, { mutating: true }))
     const body = await readJson(req)
     if (typeof body.connectionId !== 'string') throw new HttpError(400, 'invalid_input', 'connectionId is required')
     const r = await disconnectStore(m.orgId, body.connectionId, m.label)

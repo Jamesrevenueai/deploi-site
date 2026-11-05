@@ -8,6 +8,7 @@ import { audit } from './audit'
 import { assertMerchant, approverKind, withActor, type Actor } from './actor'
 import { EngineError } from './errors'
 import { invalidateProposal, type ProposalRow } from './proposals'
+import { assertCan } from '../platform/rbac'
 
 export async function approveProposal(actor: Actor, proposalId: string, shownChangeHash: string, opts: { now?: Date; ip?: string | null } = {}): Promise<{ approvalId: string }> {
   const now = opts.now ?? new Date()
@@ -15,6 +16,7 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
   const visible = await withActor(actor, db => db.one<{ id: string; org_id: string }>('select id, org_id from proposals where id = $1', [proposalId]), { ip: opts.ip })
   if (!visible) throw new EngineError('not_found', 'proposal not found')
   assertMerchant(actor, visible.org_id)
+  await assertCan(actor, visible.org_id, 'approve') // owners and admins; members only when the owner allows it
 
   return admin(async db => {
     const p = await db.one<ProposalRow>('select * from proposals where id = $1 for update', [proposalId])

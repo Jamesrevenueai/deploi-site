@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const actor = await resolveActor(req, { mutating: true })
     await requireAgreements(actor, 'commerce')
     await limitActor('oauth_start', actor)
-    const m = merchantFor(actor)
+    const m = await merchantFor(actor)
     const body = await readJson(req)
     await purgeStaleStates().catch(() => 0)
     const r = await startAuthorization({ orgId: m.orgId, actor: m.label, profileId: m.profileId, siteUrl: body.siteUrl })

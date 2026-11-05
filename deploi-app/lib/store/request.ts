@@ -76,6 +76,8 @@ export async function resolveActor(req: Request, opts: { mutating?: boolean } = 
     return { kind: 'staff', session: s, label: `staff:${s.email}` }
   }
   if (s.orgType !== 'merchant' || !s.agencyId) throw new HttpError(403, 'not_a_merchant', 'this account is not linked to a store organization')
+  // viewers are read-only: every state-changing call is refused (lib/platform/rbac.ts; the role is re-read from the profile on every request)
+  if (opts.mutating && s.orgRole === 'viewer') throw new HttpError(403, 'read_only_role', 'your role (viewer) is read-only; ask an owner or admin')
   if (opts.mutating) await limitWrites(`org:${s.agencyId}`)
   return { kind: 'profile', session: s, orgId: s.agencyId, label: `user:${s.email}` }
 }

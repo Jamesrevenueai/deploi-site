@@ -32,6 +32,7 @@ import { orgStopReason } from '../engine/kill-switch'
 import { suppressedAmong } from './suppression'
 import { unsubscribeUrl } from './unsubscribe'
 import { log } from '../log'
+import { assertCan } from '../platform/rbac'
 
 export type EmailStatus = 'draft' | 'awaiting_approval' | 'queued' | 'sending' | 'accepted' | 'failed' | 'delivery_unknown' | 'cancelled'
 export type EmailMessageRow = {
@@ -133,6 +134,7 @@ export async function approveMessage(actor: Actor, messageId: string, shownHash:
   const visible = await withActor(actor, db => db.one<{ id: string; org_id: string }>('select id, org_id from email_messages where id = $1', [messageId]))
   if (!visible) throw new EngineError('not_found', 'message not found')
   assertMerchant(actor, visible.org_id)
+  await assertCan(actor, visible.org_id, 'approve') // owners and admins; members only when the owner allows it
   await admin(async db => {
     const m = await db.one<EmailMessageRow>('select * from email_messages where id = $1 for update', [messageId])
     if (!m) throw new EngineError('not_found', 'message not found')
@@ -371,6 +373,7 @@ export async function resolveUnknown(actor: Actor, messageId: string, decision: 
   const visible = await withActor(actor, db => db.one<{ id: string; org_id: string; status: string }>('select id, org_id, status from email_messages where id = $1', [messageId]))
   if (!visible) throw new EngineError('not_found', 'message not found')
   assertMerchant(actor, visible.org_id)
+  if (decision === 'not_sent') await assertCan(actor, visible.org_id, 'approve') // "not sent" sends again
   const m = await admin(db => db.one<EmailMessageRow>('select * from email_messages where id = $1', [messageId]))
   if (!m || m.status !== 'delivery_unknown') throw new EngineError('not_pending', 'only messages with unknown delivery can be resolved')
   if (decision === 'was_sent') {

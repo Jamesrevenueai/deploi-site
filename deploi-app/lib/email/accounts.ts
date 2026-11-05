@@ -13,6 +13,7 @@ import { decryptSecret, encryptSecret } from '../connectors/credentials'
 import { emailAdapter } from './adapters'
 import { emailConfig } from './config'
 import type { AccountRef, EmailProvider } from './types'
+import { assertCan } from '../platform/rbac'
 
 export type EmailAccountRow = {
   id: string; org_id: string; provider: EmailProvider; address: string; display_name: string | null
@@ -38,6 +39,7 @@ export function providerStatus(p: EmailProvider): { configured: boolean; label: 
 export async function startConnect(actor: Actor, input: { provider: EmailProvider; read?: boolean; accountId?: string | null; returnTo?: string | null }) {
   if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff cannot connect a merchant mailbox')
   assertMerchant(actor, actor.orgId)
+  await assertCan(actor, actor.orgId, 'connect') // owners and admins only (F-08)
   const adapter = emailAdapter(input.provider)
   if (!providerStatus(input.provider).configured) throw new EngineError('not_operational', `${adapter.label} is not available in this environment yet`)
   const state = b64url(randomBytes(32))
@@ -187,6 +189,7 @@ export async function visibleAccount(actor: Actor, accountId: string): Promise<E
 export async function disconnectAccount(actor: Actor, accountId: string) {
   const acc = await visibleAccount(actor, accountId)
   assertMerchant(actor, acc.org_id)
+  await assertCan(actor, acc.org_id, 'connect')
   let revoked: 'revoked' | 'not_supported' | 'failed' = 'not_supported'
   try {
     const creds = await admin(db => db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null }>('select * from email_credentials where account_id = $1', [acc.id]))

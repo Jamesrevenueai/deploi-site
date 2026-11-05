@@ -64,6 +64,7 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/email/oauth/synthetic/route.ts': { why: 'synthetic consent page, off unless synthetic mail is allowed', evidence: /syntheticAllowed/ },
   'app/api/staff/economics/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/integrations/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
+  'app/api/staff/finance/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/plans/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on edits', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
 }
 

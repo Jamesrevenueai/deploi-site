@@ -67,6 +67,8 @@ const VALUE_OVERRIDES: Record<string, string> = {
   'office_invoices.qbo_invoice_id': `'1001'`,
   // an address or @domain (checked by the table)
   'email_sender_rules.pattern': `'@isolation-test.example'`,
+  // a Stripe invoice id (in_...): the generic short key does not match the pattern
+  'billing_payment_failures.invoice_external_id': `'in_' || substr(md5(random()::text), 1, 12)`,
 }
 
 describe.skipIf(!ready)('cross-tenant isolation of every org-scoped table', () => {

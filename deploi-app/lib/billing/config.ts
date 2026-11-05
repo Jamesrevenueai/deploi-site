@@ -36,7 +36,8 @@ export const stripeConfig = {
   get mode() { return billingMode() },
   get secretKey() { return v(process.env, 'STRIPE_SECRET_KEY') },
   get webhookSecret() { return v(process.env, 'STRIPE_WEBHOOK_SECRET') },
-  get graceDays() { const n = Number(v(process.env, 'BILLING_GRACE_DAYS')); return Number.isInteger(n) && n >= 0 && n <= 60 ? n : 7 },
+  // unset or blank means the default (Number('') would be 0: no grace at all)
+  get graceDays() { const raw = v(process.env, 'BILLING_GRACE_DAYS'); const n = Number(raw); return raw !== '' && Number.isInteger(n) && n >= 0 && n <= 60 ? n : 7 },
   get configured() { return Boolean(this.secretKey && this.webhookSecret) },
 }
 

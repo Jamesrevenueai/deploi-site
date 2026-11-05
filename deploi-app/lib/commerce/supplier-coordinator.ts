@@ -34,7 +34,7 @@ import {
 } from '../cases'
 import { fullyReceived, isoDate, loadPo, openLines, refreshStatus, type PurchaseOrder } from './purchase-orders'
 import { DEFAULT_EXCEPTION_SETTINGS, EXCEPTION_LABEL, findSupplierExceptions, priceDiffers, SUPPLIER_EXCEPTION_KIND, type ExceptionRule, type ExceptionSettings } from './supplier-exceptions'
-import { parseSupplierReply, type ParsedReply, type ReplyAttachment } from './supplier-replies'
+import { interpretSupplierReply, type ParsedReply, type ReplyAttachment } from './supplier-replies'
 
 export const COORDINATOR_TASK = 'supplier_exception' as const
 const FOLLOWUP_DAYS = 3
@@ -403,8 +403,11 @@ async function handleReply(r: InboundRow, now: Date, attachmentText: Record<stri
   let content: { subject?: string; text?: string }
   try { content = JSON.parse(decryptSecret(r.key_id, r.content_ciphertext, `email-inbound:${r.id}`)) } catch { return ignore('the reply could not be read') }
   const attachments: ReplyAttachment[] = (Array.isArray(r.attachments) ? r.attachments : []).map(a => ({ filename: String(a.filename ?? 'attachment'), contentType: String(a.contentType ?? 'application/octet-stream'), size: typeof a.size === 'number' ? a.size : null, content: attachmentText[String(a.filename ?? '')] ?? null }))
-  const parsed = parseSupplierReply({ text: String(content.text ?? ''), attachments, receivedAt: new Date(r.received_at), po: { poNumber: po.po_number, expectedAt: po.expected_at, caseType: rule.type,
-    lines: po.lines.map(l => ({ sku: l.sku, qtyOrdered: l.qty_ordered, priceOrdered: l.unit_price_ordered, cancelled: l.cancelled })) } })
+  // the rules read it; an ambiguous reply may be read by the AI gateway (validated, data only; lib/commerce/supplier-replies.ts)
+  const interp = await interpretSupplierReply({ text: String(content.text ?? ''), attachments, receivedAt: new Date(r.received_at), po: { poNumber: po.po_number, expectedAt: po.expected_at, caseType: rule.type,
+    lines: po.lines.map(l => ({ sku: l.sku, qtyOrdered: l.qty_ordered, priceOrdered: l.unit_price_ordered, cancelled: l.cancelled })) } },
+    { orgId: c.org_id, caseId: c.id, agentRef: c.agent_kind === 'engine' && c.agent_ref ? `engine:${c.agent_ref}` : 'workflow:supplier-coordinator', subjectRef: `inbound:${r.id}` })
+  const parsed = interp.parsed
   const dup = await admin(db => db.one<{ id: string }>(`select id from supplier_replies where case_id = $1 and content_hash = $2 and outcome <> 'ignored'`, [c.id, parsed.contentHash]))
   if (dup) return ignore('the same reply was already handled', parsed.contentHash)
   const reorderNumber = await admin(async db => `${po.po_number.slice(0, 58)}-R${1 + Number((await db.one<{ n: number }>('select count(*)::int as n from purchase_orders where parent_po_id = $1', [po.id]))!.n)}`)
@@ -418,7 +421,7 @@ async function handleReply(r: InboundRow, now: Date, attachmentText: Record<stri
     if (!row) return null
     const said = [parsed.date ? `delivery ${parsed.date}` : null, ...parsed.lines.map(l => `${l.sku}: ${[l.qty !== null ? `qty ${l.qty}` : null, l.price !== null ? `price ${l.price}` : null, l.status].filter(Boolean).join(', ')}`), ...parsed.keywords].filter(Boolean).join('; ')
     await addEvidence(db, c.id, { label: `Supplier replied about PO ${po.po_number}${said ? `: ${said}` : ''}`.slice(0, 300), source: 'supplier_reply', observedAt: new Date(r.received_at).toISOString(), ref: { type: 'email_inbound', id: r.id },
-      detail: { outcome, reasons: parsed.reasons, attachments: parsed.attachments, ignored: parsed.ignored, read_as: 'data' } }, 'system:supplier-coordinator')
+      detail: { outcome, reasons: parsed.reasons, attachments: parsed.attachments, ignored: parsed.ignored, read_as: 'data', ...interp.detail } }, 'system:supplier-coordinator')
     await linkRecord(db, c.id, { type: 'email_inbound', id: r.id, label: 'Supplier reply' }, 'system:supplier-coordinator')
     // a follow-up or clarification that has not gone out is no longer needed
     for (const m of await caseMessages(db, c.id)) if (OPEN_DRAFT.includes(m.status))

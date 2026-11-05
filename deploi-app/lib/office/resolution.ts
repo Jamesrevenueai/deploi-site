@@ -44,6 +44,7 @@ import type { OfficeConnectionRow } from './connections'
 import type { HubSpotContact } from './types'
 import { actorOf, blockForStop, day, ensureActionRecorded, ensureLink, inboundContent, iso, linkActions, moveCase, RESOLUTION_ACTOR, stepFor, stopped, type CaseTarget, type InboundMail } from './case-sync'
 import { syncEmailCase, syncEmailCases } from './email-ops'
+import { classifyLeadReplyAssisted } from './ai-assist'
 
 export const OFFICE_CASE_KINDS = ['lead_followup', 'meeting_request', 'crm_commitment', 'email_unanswered'] as const
 
@@ -157,11 +158,13 @@ export async function syncLeadCase(leadId: string, now: Date, opts: { fresh?: bo
   let reply: { i: InboundMail; cls: LeadReplyClass } | null = null
   for (const i of await leadReplies(lead)) {
     const content = inboundContent(i)
-    const cls = classifyLeadReply(content.subject, content.text, { autoReply: i.auto_reply })
+    // the rules classify it; what they cannot tell ("question") may be classified by the AI gateway (lib/office/ai-assist.ts)
+    const { cls, detail: assisted } = await classifyLeadReplyAssisted({ orgId: lead.org_id, agentRef: `office:${lead.agent_id}`, caseId: c.id, inboundId: i.id, subject: content.subject, text: content.text, autoReply: i.auto_reply })
     const first = !(await admin(db => db.one('select 1 from case_links where case_id = $1 and ref_type = $2 and ref_id = $3', [c.id, 'email_inbound', i.id])))
     if (first) {
       await ensureLink(c.id, { type: 'email_inbound', id: i.id, label: `Reply from ${i.from_address}` }, actor)
-      await admin(db => addEvidence(db, c.id, replyEvidence(i, cls), actor))
+      const ev = replyEvidence(i, cls)
+      await admin(db => addEvidence(db, c.id, { ...ev, detail: { ...ev.detail, ...assisted } }, actor))
       if (cls !== 'out_of_office') await moveCase(c.id, { status: 'investigating', reason: `${lead.email} replied; classified "${REPLY_LABEL[cls]}"` }, actor)
     }
     if (cls !== 'out_of_office') { reply = { i, cls }; break }
@@ -279,7 +282,7 @@ export async function handedLeadCases(schedulerId: string): Promise<{ caseId: st
     if (!lead) continue
     for (const i of await leadReplies(lead)) {
       const content = inboundContent(i)
-      const cls = classifyLeadReply(content.subject, content.text, { autoReply: i.auto_reply })
+      const { cls } = await classifyLeadReplyAssisted({ orgId: lead.org_id, agentRef: `office:${lead.agent_id}`, caseId: r.case_id, inboundId: i.id, subject: content.subject, text: content.text, autoReply: i.auto_reply })
       if (cls === 'out_of_office') continue
       if (cls === 'interested') out.push({ caseId: r.case_id, lead, inbound: i })
       break

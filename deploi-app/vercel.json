@@ -20,6 +20,18 @@
     {
       "path": "/api/cron/office",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/alerts",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/retention",
+      "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/api/cron/health",
+      "schedule": "29 * * * *"
     }
   ]
 }

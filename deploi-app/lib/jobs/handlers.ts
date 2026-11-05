@@ -81,5 +81,8 @@ export async function enqueueDueWork(opts: { now?: Date; limit?: number } = {}) 
   // platform: daily retention, and organization deletions whose cooling-off ended (lib/platform/jobs.ts)
   const { enqueuePlatformWork } = await import('../platform/jobs')
   out.maintenance.push(...(await enqueuePlatformWork(now)))
+  // operations: alert evaluation once per ten-minute window (lib/ops/jobs.ts)
+  const { enqueueOpsWork } = await import('../ops/jobs')
+  out.maintenance.push(...(await enqueueOpsWork(now)))
   return out
 }

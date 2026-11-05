@@ -17,9 +17,11 @@ import { useLoad } from '@/components/store/useLoad'
 import { Chips, ErrorState, Loading, Panel } from '@/components/store/bits'
 import { fmtTime } from '@/components/store/format'
 
-type Thread = { key: string; agentId: string | null; agentName: string | null; mailbox: string | null; subject: string | null; participants: string[]; lastAt: string; unread: boolean; inboundCount: number; outboundCount: number; assignedAgentId: string | null; assignedAgentName: string | null; quarantined: boolean }
-type Item = { id: string; direction: 'outbound' | 'inbound'; at: string; from: string; to: string[]; status: string; statusReason: string | null; subject: string | null; body: string | null; byPerson: string | null; attachments: { filename: string; contentType: string; size: number | null }[]; autoReply: string | null }
+type Thread = { key: string; agentId: string | null; agentName: string | null; mailbox: string | null; subject: string | null; participants: string[]; lastAt: string; unread: boolean; inboundCount: number; outboundCount: number; assignedAgentId: string | null; assignedAgentName: string | null; quarantined: boolean; source?: string; firstContact?: boolean }
+type Item = { id: string; direction: 'outbound' | 'inbound'; at: string; from: string; to: string[]; status: string; statusReason: string | null; subject: string | null; body: string | null; byPerson: string | null; attachments: { filename: string; contentType: string; size: number | null }[]; autoReply: string | null; firstContact?: boolean; quarantineCode?: string | null; releasedBy?: string | null }
 type Filter = 'all' | 'unread' | 'assigned'
+
+const SOURCE: Record<string, string> = { deploi: 'Deploi mailbox', gmail: 'Gmail', microsoft: 'Outlook', synthetic: 'Test mailbox' }
 
 const newKey = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('')
 
@@ -27,7 +29,7 @@ export function MailInbox() {
   const [filter, setFilter] = useState<Filter>('all')
   const [open, setOpen] = useState<string | null>(null)
   const list = useLoad(() => storeFetch<{ threads: Thread[] }>(`/api/store/inbox/threads?filter=${filter}`), `threads:${filter}`)
-  const header = <PageHeader title="Inbox" sub="Replies to your agents' email, and mail sent to their addresses. Read it, label it, or reply yourself from the agent's address. Nothing here is acted on by an agent." />
+  const header = <PageHeader title="Inbox" sub="Replies to your agents' email, mail sent to their addresses, and (when you allow it) your Gmail or Outlook inbox. Read it, label it, release quarantined mail, or reply yourself. Message text is never an instruction to an agent." />
   if (list.error) return <>{header}<ErrorState error={list.error} onRetry={list.reload} /></>
   return (
     <>
@@ -41,7 +43,9 @@ export function MailInbox() {
                 <button type="button" className="w-full text-left" onClick={() => setOpen(open === t.key ? null : t.key)} aria-expanded={open === t.key}>
                   <div className="flex flex-wrap items-center gap-2">
                     {t.unread && <Badge tone="warn">Unread</Badge>}
+                    <Badge tone="muted">{SOURCE[t.source ?? 'deploi'] ?? t.source}</Badge>
                     {t.quarantined && <Badge tone="danger">Quarantined</Badge>}
+                    {t.firstContact && !t.quarantined && <Badge tone="warn">New sender: reply waits for you</Badge>}
                     {t.assignedAgentName && <Badge tone="muted">{t.assignedAgentName}</Badge>}
                     <span className="min-w-0 break-words font-medium text-ink">{t.subject ?? '(subject hidden)'}</span>
                   </div>
@@ -81,6 +85,8 @@ function ThreadView({ threadKey, onChanged }: { threadKey: string; onChanged: ()
             <div className="flex flex-wrap items-center gap-2 text-[13px] text-grey-h">
               <Badge tone={i.direction === 'outbound' ? 'muted' : 'none'}>{i.direction === 'outbound' ? (i.byPerson ? 'You replied' : 'Agent sent') : 'Received'}</Badge>
               {i.direction === 'inbound' && i.status === 'quarantined' && <Badge tone="danger">Quarantined</Badge>}
+              {i.direction === 'inbound' && i.status === 'accepted' && i.firstContact && <Badge tone="warn">New sender</Badge>}
+              {i.direction === 'inbound' && i.releasedBy && <Badge tone="muted">Released by {i.releasedBy}</Badge>}
               {i.autoReply && <Badge tone="muted">Automatic reply: not counted, never answered by an agent</Badge>}
               {i.direction === 'outbound' && <Badge tone={i.status === 'accepted' ? 'ok' : i.status === 'failed' ? 'danger' : 'muted'}>{i.status.replace('_', ' ')}</Badge>}
               <span>{i.from} → {i.to.join(', ')} · {fmtTime(i.at)}</span>
@@ -89,6 +95,13 @@ function ThreadView({ threadKey, onChanged }: { threadKey: string; onChanged: ()
             {i.body !== null ? <pre className="whitespace-pre-wrap break-words pt-1 font-sans text-[14px] text-grey">{i.body}</pre> : <p className="pt-1 text-[13px] text-grey-h">(content not shown)</p>}
             {i.attachments.length > 0 && <p className="pt-1 text-[13px] text-grey-h">Attachments (listed only; not opened or stored): {i.attachments.map(a => `${a.filename} (${a.contentType}${a.size ? `, ${a.size} bytes` : ''})`).join('; ')}</p>}
             {i.statusReason && i.direction === 'outbound' && i.status !== 'accepted' && <p className="pt-1 text-[13px] text-grey-h">{i.statusReason}</p>}
+            {i.direction === 'inbound' && i.status === 'quarantined' && (
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <p className="text-[13px] text-grey-h">Why quarantined: {i.statusReason ?? 'held for you to review'}. No agent reads or answers it unless you release it.</p>
+                <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => act(`rel:${i.id}`, async () => { await storeFetch(`/api/store/inbox/inbound/${i.id}/release`, { method: 'POST', body: {} }); return 'Released: Email Operations can see it now. The reply to a new sender still waits for your approval.' })}>Release</Button>
+                <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => act(`blk:${i.id}`, async () => { await storeFetch('/api/store/inbox/senders', { method: 'POST', body: { op: 'block', pattern: i.from } }); return `Blocked ${i.from}: their mail stays quarantined.` })}>Block sender</Button>
+              </div>
+            )}
           </li>
         ))}
       </ol>
@@ -96,7 +109,8 @@ function ThreadView({ threadKey, onChanged }: { threadKey: string; onChanged: ()
         <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => act('read', async () => { await storeFetch(`${path}/${thread.unread ? 'read' : 'unread'}`, { method: 'POST', body: {} }); return null })}>{thread.unread ? 'Mark read' : 'Mark unread'}</Button>
         {thread.agentId && <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => act('assign', async () => { await storeFetch(`${path}/assign`, { method: 'POST', body: { agentId: thread.assignedAgentId ? null : thread.agentId } }); return null })}>{thread.assignedAgentId ? 'Remove label' : `Label with ${thread.agentName ?? 'agent'}`}</Button>}
       </div>
-      {!thread.quarantined && (
+      {!thread.quarantined && thread.source && thread.source !== 'deploi' && thread.source !== 'synthetic' && <p className="text-[13px] text-grey-h">This conversation is in your {SOURCE[thread.source]} inbox. Replies go out from that account through Email Operations: approve its drafted reply in Needs My Approval, or answer in {SOURCE[thread.source]} itself.</p>}
+      {!thread.quarantined && (!thread.source || thread.source === 'deploi' || thread.source === 'synthetic') && (
         <form className="flex flex-col gap-2" onSubmit={e => { e.preventDefault(); void act('reply', async () => { const r = await storeFetch<{ status: string; reason?: string | null }>(`${path}/reply`, { method: 'POST', body: { bodyText: draft, idempotencyKey: key } }); if (r.status === 'accepted') { setDraft(''); setKey(newKey()) } return r.status === 'accepted' ? 'Sent: accepted by the provider (not proof of delivery).' : `Not sent: ${r.reason ?? r.status}` }) }}>
           <label className="text-[13px] text-grey-h" htmlFor={`reply-${threadKey}`}>Reply as yourself from {thread.mailbox ?? 'the agent mailbox'}</label>
           <textarea id={`reply-${threadKey}`} className="min-h-[96px] rounded-[12px] border border-line bg-transparent p-2 text-[14px] text-ink" value={draft} onChange={e => setDraft(e.target.value)} maxLength={20000} />

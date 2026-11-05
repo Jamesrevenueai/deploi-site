@@ -29,6 +29,26 @@ export const emailConfig = {
   get agentMailWebhookSecret() { return e('AGENT_MAIL_WEBHOOK_SECRET') },
   /** most emails one organization may send per UTC day, across all its agents and people (EMAIL_ORG_DAILY_CAP) */
   get orgDailyCap() { const v = Number(e('EMAIL_ORG_DAILY_CAP')); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 200 },
+  /** first-contact messages (a sender the organization never wrote to) accepted per sender and mailbox, per 24 hours */
+  get firstContactSenderDaily() { const v = Number(e('EMAIL_FIRST_CONTACT_SENDER_DAILY')); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 3 },
+  get firstContactMailboxDaily() { const v = Number(e('EMAIL_FIRST_CONTACT_MAILBOX_DAILY')); return Number.isFinite(v) && v > 0 ? Math.floor(v) : 50 },
+  /**
+   * Optional push for inbox reading (polling is the default). Gmail: users.watch publishes to this Pub/Sub
+   * topic, whose push subscription calls /api/webhooks/gmail-push with an OIDC token for this audience and
+   * service account. Microsoft: EMAIL_GRAPH_PUSH=on creates change-notification subscriptions to
+   * /api/webhooks/graph-mail.
+   */
+  get gmailPushTopic() { return e('GMAIL_PUSH_TOPIC') },
+  get gmailPushAudience() { return e('GMAIL_PUSH_AUDIENCE') },
+  get gmailPushServiceAccount() { return e('GMAIL_PUSH_SERVICE_ACCOUNT').toLowerCase() },
+  get gmailPushEnabled() { return Boolean(e('GMAIL_PUSH_TOPIC') && e('GMAIL_PUSH_AUDIENCE') && e('GMAIL_PUSH_SERVICE_ACCOUNT')) },
+  get graphPushEnabled() { return e('EMAIL_GRAPH_PUSH') === 'on' },
+  get graphPushUrl() { return e('EMAIL_GRAPH_PUSH_URL') || `${(e('APP_URL') || e('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000').replace(/\/$/, '')}/api/webhooks/graph-mail` },
+  /** inbox reading bounds: the first (or a re-) sync looks back this many days; one sync stores at most this many messages */
+  inboxLookbackDays: 7,
+  inboxMaxPerSync: 200,
+  /** a message larger than this is stored with its headers only (the text is not downloaded) */
+  inboxMaxMessageBytes: 2_000_000,
   maxMessageBytes: 3_000_000,
   maxAttempts: 4,
   reconcileWindowMs: 30 * 60e3,

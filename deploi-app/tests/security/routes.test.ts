@@ -31,6 +31,8 @@ function handlers(text: string): { method: string; body: string }[] {
 const WEBHOOKS: Record<string, { evidence: RegExp; lib?: { file: string; evidence: RegExp } }> = {
   'app/api/shopify/webhooks/route.ts': { evidence: /handleShopifyWebhook/, lib: { file: 'lib/connectors/shopify/webhooks.ts', evidence: /verifyWebhookHmac\(raw/ } },
   'app/api/webhooks/agent-mail/route.ts': { evidence: /verifySvix\(/ },
+  'app/api/webhooks/gmail-push/route.ts': { evidence: /verifyGooglePushToken\(req\.headers\.get\('authorization'\)\)/, lib: { file: 'lib/email/push.ts', evidence: /verify\('RSA-SHA256'/ } },
+  'app/api/webhooks/graph-mail/route.ts': { evidence: /graphNotificationAccounts\(body\)/, lib: { file: 'lib/email/push.ts', evidence: /timingSafeEqual\(sha\(cs\)/ } },
   'app/api/woocommerce/webhooks/route.ts': { evidence: /handleWooWebhook/, lib: { file: 'lib/connectors/woocommerce/webhooks.ts', evidence: /verifyWooSignature\(raw, signature, secret\)/ } },
   'app/api/office/webhooks/quickbooks/route.ts': { evidence: /handleQuickBooksWebhook\(raw, req\.headers\.get\('intuit-signature'\)\)/, lib: { file: 'lib/office/quickbooks-webhook.ts', evidence: /verifyIntuitSignature\(rawBody, signature, verifier\)/ } },
   'app/api/billing/stripe/webhook/route.ts': { evidence: /verifyStripeSignature\(raw, req\.headers\.get\('stripe-signature'\)/ },

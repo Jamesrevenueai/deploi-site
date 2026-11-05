@@ -19,17 +19,25 @@
  *  - or the owner marks it handled (lib/office/resolution.ts#markOfficeCaseHandled) with the reply message or
  *    their own confirmation as evidence.
  * A follow-up that asks something else moves the case back to investigating and a new reply is drafted.
- * Outlook / Microsoft 365 and Gmail accounts connected with read access give reply senders and times only
- * (lib/email/adapters); Deploi does not list or read their inboxes, so no unanswered-message case is opened
- * for them (the run counts this). Message text is data: it only chooses a category.
+ * Mailboxes: the Deploi office mailbox (inbound webhook), and a connected Gmail or Outlook account whose inbox is
+ * read when the owner turned on "read my inbox" (emailOps.readInbox, a granted permission) and connected the
+ * account with gmail.readonly / Mail.Read (lib/email/inbox-sync.ts; otherwise the run counts inbox_not_read or
+ * inbox_needs_permission). A reply the owner sent from Gmail or Outlook itself counts as an answer.
+ * First contact (lib/email/sender-policy.ts): the first reply to a sender the organization never wrote to always
+ * waits for an owner's or admin's individual approval, whatever the tier; quarantined mail is never answered
+ * until the owner releases it. Message text is data: it only chooses a category, never a recipient, tier or tool.
  */
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { admin, type Db } from '../db'
 import { addEvidence, caseForRecord, openCase, registerCaseKind, resolveCase, TERMINAL, type CaseRow, type Evidence } from '../cases'
 import { agentCtx, proposeAction, type AgentCtx, type OfficeActionRow } from './actions'
 import { newText } from './content'
+import { needsFirstReplyApproval } from '../email/sender-policy'
+import { canReadInbox, syncAccountInbox } from '../email/inbox-sync'
+import type { EmailAccountRow } from '../email/accounts'
 import { actorOf, blockForStop, ensureActionRecorded, ensureLink, inboundContent, iso, moveCase, RESOLUTION_ACTOR, stepFor, stopped, type InboundMail } from './case-sync'
 
+export const FIRST_CONTACT_BLOCKER = 'a first message from a new sender: the first reply always waits for an owner or admin'
 export type EmailCategory = 'inquiry' | 'supplier' | 'customer_issue' | 'spam_ish'
 export const EMAIL_CATEGORY_LABEL: Record<EmailCategory, string> = { inquiry: 'inquiry', supplier: 'supplier', customer_issue: 'customer issue', spam_ish: 'spam-ish' }
 export type BusinessHours = { timezone: string; days: number[]; dayStart: string; dayEnd: string }
@@ -102,7 +110,7 @@ export async function unansweredInbound(db: Db, orgId: string, accountIds: strin
   const rows = await db.query<InboundMail>(`select i.id, i.org_id, i.account_id, i.from_address, i.thread_message_id, i.internet_message_id, i.received_at, i.status, i.auto_reply, i.auto_reply_reason, i.classification, i.key_id, i.content_ciphertext
     from email_inbound i
     where i.org_id = $1 and i.account_id = any($2::uuid[]) and i.status = 'accepted' and not i.auto_reply and i.key_id <> 'pending'
-      and i.classification not in ('merchant_forward', 'merchant_cc')
+      and i.classification not in ('merchant_forward', 'merchant_cc') and i.answered_at is null
       and i.received_at > $3::timestamptz - interval '14 days' and i.received_at <= $3::timestamptz
       and not exists (select 1 from email_suppressions s where s.org_id = i.org_id and s.address = lower(i.from_address))
       and not exists (select 1 from email_accounts a where a.org_id = i.org_id and lower(a.address) = lower(i.from_address))
@@ -133,10 +141,19 @@ async function markHandled(ctx: AgentCtx, inboundId: string, category: string, o
 
 export async function emailOperationsRun(ctx: AgentCtx, now: Date, counts: Record<string, number>) {
   const p = ctx.policy!, o = p.emailOps!
-  const account = await admin(db => db.one<{ id: string; provider: string; address: string; status: string; can_read: boolean }>('select id, provider, address, status, can_read from email_accounts where id = $1 and org_id = $2', [p.mailboxAccountId, ctx.agent.org_id]))
+  const account = await admin(db => db.one<EmailAccountRow>('select * from email_accounts where id = $1 and org_id = $2', [p.mailboxAccountId, ctx.agent.org_id]))
   if (!account || account.status !== 'active') { counts.mailbox_unavailable = 1; return }
-  // connected Gmail / Outlook accounts: reply senders and times only; their inbox is not read by Deploi
-  if (account.provider === 'gmail' || account.provider === 'microsoft') counts.inbox_not_read = 1
+  // connected Gmail / Outlook accounts: their inbox is read only when the owner turned it on for this agent
+  // (emailOps.readInbox, granted like any permission) and the account was connected with the read permission
+  if (account.provider === 'gmail' || account.provider === 'microsoft') {
+    if (!o.readInbox) counts.inbox_not_read = 1
+    else if (!canReadInbox(account)) counts.inbox_needs_permission = 1
+    else {
+      const r = await syncAccountInbox(account.id, { now, actor: actorOf(ctx) })
+      if (r.status === 'synced') { counts.inbox_stored = r.stored; if (r.quarantined) counts.inbox_quarantined = r.quarantined }
+      else counts[`inbox_${r.status}`] = 1
+    }
+  }
   const bh: BusinessHours = { timezone: p.timezone, days: o.days, dayStart: o.dayStart, dayEnd: o.dayEnd }
   const found = await admin(db => unansweredInbound(db, ctx.agent.org_id, [account.id], now, o.unansweredHours, bh))
   counts.unanswered = found.length
@@ -188,9 +205,12 @@ async function handleUnanswered(ctx: AgentCtx, i: Unanswered, account: { id: str
   await moveCase(c.id, { status: 'investigating', reason: `Sorted as "${EMAIL_CATEGORY_LABEL[category]}"; drafting a reply to ${i.from_address}` }, actor)
   const d = emailOpsDraft(category, o.senderName, content.subject)
   const may = (o.sendCategories as string[]).includes(category)
+  // a sender the organization never wrote to: the first reply always waits for an owner's approval, whatever the tier
+  const firstContact = await admin(db => needsFirstReplyApproval(db, ctx.agent.org_id, i.id))
+  const blockers = [...(may ? [] : [`replies to a ${EMAIL_CATEGORY_LABEL[category]} always wait for a person`]), ...(firstContact ? [FIRST_CONTACT_BLOCKER] : [])]
   const { action } = await admin(db => proposeAction(db, { agentId: ctx.agent.id, kind: 'send_email', purpose: `Reply to an unanswered ${EMAIL_CATEGORY_LABEL[category]}`, idempotencyKey: `emailops:${ctx.agent.id}:${i.id}`, now,
-    payload: { type: 'email', to: i.from_address, subject: d.subject, body: d.body, inReplyToMessageId: i.thread_message_id, recipientSource: { kind: 'inbound', inboundId: i.id }, meta: { category, subject: d.subject, inbound_id: i.id, case_ref: c!.ref } },
-    standingBlockers: may ? [] : [`replies to a ${EMAIL_CATEGORY_LABEL[category]} always wait for a person`] }))
+    payload: { type: 'email', to: i.from_address, subject: d.subject, body: d.body, inReplyToMessageId: i.thread_message_id, recipientSource: { kind: 'inbound', inboundId: i.id }, meta: { category, subject: d.subject, inbound_id: i.id, case_ref: c!.ref, ...(firstContact ? { first_contact: true } : {}) } },
+    standingBlockers: blockers }))
   await ensureLink(c.id, { type: 'office_action', id: action.id, label: action.purpose }, actor)
   await markHandled(ctx, i.id, category, 'reply drafted')
   counts.replies_drafted = (counts.replies_drafted ?? 0) + 1

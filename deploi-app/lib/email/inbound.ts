@@ -4,8 +4,10 @@
  *  - routed only to the organization that owns the mailbox address;
  *  - threaded to the agent's own message by the tagged Reply-To token, else by In-Reply-To/References;
  *  - classified: reply, merchant_forward, merchant_cc or other;
- *  - accepted only from allowed senders (the agent's recipient rules, or a member of the organization);
- *    anything else, or mail failing SPF/DKIM/DMARC, is quarantined for the merchant to read;
+ *  - accepted from allowed senders (the agent's recipient rules, a member of the organization, an address the
+ *    organization wrote to); on the office mailbox also from a first-contact sender that passes the policy in
+ *    lib/email/sender-policy.ts (its reply then waits for an owner); anything else is quarantined with a reason
+ *    the merchant sees, and can release;
  *  - stored encrypted and audited.
  * Inbound mail is data. It never sends anything, never changes a permission and never starts a run.
  */
@@ -19,6 +21,7 @@ import { parseAgentAddress } from './mailbox'
 import type { EmailAccountRow } from './accounts'
 import { autoReplyReason } from './loop'
 import { suppressAddresses } from './suppression'
+import { decideSender } from './sender-policy'
 
 export type InboundEvent = { deliveryId: string; type: string; data: Record<string, unknown> }
 export type InboundOutcome =
@@ -102,24 +105,27 @@ async function handle(evt: InboundEvent, fetchEmail: (id: string) => Promise<Rec
       const pol = agent?.active_policy_id ? await db.one<{ policy: unknown }>('select policy from agent_policies where id = $1', [agent.active_policy_id]) : null
       const email = pol ? parsePolicy(pol.policy).email : undefined
       const auth = mail.authentication ?? {}
-      const authFail = ['spf', 'dkim', 'dmarc'].filter(k => auth[k] === 'fail')
       const allowed = Boolean(member) || Boolean(thread && [...thread.to_addresses, ...thread.cc_addresses].includes(from)) || Boolean(email && recipientAllowed(email, from))
-      const status: 'accepted' | 'quarantined' = authFail.length ? 'quarantined' : allowed ? 'accepted' : 'quarantined'
-      const reason = authFail.length ? `failed sender authentication (${authFail.join(', ')})` : allowed ? null : 'the sender is not on this agent\'s allowed list'
       // loop protection: machine-generated mail is kept for the merchant but is never a reply an agent reacts to
       const autoReply = autoReplyReason(mail, from, emailConfig.agentMailDomain)
+      // who may reach the mailbox (lib/email/sender-policy.ts): on the organization's office mailbox (Email Operations) a
+      // first-contact sender is accepted when authentication passes and nothing looks automatic, bulk or abusive; a store
+      // agent's mailbox keeps its allowed list
+      const decision = await decideSender(db, { orgId: acc.org_id, accountId: acc.id, from, receivedAt: mail.receivedAt, known: allowed, firstContactAllowed: Boolean(acc.office_mailbox) && !acc.agent_id,
+        auth: mail.authentication, autoReply, headers: mail.headers })
+      const status = decision.status, reason = decision.reason
 
       const row = await db.one<{ id: string }>(`insert into email_inbound (org_id, account_id, agent_id, provider_email_id, internet_message_id, from_address, to_addresses, cc_addresses,
-          classification, status, status_reason, thread_message_id, auth_results, key_id, content_ciphertext, attachment_count, received_at, attachments, auto_reply, auto_reply_reason)
-        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending','pending',$14,$15,$16,$17,$18) on conflict do nothing returning id`,
+          classification, status, status_reason, thread_message_id, auth_results, key_id, content_ciphertext, attachment_count, received_at, attachments, auto_reply, auto_reply_reason, first_contact, quarantine_code)
+        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'pending','pending',$14,$15,$16,$17,$18,$19,$20) on conflict do nothing returning id`,
         [acc.org_id, acc.id, acc.agent_id, mail.id, mail.messageId, from, list(mail.to), list(mail.cc), classification, status, reason, thread?.id ?? null,
-          JSON.stringify(auth), mail.attachments?.length ?? mail.attachmentCount, mail.receivedAt, JSON.stringify(mail.attachments ?? []), Boolean(autoReply), autoReply])
+          JSON.stringify(auth), mail.attachments?.length ?? mail.attachmentCount, mail.receivedAt, JSON.stringify(mail.attachments ?? []), Boolean(autoReply), autoReply, decision.firstContact, decision.code])
       if (!row) return null // same email already stored for this mailbox
       const enc = encryptSecret(JSON.stringify({ subject: mail.subject.slice(0, 500), text: mail.text.slice(0, MAX_TEXT) }), `email-inbound:${row.id}`)
       await db.query('update email_inbound set key_id = $2, content_ciphertext = $3 where id = $1', [row.id, enc.keyId, enc.ciphertext])
       if (thread && status === 'accepted' && !autoReply) await db.query('update email_messages set reply_count = reply_count + 1, reply_seen_at = greatest(coalesce(reply_seen_at, $2), $2) where id = $1', [thread.id, mail.receivedAt])
       await audit(db, { orgId: acc.org_id, entityType: 'execution', entityId: row.id, event: `email.inbound.${status}`, actor: 'system:agent-mail',
-        detail: { email_inbound: true, agent_id: acc.agent_id, classification, thread_message_id: thread?.id ?? null, reason, attachments: mail.attachments?.length ?? mail.attachmentCount, auto_reply: autoReply } })
+        detail: { email_inbound: true, agent_id: acc.agent_id, classification, thread_message_id: thread?.id ?? null, reason, quarantine_code: decision.code, first_contact: decision.firstContact, attachments: mail.attachments?.length ?? mail.attachmentCount, auto_reply: autoReply } })
       return { inboundId: row.id, agentId: acc.agent_id, classification, status, threadMessageId: thread?.id ?? null, autoReply: Boolean(autoReply) }
     })
     if (r) items.push(r)

@@ -19,6 +19,7 @@ import { EngineError } from '../engine/errors'
 import { encryptSecret } from '../connectors/credentials'
 import { orgStopReason } from '../engine/kill-switch'
 import { allowanceBlock } from '../plans/allowance'
+import { needsFirstReplyApproval } from '../email/sender-policy'
 import { registerOfficeSendGate, sendMessage, type EmailMessageRow, type EmailStatus } from '../email/engine'
 import { contentHash } from '../email/content'
 import { newInternetMessageId } from '../email/mime'
@@ -370,6 +371,12 @@ async function ensureMessage(a: OfficeActionRow, ctx: AgentCtx): Promise<{ id: s
     const account = await db.one<{ id: string; org_id: string; address: string; provider: string; status: string; office_mailbox: boolean; agent_id: string | null }>('select * from email_accounts where id = $1', [ctx.policy!.mailboxAccountId])
     if (!account || account.org_id !== a.org_id) return { error: 'the mailbox is not connected to this organization' }
     const thread = p.inReplyToMessageId ? await db.one<{ internet_message_id: string }>('select internet_message_id from email_messages where id = $1 and org_id = $2', [p.inReplyToMessageId, a.org_id]) : null
+    // a reply to mail read from a Gmail / Outlook inbox: threaded on the inbound message, sent in the provider's own thread
+    const src = p.recipientSource.kind === 'inbound' && (account.provider === 'gmail' || account.provider === 'microsoft')
+      ? await db.one<{ internet_message_id: string | null; provider_message_id: string | null; provider_thread_id: string | null }>('select internet_message_id, provider_message_id, provider_thread_id from email_inbound where id = $1 and org_id = $2 and account_id = $3', [p.recipientSource.inboundId, a.org_id, account.id])
+      : null
+    const providerReply = src ? { provider: account.provider, message_id: src.provider_message_id, thread_id: src.provider_thread_id } : null
+    const inReplyTo = src?.internet_message_id ?? thread?.internet_message_id ?? null
     const content = { subject: p.subject.replace(/[\r\n]+/g, ' ').slice(0, 250), bodyText: p.body.slice(0, 50_000), attachments: [] }
     const hash = contentHash({ from: account.address, to: [p.to.toLowerCase()], cc: [], content })
     const deploi = account.provider === 'deploi'
@@ -382,7 +389,7 @@ async function ensureMessage(a: OfficeActionRow, ctx: AgentCtx): Promise<{ id: s
           attachment_count, attachment_bytes, key_id, content_ciphertext, content_hash, internet_message_id, meta, in_reply_to, reply_token)
         values ($1,null,$2,$3,null,$4,null,$5,'office',$6,'draft',$7,$8,'{}',0,0,'pending','pending',$9,$10,$11,$12,$13) returning id`,
         [a.org_id, a.agent_id, a.id, account.id, ctx.policyVersion, a.idempotency_key, account.address, [p.to.toLowerCase()], hash,
-          newInternetMessageId(deploi ? emailConfig.agentMailDomain || undefined : undefined), JSON.stringify({ office: true, purpose: a.purpose, ...p.meta }), thread?.internet_message_id ?? null, deploi ? randomBytes(16).toString('hex') : null]))!.id
+          newInternetMessageId(deploi ? emailConfig.agentMailDomain || undefined : undefined), JSON.stringify({ office: true, purpose: a.purpose, ...p.meta, ...(providerReply ? { provider_reply: providerReply } : {}) }), inReplyTo, deploi ? randomBytes(16).toString('hex') : null]))!.id
     }
     const enc = encryptSecret(JSON.stringify(content), `email-message:${id}`)
     await db.query(`update email_messages set key_id = $2, content_ciphertext = $3, status = 'queued', status_reason = $4, approval_kind = $5, approved_by = $6, approved_hash = content_hash, approved_at = now(), next_attempt_at = null where id = $1`,
@@ -612,5 +619,8 @@ registerOfficeSendGate(async (db, m) => {
     if (t?.tier !== 'send_autonomous' || !t.validUntil || new Date(t.validUntil).getTime() <= Date.now()) return { ok: false, status: 'cancelled', reason: 'no longer covered by the standing authorization' }
   } else if (a.approval_kind !== 'individual') return { ok: false, status: 'cancelled', reason: 'not approved' }
   if (a.approved_hash !== a.payload_hash) return { ok: false, status: 'cancelled', reason: 'the action changed after approval' }
+  // first contact: only an individual approval can send the first reply to a sender nobody trusted yet
+  if (p.recipientSource.kind === 'inbound' && a.approval_kind !== 'individual' && await needsFirstReplyApproval(db, a.org_id, p.recipientSource.inboundId))
+    return { ok: false, status: 'cancelled', reason: 'the first reply to a new sender needs your individual approval' }
   return { ok: true, policyId: ctx.policyId!, policyVersion: ctx.policyVersion }
 })

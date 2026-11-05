@@ -30,6 +30,8 @@ export type OutgoingMessage = {
   replyTo?: string | null
   /** signed one-click unsubscribe link (agent mail only): sent as List-Unsubscribe and as a footer line */
   listUnsubscribe?: string | null
+  /** a reply inside a message read from the account's own inbox: Gmail threadId, Graph message id and conversationId */
+  providerReply?: { messageId: string | null; threadId: string | null } | null
 }
 
 export type SendResult =
@@ -51,9 +53,12 @@ export interface EmailAdapter {
   label: string
   /** OAuth client configured in this environment */
   configured(): boolean
-  scopesFor(opts: { read: boolean }): string[]
+  /** read: reply senders and times; inbox: the whole inbox with bodies (Email Operations, only when the owner turns it on) */
+  scopesFor(opts: { read: boolean; inbox?: boolean }): string[]
   canSend(scopes: string[]): boolean
   canRead(scopes: string[]): boolean
+  /** the granted scopes allow reading inbox messages with their bodies */
+  canReadInbox?(scopes: string[]): boolean
   /**
    * true only when "not found in Sent" is proof that a message was not sent (then one automatic resend is
    * allowed). False where the lookup itself is unverified, so an unknown outcome waits for the merchant.

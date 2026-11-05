@@ -20,6 +20,7 @@ import { emailConfig } from '../config'
 import type { AccountRef, EmailAdapter, OutgoingMessage, SendResult } from '../types'
 import { emailFetch, sendOutcome } from './http'
 import { unsubscribeFooter } from '../unsubscribe'
+import { htmlToText } from '../readers/html'
 
 export const RESEND_API = 'https://api.resend.com'
 export const DEPLOI_SEND = 'deploi.send'
@@ -104,7 +105,7 @@ export async function resendSystemEmail(input: { from: string; to: string[]; sub
 export type ReceivedEmail = {
   id: string; from: string; to: string[]; cc: string[]; subject: string; text: string
   messageId: string | null; inReplyTo: string | null; references: string[]
-  authentication: Record<string, string | null>; attachmentCount: number; receivedAt: string
+  authentication: Record<string, string | null> | null; attachmentCount: number; receivedAt: string
   /** loop-protection headers only (Auto-Submitted, Precedence, X-Autoreply, ...), lower-case names */
   headers?: Record<string, string>
   /** attachment metadata only: content is never fetched, stored or opened */
@@ -112,7 +113,8 @@ export type ReceivedEmail = {
 }
 
 /** Headers kept from an inbound email: only what loop protection needs. */
-export const LOOP_HEADERS = ['auto-submitted', 'precedence', 'x-autoreply', 'x-autorespond', 'x-auto-response-suppress', 'list-id', 'x-loop', 'return-path'] as const
+/** (plus the bulk-mail headers the first-contact policy reads: List-Unsubscribe, X-Mailer) */
+export const LOOP_HEADERS = ['auto-submitted', 'precedence', 'x-autoreply', 'x-autorespond', 'x-auto-response-suppress', 'list-id', 'x-loop', 'return-path', 'list-unsubscribe', 'x-mailer'] as const
 const cleanMeta = (v: unknown, max: number) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max)
 export function attachmentMeta(v: unknown): { filename: string; contentType: string; size: number | null }[] {
   if (!Array.isArray(v)) return []
@@ -136,11 +138,13 @@ export async function fetchReceivedEmail(id: string): Promise<ReceivedEmail> {
     from: String(j.from ?? ''),
     to: list(j.to), cc: list(j.cc),
     subject: String(j.subject ?? ''),
-    text: String(j.text ?? ''),
+    // text may be null when the sender sent HTML only: the text is then taken from the HTML (never rendered)
+    text: typeof j.text === 'string' ? j.text : typeof j.html === 'string' && !String(j.html).startsWith('data:') ? htmlToText(String(j.html)) : '',
     messageId: String(j.message_id ?? headers['message-id'] ?? '') || null,
     inReplyTo: ids(headers['in-reply-to'])[0] ?? null,
     references: ids(headers['references']),
-    authentication: (j.authentication ?? {}) as Record<string, string | null>,
+    // spf / dkim / dmarc: pass | fail | gray | processing_failed | unknown; null on mail received before Resend added it
+    authentication: (j.authentication && typeof j.authentication === 'object' ? j.authentication : null) as Record<string, string | null> | null,
     attachmentCount: Array.isArray(j.attachments) ? j.attachments.length : 0,
     receivedAt: String(j.created_at ?? new Date().toISOString()),
     headers: Object.fromEntries(LOOP_HEADERS.filter(h => headers[h] !== undefined).map(h => [h, headers[h].slice(0, 300)])),

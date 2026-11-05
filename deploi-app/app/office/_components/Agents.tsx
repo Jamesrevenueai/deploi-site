@@ -17,11 +17,19 @@ import { StatusBadge, fmt } from './shared'
 
 type Summary = { grants: string[]; limits: string[]; never: string[] }
 type Tier = 'draft' | 'send_approved' | 'send_autonomous'
-type Policy = Record<string, unknown> & { kind: string; email?: { tier: Tier; validUntil: string | null }; calendar?: { tier: Tier; validUntil: string | null; allowMeet: boolean }; crm?: { tier: Tier; validUntil: string | null } }
+type Policy = Record<string, unknown> & { kind: string; mailboxAccountId?: string | null; emailOps?: Record<string, unknown> & { readInbox?: boolean }; email?: { tier: Tier; validUntil: string | null }; calendar?: { tier: Tier; validUntil: string | null; allowMeet: boolean }; crm?: { tier: Tier; validUntil: string | null } }
 type Agent = { id: string; kind: string; name: string; status: string; next_run_at: string | null; last_run_at: string | null; active_version: number | null; active_summary: Summary | null; active_policy: Policy | null
   pending: { id: string; version: number; policy_hash: string; summary: Summary; expansion: string[]; policy: Policy } | null }
 type Template = { key: string; name: string; job: string; needs: string[] }
-type Mailbox = { id: string; address: string; status: string }
+type Mailbox = { id: string; address: string; status: string; provider?: string }
+
+/** Shown before the provider asks for inbox access (the same text as lib/office/mailbox.ts INBOX_READ_EXPLANATION). */
+const INBOX_EXPLANATION = [
+  'Deploi reads new mail in this inbox so Email Operations can find messages nobody has answered: sender, recipients, subject, text and attachment names and sizes.',
+  'Attachments are never opened or stored. Text is stored encrypted and shown only to your organization.',
+  'Nothing in a message can change what the agent may do or who it writes to; the first reply to a new sender always waits for you.',
+  'Google asks for "View your email messages and settings"; Microsoft for "Read your mail" (an administrator may need to approve it). Disconnect the account to stop.',
+]
 
 const TIER_LABEL: Record<Tier, string> = { draft: 'Drafts only', send_approved: 'After my approval', send_autonomous: 'Without asking, within limits (up to one year)' }
 
@@ -51,6 +59,12 @@ function PermissionEditor({ agent, onSave, busy }: { agent: Agent; onSave: (p: P
           </Select>
         </Field>
       ))}
+      {p.emailOps && (
+        <div className="rounded-[14px] border border-line p-3 text-[14px]">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(p.emailOps.readInbox)} onChange={e => setP({ ...p, emailOps: { ...p.emailOps!, readInbox: e.target.checked } })} />Read my inbox (Gmail or Outlook)</label>
+          <ul className="list-disc pl-5 pt-2 text-[13px] text-grey">{INBOX_EXPLANATION.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        </div>
+      )}
       {p.calendar && <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" checked={Boolean(p.calendar.allowMeet)} onChange={e => setP({ ...p, calendar: { ...p.calendar!, allowMeet: e.target.checked } })} />Add a Google Meet link to bookings</label>}
       <div><Button size="sm" variant="ghost" disabled={busy} onClick={() => onSave(p)}>Save as a new version</Button></div>
     </div>
@@ -103,6 +117,13 @@ export function AgentsScreen() {
                 {a.status !== 'revoked' && <Button size="sm" variant="danger" disabled={busy !== null} onClick={() => { if (confirm(`Revoke ${a.name}? Its permission ends now and queued items are cancelled.`)) void act(`v:${a.id}`, async () => { await op(a.id, { op: 'revoke' }) }) }}>Revoke</Button>}
                 <Button size="sm" variant="danger" disabled={busy !== null} onClick={() => { if (confirm(`Delete ${a.name}? Its history is kept in the work log.`)) void act(`x:${a.id}`, async () => { await op(a.id, { op: 'delete' }) }) }}>Delete</Button>
               </div>
+              {a.kind === 'email_operations' && a.active_policy?.emailOps?.readInbox && ['gmail', 'microsoft'].includes(mailboxes.find(m => m.id === a.active_policy?.mailboxAccountId)?.provider ?? '') && (
+                <div className="mt-4 rounded-[14px] border border-line p-3 text-[14px]">
+                  <div className="font-medium text-ink">Inbox reading</div>
+                  <ul className="list-disc pl-5 pt-1 text-[13px] text-grey">{INBOX_EXPLANATION.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                  <Button size="sm" variant="ghost" className="mt-2" disabled={busy !== null} onClick={() => act(`ri:${a.id}`, async () => { const r = await op(a.id, { op: 'read_inbox' }); if (typeof r.url === 'string') window.location.assign(r.url) })}>Allow Deploi to read this inbox</Button>
+                </div>
+              )}
               {editing === a.id && <PermissionEditor agent={a} busy={busy !== null} onSave={p => act(`e:${a.id}`, async () => { const r = await op(a.id, { op: 'edit', policy: p }); setEditing(null); return r.requiresGrant ? 'Saved as a new version: it waits for your grant; the current version keeps running.' : 'Saved: narrower permissions apply at once.' })} />}
               {a.kind === 'meeting_scheduler' && a.status === 'active' && (
                 <div className="mt-4 flex flex-wrap items-end gap-2">

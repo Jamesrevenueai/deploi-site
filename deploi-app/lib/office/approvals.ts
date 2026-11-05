@@ -16,6 +16,7 @@ import { actionSettled, agentCtx, executeOfficeAction, payloadHash, type ActionP
 import './resolution'
 import { tierRank, TOOL_OF } from './policy'
 import { assertCan } from '../platform/rbac'
+import { needsFirstReplyApproval, trustSender } from '../email/sender-policy'
 
 export type OfficeApproval = {
   id: string; orgId: string; agentId: string; agentName: string; agentKind: string; kind: OfficeActionRow['kind']; purpose: string
@@ -49,9 +50,14 @@ export async function decideOfficeAction(db: Db, actor: Actor, actionId: string,
   if (!ctx || ctx.agent.status !== 'active' || !ctx.policy || ctx.policyStatus !== 'active') throw new EngineError('agent_inactive', 'the agent is not active; resume it before approving')
   const tool = ctx.policy[TOOL_OF[a.kind]]
   if (!tool || tierRank(tool.tier) < tierRank('send_approved')) throw new EngineError('invalid_input', `this agent may only draft for the ${TOOL_OF[a.kind]} tool; widen its permission first`)
+  // the first reply to a new sender: an owner or admin approves it, and that approval trusts the sender for later replies
+  const src = a.payload.type === 'email' && a.payload.recipientSource.kind === 'inbound' ? a.payload.recipientSource.inboundId : null
+  const firstContact = src ? await needsFirstReplyApproval(db, a.org_id, src) : false
+  if (firstContact) await assertCan(actor, a.org_id, 'agent.grant', db)
   await db.query(`update office_actions set status = 'queued', status_reason = 'approved by you', approval_kind = 'individual', approved_by = $2, approved_hash = payload_hash, approved_at = now(),
     policy_id = $3, policy_version = $4, next_attempt_at = null where id = $1`, [a.id, actor.label, ctx.policyId, ctx.policyVersion])
   await officeAudit(db, { orgId: a.org_id, entityType: 'office_action', entityId: a.id, event: 'action.approved', actor: actor.label, detail: { kind: a.kind, payload_hash: a.payload_hash, policy_version: ctx.policyVersion } })
+  if (firstContact && a.payload.type === 'email') await trustSender(db, { orgId: a.org_id, address: a.payload.to, actor: actor.label, sourceRef: `office_action:${a.id}` })
   return { actionId, status: 'queued' as const }
 }
 

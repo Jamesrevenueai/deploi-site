@@ -298,7 +298,7 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
   if (!unsub && m.task_key !== 'human_reply') log.warn('email.unsubscribe_unavailable', { message_id: m.id, reason: 'no signing secret configured' })
   const result = await adapter.send(accountRef(account), token, { internetMessageId: m.internet_message_id, from: account.address, fromName: account.display_name, to: m.to_addresses, cc: m.cc_addresses, content, deploiId: m.id,
     inReplyTo: m.in_reply_to, references: m.in_reply_to ? [m.in_reply_to] : [], replyTo: account.provider === 'deploi' && m.reply_token ? replyAddress(account.address, m.reply_token) : null,
-    listUnsubscribe: unsub })
+    listUnsubscribe: unsub, providerReply: providerReplyOf(m, account.provider) })
   if (result.outcome === 'accepted') {
     await finish(m, 'accepted', null, opts.actor, { accepted_at: new Date().toISOString(), accepted_evidence: result.evidence, provider_message_id: result.providerMessageId, provider_thread_id: result.providerThreadId, failure_code: null })
     return { messageId, status: 'accepted' }
@@ -317,6 +317,14 @@ export async function sendMessage(messageId: string, opts: { actor: string; now?
   // uncertain: the provider may have accepted it. Never resend blindly: look for it first.
   await finish(m, 'delivery_unknown', `${result.message}; checking whether it was sent`, opts.actor, { failure_code: result.code })
   return reconcileMessage(m.id, { actor: opts.actor })
+}
+
+/** A reply to mail read from a Gmail / Outlook inbox goes into that provider thread (set by lib/office/actions ensureMessage). */
+function providerReplyOf(m: EmailMessageRow, provider: string): { messageId: string | null; threadId: string | null } | null {
+  const r = m.meta?.provider_reply as { message_id?: unknown; thread_id?: unknown; provider?: unknown } | undefined
+  if (!r || r.provider !== provider) return null
+  const s = (v: unknown) => (typeof v === 'string' && v.length <= 400 && !/[\r\n]/.test(v) ? v : null)
+  return { messageId: s(r.message_id), threadId: s(r.thread_id) }
 }
 
 async function finish(m: EmailMessageRow, status: EmailStatus, reason: string | null, actor: string, extra: Record<string, unknown> = {}) {

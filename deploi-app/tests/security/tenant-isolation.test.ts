@@ -65,6 +65,8 @@ const VALUE_OVERRIDES: Record<string, string> = {
   'case_events.type': `'note'`,
   'case_links.ref_type': `'isolation_test'`,
   'office_invoices.qbo_invoice_id': `'1001'`,
+  // an address or @domain (checked by the table)
+  'email_sender_rules.pattern': `'@isolation-test.example'`,
 }
 
 describe.skipIf(!ready)('cross-tenant isolation of every org-scoped table', () => {

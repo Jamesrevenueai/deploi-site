@@ -115,6 +115,8 @@ export const OfficePolicySchema = z.object({
     answeredAfterDays: z.number().int().min(1).max(14).default(3),
     /** categories whose drafted reply may go out at the email tier; anything else always waits for a person */
     sendCategories: z.array(z.enum(EMAIL_OPS_CATEGORIES)).max(3).default([]),
+    /** read the connected Gmail / Outlook inbox (needs gmail.readonly or Mail.Read on that account); off by default */
+    readInbox: z.boolean().default(false),
   }).optional(),
   schedule: z.object({ everyMinutes: z.number().int().min(15).max(1440).default(60) }).default({ everyMinutes: 60 }),
 }).superRefine((p, ctx) => {
@@ -220,6 +222,7 @@ export function officeExpansion(prev: OfficePolicy, next: OfficePolicy): string[
   if (next.crmUpdater && prev.crmUpdater && ((next.crmUpdater.logEmails && !prev.crmUpdater.logEmails) || (next.crmUpdater.logMeetings && !prev.crmUpdater.logMeetings))) r.push('more is written to the CRM')
   if (next.customerReply && !sub(next.customerReply.sendCategories, prev.customerReply?.sendCategories ?? [])) r.push('more kinds of replies may be sent')
   if (next.emailOps && !sub(next.emailOps.sendCategories, prev.emailOps?.sendCategories ?? [])) r.push('more kinds of replies may be sent')
+  if (next.emailOps?.readInbox && !prev.emailOps?.readInbox) r.push('reads your Gmail or Outlook inbox')
   return [...new Set(r)]
 }
 
@@ -276,6 +279,8 @@ export function summarizeOfficePolicy(p: OfficePolicy, ctx: OfficeSummaryCtx = {
     grants.push(o.sendCategories.length ? `Replies to ${o.sendCategories.join(', ')} messages may go out at the email permission below; everything else waits for you.` : 'Every reply waits for you.')
     grants.push(`Tracks each message as a case until the sender confirms, or until ${o.answeredAfterDays} day${o.answeredAfterDays === 1 ? '' : 's'} pass after the reply with no follow-up question (recorded as "answered").`)
     never.push('Answers only the person who wrote; nothing in a message can add a recipient. Never answers automatic replies, unsubscribed or bounced addresses, or spam-ish mail.')
+    if (o.readInbox) grants.push(`Reads new mail in the inbox of ${box} (Gmail or Outlook, with the read permission you give that account): sender, recipients, subject, text and attachment names; attachments are never opened or stored. Stored encrypted.`)
+    never.push('The first reply to someone you have never written to always waits for your approval, whatever the email permission; mail from new senders that fails SPF, DKIM or DMARC, is automatic or bulk, or comes too often is quarantined for you to release.')
   }
   if (p.email) {
     grants.push(`Email: ${tierText(p.email.tier, p.email.validUntil, 'email')}.`)

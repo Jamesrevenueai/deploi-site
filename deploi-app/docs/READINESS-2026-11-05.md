@@ -144,3 +144,98 @@ Screenshots at 1440 and 390 px: `proof/journey-*`.
 - In the Inbox, a Gmail or Outlook thread can be read and released, but not replied to directly by a person.
 - Enquiries from the website contact form are personal data of prospects. Erasure is a manual staff step.
 - The billing and embedded-Shopify browser tests need the test env shown in §1, and do not run by default.
+
+## 8. PR #16 preview environment (set up 2026-11-05, 22:00–22:50 UTC)
+
+The goal was a working PR #16 preview with demo data. **Production was not touched.** The preview is **not yet usable for the core flows**: see 8.5.
+
+### 8.1 Configuration
+- **Preview database:** Supabase **deploi-preview** (`bhddgjcefwasdyrrfptc`), synthetic data only. It was confirmed to be preview, not deploi-prod (`makqaqzlylhckijdbjzi`), before every change.
+- **Migrations:** the F-02 hotfix, then release sets 2026-11-04, 2026-11-05 and 2026-11-06, each dry-run first. There are 48 recorded and the latest is `20261106000057_operations.sql`.
+- **Database login:** `deploi_pr16_app`, used only by this preview. It has BYPASSRLS and membership of `service_role`, `authenticated` and `anon`. It cannot write `auth.users`, because Supabase reserves that table for its own internal role.
+- **Vercel variables:** 8 variables on deploi-app, Preview only, branch `claude/deploi-operating-system`. Read back by name and scope; none is Production or Development.
+
+  | Name | Type |
+  |---|---|
+  | DATABASE_URL | sensitive |
+  | CREDENTIALS_ENCRYPTION_KEY | sensitive |
+  | CREDENTIALS_KEY_ID | plain |
+  | DEMO_CONTROLS | plain |
+  | EMAIL_LIVE_SENDS=off | plain |
+  | AGENT_MAIL_DOMAIN | plain |
+  | NEXT_PUBLIC_APP_URL | plain |
+  | AI_PROVIDER=off | plain |
+
+  The two secrets were generated in a single shell process and sent straight to Supabase and Vercel. They were never printed, logged or written to a file.
+- **Build rule:** `deploi-app/vercel.json` used to skip a forced rebuild of an unchanged commit. Commit `2d4bab5` makes such a rebuild always run; a push with no change under `deploi-app/` is still skipped. All three cases were tested locally.
+- **Preview build:** `dpl_dj1m6t4gmV3DL5WV2NfPzie7F7xE`, commit `2d4bab5`, READY. The preview runs at https://deploi-app-git-claude-deploi-operating-system-james-ai.vercel.app and needs a Vercel login.
+- **Database health:** `/api/health` reports `db.reachable: true`. The preview connects as `deploi_pr16_app`, seen in `pg_stat_activity` through the Supabase pooler.
+
+### 8.2 F-02 on the preview database (sign-up trigger tested directly; all rolled back, 0 rows left)
+
+| # | Case | Expected | Actual | Result |
+|---|---|---|---|---|
+| 1 | User metadata `{role: staff, agency_id: Northwind}` | client, no org | client, no org | PASS |
+| 2 | User metadata `{role: admin, is_admin, is_staff, tenant_id, org_id, org_role: owner}` | client, no org | client, no org | PASS |
+| 3 | User metadata `{role: service_role, agency_id: Harbor}` | client, no org | client, no org | PASS |
+| 4 | A prefix of a staff address | client | client | PASS |
+| 5 | A staff address embedded in a longer one | client | client | PASS |
+| 6 | The exact staff address (positive control) | staff | staff | PASS |
+| 7 | Server-set app metadata assigns Northwind | client, Northwind | client, Northwind | PASS |
+| 8 | An invited address with user metadata asking for staff | client, no org | client, no org | PASS |
+| 9 | Sign-up alone does not accept the invitation | not accepted | not accepted | PASS |
+| 10 | F-01/F-03: `leads` select and `staff_email_list()` execute for anon/authenticated | all false | all false | PASS |
+| 11 | The trigger in force reads app metadata only | app yes, user no | app yes, user no | PASS |
+
+**11/11 passed.**
+
+### 8.3 Browser checks on the preview (demo accounts; 1440 and 390 px; screenshots in `proof/preview-pr16/`)
+
+| Check | Result | Exact error / evidence |
+|---|---|---|
+| 8.1 Demo sign-in (Northwind owner → Home) | PASS | `01-home-1440.png`, `01-home-390.png` |
+| 8.2 New sign-up, then login | **Not testable on this preview** | `permission denied for table users` (42501): see 8.4 |
+| 8.3 Demo data (Office on, synthetic QuickBooks and mailbox, a scan, a demo case) | FAIL | `(EMAXCONNSESSION) max clients reached in session mode - max clients are limited to pool_size: 15` (`POST /login`, digest 2860882568) |
+| 8.3b Second demo account (Harbor) sees only its own organization | PASS | `03b-harbor-home-1440.png`, `03b-harbor-home-390.png` |
+| 8.4 Control Room shows the work waiting | FAIL | the same EMAXCONNSESSION error (`GET /login`, digest 3982788768) |
+| 8.5 AI Team: discovery and the recommended team | FAIL | the same EMAXCONNSESSION error (digest 3982788768) |
+| 8.6 Approve the demo case → Completed Work, verified | FAIL | the same EMAXCONNSESSION error (digest 3982788768) |
+| 8.7 Inbox | FAIL: **check-script error, not an app result** | the script opened `/store/messages`, which doesn't exist (404), then looked for the navigation rail there. The check has to be rerun. |
+| 8.8 Integrations: every tool with an honest status | PASS | `08-integrations-1440.png`, `08-integrations-390.png` |
+| 8.9 Agent workflow: an Office agent drafts | FAIL | the same EMAXCONNSESSION error (digest 2860882568) |
+
+**Totals:** 3 pass, 5 fail on the connection limit, 1 inconclusive (script error), and 1 not testable.
+
+**Demo data:** none was created, because the seeding check failed at sign-in. Row counts before and after the run were identical:
+
+| Table | Rows |
+|---|---|
+| agencies | 2 |
+| profiles | 4 |
+| org_products | 2 |
+| store_connections | 2 |
+| agents | 4 |
+| office_connections, email_accounts, office_agents, office_agent_policies, discovery_runs, discovery_agents, business_profiles, issues, proposals, approvals, cases, case_events, case_links, office_invoices, office_actions, connection_health, engine_audit, jobs | 0 each |
+
+### 8.4 Why browser sign-up can't be tested here (read-only analysis; nothing changed)
+- **Production** runs with `AUTH_MODE` unset and `resolveAuthMode` forces `supabase` (`lib/auth-guard.ts:45-46`).
+  - Sign-up is the magic-link form (`app/login/actions.ts:56-66`). It calls `sb.auth.signInWithOtp` through `@supabase/ssr` with the **anon key** (`lib/supabase/server.ts:8`).
+  - The **Supabase Auth service (GoTrue)** creates the `auth.users` row as its own role. The app's Postgres login doesn't create it, and the service-role key isn't used for it.
+  - The trigger `on_auth_user_created` then runs `handle_new_user` to create the profile (`supabase/migrations/20261020000001_foundation.sql:529`, replaced by the hotfix `20261031000001`).
+  - The session is created at `app/auth/callback/route.ts:19`, and a missing profile is built from `app_metadata` only (`lib/auth.ts:83`).
+- **This preview** has `AUTH_MODE=dev` and `ALLOW_DEV_LOGIN=true`, and no anon key: `NEXT_PUBLIC_SUPABASE_ANON_KEY` is Production-only.
+  - So sign-up goes through `devSignUp` (`app/login/actions.ts:42-54`), then `devAccountFor`, which writes the row directly as the app's database login: `insert into auth.users` (`lib/platform/dev-accounts.ts:17`).
+  - **This is a different path from production.** It shares only the trigger, which 8.2 tests directly.
+- **Smallest change to make browser sign-up testable on this preview** (not made): give the preview a database login that is allowed to write `auth.users`. That means pointing the branch's `DATABASE_URL` at the preview project's `postgres` login, after the owner resets that password in Supabase.
+  - This needs no code change.
+  - Testing production's actual magic-link path would also need the preview's anon key, `AUTH_MODE=supabase`, and real email delivery. That sends real email, so it needs approval.
+
+### 8.5 The connection-limit failure: cause and proposed fix (not made)
+- **Cause:** `DATABASE_URL` points at the Supabase pooler in **session mode** (port 5432), which allows **15 clients** for this project. Each Vercel function instance keeps up to 8 connections open (`lib/db.ts:26`, `max: 8`), so two or three warm instances use them all up. Requests then fail on `/login` and the store APIs.
+- **Proposed fix:** switch the branch's `DATABASE_URL` to **transaction mode** (same host, port 6543), and/or lower `max` for serverless. The app's per-request `set local` statements work in transaction mode.
+  - Doing this means writing a new `DATABASE_URL`. It's a sensitive variable whose value can't be read back, so the password would be regenerated the same way as before.
+  - It needs the owner's go-ahead.
+
+### 8.6 Production, read-only, before and after this work
+- Deployment `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (commit e7d2b6c) both times.
+- Production-scoped variable names were the same 9 both times: APP_SECRET, CRON_SECRET, DATABASE_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_URL, PUBLIC_API_ALLOWED_ORIGINS, STAFF_EMAILS, SUPABASE_SERVICE_ROLE_KEY.

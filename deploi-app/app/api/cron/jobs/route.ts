@@ -3,6 +3,7 @@ import '@/lib/connectors'
 import { enqueueDueWork, recordHeartbeat, runDueJobs } from '@/lib/jobs'
 import { cronAuthorized } from '@/lib/cron-auth'
 import { log } from '@/lib/log'
+import { flushWorkflowCounters } from '@/lib/ai/meter'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -17,6 +18,7 @@ export async function GET(req: Request) {
   try {
     const queued = await enqueueDueWork()
     const r = await runDueJobs({ deadlineMs: 240_000, limit: 200 })
+    await flushWorkflowCounters()
     const counts = r.ran.reduce<Record<string, number>>((acc, o) => { acc[o.status] = (acc[o.status] ?? 0) + 1; return acc }, {})
     await recordHeartbeat('cron.jobs', r.paused ? 'paused' : 'ok', { ran: r.ran.length, ...counts })
     return NextResponse.json({ ok: true, paused: r.paused, queued: { agentRuns: queued.agentRuns.filter(q => q.created).length, sends: queued.sends.filter(q => q.created).length }, ran: r.ran.length, counts })

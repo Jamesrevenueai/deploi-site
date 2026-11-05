@@ -58,6 +58,8 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/office/oauth/hubspot/callback/route.ts': { why: 'HubSpot OAuth callback: session + one-time state', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/office/oauth/google/callback/route.ts': { why: 'Google OAuth callback: session + one-time state + PKCE', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/email/oauth/synthetic/route.ts': { why: 'synthetic consent page, off unless synthetic mail is allowed', evidence: /syntheticAllowed/ },
+  'app/api/staff/economics/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
+  'app/api/staff/plans/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on edits', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
 }
 
 /** Deploi Office API: every handler resolves the session through officeActor (session, CSRF, staff refused, product enabled). */
@@ -168,5 +170,7 @@ describe('API route sweep', () => {
 
   it('every classified exception shows its guard', () => {
     for (const [f, o] of Object.entries(OTHER)) expect(src(f), `${f} (${o.why})`).toMatch(o.evidence)
+    // the staff guard resolves the session (CSRF for mutations) and refuses everyone but staff
+    expect(src('lib/platform/staff.ts')).toMatch(/await resolveActor\(req, opts\)\s*\n\s*if \(actor\.kind !== 'staff'\) throw new HttpError\(403/)
   })
 })

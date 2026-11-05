@@ -185,19 +185,24 @@ export async function visibleAccount(actor: Actor, accountId: string): Promise<E
   return acc
 }
 
+/** Revoke the stored tokens at the provider where it allows it (disconnect and organization deletion). Never throws. */
+export async function revokeAtProvider(acc: Pick<EmailAccountRow, 'id' | 'provider'>): Promise<'revoked' | 'not_supported' | 'failed'> {
+  try {
+    const creds = await admin(db => db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null }>('select * from email_credentials where account_id = $1', [acc.id]))
+    if (!creds) return 'not_supported'
+    return await emailAdapter(acc.provider).revoke({
+      accessToken: decryptSecret(creds.key_id, creds.ciphertext, aad(acc.id, 'access')),
+      refreshToken: creds.refresh_ciphertext ? decryptSecret(creds.key_id, creds.refresh_ciphertext, aad(acc.id, 'refresh')) : null,
+    })
+  } catch { return 'failed' }
+}
+
 /** Disconnect: revoke at the provider where it allows it, delete tokens, cancel every unsent message from this account. */
 export async function disconnectAccount(actor: Actor, accountId: string) {
   const acc = await visibleAccount(actor, accountId)
   assertMerchant(actor, acc.org_id)
   await assertCan(actor, acc.org_id, 'connect')
-  let revoked: 'revoked' | 'not_supported' | 'failed' = 'not_supported'
-  try {
-    const creds = await admin(db => db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null }>('select * from email_credentials where account_id = $1', [acc.id]))
-    if (creds) revoked = await emailAdapter(acc.provider).revoke({
-      accessToken: decryptSecret(creds.key_id, creds.ciphertext, aad(acc.id, 'access')),
-      refreshToken: creds.refresh_ciphertext ? decryptSecret(creds.key_id, creds.refresh_ciphertext, aad(acc.id, 'refresh')) : null,
-    })
-  } catch { revoked = 'failed' }
+  const revoked = await revokeAtProvider(acc)
   return admin(async db => {
     await db.query('delete from email_credentials where account_id = $1', [acc.id])
     await db.query(`update email_accounts set status = 'disconnected', status_reason = 'disconnected by the merchant', disconnected_at = now(), can_send = false, can_read = false where id = $1`, [acc.id])

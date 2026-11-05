@@ -7,6 +7,7 @@
  *                     after a crash) runs the agent once; the second attempt is a recorded skip.
  *  email.send         one queued message: sendMessage moves a row Queued -> Sending once, so a repeat is a no-op.
  *  email.reconcile    interrupted and unknown sends (never resent blindly).
+ *  platform.retention, platform.deletion   registered in lib/platform/jobs.ts (retention, organization deletion)
  *  engine.recover     interrupted store writes: queued/prechecking resume through every gate; a write that
  *                     may have happened becomes "unknown" for the merchant (lib/engine/recover.ts).
  *
@@ -74,5 +75,8 @@ export async function enqueueDueWork(opts: { now?: Date; limit?: number } = {}) 
   // Resolution Engine: due case checks (lib/cases/jobs.ts registers the handler)
   const { enqueueDueCases } = await import('../cases/jobs')
   out.maintenance.push(...(await enqueueDueCases(now, opts.limit ?? 200)))
+  // platform: daily retention, and organization deletions whose cooling-off ended (lib/platform/jobs.ts)
+  const { enqueuePlatformWork } = await import('../platform/jobs')
+  out.maintenance.push(...(await enqueuePlatformWork(now)))
   return out
 }

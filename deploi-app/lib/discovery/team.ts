@@ -37,7 +37,7 @@ type MerchantActor = Exclude<Actor, { kind: 'staff' }>
 export type SetupContext = {
   actor: MerchantActor; orgId: string; timezone: string; orgName: string; notify: string | null
   store: ConnectionRow | null; officeEnabled: boolean
-  office: { hubspot: string | null; calendar: string | null; mailbox: string | null }
+  office: { hubspot: string | null; calendar: string | null; mailbox: string | null; quickbooks: string | null }
 }
 
 export type TemplateSetup = {
@@ -120,8 +120,9 @@ const OFFICE_COPY: Record<OfficeKind, { monitors: string; schedule: string; limi
   meeting_scheduler: { monitors: 'Leads asking to meet: proposes three free times from your calendar.', schedule: 'Every hour', limits: ['At most 20 emails per day', 'Business hours only'] },
   crm_updater: { monitors: 'Emails and meetings, logged as notes on the HubSpot contact.', schedule: 'Every hour', limits: ['Moves stages only by the rules you set'] },
   customer_reply: { monitors: 'Incoming replies: sorted, with a drafted answer for each.', schedule: 'Every hour', limits: ['At most 20 emails per day', 'No emails between 19:00 and 08:00'] },
+  accounts_receivable: { monitors: 'Overdue QuickBooks invoices: drafts reminders to the invoice\'s billing address and checks QuickBooks for payment.', schedule: 'Every day', limits: ['Reminders only to the billing email on the invoice', 'Stops on a dispute and asks you', 'Counts as paid only when QuickBooks shows a zero balance', 'Never writes to QuickBooks'] },
 }
-const OFFICE_NEED: Record<'hubspot' | 'calendar' | 'mailbox', string> = { hubspot: 'a connected HubSpot account', calendar: 'a connected Google Calendar', mailbox: 'a mailbox for Deploi Office' }
+const OFFICE_NEED: Record<'hubspot' | 'calendar' | 'mailbox' | 'quickbooks', string> = { hubspot: 'a connected HubSpot account', calendar: 'a connected Google Calendar', mailbox: 'a mailbox for Deploi Office', quickbooks: 'a connected QuickBooks company' }
 
 function officeSetup(kind: OfficeKind): TemplateSetup {
   const t = officeTemplate(kind)!
@@ -135,7 +136,7 @@ function officeSetup(kind: OfficeKind): TemplateSetup {
       const needs = new Set(t.needs)
       const policy = officeTemplatePolicy(kind, {
         hubspotConnectionId: needs.has('hubspot') ? ctx.office.hubspot : null, calendarConnectionId: needs.has('calendar') ? ctx.office.calendar : null,
-        mailboxAccountId: needs.has('mailbox') ? ctx.office.mailbox : null, timezone: ctx.timezone, senderName: ctx.orgName,
+        mailboxAccountId: needs.has('mailbox') ? ctx.office.mailbox : null, quickbooksConnectionId: needs.has('quickbooks') ? ctx.office.quickbooks : null, timezone: ctx.timezone, senderName: ctx.orgName,
       })
       const r = await createOfficeAgent(ctx.actor, { kind, name: t.name, policy })
       return { agentId: r.agentId }
@@ -144,7 +145,7 @@ function officeSetup(kind: OfficeKind): TemplateSetup {
 }
 
 for (const k of ['inventory_watcher', 'store_health_checker', 'supplier_chaser', 'competitor_watcher'] as TemplateKey[]) registerTemplateSetup(k, engineSetup(k))
-for (const k of ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply'] as OfficeKind[]) registerTemplateSetup(k, officeSetup(k))
+for (const k of ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply', 'accounts_receivable'] as OfficeKind[]) registerTemplateSetup(k, officeSetup(k))
 
 // ------------------------------------------------------------------ aggregation
 
@@ -245,7 +246,7 @@ async function setupContext(actor: MerchantActor): Promise<SetupContext> {
       actor, orgId: actor.orgId, timezone: org?.timezone || store?.timezone || 'UTC', orgName: (org?.name || 'The team').slice(0, 80),
       notify: actor.kind === 'profile' ? actor.session.email.toLowerCase() : null, store,
       officeEnabled: await hasProduct(db, actor.orgId, 'office'),
-      office: { hubspot: await conn('hubspot'), calendar: await conn('google_calendar'), mailbox },
+      office: { hubspot: await conn('hubspot'), calendar: await conn('google_calendar'), mailbox, quickbooks: await conn('quickbooks') },
     }
   })
 }

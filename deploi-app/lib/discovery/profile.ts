@@ -6,7 +6,7 @@
  */
 import { admin } from '../db'
 import { OfficeHttpError } from '../office/http'
-import { hubspotFor } from '../office/providers'
+import { hubspotFor, quickbooksFor } from '../office/providers'
 import type { OfficeConnectionRow } from '../office/connections'
 import type { DetectorContext, ProfileFact } from './registry'
 import { activeStores, lowStock, stockItems, storeLabel, storeSnapshot, LOW_STOCK_THRESHOLD, PLATFORM_LABEL } from './store'
@@ -17,7 +17,7 @@ export type SourceRecord = { app: string; label: string; status: SourceState; re
 export type ProfilePlatform = { app: string; label: string; status: string; synthetic: boolean; connectedAt: string | null }
 export type BusinessProfile = { builtAt: string; platforms: ProfilePlatform[]; facts: ProfileFact[]; notRead: { app: string; label: string; reason: string }[] }
 
-const OFFICE_LABEL: Record<string, string> = { hubspot: 'HubSpot', google_calendar: 'Google Calendar' }
+const OFFICE_LABEL: Record<string, string> = { hubspot: 'HubSpot', google_calendar: 'Google Calendar', quickbooks: 'QuickBooks' }
 const MAIL_LABEL: Record<string, string> = { gmail: 'Gmail', microsoft: 'Microsoft 365', synthetic: 'Test mailbox', deploi: 'Deploi mailbox' }
 /** Leads counted per profile build, at most (HubSpot pages of 100). */
 export const CRM_COUNT_LIMIT = 500
@@ -77,6 +77,27 @@ export async function buildProfile(ctx: DetectorContext, opts: { timeoutMs?: num
   for (const o of office) {
     const label = OFFICE_LABEL[o.provider] ?? o.provider
     if (o.status !== 'active') { skip(o.provider, label, 'not_read', o.status === 'needs_reauth' ? 'needs reauth' : (o.status_reason ?? o.status)); continue }
+    if (o.provider === 'quickbooks') {
+      // receivables: open and past-due invoice counts only (no customer names or amounts in the profile)
+      try {
+        const api = quickbooksFor(o)
+        const today = now.toISOString().slice(0, 10)
+        const counts = await withTimeout((async () => {
+          let open = 0, pastDue = 0, start: number | null = 1, pages = 0
+          while (start && pages < 20) {
+            const page = await api.listOpenInvoices({ startPosition: start, maxResults: 100 })
+            for (const inv of page.invoices) { open++; if (inv.dueDate && inv.dueDate < today) pastDue++ }
+            start = page.next; pages++
+          }
+          return { open, pastDue, capped: Boolean(start) }
+        })(), timeoutMs)
+        const t = at()
+        sources.push({ app: 'quickbooks', label, status: 'read', reason: null, at: t })
+        facts.push({ key: 'ar.open_invoices', label: 'Open invoices', value: counts.open, source: 'quickbooks', observedAt: t, ...(counts.capped ? { capped: true } : {}) },
+          { key: 'ar.past_due_invoices', label: 'Invoices past their due date', value: counts.pastDue, source: 'quickbooks', observedAt: t, ...(counts.capped ? { capped: true } : {}) })
+      } catch (e) { skip('quickbooks', label, e instanceof DiscoveryTimeout ? 'timeout' : 'failed', why(e)) }
+      continue
+    }
     if (o.provider !== 'hubspot') continue // a calendar is listed as connected; discovery does not read its events
     try {
       const api = hubspotFor(o)

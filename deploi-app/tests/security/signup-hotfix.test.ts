@@ -37,11 +37,18 @@ describe.skipIf(!ready)('sign-up trust hotfix', () => {
 
   it('the hotfix migration is applied and is idempotent', async () => {
     const sql = readFileSync(join(__dirname, '../../supabase/migrations/20261031000001_signup_trust_hotfix.sql'), 'utf8')
-    await owner(async c => { await c.query(sql); await c.query(sql) })
-    const def = await owner(c => c.query<{ d: string }>(`select pg_get_functiondef('public.handle_new_user'::regproc) as d`))
+    // applied twice inside a transaction that is rolled back, so the later migrations' trigger stays in place
+    const def = await owner(async c => {
+      await c.query('begin')
+      try { await c.query(sql); await c.query(sql); return await c.query<{ d: string }>(`select pg_get_functiondef('public.handle_new_user'::regproc) as d`) } finally { await c.query('rollback') }
+    })
     expect(def.rows[0].d).not.toMatch(/-> 'raw_user_meta_data'/)
     expect(def.rows[0].d).toMatch(/-> 'raw_app_meta_data'/)
     expect(def.rows[0].d).not.toMatch(/position\(lower\(new\.email\) in staff_email_list/)
+    // the trigger in force (migration 20261106000053) reads app metadata only, and never user metadata
+    const now = await owner(c => c.query<{ d: string }>(`select pg_get_functiondef('public.handle_new_user'::regproc) as d`))
+    expect(now.rows[0].d).toMatch(/-> 'raw_app_meta_data'/)
+    expect(now.rows[0].d).not.toMatch(/raw_user_meta_data'/)
   })
 
   it('F-02: a person signing up cannot make themselves staff or join another organization', async () => {
@@ -54,12 +61,16 @@ describe.skipIf(!ready)('sign-up trust hotfix', () => {
     expect((await signUp(`xhello@getdeploi.com.evil.example`, {})).role).toBe('client')
   })
 
-  it('server-set app metadata and invites still assign an organization', async () => {
+  it('server-set app metadata assigns an organization; an invite does so only through its signed link', async () => {
     const viaApp = await signUp(`invited-app-${Date.now()}@client.example`, {}, { agency_id: ORG_NW, role: 'client' })
     expect(viaApp).toEqual({ role: 'client', agency_id: ORG_NW })
+    // signing up with an invited address joins nothing by itself (lib/platform/invites.ts acceptInvite does, after the link)
     const email = `invited-${Date.now()}@client.example`
-    await owner(c => c.query(`insert into invites (email, agency_id, role, invited_by) select $1, $2, 'client', id from profiles where role = 'staff' limit 1`, [email, ORG_NW]).catch(() => c.query(`insert into invites (email, agency_id, role) values ($1, $2, 'client')`, [email, ORG_NW])))
-    expect(await signUp(email, { role: 'staff' })).toEqual({ role: 'client', agency_id: ORG_NW })
+    await owner(c => c.query(`insert into invites (email, agency_id, role) values ($1, $2, 'client')`, [email, ORG_NW]))
+    expect(await signUp(email, { role: 'staff', agency_id: ORG_NW })).toEqual({ role: 'client', agency_id: null })
+    const inv = await owner(c => c.query<{ accepted_at: string | null }>(`select accepted_at from invites where lower(email) = $1`, [email]))
+    expect(inv.rows[0].accepted_at).toBeNull()
+    await owner(c => c.query(`delete from invites where lower(email) = $1`, [email]))
   })
 
   it('F-01 and F-03: signed-in users cannot read the leads view; nobody but the definer can list staff addresses', async () => {

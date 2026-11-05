@@ -6,6 +6,7 @@ import { MERCHANT_NAV } from '@/lib/store/nav'
 import { StoreProvider } from '@/components/store/bits'
 import { OFFICE_NAV } from './nav'
 import { OfficeGate } from './_components/OfficeGate'
+import { HelpMenu } from '@/components/support/HelpMenu'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: { default: 'Office', template: '%s · Deploi Office' } }
@@ -16,7 +17,7 @@ export default async function OfficeLayout({ children }: { children: React.React
   if (session.orgType !== 'merchant') redirect(session.agencyId ? '/no-store' : '/start')
   return (
     <AppShell items={MERCHANT_NAV} session={session} subnav={<SubNav items={OFFICE_NAV} label="Deploi Office" />}>
-      <StoreProvider base="/store"><OfficeGate>{children}</OfficeGate></StoreProvider>
+      <StoreProvider base="/store"><OfficeGate>{children}</OfficeGate><HelpMenu /></StoreProvider>
     </AppShell>
   )
 }

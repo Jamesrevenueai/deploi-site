@@ -4,11 +4,17 @@ import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { merchantActor, staffActor } from '../merchant/helpers'
 import { enabledProducts } from '../../lib/products'
-import { grantPolicy, deleteAgent } from '../../lib/agents/lifecycle'
+import { deleteAgent } from '../../lib/agents/lifecycle'
 import {
-  wizardView, saveBusiness, chooseProducts, setAgreements, autoSetupAgents, skipAgents, firstScan, completeWizard,
+  wizardView, saveBusiness, chooseProducts, autoSetupAgents, skipAgents, skipDiscovery, completeWizard,
   draftsOnlyTemplatePolicy, assertDraftsOnly, RECOMMENDED_AGENTS, validTimezone,
 } from '../../lib/library/onboarding'
+import { discoverNow, discoverView, setUpTeam, grantShownTeam } from '../../lib/discovery'
+import { recordAcceptance, requiredAgreements } from '../../lib/legal'
+import { connectSyntheticOffice } from '../../lib/office/connections'
+import { resetOffice } from '../office/helpers'
+import { resetDiscovery } from '../discovery/helpers'
+import { person, removePeople } from '../platform/helpers'
 import { NW, HB, resetCx } from './helpers'
 
 const ready = await prepareDb()
@@ -36,20 +42,24 @@ describe('drafts-only policy for automatic setup', () => {
 describe.skipIf(!ready)('setup wizard', () => {
   let original = ''
   beforeEach(async () => {
+    await resetDiscovery(NW)
     await resetCx(NW); await resetCx(HB)
     original = (await admin(db => db.one<{ name: string }>('select name from agencies where id = $1', [NW.org])))!.name
   })
   afterEach(async () => {
     delete process.env.AGENT_MAIL_DOMAIN
     await admin(db => db.query('update agencies set name = $2 where id = $1', [NW.org, original]))
+    await resetDiscovery(NW)
     await resetCx(NW)
   })
 
-  it('walks business, products, connect, agreements, agents, scan and done, and persists each step', async () => {
+  it('one path: business, agreements (gate off), products, connect, discovery and done; persisted and resumable', async () => {
     const actor = await merchantActor(NW)
     let v = await wizardView(actor)
+    expect(v.steps.map(s => s.key)).toEqual(['business', 'agreements', 'products', 'connect', 'discover', 'done'])
     expect(v.current).toBe('business')
-    expect(v.steps.map(s => s.key)).toEqual(['business', 'products', 'connect', 'agreements', 'agents', 'scan', 'done'])
+    // LEGAL_GATE is off here: the agreements step is not needed
+    expect(v.steps.find(s => s.key === 'agreements')!.state).toBe('skipped')
     await expect(saveBusiness(actor, { name: original, timezone: 'Nowhere/Here' })).rejects.toMatchObject({ code: 'invalid_input' })
     await expect(saveBusiness(actor, { name: '', timezone: 'UTC' })).rejects.toMatchObject({ code: 'invalid_input' })
     await saveBusiness(actor, { name: original, timezone: 'America/Chicago' })
@@ -58,37 +68,28 @@ describe.skipIf(!ready)('setup wizard', () => {
     expect(v.business).toMatchObject({ name: original, timezone: 'America/Chicago', saved: true })
 
     await expect(chooseProducts(actor, { commerce: false, office: false })).rejects.toMatchObject({ code: 'invalid_input' })
-    await expect(autoSetupAgents(actor)).rejects.toMatchObject({ code: 'needs_setup' })
     await chooseProducts(actor, { commerce: true, office: true, platform: 'shopify' })
     expect(await admin(db => enabledProducts(db, NW.org))).toEqual(['commerce', 'office'])
     v = await wizardView(actor)
-    // the synthetic Shopify store is already connected, so connect is done and agreements is next
+    // the synthetic Shopify store is already connected, so connect is done and discovery is next
     expect(v.steps.find(s => s.key === 'connect')!.state).toBe('done')
-    expect(v.current).toBe('agreements')
-    await expect(setAgreements(actor, 'maybe')).rejects.toMatchObject({ code: 'invalid_input' })
-    await setAgreements(actor, 'skipped')
-    v = await wizardView(actor)
-    expect(v.steps.find(s => s.key === 'agreements')!.state).toBe('skipped')
-    expect(v.current).toBe('agents')
-    expect(v.agents.map(a => a.status)).toEqual(['not_created', 'not_created'])
+    expect(v.current).toBe('discover')
+    expect(v.discovery).toMatchObject({ ran: false, activeAgents: 0 })
 
-    const r = await autoSetupAgents(actor)
-    expect(r.created).toEqual(['inventory_watcher', 'store_health_checker'])
+    await discoverNow(actor)
     v = await wizardView(actor)
-    expect(v.current).toBe('agents') // created, but nothing is granted automatically
-    for (const a of v.agents) {
-      expect(a.status).toBe('draft')
-      expect(a.tier).toBe('draft')
-      expect(a.pending?.summary.grants.length).toBeGreaterThan(0)
-    }
+    expect(v.discovery.ran).toBe(true)
+    expect(v.discovery.recommended).toBeGreaterThan(0)
+    expect(v.current).toBe('discover') // found work, but nothing is set up or granted automatically
+    await setUpTeam(actor)
+    expect((await wizardView(actor)).current).toBe('discover')
     await expect(completeWizard(actor)).rejects.toMatchObject({ code: 'needs_setup' })
-    for (const a of v.agents) await grantPolicy(actor, a.agentId!, a.pending!.policyId, a.pending!.policyHash)
+    const shown = (await discoverView(actor)).team.filter(t => t.agent?.pending?.draftsOnly)
+    expect(shown.length).toBeGreaterThan(0)
+    const g = await grantShownTeam(actor, shown.map(t => ({ agentId: t.agent!.agentId, policyId: t.agent!.pending!.policyId, policyHash: t.agent!.pending!.policyHash })))
+    expect(g.filter(x => x.ok)).toHaveLength(shown.length)
     v = await wizardView(actor)
-    expect(v.agents.map(a => a.status)).toEqual(['active', 'active'])
-    expect(v.current).toBe('scan')
-    const scan = await firstScan(actor)
-    expect(scan.resourcesScanned).toBeGreaterThan(0)
-    v = await wizardView(actor)
+    expect(v.discovery.activeAgents).toBe(shown.length)
     expect(v.current).toBe('done')
     expect(await completeWizard(actor)).toMatchObject({ completed: true })
     v = await wizardView(actor)
@@ -96,6 +97,27 @@ describe.skipIf(!ready)('setup wizard', () => {
     expect(v.steps.every(s => s.state === 'done' || s.state === 'skipped')).toBe(true)
     // granted agents are still drafts only: the grant did not widen anything
     expect((await agentsOf(NW.org)).filter(a => a.policy_status === 'active').every(a => a.approval_mode === 'draft')).toBe(true)
+  })
+
+  it('with LEGAL_GATE on, the agreements step waits for the real acceptances, then setup continues', async () => {
+    process.env.LEGAL_GATE = 'draft'
+    try {
+      // a new person of the organization: the agreements each person accepts are still to accept
+      const actor = await person(NW, 'admin', `legal${Date.now()}`)
+      await saveBusiness(actor, { name: original, timezone: 'UTC' })
+      let v = await wizardView(actor)
+      expect(v.current).toBe('agreements')
+      expect(v.legal.missing.length).toBeGreaterThan(0)
+      const docs = requiredAgreements('commerce')
+      await admin(db => recordAcceptance(db, { orgId: NW.org, userId: actor.session.uid, product: 'commerce', documents: docs.map(d => ({ key: d.key, version: d.version, sha256: d.sha256 })) }, 'draft'))
+      v = await wizardView(actor)
+      expect(v.legal.missing).toEqual([])
+      expect(v.steps.find(s => s.key === 'agreements')!.state).toBe('done')
+      expect(v.current).toBe('products')
+    } finally {
+      delete process.env.LEGAL_GATE
+      await removePeople(NW)
+    }
   })
 
   it('creates the recommended agents at drafts only, once, even when asked twice at the same time', async () => {
@@ -124,25 +146,29 @@ describe.skipIf(!ready)('setup wizard', () => {
     expect(await agentsOf(NW.org)).toHaveLength(2)
   })
 
-  it('without agent mailboxes the agents have no email permission at all; skipping is recorded', async () => {
+  it('without agent mailboxes the agents have no email permission at all; discovery can be skipped for now', async () => {
     const actor = await merchantActor(NW)
     await chooseProducts(actor, { commerce: true, office: false })
     await autoSetupAgents(actor)
     expect((await agentsOf(NW.org)).every(r => r.email_permission === null && r.approval_mode === 'draft')).toBe(true)
     await skipAgents(actor)
-    expect((await wizardView(actor)).steps.find(s => s.key === 'agents')!.state).toBe('skipped')
+    await skipDiscovery(actor)
+    expect((await wizardView(actor)).steps.find(s => s.key === 'discover')!.state).toBe('skipped')
   })
 
-  it('Office only: no store agents, connect and scan are not needed; Commerce is switched off', async () => {
+  it('Office only: connecting an Office tool completes the connect step; Commerce is switched off', async () => {
     const actor = await merchantActor(NW)
     await chooseProducts(actor, { commerce: false, office: true })
     expect(await admin(db => enabledProducts(db, NW.org))).toEqual(['office'])
-    const v = await wizardView(actor)
+    let v = await wizardView(actor)
     expect(v.agents).toEqual([])
+    expect(v.steps.find(s => s.key === 'connect')!.state).not.toBe('done')
+    await connectSyntheticOffice(actor, 'hubspot', { demoData: false })
+    v = await wizardView(actor)
+    expect(v.office.connected).toEqual(['hubspot'])
     expect(v.steps.find(s => s.key === 'connect')!.state).toBe('done')
-    expect(v.steps.find(s => s.key === 'agents')!.state).toBe('skipped')
-    expect(v.steps.find(s => s.key === 'scan')!.state).toBe('skipped')
     expect(await autoSetupAgents(actor)).toEqual({ created: [], existing: [], failed: [] })
+    await resetOffice(NW)
   })
 
   it('is per organization: another store sees its own wizard; staff cannot run it', async () => {

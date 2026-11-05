@@ -199,7 +199,7 @@ describe.skipIf(!ready)('organization roles (F-08)', () => {
     await removeMember(r.admin, memberId)
     expect((await listMembers(r.owner)).members.map(m => m.userId)).not.toContain(memberId)
     await expect(inviteMember(r.admin, 'new.person@rbac.example', 'owner')).rejects.toMatchObject({ code: 'invalid_input' })
-    expect(await inviteMember(r.admin, 'new.person@rbac.example', 'viewer')).toEqual({ email: 'new.person@rbac.example', role: 'viewer' })
+    expect(await inviteMember(r.admin, 'new.person@rbac.example', 'viewer')).toMatchObject({ email: 'new.person@rbac.example', role: 'viewer', emailStatus: 'held' })
     expect((await listMembers(r.owner)).invites).toEqual([expect.objectContaining({ email: 'new.person@rbac.example', role: 'viewer' })])
     await admin(db => db.query(`delete from invites where agency_id = $1`, [NW.org]))
   })

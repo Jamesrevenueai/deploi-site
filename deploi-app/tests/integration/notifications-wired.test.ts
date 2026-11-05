@@ -26,7 +26,8 @@ describe.skipIf(!ready)('notifications go through the system mailer', () => {
     })
     process.env.RESEND_API_KEY = 're_test_key'
     setBillingNotifier(null); setOpsNotifier(null)
-    await admin(db => db.query(`delete from billing_notices where org_id = $1 and dedupe_key like 'wired:%'`, [NW.org]))
+    // other billing tests can leave pending notices for this organization; this test delivers only its own
+    await admin(db => db.query(`delete from billing_notices where org_id = $1 and (dedupe_key like 'wired:%' or status = 'pending')`, [NW.org]))
   })
   afterEach(async () => {
     setEmailFetch(null)

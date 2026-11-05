@@ -49,13 +49,14 @@ export const tierOfMode = (m: ApprovalMode): Tier => (m === 'draft' ? 'draft' : 
 export const MAX_AUTONOMY_MS = 366 * 864e5
 
 /** Email tasks an agent can be authorized for. Each builds its messages from templates and store data; recipients come only from the policy. */
-export const EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup'] as const
+export const EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup', 'supplier_exception'] as const
 export type EmailTask = typeof EMAIL_TASKS[number]
 export const EMAIL_TASK_LABEL: Record<EmailTask, string> = {
   run_report: 'Send a summary of each run',
   needs_person_alert: 'Alert people about problems that need a person',
   supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
   supplier_followup: 'Follow up once, in the same thread, when a supplier has not replied',
+  supplier_exception: "Write to a purchase order's supplier about an exception on that order (confirmation, quantities, delivery date, price)",
 }
 /** cumulative permission levels: each includes the ones before it */
 export const EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
@@ -74,7 +75,7 @@ export const EmailPolicySchema = z.object({
   permission: z.enum(EMAIL_PERMISSIONS).default('draft'),
   /** shown in the authorization summary and in every message's audit record */
   purpose: z.string().trim().min(3).max(300),
-  tasks: z.array(z.enum(EMAIL_TASKS)).min(1).max(4),
+  tasks: z.array(z.enum(EMAIL_TASKS)).min(1).max(5),
   /** who the agent may ever write to; a message to anyone else always waits for approval */
   recipients: z.object({
     addresses: z.array(emailAddress).max(50).default([]),
@@ -234,7 +235,7 @@ export const PolicySchema = z.object({
     }
     if (e.tasks.includes('supplier_followup') && !e.tasks.includes('supplier_reorder')) ctx.addIssue({ code: 'custom', path: ['email', 'tasks'], message: 'following up needs the supplier restock task' })
     if (e.tasks.includes('supplier_followup') && !e.read.enabled) ctx.addIssue({ code: 'custom', path: ['email', 'read'], message: 'following up only when there is no reply needs permission to notice replies' })
-    if (e.read.enabled && !e.tasks.includes('supplier_reorder')) ctx.addIssue({ code: 'custom', path: ['email', 'read'], message: 'mailbox reading is only for tracking supplier replies; no configured task needs it' })
+    if (e.read.enabled && !e.tasks.includes('supplier_reorder') && !e.tasks.includes('supplier_exception')) ctx.addIssue({ code: 'custom', path: ['email', 'read'], message: 'mailbox reading is only for tracking supplier replies; no configured task needs it' })
     if (e.permission === 'send_autonomous') {
       if (!e.validUntil) ctx.addIssue({ code: 'custom', path: ['email', 'validUntil'], message: 'sending without asking needs an end date' })
       else if (new Date(e.validUntil).getTime() - Date.now() > MAX_AUTONOMY_MS) ctx.addIssue({ code: 'custom', path: ['email', 'validUntil'], message: 'an authorization to send without asking lasts at most one year' })
@@ -438,7 +439,8 @@ export function summarizePolicy(p: AgentPolicy, ctx: SummaryContext): { grants: 
       : `may send without asking until ${e.validUntil ? new Date(e.validUntil).toISOString().slice(0, 10) : '(no end date)'}`
     grants.push(`Email from ${sender}: ${level}. Purpose: "${e.purpose}". Tasks: ${what}.`)
     grants.push(`Email recipients allowed: ${who}.${e.notify.length ? ` Summaries and alerts go to ${e.notify.join(', ')}.` : ''}${e.supplierReorder ? ` Supplier requests go to ${e.supplierReorder.mappingSourceId ? `the supplier named for each SKU in your supplier mapping file (only addresses the recipient rules allow)${e.supplierReorder.unmapped === 'skip' ? '; SKUs not in the file are left out' : `, otherwise ${e.supplierReorder.supplierAddress}`}` : e.supplierReorder.supplierAddress}, one request per supplier per day, for variants with ${e.supplierReorder.thresholdAvailable} or fewer available, at most once every ${e.supplierReorder.cooldownDays} days per variant.` : ''}${e.supplierReorder && e.tasks.includes('supplier_followup') ? ` If the supplier has not replied after ${e.supplierReorder.followupDays} days, one follow-up in the same thread.` : ''}`)
-    if (e.read.enabled) grants.push('Mailbox reading: only to notice replies to messages this agent sent. Reply content is never acted on.')
+    if (e.tasks.includes('supplier_exception')) grants.push('Purchase order exceptions: writes only to the supplier email on the purchase order concerned (and only if it is an allowed recipient). Their reply is read as data to suggest options; any change to a purchase order waits for your approval of that exact change.')
+    if (e.read.enabled) grants.push(e.tasks.includes('supplier_exception') ? 'Mailbox reading: only replies to messages this agent sent. Replies are read as data (dates, quantities, prices); nothing in them can add a recipient or change what the agent may do.' : 'Mailbox reading: only to notice replies to messages this agent sent. Reply content is never acted on.')
     if (e.permission !== 'draft') limits.push(`Email: at most ${e.limits.perRun} messages per run, ${e.limits.perDay} per day and ${e.maxRecipientsPerMessage} recipients per message${e.allowAttachments ? '' : ', no attachments'}. Anything outside these limits waits for your approval.`)
     never.push(ctx.emailAccount?.provider === 'deploi' ? 'Never sends email to anyone outside the allowed recipients, even with your approval: adding a recipient needs a new grant.' : 'Never sends email to anyone outside the allowed recipients without your approval of that exact message.')
     never.push('Never lets an incoming email or attachment change what it is allowed to do.')

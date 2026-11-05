@@ -6,7 +6,7 @@
  */
 import { OVERSOLD_WATCH } from './watch'
 
-export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'store_health_checker' | 'competitor_watcher'
+export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'supplier_coordinator' | 'store_health_checker' | 'competitor_watcher'
 /** public_web: reads other stores' public pages (read only); it is never a permission over your store */
 export type TemplateTool = 'shopify' | 'email' | 'public_web'
 
@@ -38,6 +38,13 @@ export const TEMPLATES: AgentTemplate[] = [
     tools: ['shopify', 'email'], mailbox: true,
     needs: ["your supplier's email address", 'optional: a supplier list (CSV: sku, supplier_email, reorder_qty, lead_time_days)'],
     minutesPerItem: 10,
+  },
+  {
+    key: 'supplier_coordinator', name: 'Supplier Coordinator',
+    job: 'Watch my imported purchase orders for exceptions: no confirmation after 3 days, quantities or prices that differ from the order, and late or revised deliveries. Write to the supplier named on the order from your own address, read their reply, and show me the options. Do not send anything or change an order without me.',
+    tools: ['email'], mailbox: true,
+    needs: ['your purchase orders (CSV)', "the suppliers' email addresses (taken from your purchase orders)"],
+    minutesPerItem: 15,
   },
   {
     key: 'store_health_checker', name: 'Store Health Checker',
@@ -90,6 +97,17 @@ export function templatePolicy(key: TemplateKey, input: { connectionId: string; 
       recipients: { addresses: [...(supplier ? [supplier] : []), ...mapped], domains: [] }, notify: [], limits: { perRun: 5, perDay: 10 }, maxRecipientsPerMessage: 2,
       supplierReorder: supplier ? { supplierAddress: supplier, thresholdAvailable: 2, cooldownDays: 7, followupDays: 3, ...mapping } : undefined,
       read: { enabled: true, scope: 'replies_to_agent_messages' } },
+    }
+  }
+  if (key === 'supplier_coordinator') {
+    // recipients: the supplier addresses on the merchant's imported purchase orders, shown in the summary they grant
+    const addresses = [...new Set([supplier, ...(input.supplier?.mappedAddresses ?? [])].map(a => a.trim().toLowerCase()).filter(Boolean))].slice(0, 50)
+    return {
+      ...base, correctionTypes: [], rules: {}, watch: [],
+      schedule: { kind: 'interval', everyHours: 4 },
+      email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Resolve exceptions on purchase orders with the supplier named on each order', tasks: ['supplier_exception'],
+        recipients: { addresses, domains: [] }, notify: [], limits: { perRun: 10, perDay: 20 }, maxRecipientsPerMessage: 1,
+        read: { enabled: true, scope: 'replies_to_agent_messages' } },
     }
   }
   if (key === 'competitor_watcher') {

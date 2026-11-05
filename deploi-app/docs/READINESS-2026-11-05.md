@@ -239,3 +239,87 @@ The goal was a working PR #16 preview with demo data. **Production was not touch
 ### 8.6 Production, read-only, before and after this work
 - Deployment `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (commit e7d2b6c) both times.
 - Production-scoped variable names were the same 9 both times: APP_SECRET, CRON_SECRET, DATABASE_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_URL, PUBLIC_API_ALLOWED_ORIGINS, STAFF_EMAILS, SUPABASE_SERVICE_ROLE_KEY.
+
+### 8.7 Transaction-mode fix and full rerun (2026-11-05, 22:54–23:30 UTC)
+
+**Connection fix.**
+- The target was confirmed as deploi-preview before anything ran. `deploi_pr16_app`'s password was rotated (HTTP 201).
+- The branch's `DATABASE_URL` was rewritten to the Supabase pooler in **transaction mode (port 6543)**. It stays sensitive, Preview only, branch `claude/deploi-operating-system`, exactly one entry, updated 22:54:15Z. The value was generated in-process and never shown.
+
+**Code compatibility: no change needed.**
+- The app uses `pg` (node-postgres), which sends unnamed statements; no query in the code base asks for a named, prepared one.
+- `withUser`, `withOrgSession` and `admin` each wrap their work in `begin`…`commit`. Settings are transaction-scoped only: `set local role`, `set_config(…, true)` (`lib/db.ts:48-100`).
+- The only statements outside a transaction are single queries in `lib/security/rate-limit.ts:98,117,121`.
+- There are no session-level advisory locks, and no `LISTEN` or `NOTIFY`.
+
+**Rebuild.**
+- `dpl_6yWeZ3W63KSs9cEaXpgpbjuNrrcD`, commit `af99473`, READY.
+- This was a forced rebuild of an unchanged commit, which confirms the skip-rule fix in `2d4bab5`.
+- `/api/health`: `db.reachable: true`.
+
+**Browser checks, final run** (all checks run, no stop at a failure; screenshots in `proof/preview-pr16/`, each at 1440 and 390 px):
+
+| Check | Result | Evidence / exact error |
+|---|---|---|
+| 1 Demo sign-in (Northwind owner → Home) | PASS | `01-home-*` |
+| 3 Demo data: Office on, synthetic QuickBooks and mailbox, a scan, a demo case | PASS | `03-office-connections-*` |
+| 3b Harbor demo account sees only its own organization | PASS | `03b-harbor-home-*` |
+| 4 Control Room shows the work waiting | PASS | `04-control-room-*` |
+| 5 AI Team: discovery, the recommended team at drafts only, granted | **PASS on fresh data (run 3); FAIL on re-run (run 4)** | Run 4: `getByRole('button', { name: /Grant all shown/ })`: element(s) not found. Current state: `05-ai-team-state-*`. See the defect below. |
+| 6 Approve the demo case → Completed Work, verified outcome | PASS | `06-approvals-*`, `06b-completed-case-*` |
+| 7 Inbox (now via the navigation link, `/store/inbox/mail`) | PASS | `07-inbox-*` |
+| 8 Integrations: every tool with an honest status | PASS | `08-integrations-*` |
+| 9 Agent workflow: the Accounts Receivable agent runs and drafts (nothing sent at drafts only) | **PASS on fresh data (run 3); FAIL on re-run (run 4)** | Run 4: "an Accounts Receivable agent set up by the AI Team check", Received: `undefined`. Current state: `09-office-agents-state-*` shows the agent exists. |
+
+**Final run: 7 pass, 2 fail.** Both failures are the same product defect, found by re-running discovery on an organization whose team is already set up.
+
+**Run history.**
+- Run 2: 8 pass, 1 skipped. Several passes weren't real: the screenshots showed pages still loading, and the optional steps hadn't run. So the checks were made strict.
+- Run 3: 4 pass, 5 errors, all from my screenshot helper (`page.setViewportSize: Target page, context or browser has been closed`). It waited for all network activity to finish, which never happens because the app keeps polling. The app's own assertions in those 5 checks had passed.
+- Run 4: the helper's wait was capped at 5 seconds. 7 pass, 2 fail (above).
+
+**Defect found (not fixed): an existing Office agent drops out of the recommended team when discovery runs again.**
+- `lib/discovery/detectors/office-receivables.ts:61` recommends a template only when no such agent exists (`findings.length && !agent ? … : null`). The other Office detectors do the same (`office-email.ts:49`, `office-crm.ts:58`).
+- On a second discovery run, the working Accounts Receivable agent is therefore missing from "Your recommended AI team" and from `/api/store/discover` `team`. Commerce agents stay listed with a "working" badge.
+- Proposed fix: return the recommendation with the existing agent attached (as the store detectors do), so the team card shows "working".
+
+**Smaller observation.** Each check run adds another synthetic mailbox: `email_accounts` went from 0 to 3 over the three demo-data runs. The "Add a synthetic mailbox" button doesn't check for an existing one. This is test-only behaviour.
+
+**Demo data** (row counts before this pass and after the final run):
+
+| Table | Before | After |
+|---|---|---|
+| agencies | 2 | 2 |
+| profiles | 4 | 4 |
+| org_products | 2 | 3 |
+| store_connections | 2 | 2 |
+| agents | 4 | 6 |
+| office_connections | 0 | 1 |
+| email_accounts | 0 | 3 |
+| office_agents | 0 | 1 |
+| office_agent_policies | 0 | 1 |
+| office_invoices | 0 | 1 |
+| office_actions | 0 | 1 |
+| discovery_runs | 0 | 2 |
+| discovery_agents | 0 | 3 |
+| business_profiles | 0 | 1 |
+| issues | 0 | 1 |
+| cases | 0 | 9 |
+| case_events | 0 | 36 |
+| case_links | 0 | 14 |
+| engine_audit | 0 | 42 |
+| jobs | 0 | 2 |
+| approvals | 0 | 0 |
+| proposals | 0 | 0 |
+| connection_health | 0 | 0 |
+
+**Production's database connection** (read-only).
+- Production's app connects through the Supabase pooler (Supavisor) as `deploi_app` (seen in `pg_stat_activity` on deploi-prod). The production pooler is configured for transaction mode on port 6543.
+- **The port in production's `DATABASE_URL` can't be confirmed.** It's a sensitive variable whose value can't be read back (last updated 2026-10-30 14:54Z), and the runbook template (`docs/PRODUCTION-RUNBOOK-2026-10-30.md:30`) uses 6543.
+- Production's per-instance pool is **8 connections** (`lib/db.ts:26` on `main`, `max: 8`).
+- **Risk:** if production's URL uses port 5432 (session mode), it has the same 15-client ceiling that broke the preview, and would fail the same way under light concurrency.
+- **Recommendation** (owner action, not done):
+  - Whoever set production's `DATABASE_URL` on 2026-10-30 should confirm it uses `…pooler.supabase.com:6543`; re-enter it with 6543 if not.
+  - In the next release, lower `max` for serverless (2–3) and set a short `idleTimeoutMillis`, so idle function instances don't hold connections.
+
+**Production after this pass:** `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (commit e7d2b6c), with the same 9 production-scoped variable names.

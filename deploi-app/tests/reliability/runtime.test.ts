@@ -58,7 +58,7 @@ async function clean() {
 }
 beforeEach(async () => { running = 0; maxRunning = 0; checks = 0; fakeResend(); if (ready) { await clean(); await resetMerchant(NW); await resetMerchant(HB) } })
 afterEach(restoreEmail)
-afterAll(async () => { if (ready) await clean() })
+afterAll(async () => { if (ready) { await clean(); await resetMerchant(NW); await resetMerchant(HB) } })
 
 describe.skipIf(!ready)('concurrency', () => {
   it('R-1: two workers checking the same case at once run its checker once', async () => {

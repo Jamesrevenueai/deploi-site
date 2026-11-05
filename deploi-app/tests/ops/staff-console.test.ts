@@ -36,7 +36,7 @@ async function clean() {
   })
 }
 beforeEach(async () => { fails = 0; since = new Date().toISOString(); if (ready) { await clean(); await resetMerchant(NW); await resetMerchant(HB) } setOpsNotifier(recordingNotifier()) })
-afterAll(async () => { setOpsNotifier(null); if (ready) await clean() })
+afterAll(async () => { setOpsNotifier(null); if (ready) { await clean(); await resetMerchant(NW); await resetMerchant(HB) } })
 
 describe.skipIf(!ready)('staff operations console', () => {
   it('a dead job is listed, requeued (fresh attempts) and runs; another is cancelled; both actions audited; merchants are refused', async () => {

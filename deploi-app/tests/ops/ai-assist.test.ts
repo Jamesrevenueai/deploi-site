@@ -62,7 +62,13 @@ const AMBIGUOUS = 'Hi, we can ship 6 units of the oat throws now and the rest is
 
 beforeEach(async () => { restoreEnv(); aiOn(); calls = []; answer = () => '{}'; if (ready) await cleanAi() })
 afterEach(() => restoreEnv())
-afterAll(async () => { restoreEnv(); setFakeProvider(null); if (ready) { await cleanAi(); await resetOffice(NW, { enable: false }); await resetMerchant(NW) } })
+afterAll(async () => { restoreEnv(); setFakeProvider(null); if (ready) { await cleanAi(); await resetOffice(NW, { enable: false }); await resetMerchant(NW)
+  await admin(async db => {
+    await db.query(`delete from jobs where kind = 'case.check' and org_id = $1`, [NW.org])
+    await db.query('delete from cases where org_id = $1', [NW.org])
+    await db.query('delete from purchase_orders where org_id = $1', [NW.org])
+    await db.query('delete from email_inbound where org_id = $1', [NW.org])
+  }) } })
 
 describe.skipIf(!ready)('AI-assisted steps: the shared rules', () => {
   it('AI_PROVIDER=off: the rules run, nothing is called, nothing is recorded', async () => {

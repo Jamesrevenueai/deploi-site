@@ -32,7 +32,8 @@ describe.skipIf(!ready)('cross-workstream integration', () => {
   afterAll(clearStops)
 
   it('an Office email waiting for approval is in the unified inbox with its exact content, is invisible to another organization, and approving it there sends once', async () => {
-    const agent = await grantedAgent(s, 'lead_followup', { email: 'send_approved' })
+    // no quiet hours: the unified inbox approves on the wall clock, and the test must not depend on the hour it runs
+    const agent = await grantedAgent(s, 'lead_followup', { email: 'send_approved' }, p => { (p.email as { quietHours: unknown }).quietHours = null })
     await runOfficeAgent(agent, { trigger: 'test', now: T })
     const [a] = await actions(agent)
     expect(a.status).toBe('awaiting_approval')

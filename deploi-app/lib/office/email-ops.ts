@@ -152,7 +152,11 @@ async function handleUnanswered(ctx: AgentCtx, i: Unanswered, account: { id: str
   const p = ctx.policy!, o = p.emailOps!
   const actor = actorOf(ctx)
   const content = inboundContent(i)
-  const category = classifyEmail(content.subject, content.text)
+  let category = classifyEmail(content.subject, content.text)
+  // a follow-up keeps its conversation's category (a customer issue stays one, whatever the next message says)
+  const thread = i.thread_message_id ? await admin(db => caseForRecord(db, ctx.agent.org_id, 'email_message', i.thread_message_id!)) : null
+  const first = thread && !TERMINAL.includes(thread.status) ? thread.evidence.map(e => (e.detail as { category?: EmailCategory } | undefined)?.category).find(Boolean) : undefined
+  if (first && first !== 'spam_ish') category = first
   const hours = Math.floor(i.business_minutes / 60)
   const evidence: Evidence = { label: `No reply for ${hours} business hours: message from ${i.from_address} received ${iso(i.received_at).slice(0, 16).replace('T', ' ')} UTC, sorted as "${EMAIL_CATEGORY_LABEL[category]}"`,
     source: SOURCE[account.provider] ?? 'deploi_email', observedAt: now.toISOString(), ref: { type: 'email_inbound', id: i.id }, detail: { category, business_hours: hours, mailbox: account.address } }
@@ -220,7 +224,8 @@ export async function syncEmailCase(caseId: string, now: Date) {
   if (mine?.status === 'succeeded' && mine.email_message_id) {
     const m = await admin(db => db.one<{ id: string; accepted_at: string | null; created_at: string }>('select id, accepted_at, created_at from email_messages where id = $1', [mine.email_message_id]))
     if (m) {
-      sent = { id: m.id, at: m.accepted_at ?? m.created_at, by: 'the Email Operations agent' }
+      // the action's own execution time (the moment the provider accepted it, on the run's clock)
+      sent = { id: m.id, at: mine.executed_at ?? m.accepted_at ?? m.created_at, by: 'the Email Operations agent' }
       await ensureActionRecorded(c.id, { summary: `Reply sent to ${latest.from_address} (accepted by the provider; not proof of delivery)`, ref: { type: 'email_message', id: m.id }, detail: { office_action_id: mine.id, approval: mine.approval_kind } }, actor)
     }
   } else if (other) {

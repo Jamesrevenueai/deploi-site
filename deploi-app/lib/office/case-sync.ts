@@ -58,7 +58,15 @@ export async function moveCase(caseId: string, t: CaseTarget, actor: string): Pr
       return db.one<CaseRow>(`update cases set status_reason = $2, next_action = case when $3::boolean then $4 else next_action end, next_check_at = case when $5::boolean then $6::timestamptz else next_check_at end,
         approval_required = $7 where id = $1 returning *`, [c.id, t.reason.slice(0, 1000), t.nextAction !== undefined, t.nextAction?.slice(0, 1000) ?? null, nextCheck !== undefined, nextCheck?.toISOString() ?? null, approval])
     }
-    const path = pathTo(c.status, t.status)
+    // a detected problem with an agent action under way passes through "proposed" (the action was proposed first)
+    const viaProposed = c.status === 'detected' && ['awaiting_approval', 'executing', 'waiting_external', 'verifying'].includes(t.status)
+    const rest = viaProposed ? pathTo('proposed', t.status) : null
+    let path = viaProposed && rest ? ['proposed' as CaseStatus, ...rest] : pathTo(c.status, t.status)
+    // waiting for someone outside means something was sent: the history shows the step that sent it
+    if (t.status === 'waiting_external' && path && !path.includes('executing') && ['detected', 'proposed', 'awaiting_approval', 'investigating'].includes(c.status)) {
+      const toExec = c.status === 'detected' ? ['proposed' as CaseStatus, 'executing' as CaseStatus] : pathTo(c.status, 'executing')
+      if (toExec) path = [...toExec, 'waiting_external']
+    }
     if (!path) { log.error('office.case_move_impossible', { case_id: c.id, from: c.status, to: t.status }); return c }
     let row: CaseRow = c
     for (const [n, s] of path.entries()) {

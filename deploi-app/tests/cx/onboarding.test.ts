@@ -14,7 +14,7 @@ import { recordAcceptance, requiredAgreements } from '../../lib/legal'
 import { connectSyntheticOffice } from '../../lib/office/connections'
 import { resetOffice } from '../office/helpers'
 import { resetDiscovery } from '../discovery/helpers'
-import { person, removePeople } from '../platform/helpers'
+import { createOwnOrganization } from '../../lib/platform/signup'
 import { NW, HB, resetCx } from './helpers'
 
 const ready = await prepareDb()
@@ -99,24 +99,28 @@ describe.skipIf(!ready)('setup wizard', () => {
     expect((await agentsOf(NW.org)).filter(a => a.policy_status === 'active').every(a => a.approval_mode === 'draft')).toBe(true)
   })
 
-  it('with LEGAL_GATE on, the agreements step waits for the real acceptances, then setup continues', async () => {
+  it('with LEGAL_GATE on, a new organization\'s setup waits on the agreements step for the real acceptances', async () => {
     process.env.LEGAL_GATE = 'draft'
+    // a throwaway organization: acceptances are append-only and leave only with their organization
+    const email = `legal.${Date.now()}@new-business.example`
+    const uid = (await admin(db => db.one<{ id: string }>(`insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id`, [email])))!.id
+    const session = { uid, email, role: 'client' as const, agencyId: null }
+    const { orgId } = await createOwnOrganization(session, { name: 'Gate Test Co', timezone: 'UTC' })
     try {
-      // a new person of the organization: the agreements each person accepts are still to accept
-      const actor = await person(NW, 'admin', `legal${Date.now()}`)
-      await saveBusiness(actor, { name: original, timezone: 'UTC' })
+      const actor = { kind: 'profile' as const, session: { ...session, agencyId: orgId, orgType: 'merchant' }, orgId, label: `user:${email}` }
       let v = await wizardView(actor)
+      expect(v.steps.find(s => s.key === 'business')!.state).toBe('done')
       expect(v.current).toBe('agreements')
       expect(v.legal.missing.length).toBeGreaterThan(0)
       const docs = requiredAgreements('commerce')
-      await admin(db => recordAcceptance(db, { orgId: NW.org, userId: actor.session.uid, product: 'commerce', documents: docs.map(d => ({ key: d.key, version: d.version, sha256: d.sha256 })) }, 'draft'))
+      await admin(db => recordAcceptance(db, { orgId, userId: uid, product: 'commerce', documents: docs.map(d => ({ key: d.key, version: d.version, sha256: d.sha256 })) }, 'draft'))
       v = await wizardView(actor)
       expect(v.legal.missing).toEqual([])
       expect(v.steps.find(s => s.key === 'agreements')!.state).toBe('done')
       expect(v.current).toBe('products')
     } finally {
       delete process.env.LEGAL_GATE
-      await removePeople(NW)
+      await admin(async db => { await db.query('delete from agencies where id = $1', [orgId]); await db.query('delete from auth.users where id = $1', [uid]) })
     }
   })
 

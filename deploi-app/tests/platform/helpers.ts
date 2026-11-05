@@ -5,7 +5,7 @@ import type { Actor } from '../../lib/engine/actor'
 import type { OrgRole } from '../../lib/platform/rbac'
 import type { NW } from '../merchant/helpers'
 
-export async function person(m: typeof NW, role: OrgRole, tag = role): Promise<Actor & { kind: 'profile' }> {
+export async function person(m: typeof NW, role: OrgRole, tag: string = role): Promise<Actor & { kind: 'profile' }> {
   const email = `${tag}.${m === undefined ? 'x' : m.domain.split('.')[0]}@rbac.example`
   const uid = uuidFrom(`user:rbac:${m.org}:${tag}`)
   await admin(async db => {

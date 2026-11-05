@@ -14,6 +14,7 @@ import { Section } from '@/components/store/bits'
 import { probe } from '@/components/cx/probe'
 import { useState } from 'react'
 import { storeFetch, asApiError } from '@/components/store/api'
+import { MembersPanel } from './Members'
 
 export const SETTINGS_APIS = {
   members: '/api/store/settings/members',
@@ -73,7 +74,6 @@ export function SettingsScreen() {
     return out
   }, 'settings')
   const members = data?.members
-  const memberList = Array.isArray(members?.json?.members) ? (members!.json!.members as Record<string, unknown>[]) : null
   const pending = <Badge tone="muted">{data ? 'Not available yet' : 'Checking…'}</Badge>
   return (
     <>
@@ -81,16 +81,14 @@ export function SettingsScreen() {
       <Section id="work" title="How your team works">
         <ul className="flex flex-col gap-2">
           <Row href="/store/rules" title="Store rules" body="What counts as a problem in your store, and which products are exempt." />
-          <Row href="/store/onboarding" title="Setup" body="Business details, products, connections and your first agents." />
+          <Row href="/store/setup" title="Setup" body="Business details, agreements, products, connections and the team discovery recommends." />
           <Row href="/store/legal" title="Agreements" body="The terms you accepted for Deploi Commerce and Deploi Office." />
         </ul>
       </Section>
-      <Section id="people" title="People and roles" sub="Who can see and approve work for your business.">
-        <ul className="flex flex-col gap-2" data-settings="members" data-available={members?.available ? 'true' : 'false'}>
-          {members?.available
-            ? <Row href={null} title="Members" body={memberList ? memberList.map(m => `${String(m.email ?? m.name ?? 'member')}${m.role ? ` (${String(m.role)})` : ''}`).join(', ') || 'Only you.' : 'Your members and their roles.'} badge={<Badge tone="ok">Available</Badge>} />
-            : <Row href={null} title="Members and roles" body="Owner, admin, member and viewer roles; only owners and admins grant agents." badge={pending} />}
-        </ul>
+      <Section id="people" title="People and roles" sub="Who can see and approve work for your business. Only owners and admins grant agents.">
+        <div data-settings="members" data-available={members?.available ? 'true' : 'false'}>
+          {members?.available ? <MembersPanel /> : <ul className="flex flex-col gap-2"><Row href={null} title="Members and roles" body="Owner, admin, member and viewer roles; only owners and admins grant agents." badge={pending} /></ul>}
+        </div>
       </Section>
       <Section id="data" title="Data and deletion" sub="What Deploi keeps, for how long, and how to delete it.">
         <ul className="flex flex-col gap-2" data-settings="data" data-available={data?.retention?.available ? 'true' : 'false'}>

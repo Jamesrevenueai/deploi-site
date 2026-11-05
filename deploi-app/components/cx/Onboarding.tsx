@@ -1,10 +1,11 @@
 'use client'
 /**
- * Setup wizard: business → products → connect → agreements → your first agents (created at drafts only,
- * granted only by the owner) → first scan → done. Every step is saved on the server, so the owner can
- * leave and come back; pressing a button twice never creates a second agent.
+ * Setup (/store/setup), one path from a new sign-up to a working team: business → agreements (only while
+ * LEGAL_GATE is on) → products → connect an app → find the work (discovery: "We found work your AI team can
+ * handle.", the recommended team set up at drafts only, then granted by the owner) → done. Every step is saved
+ * on the server, so the owner can leave and come back; pressing a button twice never creates a second agent.
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Banner } from '@/components/ui/Banner'
@@ -15,10 +16,10 @@ import { Icon } from '@/components/ui/Icon'
 import { storeFetch, asApiError } from '@/components/store/api'
 import { useLoad } from '@/components/store/useLoad'
 import { ErrorState, Loading, useStore } from '@/components/store/bits'
-import { AuthorizationSummaryView } from '@/components/store/Agents'
-import { PLATFORM_LABEL, templateToolWords } from '@/components/store/format'
-import { probe, useProbes, ROUTES } from './probe'
-import type { AutoSetupResult, WizardOpResponse, WizardResponse, WizardView } from './types'
+import { PLATFORM_LABEL } from '@/components/store/format'
+import { DiscoverFlow } from '@/components/discover/DiscoverFlow'
+import { useProbes, ROUTES } from './probe'
+import type { WizardOpResponse, WizardResponse, WizardView } from './types'
 
 const FALLBACK_ZONES = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Toronto', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'Asia/Tokyo', 'Asia/Singapore', 'Australia/Sydney']
 function timeZones(current: string): string[] {
@@ -50,14 +51,6 @@ export function OnboardingWizard() {
       if (ok) setNote({ tone: 'ok', text: ok(r.result) })
     } catch (e) { setNote({ tone: 'warn', text: asApiError(e).message }) } finally { setBusy(null) }
   }
-  async function grant(agentId: string, policyId: string, policyHash: string, name: string) {
-    setBusy(`grant:${agentId}`); setNote(null)
-    try {
-      await storeFetch(`/api/store/agents/${agentId}/grant`, { method: 'POST', body: { policyId, policyHash } })
-      setNote({ tone: 'ok', text: <>{name} granted at drafts only. It shows you the exact change; it never makes it.</> })
-      await reload()
-    } catch (e) { setNote({ tone: 'warn', text: asApiError(e).message }) } finally { setBusy(null) }
-  }
 
   const doneCount = w.steps.filter(s => s.state === 'done' || s.state === 'skipped').length
   return (
@@ -79,7 +72,7 @@ export function OnboardingWizard() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2"><h2 className="text-ink text-[1rem] font-medium">{s.title}</h2>{s.state === 'skipped' && <Badge tone="muted">Skipped</Badge>}{s.state === 'done' && <span className="sr-only">done</span>}</div>
                 <p className="pt-1 text-[14px] text-grey">{s.body}</p>
-                <StepBody step={s.key} open={open} w={w} busy={busy} base={base} op={op} grant={grant} onEdit={() => setEditing(s.key)} />
+                <StepBody step={s.key} open={open} w={w} busy={busy} base={base} op={op} reload={reload} onEdit={() => setEditing(s.key)} />
               </div>
             </li>
           )
@@ -92,7 +85,7 @@ export function OnboardingWizard() {
 type StepProps = {
   step: WizardView['steps'][number]['key']; open: boolean; w: WizardView; busy: string | null; base: string
   op: <R>(key: string, body: Record<string, unknown>, ok?: (r: R) => ReactNode) => Promise<void>
-  grant: (agentId: string, policyId: string, policyHash: string, name: string) => Promise<void>
+  reload: () => void | Promise<void>
   onEdit: () => void
 }
 
@@ -101,9 +94,8 @@ function StepBody(p: StepProps) {
   if (step === 'business') return open ? <BusinessStep {...p} /> : w.business.saved ? <p className="pt-2 text-[13px] text-grey-h">{w.business.name} · {w.business.timezone} <EditButton {...p} /></p> : null
   if (step === 'products') return open ? <ProductsStep {...p} /> : w.productsChosen ? <p className="pt-2 text-[13px] text-grey-h">{productWords(w)} <EditButton {...p} /></p> : null
   if (step === 'connect') return <ConnectStep {...p} />
-  if (step === 'agreements') return open ? <AgreementsStep {...p} /> : null
-  if (step === 'agents') return open || w.agents.some(a => a.agentId) ? <AgentsStep {...p} /> : null
-  if (step === 'scan') return open ? <ScanStep {...p} /> : w.scan ? <p className="pt-2 text-[13px] text-grey-h">Read {w.scan.resourcesScanned} variant{w.scan.resourcesScanned === 1 ? '' : 's'} · {w.scan.issuesOpened} new issue{w.scan.issuesOpened === 1 ? '' : 's'}.</p> : null
+  if (step === 'agreements') return <AgreementsStep {...p} />
+  if (step === 'discover') return open ? <DiscoverStep {...p} /> : w.discovery.ran ? <p className="pt-2 text-[13px] text-grey-h">{w.discovery.activeAgents} agent{w.discovery.activeAgents === 1 ? '' : 's'} working at drafts only. <Link href={`${p.base}/discover`} className="text-ink underline">Open discovery</Link></p> : null
   return <DoneStep {...p} />
 }
 
@@ -181,97 +173,39 @@ function ConnectStep({ w, base }: StepProps) {
               : <Link href={`${base}/connect`} className="text-ink underline">Install Deploi on your Shopify store</Link>}
         </li>
       )}
-      {office && <li data-connect="office">{avail(ROUTES.officeConnections, 'Connect HubSpot and Google Calendar in Deploi Office', ROUTES.officeConnections)} <span className="text-grey-h">(optional now; Office agents are set up there)</span></li>}
+      {office && (
+        <li data-connect="office">
+          {w.office.connected.length > 0 || w.office.mailboxes > 0
+            ? <span className="text-grey-h"><Icon name="check" size={14} className="inline" /> Connected: {[...w.office.connected.map(p => OFFICE_LABEL[p] ?? p), ...(w.office.mailboxes ? [`${w.office.mailboxes} mailbox${w.office.mailboxes === 1 ? '' : 'es'}`] : [])].join(', ')}. </span>
+            : null}
+          {avail(ROUTES.officeConnections, w.office.connected.length ? 'Connect more Office tools' : 'Connect HubSpot, Google Calendar, QuickBooks or a mailbox', `${ROUTES.officeConnections}?from=setup`)}
+        </li>
+      )}
     </ul>
   )
 }
 
-function AgreementsStep({ busy, op }: StepProps) {
-  const [check, setCheck] = useState<{ state: 'checking' | 'missing' | 'needed' | 'clear'; items: string[] }>({ state: 'checking', items: [] })
-  useEffect(() => {
-    let live = true
-    void probe(ROUTES.legalApi).then(r => {
-      if (!live) return
-      if (r.availability === 'missing') return setCheck({ state: 'missing', items: [] })
-      const j = (r.json ?? {}) as Record<string, unknown>
-      const missing = Array.isArray(j.missing) ? j.missing.map(x => (typeof x === 'string' ? x : String((x as Record<string, unknown>)?.title ?? (x as Record<string, unknown>)?.key ?? 'agreement'))) : null
-      if (r.status === 200 && (j.satisfied === true || (missing && missing.length === 0))) setCheck({ state: 'clear', items: [] })
-      else setCheck({ state: 'needed', items: missing ?? [] })
-    })
-    return () => { live = false }
-  }, [])
-  useEffect(() => { if (check.state === 'clear') void op('agreements', { op: 'agreements', status: 'satisfied' }) }, [check.state]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (check.state === 'checking') return <p className="pt-2 text-[13px] text-grey-h" role="status">Checking your agreements…</p>
-  if (check.state === 'missing') return (
-    <div className="mt-2 flex flex-col gap-2 text-[14px]">
-      <p className="text-grey-h">Agreements are not available in this deployment yet. You will be asked to accept them before anything is charged.</p>
-      <div><Button size="sm" variant="ghost" onClick={() => void op('agreements', { op: 'agreements', status: 'skipped' })} disabled={busy !== null}>Continue</Button></div>
-    </div>
-  )
-  if (check.state === 'clear') return <p className="pt-2 text-[13px] text-grey-h" role="status">All agreements accepted.</p>
+const OFFICE_LABEL: Record<string, string> = { hubspot: 'HubSpot', google_calendar: 'Google Calendar', quickbooks: 'QuickBooks' }
+
+/** Read from the real acceptances (LEGAL_GATE on); with the gate off the step is not needed here. */
+function AgreementsStep({ w, open }: StepProps) {
+  if (w.legal.gate === 'off') return <p className="pt-2 text-[13px] text-grey-h">Not required in this environment. You can read them any time in <Link href={ROUTES.legal} className="text-ink underline">Agreements</Link>.</p>
+  if (w.legal.missing.length === 0) return <p className="pt-2 text-[13px] text-grey-h" role="status">All agreements accepted.</p>
+  if (!open) return null
   return (
     <div className="mt-2 flex flex-col gap-2 text-[14px]">
-      {check.items.length > 0 && <ul className="list-disc pl-5 text-grey">{check.items.map(x => <li key={x}>{x}</li>)}</ul>}
-      <div className="flex flex-wrap gap-2"><Link href={ROUTES.legal} className="btn sm">Read and accept<Icon name="arrow-right" size={14} /></Link></div>
+      <p className="text-grey">Still to accept: {w.legal.missing.length}.</p>
+      <div className="flex flex-wrap gap-2"><Link href={`${ROUTES.legal}?from=setup`} className="btn sm">Read and accept<Icon name="arrow-right" size={14} /></Link></div>
     </div>
   )
 }
 
-function AgentsStep({ w, busy, op, grant, base, open }: StepProps) {
-  const [read, setRead] = useState<Record<string, boolean>>({})
-  if (!w.productsChosen) return null
-  if (!w.products.includes('commerce')) return <p className="pt-2 text-[14px] text-grey-h">Deploi Office agents are set up in <Link href={ROUTES.office} className="text-ink underline">Deploi Office</Link>.</p>
-  if (!w.store.connected) return <p className="pt-2 text-[14px] text-grey-h">Connect your store first; the agents work on it.</p>
-  const missing = w.agents.filter(a => !a.agentId).length
+/** Discovery inside the setup: run it, set up the recommended team at drafts only, grant it. */
+function DiscoverStep({ w, busy, op, reload }: StepProps) {
   return (
-    <div className="mt-3 flex flex-col gap-3">
-      {missing > 0 && open && (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button size="sm" onClick={() => void op<AutoSetupResult>('agents', { op: 'agents' }, r => r.failed.length ? <>Set up {r.created.length + r.existing.length} of {w.agents.length}. Not set up: {r.failed.map(f => `${f.key.replace(/_/g, ' ')} (${f.message})`).join('; ')}.</> : <>Your agents are ready at drafts only. Read what each may do, then grant it.</>)} disabled={busy !== null}>
-            <Icon name="bolt" size={15} />{busy === 'agents' ? 'Setting up…' : missing === w.agents.length ? `Set up ${w.agents.length} recommended agents` : `Set up the ${missing} remaining agent${missing === 1 ? '' : 's'}`}
-          </Button>
-          <span className="text-[13px] text-grey-h">Created at drafts only. Nothing runs until you grant each one.</span>
-        </div>
-      )}
-      <ul className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Recommended agents">
-        {w.agents.map(a => (
-          <li key={a.key} className="rounded-[20px] border border-line p-4" data-agent-key={a.key} data-agent-status={a.status}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[1.05rem]">{a.agentId ? <Link href={`${base}/agents/${a.agentId}`} className="underline-offset-4 hover:underline">{a.name}</Link> : a.name}</h3>
-              <span className="flex flex-wrap gap-2"><Badge tone="muted">Drafts only</Badge><Badge tone={a.status === 'active' ? 'ok' : a.status === 'not_created' ? 'muted' : 'warn'}>{a.status === 'active' ? 'Granted' : a.status === 'not_created' ? 'Not set up' : a.status === 'draft' ? 'Waiting for your grant' : a.status}</Badge></span>
-            </div>
-            <p className="pt-2 text-[14px] text-grey"><span className="text-ink">Its job: </span>{a.job}</p>
-            <div className="flex flex-wrap gap-2 pt-2">{a.tools.filter(t => t !== 'email' || w.mailboxes).map(t => <Badge key={t} tone="muted">{templateToolWords(t as 'shopify' | 'email' | 'public_web')}</Badge>)}</div>
-            {(a.pending?.summary ?? a.summary) && (
-              <details className="mt-3" open={a.status === 'draft'}>
-                <summary className="cursor-pointer text-[14px] text-ink">What it may do</summary>
-                <div className="mt-2"><AuthorizationSummaryView summary={(a.pending?.summary ?? a.summary)!} /></div>
-              </details>
-            )}
-            {a.status === 'draft' && a.pending && (
-              <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
-                <label className="inline-flex items-start gap-2 text-[14px] text-ink">
-                  <input type="checkbox" className="mt-1 h-4 w-4" checked={Boolean(read[a.key])} onChange={e => setRead({ ...read, [a.key]: e.target.checked })} />
-                  I have read what {a.name} may do. It shows changes and drafts; it never makes or sends them.
-                </label>
-                <div><Button size="sm" onClick={() => void grant(a.agentId!, a.pending!.policyId, a.pending!.policyHash, a.name)} disabled={busy !== null || !read[a.key]} aria-label={`Grant ${a.name} at drafts only`}><Icon name="check" size={15} />{busy === `grant:${a.agentId}` ? 'Granting…' : 'Grant at drafts only'}</Button></div>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-      {open && !w.agentsSkipped && <div><Button size="xs" variant="ghost" onClick={() => void op('agents-skip', { op: 'agents-skip' })} disabled={busy !== null}>Skip for now</Button></div>}
-    </div>
-  )
-}
-
-function ScanStep({ busy, op }: StepProps) {
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-3">
-      <Button size="sm" onClick={() => void op<{ resourcesScanned: number; issuesOpened: number }>('scan', { op: 'scan' }, r => <>First scan finished: read {r.resourcesScanned} variants and found {r.issuesOpened} new issue{r.issuesOpened === 1 ? '' : 's'}. Nothing was changed.</>)} disabled={busy !== null}>
-        <Icon name="search" size={15} />{busy === 'scan' ? 'Scanning…' : 'Run the first scan'}
-      </Button>
-      <span className="text-[13px] text-grey-h">Reads only. It can take a minute on a large catalogue.</span>
+    <div className="mt-3 flex flex-col gap-3" data-testid="setup-discover">
+      <DiscoverFlow embedded onChange={() => void reload()} />
+      {!w.discovery.skipped && <div><Button size="xs" variant="ghost" onClick={() => void op('discover-skip', { op: 'discover-skip' })} disabled={busy !== null}>Not now</Button></div>}
     </div>
   )
 }

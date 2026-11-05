@@ -77,15 +77,16 @@ export async function getSession(): Promise<Session | null> {
   let s = await profileFor(data.user.id)
   if (!s && data.user.email) {
     // profile trigger did not run (e.g. user predates migration): create it from the
-    // server-set metadata (agency_id / role), falling back to staff-by-email or a client with no agency.
+    // server-set metadata (agency_id / role), falling back to staff-by-email or a client with no agency
+    // (who then creates an organization at /start or accepts an invitation link).
     // server-set app metadata only: user_metadata is chosen (and editable) by whoever signs up (SECURITY-REVIEW F-02)
     const meta = (data.user.app_metadata ?? {}) as { agency_id?: string; role?: string }
     const isStaff = env.staffEmails.includes(data.user.email.toLowerCase())
     const role: Role = isStaff ? 'staff' : meta.role === 'staff' || meta.role === 'client' ? meta.role : 'client'
     const agencyId = /^[0-9a-f-]{36}$/i.test(meta.agency_id ?? '') ? meta.agency_id! : null
     await admin(async db => {
+      // an invitation is accepted only through its signed link (lib/platform/invites.ts), never by matching the address
       await db.query('insert into profiles (id, email, role, agency_id) values ($1,$2,$3,$4) on conflict (id) do nothing', [data.user!.id, data.user!.email, role, agencyId])
-      await db.query("update invites set accepted_at = now(), status = 'accepted', supabase_user_id = $2 where lower(email) = lower($1) and accepted_at is null and status <> 'revoked'", [data.user!.email, data.user!.id])
     })
     s = await profileFor(data.user.id)
   }

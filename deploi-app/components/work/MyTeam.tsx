@@ -24,7 +24,7 @@ export function MyTeamScreen() {
   return (
     <>
       {header}
-      {members.length === 0 && <Empty title="No agents yet">See what Deploi found and the team it recommends. <Link href="/store/welcome" className="link">Find work for my team</Link>.</Empty>}
+      {members.length === 0 && <Empty title="No agents yet">See what Deploi found and the team it recommends. <Link href="/store/setup" className="link">Find work for my team</Link>.</Empty>}
       {GROUPS.map(g => {
         const list = members.filter(m => m.group === g.key)
         const unread = (g.key === 'Office agents' && data?.office === null) || (g.key === 'Agent library' && data?.library === null) || (g.key === 'Store agents' && data?.cr === null)

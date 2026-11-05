@@ -14,6 +14,7 @@ import { createAgent } from '../agents/lifecycle'
 import { templateByKey, templatePolicy, type TemplateKey } from '../agents/templates'
 import { emailConfig } from '../email/config'
 import { runScan } from '../engine/scan'
+import { acceptorId, legalGateMode, missingAcceptances } from '../legal'
 import type { Db } from '../db'
 
 export type OnboardingStep = 'connect' | 'tier' | 'agents' | 'done'
@@ -58,26 +59,30 @@ export async function completeOnboarding(actor: Actor) {
 }
 
 // =============================================================================================
-// Setup wizard (the customer onboarding at /store/onboarding): business → products → connect →
-// agreements → automatic agent setup at drafts only → first scan → done. State lives in
-// agencies.onboarding.wizard so it is resumable; every step is idempotent and re-running it never
-// creates a second agent. The wizard never grants anything: agents it creates wait for the owner's
-// explicit grant through the existing grant API, and their policies are drafts only for every tool.
+// Setup (the customer's first run at /store/setup; /store/onboarding and /store/welcome redirect there):
+// business → agreements → products → connect → discovery → done. One path from a new sign-up to a working
+// team. The business step is usually done already (the organization is named when it is created at /start).
+// Agreements are a step only while LEGAL_GATE is on, and are read from the real acceptances. Discovery reads
+// what was connected, shows "We found work your AI team can handle.", sets up the recommended team at drafts
+// only (lib/discovery setUpTeam) and the owner grants it. State lives in agencies.onboarding.wizard, so the
+// setup is resumable; every step is idempotent. Nothing here grants anything.
+//
+// The earlier wizard steps "your first agents" (fixed templates) and "first scan" duplicated discovery, which
+// reads the store and recommends the agents from what it found; their functions remain for the API.
 // =============================================================================================
 
-export type WizardStep = 'business' | 'products' | 'connect' | 'agreements' | 'agents' | 'scan' | 'done'
+export type WizardStep = 'business' | 'agreements' | 'products' | 'connect' | 'discover' | 'done'
 export type WizardStepState = 'done' | 'current' | 'todo' | 'skipped'
 export const WIZARD_STEPS: { key: WizardStep; title: string; body: string }[] = [
   { key: 'business', title: 'Your business', body: 'Your business name and time zone. Schedules and the weekly summary use the time zone.' },
-  { key: 'products', title: 'Choose your products', body: 'Deploi Commerce looks after a Shopify or WooCommerce store. Deploi Office follows up leads with HubSpot and Google Calendar. Choose one or both.' },
-  { key: 'connect', title: 'Connect your tools', body: 'Connect the store or office tools you chose. Connecting reads data; it authorizes no agent to change anything.' },
-  { key: 'agreements', title: 'Agreements', body: 'Read and accept the agreements for the products you chose.' },
-  { key: 'agents', title: 'Your first agents', body: 'Deploi sets up the recommended agents for your products at drafts only: they show you the exact change or email and never make or send it. Nothing runs until you grant each one.' },
-  { key: 'scan', title: 'First scan', body: 'Deploi reads your store once and lists what it finds. Nothing is changed.' },
-  { key: 'done', title: 'You are set', body: 'The Control Room shows every agent, what waits for you, and a Stop all agents switch.' },
+  { key: 'agreements', title: 'Agreements', body: 'Read and accept the agreements before Deploi connects to anything.' },
+  { key: 'products', title: 'Choose your products', body: 'Deploi Commerce looks after a Shopify or WooCommerce store. Deploi Office follows up leads, answers mail and chases invoices with HubSpot, Google Calendar and QuickBooks. Choose one or both.' },
+  { key: 'connect', title: 'Connect an app', body: 'Connect the store or office tools you chose. Connecting reads data; it authorizes no agent to change anything.' },
+  { key: 'discover', title: 'Find the work', body: 'Deploi reads what you connected, lists the problems it found, and recommends an AI team. You set the team up at drafts only and grant each agent.' },
+  { key: 'done', title: 'You are set', body: 'Home shows every agent, what waits for you, and a Stop all agents switch.' },
 ]
 
-/** Agents the wizard recommends for each product. Office agents are set up in Deploi Office. */
+/** Agents the old wizard step recommended for each product (kept for its API; discovery now recommends the team). */
 export const RECOMMENDED_AGENTS: Record<Product, TemplateKey[]> = { commerce: ['inventory_watcher', 'store_health_checker'], office: [] }
 export type CommercePlatform = 'shopify' | 'woocommerce'
 export type AgreementsStatus = 'pending' | 'satisfied' | 'skipped'
@@ -87,6 +92,7 @@ type WizardState = {
   productsChosen?: boolean; commercePlatform?: CommercePlatform | null
   agreements?: AgreementsStatus
   agents?: Record<string, string>; agentsSkipped?: boolean
+  discoverSkipped?: boolean
   scan?: { at: string; scanId: string; resourcesScanned: number; issuesOpened: number }
   completedAt?: string
 }
@@ -106,7 +112,12 @@ export type WizardView = {
   business: { name: string; timezone: string; saved: boolean }
   products: Product[]; productsChosen: boolean; commercePlatform: CommercePlatform | null
   store: { connected: boolean; id: string | null; platform: string | null; name: string | null; synthetic: boolean }
+  /** connected Office tools and mailboxes */
+  office: { connected: string[]; mailboxes: number }
+  /** LEGAL_GATE mode and the agreements this person still has to accept (empty when the gate is off) */
+  legal: { gate: 'off' | 'draft' | 'enforce'; missing: string[] }
   agreements: AgreementsStatus
+  discovery: { ran: boolean; running: boolean; recommended: number; activeAgents: number; skipped: boolean }
   agents: WizardAgent[]; agentsSkipped: boolean
   scan: WizardState['scan'] | null
   completedAt: string | null
@@ -140,7 +151,8 @@ async function patchWizard(orgId: string, patch: Record<string, unknown>, actorL
 export async function wizardView(actor: Actor): Promise<WizardView> {
   if (actor.kind === 'staff') throw new LibraryError('forbidden', 'onboarding belongs to a merchant')
   const orgId = actor.orgId
-  return withActor(actor, async db => {
+  const gate = legalGateMode()
+  const base = await withActor(actor, async db => {
     const org = await db.one<{ name: string; timezone: string }>('select name, timezone from agencies where id = $1', [orgId])
     const w = await readWizard(db, orgId)
     const products = await enabledProducts(db, orgId)
@@ -167,30 +179,54 @@ export async function wizardView(actor: Actor): Promise<WizardView> {
         summary: row?.active_summary ?? row?.p_summary ?? null,
       }
     })
-    const done: Record<WizardStep, boolean | 'skipped'> = {
-      business: Boolean(w.business),
-      products: Boolean(w.productsChosen),
-      // a connected store counts even before products are chosen; Office-only needs no store here (its tools connect in Deploi Office)
-      connect: Boolean(conn) || (Boolean(w.productsChosen) && !commerce),
-      agreements: w.agreements === 'satisfied' ? true : w.agreements === 'skipped' ? 'skipped' : false,
-      agents: !w.productsChosen ? false : !recommended.length || !conn ? 'skipped' : w.agentsSkipped ? 'skipped'
-        : agents.every(a => a.status === 'active' || a.status === 'paused'),
-      scan: !w.productsChosen ? false : !conn || !commerce ? 'skipped' : Boolean(w.scan),
-      done: Boolean(w.completedAt),
-    }
-    const current = WIZARD_STEPS.find(s => !done[s.key])?.key ?? 'done'
-    const steps = WIZARD_STEPS.map(s => ({ ...s, state: (done[s.key] === 'skipped' ? 'skipped' : done[s.key] ? 'done' : s.key === current ? 'current' : 'todo') as WizardStepState }))
-    return {
-      steps, current,
-      business: { name: w.business?.name ?? org?.name ?? '', timezone: w.business?.timezone ?? org?.timezone ?? 'UTC', saved: Boolean(w.business) },
-      products, productsChosen: Boolean(w.productsChosen), commercePlatform: w.commercePlatform ?? null,
-      store: { connected: Boolean(conn), id: conn?.id ?? null, platform: conn?.platform ?? null, name: conn?.name ?? null, synthetic: Boolean(conn?.is_synthetic) },
-      agreements: w.agreements ?? 'pending',
-      agents, agentsSkipped: Boolean(w.agentsSkipped),
-      scan: w.scan ?? null, completedAt: w.completedAt ?? null,
-      mailboxes: Boolean(emailConfig.agentMailDomain),
-    }
+    return { org, w, products, conn, agents }
   })
+  const { org, w, products, conn, agents } = base
+  // connections, agreements and discovery are read as the service role, for this organization only
+  const extra = await admin(async db => {
+    const office = await db.query<{ provider: string }>(`select distinct provider from office_connections where org_id = $1 and status = 'active' order by provider`, [orgId])
+    const mb = await db.one<{ n: number }>(`select count(*)::int as n from email_accounts where org_id = $1 and status = 'active'`, [orgId])
+    const missing = gate === 'off' ? [] : (await missingAcceptances(db, orgId, acceptorId(actor), products.includes('commerce') || !products.includes('office') ? 'commerce' : 'office')).map(d => d.key)
+    const run = await db.one<{ status: string; n: number }>(`select status, coalesce(jsonb_array_length(recommendations), 0)::int as n from discovery_runs where org_id = $1 order by started_at desc limit 1`, [orgId])
+    const done = await db.one<{ n: number }>(`select coalesce(jsonb_array_length(recommendations), 0)::int as n from discovery_runs where org_id = $1 and status in ('completed','partial') order by started_at desc limit 1`, [orgId])
+    const active = await db.one<{ n: number }>(`select count(*)::int as n from discovery_agents d
+      left join agents a on d.agent_kind = 'engine' and a.id = d.agent_id left join office_agents o on d.agent_kind = 'office' and o.id = d.agent_id
+      where d.org_id = $1 and coalesce(a.status, o.status) = 'active'`, [orgId])
+    return { office: office.map(o => o.provider), mailboxes: mb?.n ?? 0, missing, running: run?.status === 'running', ran: Boolean(done), recommended: done?.n ?? 0, activeAgents: active?.n ?? 0 }
+  })
+  const commerce = w.productsChosen ? products.includes('commerce') : false
+  const officeOn = w.productsChosen ? products.includes('office') : false
+  const done: Record<WizardStep, boolean | 'skipped'> = {
+    business: Boolean(w.business),
+    agreements: gate === 'off' ? 'skipped' : extra.missing.length === 0,
+    products: Boolean(w.productsChosen),
+    // a connected store counts even before products are chosen; any Office tool or mailbox counts for Office
+    connect: w.productsChosen ? (commerce && Boolean(conn)) || (officeOn && (extra.office.length > 0 || extra.mailboxes > 0)) : Boolean(conn),
+    discover: w.discoverSkipped ? 'skipped' : extra.ran && (extra.activeAgents > 0 || extra.recommended === 0),
+    done: Boolean(w.completedAt),
+  }
+  const current = WIZARD_STEPS.find(s => !done[s.key])?.key ?? 'done'
+  const steps = WIZARD_STEPS.map(s => ({ ...s, state: (done[s.key] === 'skipped' ? 'skipped' : done[s.key] ? 'done' : s.key === current ? 'current' : 'todo') as WizardStepState }))
+  return {
+    steps, current,
+    business: { name: w.business?.name ?? org?.name ?? '', timezone: w.business?.timezone ?? org?.timezone ?? 'UTC', saved: Boolean(w.business) },
+    products, productsChosen: Boolean(w.productsChosen), commercePlatform: w.commercePlatform ?? null,
+    store: { connected: Boolean(conn), id: conn?.id ?? null, platform: conn?.platform ?? null, name: conn?.name ?? null, synthetic: Boolean(conn?.is_synthetic) },
+    office: { connected: extra.office, mailboxes: extra.mailboxes },
+    legal: { gate, missing: extra.missing },
+    agreements: gate === 'off' ? 'skipped' : extra.missing.length === 0 ? 'satisfied' : 'pending',
+    discovery: { ran: extra.ran, running: extra.running, recommended: extra.recommended, activeAgents: extra.activeAgents, skipped: Boolean(w.discoverSkipped) },
+    agents, agentsSkipped: Boolean(w.agentsSkipped),
+    scan: w.scan ?? null, completedAt: w.completedAt ?? null,
+    mailboxes: Boolean(emailConfig.agentMailDomain),
+  }
+}
+
+/** "Not now" on the discovery step (the owner can run discovery any time from Business Insights). */
+export async function skipDiscovery(actor: Actor) {
+  const orgId = merchantOrg(actor)
+  await patchWizard(orgId, { discoverSkipped: true }, actor.label, 'discover_skipped')
+  return { discoverSkipped: true }
 }
 
 export async function saveBusiness(actor: Actor, input: { name: unknown; timezone: unknown }) {

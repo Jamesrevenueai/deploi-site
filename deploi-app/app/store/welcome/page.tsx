@@ -1,8 +1,5 @@
-import { FirstRun } from '@/components/discover/FirstRun'
+import { redirect } from 'next/navigation'
+import { SETUP_PATH } from '@/lib/store/nav'
 
-export const metadata = { title: 'We found work' }
-
-/** First run: what Deploi found and the team it recommends (reads the discovery API when it is deployed). */
-export default function WelcomePage() {
-  return <FirstRun />
-}
+/** The discovery first run is a step of the setup now (/store/setup). */
+export default function WelcomePage() { redirect(SETUP_PATH) }

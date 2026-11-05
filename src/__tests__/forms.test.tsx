@@ -115,3 +115,36 @@ describe('EarlyAccessForm', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 })
+
+describe('ContactForm', () => {
+  const fetchMock = vi.fn()
+  beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock) })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('posts the message to the app contact endpoint, with the honeypot and no password field', async () => {
+    const { ContactForm } = await import('../components/ContactForm')
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, id: 'x' }), { status: 200 }))
+    const { container } = render(<MemoryRouter><ContactForm /></MemoryRouter>)
+    expect(container.querySelectorAll('input[type="password"]')).toHaveLength(0)
+    expect(container.querySelector('input[name="website"]')).not.toBeNull()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Pat Example' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'pat@example-store.test' } })
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'We would like a pilot.' } })
+    fireEvent.submit(screen.getByRole('form', { name: 'Contact us' }))
+    await waitFor(() => expect(screen.getByText('Message sent.')).toBeInTheDocument())
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://app.test/api/public/contact')
+    expect(JSON.parse(init.body)).toMatchObject({ name: 'Pat Example', email: 'pat@example-store.test', topic: 'sales', message: 'We would like a pilot.', website: '' })
+  })
+
+  it('says so when the endpoint limits the sender', async () => {
+    const { ContactForm } = await import('../components/ContactForm')
+    fetchMock.mockResolvedValue(new Response('{}', { status: 429 }))
+    render(<MemoryRouter><ContactForm /></MemoryRouter>)
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Pat' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'pat@example.test' } })
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hello' } })
+    fireEvent.submit(screen.getByRole('form', { name: 'Contact us' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Too many messages/))
+  })
+})

@@ -68,6 +68,8 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/staff/economics/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/integrations/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/finance/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
+  'app/api/staff/support/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on replies', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
+  'app/api/public/contact/route.ts': { why: 'website contact form: rate-limited per IP, CORS-limited, staff-only table', evidence: /hitByIp\('contact', req\)/ },
   'app/api/staff/plans/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on edits', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
 }
 
@@ -138,6 +140,7 @@ describe('API route sweep', () => {
     // public and unauthenticated entry points: limited per client IP before any work
     const BY_IP: Record<string, string> = {
       'app/api/public/lead/route.ts': 'lead',
+      'app/api/public/contact/route.ts': 'contact',
       'app/auth/callback/route.ts': 'auth_callback',
       'app/api/shopify/auth/start/route.ts': 'oauth_start',
       'app/api/shopify/auth/callback/route.ts': 'oauth_callback',

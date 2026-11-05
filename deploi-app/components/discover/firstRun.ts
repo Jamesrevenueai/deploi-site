@@ -33,3 +33,5 @@ export function readDiscovery(json: unknown): Discovery {
     : root.connected === false || status === 'nothing_connected' ? 'nothing_connected' : 'not_run'
   return { findings, recommendations, sourcesRead, state, ranAt }
 }
+
+export const DISCOVER_API = '/api/store/discover'

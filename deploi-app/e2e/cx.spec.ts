@@ -1,8 +1,8 @@
 /**
  * Customer experience end to end (synthetic Northwind store, dev auth, DEMO_CONTROLS=true):
- * the setup wizard walks business → products → connect → agreements → automatic agent setup at drafts
- * only (each granted explicitly) → first scan → done, and resumes wherever it was left; re-running the
- * agent setup never duplicates an agent. The Control Room shows the agents, approvals, connections and
+ * the one setup path (/store/setup) walks business → agreements (off here) → products → connect → find the work
+ * (discovery, the recommended team set up at drafts only and granted explicitly) → done, and resumes wherever it
+ * was left; setting the team up again never duplicates an agent. The old URL /store/onboarding redirects. The Control Room shows the agents, approvals, connections and
  * issues; Stop all agents asks first and pauses every agent; Integrations shows honest statuses.
  * Screenshots at 1440 and 390 go to proof/cx-*.png. Agents this spec creates are deleted afterwards and
  * agents it paused are resumed, so other specs see the seed as it was.
@@ -49,17 +49,18 @@ test.afterAll(async ({ browser }) => {
   // the Control Room spec turns the organization stop on; turn it off before resuming what it paused
   await api(page, 'POST', '/api/store/control-room/stop-all', { action: 'clear' })
   for (const id of pausedBySpec) await api(page, 'POST', `/api/store/agents/${id}/resume`, {})
-  for (const a of (await wizard(page)).agents) if (a.agentId && !createdByWizard.includes(a.agentId)) createdByWizard.push(a.agentId)
   for (const id of createdByWizard) await api(page, 'DELETE', `/api/store/agents/${id}`)
   await page.close()
 })
 
-test('setup wizard: from the first step to done, agents at drafts only and granted by the owner', async ({ page }) => {
+test('setup: from the first step to done, the discovered team at drafts only and granted by the owner', async ({ page }) => {
   await signIn(page, NORTHWIND)
   await page.goto('/store/onboarding')
+  await expect(page).toHaveURL(/\/store\/setup$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Set up Deploi' })).toBeVisible()
   await expect(page.locator('[data-step="connect"][data-state="done"]')).toBeVisible()
-  for (let guard = 0; guard < 12; guard++) {
+  await expect(page.locator('[data-step="agreements"][data-raw-state="skipped"]')).toBeVisible()
+  for (let guard = 0; guard < 10; guard++) {
     const w = await wizard(page)
     if (w.completedAt && w.current === 'done') break
     const step = page.locator(`[data-step="${w.current}"]`)
@@ -74,41 +75,27 @@ test('setup wizard: from the first step to done, agents at drafts only and grant
       await page.getByLabel(/Deploi Office/).check()
       await page.getByLabel('Shopify').check()
       await step.getByRole('button', { name: 'Save and continue' }).click()
-    } else if (w.current === 'agreements') {
-      // the agreements pages ship separately; until then the step says so and can be continued
-      const cont = step.getByRole('button', { name: 'Continue' })
-      const read = step.getByRole('link', { name: /Read and accept/ })
-      await expect(cont.or(read).or(step.getByText('All agreements accepted.'))).toBeVisible()
-      if (await cont.count()) await cont.click()
-      else if (await read.count()) { await api(page, 'POST', '/api/store/onboarding', { op: 'agreements', status: 'skipped' }); await page.reload() }
-    } else if (w.current === 'agents') {
-      const setup = step.getByRole('button', { name: /Set up (2 recommended agents|the \d remaining agent)/ })
-      if (await setup.count()) {
-        await setup.click()
-        await expect(page.getByText(/ready at drafts only|Set up \d of 2/)).toBeVisible()
-      }
-      // pressing it again never creates a second agent
-      expect((await api(page, 'POST', '/api/store/onboarding', { op: 'agents' })).status).toBe(200)
+    } else if (w.current === 'discover') {
+      const run = step.getByRole('button', { name: /Discover my business|Run discovery again/ })
+      await run.click()
+      await expect(step.getByRole('heading', { name: 'We found work your AI team can handle.' })).toBeVisible({ timeout: 60_000 })
+      const existing = new Set((await agentIds(page)).map(a => a.id))
+      const setUp = step.getByRole('button', { name: 'Set up recommended team' })
+      if (await setUp.count()) await setUp.click()
+      const grant = step.getByRole('button', { name: /Grant all shown/ })
+      // drafts now wait for the owner's grant, or the recommended agents were already working (the step completes)
+      await expect(grant.or(page.locator('[data-step="discover"][data-state="done"]'))).toBeVisible()
+      // setting up again never creates a second agent
       const before = (await agentIds(page)).length
-      expect((await api(page, 'POST', '/api/store/onboarding', { op: 'agents' })).status).toBe(200)
+      expect((await api(page, 'POST', '/api/store/discover/team', { op: 'create' })).status).toBe(200)
       expect((await agentIds(page)).length).toBe(before)
-      await page.reload()
-      for (const a of (await wizard(page)).agents) {
-        if (a.agentId && !createdByWizard.includes(a.agentId)) createdByWizard.push(a.agentId)
-        const card = page.locator(`[data-agent-key="${a.key}"]`)
-        await expect(card.getByText('Drafts only', { exact: true })).toBeVisible()
-        if (a.status !== 'draft') continue
-        await expect(card.getByText('What it may do')).toBeVisible()
-        const grant = card.getByRole('button', { name: /Grant .* at drafts only/ })
-        await expect(grant).toBeDisabled()
-        await card.getByRole('checkbox').check()
-        await grant.click()
-        await expect(page.getByText(/granted at drafts only/)).toBeVisible()
-      }
+      // only agents this spec created are removed afterwards (an existing agent the team setup linked to is kept)
+      for (const a of await agentIds(page)) if (!existing.has(a.id) && !createdByWizard.includes(a.id)) createdByWizard.push(a.id)
       await shoot(page, 'onboarding-agents')
-    } else if (w.current === 'scan') {
-      await step.getByRole('button', { name: 'Run the first scan' }).click()
-      await expect(page.getByText(/First scan finished/)).toBeVisible({ timeout: 60_000 })
+      if (await grant.count()) {
+        await grant.click()
+        await expect(page.getByText(/now working, at drafts only/)).toBeVisible()
+      }
     } else if (w.current === 'done') {
       await step.getByRole('button', { name: 'Finish setup' }).click()
       await expect(page.getByText('Done. Your team is ready.')).toBeVisible()
@@ -119,15 +106,15 @@ test('setup wizard: from the first step to done, agents at drafts only and grant
   }
   const done = await wizard(page)
   expect(done.completedAt).toBeTruthy()
-  for (const a of done.agents) expect(a.status).toBe('active')
-  // every agent the wizard created is drafts only for every tool
+  // every engine agent the team setup created is granted, and drafts only for every tool
   for (const id of createdByWizard) {
     const d = await api<{ policies: { status: string; policy: { approvalMode: string; email?: { permission: string } } }[] }>(page, 'GET', `/api/store/agents/${id}`)
+    if (d.status !== 200) continue
     const p = d.json.policies.find(x => x.status === 'active')!.policy
     expect(p.approvalMode).toBe('draft')
     if (p.email) expect(p.email.permission).toBe('draft')
   }
-  await page.goto('/store/onboarding')
+  await page.goto('/store/setup')
   await expect(page.getByRole('link', { name: 'Go to Home' })).toBeVisible()
 })
 

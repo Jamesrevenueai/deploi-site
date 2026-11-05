@@ -4,7 +4,8 @@
  * version and fingerprint, one checkbox per document, and an Accept button. Drafts are labelled as such:
  * nothing here is a published, reviewed agreement until counsel signs off.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Banner } from '@/components/ui/Banner'
 import { Badge } from '@/components/ui/Badge'
@@ -22,6 +23,9 @@ export function LegalScreen() {
   const [open, setOpen] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ tone: 'info' | 'warn'; text: string } | null>(null)
+  // opened from the setup: offer the way back once everything is accepted
+  const [fromSetup, setFromSetup] = useState(false)
+  useEffect(() => { try { setFromSetup(new URLSearchParams(window.location.search).get('from') === 'setup') } catch { /* no window */ } }, [])
   const header = <PageHeader title="Agreements" sub="Read and accept the agreements before connecting a store, switching on or granting an agent, or starting a subscription." />
   if (loading && !data) return <>{header}<Loading label="Loading agreements" /></>
   if (error && !data) return <>{header}<ErrorState error={error} onRetry={reload} /></>
@@ -65,6 +69,7 @@ export function LegalScreen() {
       </ul>
       {pending.length > 0 && <div className="mt-4"><Button type="button" disabled={busy || chosen.length === 0} onClick={accept}>{busy ? 'Saving' : `Accept ${chosen.length || ''} selected`.trim()}</Button></div>}
       {pending.length === 0 && <p className="mt-4 text-[14px] text-grey">Every required agreement is accepted. A new version will ask you again.</p>}
+      {pending.length === 0 && fromSetup && <div className="mt-3"><Link href="/store/setup" className="btn sm">Continue setup</Link></div>}
     </>
   )
 }

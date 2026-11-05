@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { BRAND, CONTACT_EMAIL } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
+import { ContactForm } from '../components/ContactForm'
 
 const mail = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
 
@@ -45,6 +46,9 @@ export default function Support() {
         <h1>Contact and support</h1>
         <p className="lead">Email {mail}. For a store, include its myshopify.com address and what you were doing. Never send passwords or access keys.</p>
         <p className="legal-meta">Sales and pilot questions go to the same address, or <Link to="/#early-access">apply for a paid pilot</Link>. We do not promise a response time.</p>
+        <h2 id="contact-form">Write to us</h2>
+        <ContactForm />
+        <p className="legal-meta">Already a customer? Use Help → Get help inside the app: your request is linked to your account and any case.</p>
         <ol className="legal-sections">
           {SUPPORT_FAQ.map((f, i) => (
             <li key={f.q} className="legal-section">

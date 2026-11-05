@@ -18,7 +18,7 @@ import { caseHref } from '@/lib/store/nav'
 import { loadCases } from './data'
 import { SUITE_LABEL, humanize, sourceAppLabel } from './caseView'
 import { readDiscovery } from '@/components/discover/firstRun'
-import { DISCOVER_API } from '@/components/discover/FirstRun'
+import { DISCOVER_API } from '@/components/discover/firstRun'
 
 const safe = <T,>(p: Promise<T>): Promise<T | null> => p.catch(() => null)
 

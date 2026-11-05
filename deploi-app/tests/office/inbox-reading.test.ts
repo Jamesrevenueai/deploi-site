@@ -149,10 +149,10 @@ describe.skipIf(!ready)('Email Operations on a Gmail inbox', () => {
     const agent = await opsAgent(s, gmailId, { email: 'send_approved' })
     await runOfficeAgent(agent, { trigger: 'test', now: W })
     const rows = await inboundRows(gmailId)
-    expect(rows.map(r => [r.from_address, r.status, r.quarantine_code, r.auto_reply])).toEqual([
+    expect(rows.map(r => [r.from_address, r.status, r.quarantine_code, r.auto_reply]).sort((x, y) => String(x[0]).localeCompare(String(y[0])))).toEqual([
+      ['lee@client-co.example', 'accepted', null, true],
       ['new@client-co.example', 'quarantined', 'automated', true],
       ['news@client-co.example', 'quarantined', 'bulk', false],
-      ['lee@client-co.example', 'accepted', null, true],
     ])
     expect(await actions(agent)).toHaveLength(0)
   })

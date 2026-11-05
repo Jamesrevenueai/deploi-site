@@ -69,7 +69,7 @@ export async function graphRead(token: string, cursor: string | null, sentCursor
   return { messages, sent, cursor: inbox.deltaLink, sentCursor: sentDelta.deltaLink, full: inbox.full, skipped }
 }
 
-/** Create (or renew) the inbox change-notification subscription. Graph limits mail subscriptions to under 3 days. */
+/** Create (or renew) the inbox change-notification subscription. Deploi asks for 2 days and renews a day before (within Graph's maximum lifetime for mail subscriptions). */
 export async function graphSubscribe(token: string, existing: { id: string | null }, clientState: string | null): Promise<{ id: string; expiresAt: string }> {
   const expirationDateTime = new Date(Date.now() + 2 * 864e5).toISOString()
   if (existing.id) {

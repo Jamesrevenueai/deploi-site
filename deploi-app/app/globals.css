@@ -47,7 +47,8 @@ h2 { font-size: var(--fs-xl); }
 h3 { font-size: var(--fs-lg); }
 @media (min-width: 960px) { h1 { font-size: var(--fs-3xl); } }
 p { margin: 0; }
-a { color: inherit; text-decoration: none; }
+/* in the base layer, so a colour utility on a link (text-ink, text-accent, ...) wins, as it does on every other element */
+@layer base { a { color: inherit; text-decoration: none; } }
 button { font: inherit; }
 ::selection { background: rgba(255, 255, 255, 0.22); color: #fff; }
 .aurora-surface ::selection, .panel ::selection, .bg-surface ::selection { background: var(--c-accent-soft); color: var(--c-ink); }

@@ -76,6 +76,7 @@ body { background-color: var(--au-ground); background-image: var(--au-glow); bac
 .panel, .au-panel, .au-tile, .au-plan, .au-log-row, .au-surface, .metal, .bg-surface,
 .card, .plan, .faq-item, .agent-card, .step, .chip, .int-table, .pricing-note {
   color-scheme: light;
+  color: var(--c-body);
   --c-surface: var(--au-panel);
   --c-alt: #F7F8FB;
   --c-sunken: #F5F6FA;

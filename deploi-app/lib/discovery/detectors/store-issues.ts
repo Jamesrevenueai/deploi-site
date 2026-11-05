@@ -17,7 +17,6 @@ import '../../connectors'
 export const STORE_ISSUES = 'store-issues'
 const STOCK_CHECKS = new Set([OVERSELL_CHECK, OVERSOLD_CHECK, WOO_BACKORDERS_CHECK, WOO_OVERSOLD_CHECK])
 const MAX_CASES = 100
-const RECHECK_MS = 24 * 3600e3
 
 export { issueCaseKind, issueDedupeKey } from '../../engine/case-sync'
 const PRIORITY: Record<string, Priority> = { high: 'high', medium: 'normal', low: 'low' }

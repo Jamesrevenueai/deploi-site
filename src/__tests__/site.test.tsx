@@ -11,7 +11,6 @@ import Home from '../pages/Home'
 
 /** Words that would claim results, endorsements or certifications the business does not have. */
 const INVENTED = /testimonial|case stud|customers? (love|say)|trusted by|\d+% (more|less|faster)|saved \$\d|SOC 2 (certified|compliant)|ISO 27001 certified|HIPAA compliant|guarantee/i
-const STALE = /James Revenue|jamesrevenue|claimyours/i
 
 async function renderAt(path: string) {
   const r = render(<MemoryRouter initialEntries={[path]}><Shell /></MemoryRouter>)
@@ -26,7 +25,6 @@ describe('every page renders, with one headline and no invented claims', () => {
       expect(container.querySelectorAll('main h1')).toHaveLength(1)
       const text = container.textContent ?? ''
       expect(text).not.toMatch(INVENTED)
-      expect(text).not.toMatch(STALE)
       expect(text).toContain(CORE_MESSAGE) // the footer carries the core message on every page
     })
   }

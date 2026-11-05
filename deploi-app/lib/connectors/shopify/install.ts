@@ -17,6 +17,7 @@ import { shopifyConfig } from './config'
 import { cancelAgentEmail } from '../../email/engine'
 import { recordShopFacts, loadAccessRow, factsStale } from '../../engine/access'
 import { shopifyGraphql } from './client'
+import { restoredIfBroken } from '../../integrations/events'
 
 export type InstallResult = { connectionId: string; orgId: string; created: boolean; tokenExchanged: boolean }
 
@@ -80,6 +81,8 @@ export async function ensureInstalled(shop: string, idToken: string, opts: { exc
     if (info.shopGid) await db.query('update store_connections set shop_gid = $2 where id = $1', [conn!.id, info.shopGid])
     if (row) await recordShopFacts(db, row, { isDevelopmentStore: info.isDevelopmentStore ?? null, planName: info.planName ?? null }, `shopify:${shop}:install`)
     await audit(db, { orgId, connectionId: conn!.id, entityType: 'connection', entityId: conn!.id, event: created ? 'connection.installed' : 'connection.reauthorized', actor: `shopify:${shop}`, detail: { scopes: token.scope, api_version: shopifyConfig.apiVersion } })
+    // integration hub: a renewed connection (same id) clears its health record
+    if (!created) await restoredIfBroken(db, { orgId, integration: 'shopify', connectionId: conn!.id, actor: `shopify:${shop}`, rowBroken: Boolean(existing && existing.status !== 'active') })
     return { connectionId: conn!.id, orgId, created, tokenExchanged: true }
   })
 }

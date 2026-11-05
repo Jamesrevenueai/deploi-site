@@ -20,6 +20,7 @@ import { shopifyConfig } from '../connectors/shopify/config'
 import type { Outcome } from '../engine/outcomes'
 import { admin } from '../db'
 import { planUsage, type PlanUsage } from '../plans/allowance'
+import { storeBlockReason } from '../integrations/blocking'
 
 export type Tier = 'draft' | 'send_approved' | 'send_autonomous'
 export type AgentHealth = 'active' | 'paused' | 'needs_attention' | 'draft' | 'revoked'
@@ -67,6 +68,8 @@ type AgentRow = {
   id: string; name: string; status: string; next_run_at: string | null; last_run_at: string | null; version: number | null
   approval_mode: string | null; correction_count: number; email_permission: string | null; valid_until: string | null; email_valid_until: string | null
   pending_version: number | null; awaiting: number; needs_person: number; last_status: string | null; last_reason: string | null; last_finished: string | null
+  /** the agent's store connection (an agent never runs while it is not active) */
+  conn_platform?: string | null; conn_status?: string | null; conn_reason?: string | null
 }
 
 /** Pure: an agent's health and the reasons it needs the owner, from its row (exported for tests). */
@@ -74,6 +77,8 @@ export function agentHealth(r: AgentRow, now = new Date()): { health: AgentHealt
   const attention: string[] = []
   const expiries = [r.valid_until, r.email_valid_until].filter((x): x is string => Boolean(x)).sort()
   const expiresAt = expiries[0] ?? null
+  const blocked = r.status === 'active' ? storeBlockReason(r.conn_platform === 'woocommerce' ? 'WooCommerce' : 'Shopify', r.conn_status ?? null, r.conn_reason ?? null) : null
+  if (blocked) attention.push(blocked)
   if (r.status === 'draft') attention.push('waiting for your grant')
   else if (r.pending_version) attention.push(`version ${r.pending_version} waits for your grant`)
   if (r.last_status === 'failed' || r.last_status === 'blocked') attention.push(`last run ${r.last_status}${r.last_reason ? `: ${r.last_reason}` : ''}`)
@@ -101,8 +106,10 @@ export async function controlRoom(actor: Actor, now = new Date()): Promise<Contr
          (select max(version) from agent_policies pp where pp.agent_id = a.id and pp.status = 'pending_grant') as pending_version,
          (select count(*)::int from proposals p where p.agent_id = a.id and p.status = 'pending_approval' and coalesce(p.status_reason, '') not like 'draft:%') as awaiting,
          (select count(*)::int from issues i where i.agent_id = a.id and i.kind = 'needs_person' and i.status in ('open','needs_review')) as needs_person,
-         lr.status as last_status, lr.status_reason as last_reason, lr.finished_at as last_finished
+         lr.status as last_status, lr.status_reason as last_reason, lr.finished_at as last_finished,
+         sc.platform as conn_platform, sc.status as conn_status, sc.status_reason as conn_reason
        from agents a left join agent_policies ap on ap.id = a.active_policy_id
+       left join store_connections sc on sc.id = a.connection_id
        left join lateral (select status, status_reason, finished_at from agent_runs r where r.agent_id = a.id order by r.started_at desc limit 1) lr on true
        where a.org_id = current_org_id() and a.status <> 'deleted' order by a.created_at`)
     const issues = await db.query<{ severity: string; kind: string; n: number }>(

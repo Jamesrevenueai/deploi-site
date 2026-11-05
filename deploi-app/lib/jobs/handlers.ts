@@ -9,6 +9,7 @@
  *  email.reconcile    interrupted and unknown sends (never resent blindly).
  *  discovery.run      read what an organization connected, open cases, recommend a team (lib/discovery).
  *  platform.retention, platform.deletion   registered in lib/platform/jobs.ts (retention, organization deletion)
+ *  connection.health  hourly read-only probes of every connection (lib/integrations/health.ts)
  *  engine.recover     interrupted store writes: queued/prechecking resume through every gate; a write that
  *                     may have happened becomes "unknown" for the merchant (lib/engine/recover.ts).
  *
@@ -24,6 +25,8 @@ import { recoverInterruptedExecutions } from '../engine/recover'
 import { enqueue, registerJobHandler, type EnqueueResult } from './queue'
 // discovery.run (lib/discovery/jobs.ts registers the handler; its detectors register case checkers)
 import '../discovery/jobs'
+// connection.health (lib/integrations/health.ts registers the handler)
+import { enqueueHealthWork } from '../integrations/health'
 
 registerJobHandler('agent.run', async payload => {
   const agentId = String(payload.agentId ?? '')
@@ -81,5 +84,7 @@ export async function enqueueDueWork(opts: { now?: Date; limit?: number } = {}) 
   // platform: daily retention, and organization deletions whose cooling-off ended (lib/platform/jobs.ts)
   const { enqueuePlatformWork } = await import('../platform/jobs')
   out.maintenance.push(...(await enqueuePlatformWork(now)))
+  // integrations: the hourly connection-health probes (lib/integrations/health.ts)
+  out.maintenance.push(await enqueueHealthWork(now))
   return out
 }

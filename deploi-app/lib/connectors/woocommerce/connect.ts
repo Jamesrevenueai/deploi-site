@@ -23,6 +23,7 @@ import { realWooTransport, type WooTransport } from './http'
 import { normalizeSiteUrl } from './url'
 import { WC_API_VERSION, WC_MIN_VERSION, scopesForPermission } from './config'
 import { registerWebhooks, deleteWebhooks } from './webhooks'
+import { restoredIfBroken } from '../../integrations/events'
 
 export type StoreFacts = { authMode: AuthMode; wcVersion: string; wpVersion: string | null; currency: string | null; name: string | null; timezone: string | null }
 export type ConnectDeps = { transport?: WooTransport }
@@ -97,7 +98,7 @@ export async function connectStore(input: ConnectInput, deps: ConnectDeps = {}):
     const conn = (await db.one<{ id: string }>(
       `insert into store_connections (org_id, platform, external_id, display_name, status, scopes, api_version, is_synthetic, timezone, currency, installed_at, uninstalled_at)
        values ($1,'woocommerce',$2,$3,'active',$4,$5,false,$6,$7,now(),null)
-       on conflict (platform, external_id) do update set status = 'active', scopes = excluded.scopes, api_version = excluded.api_version, display_name = coalesce(excluded.display_name, store_connections.display_name),
+       on conflict (platform, external_id) do update set status = 'active', status_reason = null, reauth_required_at = null, scopes = excluded.scopes, api_version = excluded.api_version, display_name = coalesce(excluded.display_name, store_connections.display_name),
          timezone = coalesce(excluded.timezone, store_connections.timezone), currency = coalesce(excluded.currency, store_connections.currency), installed_at = now(), uninstalled_at = null
        returning id`,
       [input.orgId, siteUrl, facts.name ?? n.host, scopes, WC_API_VERSION, facts.timezone, facts.currency]))!
@@ -111,6 +112,8 @@ export async function connectStore(input: ConnectInput, deps: ConnectDeps = {}):
     if (row) await ensureRules(db, row)
     await audit(db, { orgId: input.orgId, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: current ? 'connection.reauthorized' : 'connection.installed', actor: input.actor,
       detail: { platform: 'woocommerce', via: input.via, scopes, wc_version: facts.wcVersion, auth_mode: facts.authMode, currency: facts.currency } })
+    // integration hub: reconnecting the same store keeps its id; a broken one gets its health back
+    if (current) await restoredIfBroken(db, { orgId: input.orgId, integration: 'woocommerce', connectionId: conn.id, actor: input.actor, rowBroken: current.status !== 'active' })
     return { connectionId: conn.id, created: !current, row: row! }
   })
   // webhooks after the connection exists (best effort)

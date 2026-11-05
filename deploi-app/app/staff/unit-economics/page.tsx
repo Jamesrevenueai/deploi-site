@@ -53,7 +53,7 @@ export default async function EconomicsPage({ searchParams }: { searchParams: Pr
                   <td>{o.plan ?? '—'}{o.subscriptionStatus ? <span className="text-grey-h"> ({o.subscriptionStatus})</span> : null}</td>
                   <td>{usd(o.revenueUsd)}</td>
                   <td>{usd(o.aiCostUsd, 4)} <span className="text-grey-h">({o.aiCalls})</span></td>
-                  <td>{usd(o.providerCostUsd + o.jobCostUsd, 4)}</td>
+                  <td>{usd(o.providerCostUsd + o.jobCostUsd, 4)}{Object.keys(o.providerCalls).length ? <div className="text-[12px] text-grey-h">{Object.entries(o.providerCalls).map(([c, n]) => `${c} ${n}`).join(' · ')} calls</div> : null}</td>
                   <td>{usd(o.emailCostUsd, 4)}</td>
                   <td>{usd(o.variableCostUsd)}</td>
                   <td>{o.verifiedResolutions}</td>

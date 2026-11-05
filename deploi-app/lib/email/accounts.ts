@@ -14,6 +14,7 @@ import { emailAdapter } from './adapters'
 import { emailConfig } from './config'
 import type { AccountRef, EmailProvider } from './types'
 import { assertCan } from '../platform/rbac'
+import { restoredIfBroken } from '../integrations/events'
 
 export type EmailAccountRow = {
   id: string; org_id: string; provider: EmailProvider; address: string; display_name: string | null
@@ -88,6 +89,7 @@ export async function completeConnect(actor: Actor, input: { state: string; code
     }
     const status = canSend ? 'active' : 'error'
     const reason = canSend ? null : 'permission to send was not granted; reconnect and allow sending'
+    const wasBroken = Boolean(acc && acc.status !== 'active')
     if (acc) {
       acc = (await db.one<EmailAccountRow>(`update email_accounts set display_name = $2, status = $3, status_reason = $4, granted_scopes = $5, can_send = $6, can_read = $7,
         last_checked_at = now(), last_success_at = now(), last_error_code = null, disconnected_at = null where id = $1 returning *`,
@@ -98,6 +100,8 @@ export async function completeConnect(actor: Actor, input: { state: string; code
         [st.org_id, st.provider, who.address, who.displayName, status, reason, tokens.scopes, canSend, canRead, st.provider === 'synthetic', actor.label]))!
     }
     await saveTokens(db, acc.id, acc.org_id, tokens)
+    // integration hub: a reconnected mailbox (same id) gets its health back
+    if ((acc.provider === 'gmail' || acc.provider === 'microsoft') && status === 'active') await restoredIfBroken(db, { orgId: acc.org_id, integration: acc.provider, connectionId: acc.id, actor: actor.label, rowBroken: wasBroken })
     await audit(db, { orgId: acc.org_id, entityType: 'credential', entityId: acc.id, event: st.account_id ? 'email_account.reconnected' : 'email_account.connected', actor: actor.label,
       detail: { provider: acc.provider, address: acc.address, scopes: tokens.scopes, can_send: canSend, can_read: canRead } })
     return acc

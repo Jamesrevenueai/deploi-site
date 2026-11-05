@@ -123,6 +123,14 @@ export function throttleWaitMs(cost: QueryCost | null | undefined, needed?: numb
 
 /** The last throttle status per connection, so the next request waits instead of being refused. */
 const bucket = new Map<string, { cost: QueryCost; at: number }>()
+/** The last throttle status Shopify reported for a connection (rate-limit headroom shown in diagnostics), or null. */
+export function throttleStatusFor(connectionId: string): { maximumAvailable: number | null; currentlyAvailable: number | null; restoreRate: number | null; at: string } | null {
+  const b = bucket.get(connectionId)
+  const t = b?.cost.throttleStatus
+  if (!b || !t) return null
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  return { maximumAvailable: n(t.maximumAvailable), currentlyAvailable: n(t.currentlyAvailable), restoreRate: n(t.restoreRate), at: new Date(b.at).toISOString() }
+}
 /** Tests only: forget the throttle status of every connection. */
 export function resetThrottleState() { bucket.clear() }
 

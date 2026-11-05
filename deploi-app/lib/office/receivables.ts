@@ -20,6 +20,7 @@
  *  - Deploi never writes to QuickBooks.
  */
 import { createHash } from 'node:crypto'
+import { officeBlockReason } from '../integrations/blocking'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { admin, type Db } from '../db'
 import { log } from '../log'
@@ -299,7 +300,7 @@ export async function runReceivables(ctx: AgentCtx, now: Date, counts: Counts) {
   if (!p.receivables) throw new ReceivablesBlocked('the agent has no receivables settings')
   if (!(await admin(db => hasProduct(db, ctx.agent.org_id, 'office')))) throw new ReceivablesBlocked('Deploi Office is not enabled for this organization')
   const conn = await admin(db => quickbooksConnection(db, ctx.agent.org_id, p.quickbooksConnectionId))
-  if (!conn) throw new ReceivablesBlocked('QuickBooks is not connected')
+  if (!conn) throw new ReceivablesBlocked(await officeBlockReason(ctx.agent.org_id, p.quickbooksConnectionId, 'QuickBooks'))
   const api = quickbooksFor(conn)
   try {
     await handleReplies(ctx, api, now, counts)

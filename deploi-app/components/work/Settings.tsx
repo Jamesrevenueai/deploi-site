@@ -1,8 +1,9 @@
 'use client'
 /**
  * Settings: one place for the business's rules, agreements, setup, people and roles, and data and deletion.
- * Roles/members and data & deletion are delivered by the platform workstream under /api/store/settings/**;
- * each section is shown when its API answers and says so plainly when it is not available yet.
+ * Members and roles, retention and organization deletion come from /api/store/settings/{members,retention,deletion};
+ * each section is shown when its API answers and says so plainly when it does not. Deletion is owner-only on the
+ * server; the page only asks for it (with a cooling-off period the owner can cancel).
  */
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -11,10 +12,13 @@ import { Icon } from '@/components/ui/Icon'
 import { useLoad } from '@/components/store/useLoad'
 import { Section } from '@/components/store/bits'
 import { probe } from '@/components/cx/probe'
+import { useState } from 'react'
+import { storeFetch, asApiError } from '@/components/store/api'
 
 export const SETTINGS_APIS = {
   members: '/api/store/settings/members',
-  data: '/api/store/settings/data',
+  retention: '/api/store/settings/retention',
+  deletion: '/api/store/settings/deletion',
 } as const
 
 type Probe = { available: boolean; json: Record<string, unknown> | null }
@@ -29,8 +33,38 @@ function Row({ href, title, body, badge }: { href: string | null; title: string;
   return <li>{href ? <Link href={href} className="panel block p-4 transition-colors hover:border-[var(--c-accent-line)]">{inner}</Link> : <div className="panel p-4">{inner}</div>}</li>
 }
 
+type Period = { key: string; days: number; adjusted: boolean }
+type Deletion = { status: string; execute_after: string } | null
+const PERIOD_LABEL: Record<string, string> = { emailBodies: 'Email message bodies', inboundRaw: 'Raw incoming webhooks and mail', jobs: 'Background job records', rateLimits: 'Rate-limit counters', webhookReceipts: 'Webhook receipts' }
+
+function DeletionControl({ request, coolingOffDays, onChange }: { request: Deletion; coolingOffDays: number | null; onChange: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const act = async (action: 'request' | 'cancel') => {
+    setError(null)
+    try { await storeFetch('/api/store/settings/deletion', { method: 'POST', body: { action } }); setConfirming(false); onChange() } catch (e) { setError(asApiError(e).message) }
+  }
+  const pending = request && (request.status === 'pending' || request.status === 'executing')
+  return (
+    <div className="panel p-4" data-testid="deletion">
+      <div className="font-semibold text-ink">Delete this business from Deploi</div>
+      {pending
+        ? <p className="pt-1 text-[14px] text-grey">Deletion is scheduled for {new Date(request!.execute_after).toLocaleString()}. Connections are disconnected and your data is removed then; legal acceptance and billing records are kept as the law requires.</p>
+        : <p className="pt-1 text-[14px] text-grey">Only the owner can ask. Nothing is deleted for {coolingOffDays ?? 7} days, and you can cancel until then.</p>}
+      <div className="flex flex-wrap gap-2 pt-3">
+        {pending
+          ? request!.status === 'pending' && <button className="btn ghost xs" onClick={() => act('cancel')}>Cancel the deletion</button>
+          : confirming
+            ? <><button className="btn danger xs" onClick={() => act('request')}>Yes, schedule deletion</button><button className="btn ghost xs" onClick={() => setConfirming(false)}>Keep my business</button></>
+            : <button className="btn ghost xs" onClick={() => setConfirming(true)}>Ask to delete</button>}
+      </div>
+      {error && <p className="pt-2 text-[14px]" style={{ color: "var(--c-danger)" }} role="alert">{error}</p>}
+    </div>
+  )
+}
+
 export function SettingsScreen() {
-  const { data } = useLoad(async () => {
+  const { data, reload } = useLoad(async () => {
     const out: Record<string, Probe> = {}
     for (const [k, path] of Object.entries(SETTINGS_APIS)) {
       const p = await probe(path)
@@ -55,14 +89,17 @@ export function SettingsScreen() {
         <ul className="flex flex-col gap-2" data-settings="members" data-available={members?.available ? 'true' : 'false'}>
           {members?.available
             ? <Row href={null} title="Members" body={memberList ? memberList.map(m => `${String(m.email ?? m.name ?? 'member')}${m.role ? ` (${String(m.role)})` : ''}`).join(', ') || 'Only you.' : 'Your members and their roles.'} badge={<Badge tone="ok">Available</Badge>} />
-            : <Row href={null} title="Members and roles" body="Owner, admin and member roles, with owner-only grants. Until this is available, every member of your business can approve." badge={pending} />}
+            : <Row href={null} title="Members and roles" body="Owner, admin, member and viewer roles; only owners and admins grant agents." badge={pending} />}
         </ul>
       </Section>
       <Section id="data" title="Data and deletion" sub="What Deploi keeps, for how long, and how to delete it.">
-        <ul className="flex flex-col gap-2" data-settings="data" data-available={data?.data?.available ? 'true' : 'false'}>
-          {data?.data?.available
-            ? <Row href={null} title="Your data" body="Retention and deletion for your business." badge={<Badge tone="ok">Available</Badge>} />
-            : <Row href={null} title="Retention and account deletion" body="Not available in the app yet. To delete your business's data, write to hello@getdeploi.com." badge={pending} />}
+        <ul className="flex flex-col gap-2" data-settings="data" data-available={data?.retention?.available ? 'true' : 'false'}>
+          {data?.retention?.available && Array.isArray(data.retention.json?.periods)
+            ? <Row href={null} title="How long Deploi keeps your data" body={(data.retention.json!.periods as Period[]).map(p => `${PERIOD_LABEL[p.key] ?? p.key}: ${p.days} days${p.adjusted ? ' (yours)' : ''}`).join(' · ') + '. Case history is kept while your business uses Deploi.'} badge={<Badge tone="ok">Available</Badge>} />
+            : <Row href={null} title="Retention" body="Not available here right now." badge={pending} />}
+          {data?.deletion?.available
+            ? <li><DeletionControl request={(data.deletion.json?.request as Deletion) ?? null} coolingOffDays={typeof data.deletion.json?.coolingOffDays === 'number' ? data.deletion.json.coolingOffDays : null} onChange={reload} /></li>
+            : <Row href={null} title="Account deletion" body="Not available here right now. To delete your business's data, write to hello@getdeploi.com." badge={pending} />}
           <Row href="/store/activity" title="Activity and audit" body="Every change your agents made, with its verification." />
         </ul>
       </Section>

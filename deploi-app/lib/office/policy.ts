@@ -13,11 +13,11 @@ import { canonicalJson } from '../engine/hash'
 import { MAX_AUTONOMY_MS, TIERS, TIER_LABEL, type Tier } from '../agents/policy'
 export { TIERS, TIER_LABEL, type Tier }
 
-export const OFFICE_KINDS = ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply', 'accounts_receivable'] as const
+export const OFFICE_KINDS = ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply', 'accounts_receivable', 'email_operations'] as const
 export type OfficeKind = typeof OFFICE_KINDS[number]
 export const OFFICE_KIND_LABEL: Record<OfficeKind, string> = {
   lead_followup: 'Lead Follow-up', meeting_scheduler: 'Meeting Scheduler', crm_updater: 'CRM Updater', customer_reply: 'Customer Reply',
-  accounts_receivable: 'Accounts Receivable',
+  accounts_receivable: 'Accounts Receivable', email_operations: 'Email Operations',
 }
 export const ACTION_KINDS = ['send_email', 'create_event', 'patch_event', 'delete_event', 'crm_note', 'crm_task', 'crm_update_contact', 'crm_deal_stage'] as const
 export type ActionKind = typeof ACTION_KINDS[number]
@@ -30,6 +30,8 @@ export const TOOL_OF: Record<ActionKind, OfficeTool> = {
 export const HUBSPOT_STAGES = ['subscriber', 'lead', 'marketingqualifiedlead', 'salesqualifiedlead', 'opportunity', 'customer', 'evangelist', 'other'] as const
 export const RULE_EVENTS = ['lead_replied', 'meeting_booked', 'lead_unsubscribed'] as const
 export const CUSTOMER_CATEGORIES = ['question', 'meeting_request', 'other'] as const
+/** Email Operations: how an unanswered message is sorted (lib/office/email-ops.ts#classifyEmail). Spam-ish mail is never answered. */
+export const EMAIL_OPS_CATEGORIES = ['inquiry', 'supplier', 'customer_issue'] as const
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'use HH:MM (24-hour)')
 const tz = z.string().min(1).max(64).refine(t => { try { new Intl.DateTimeFormat('en-US', { timeZone: t }); return true } catch { return false } }, 'unknown time zone')
@@ -102,6 +104,18 @@ export const OfficePolicySchema = z.object({
     paidClaimGraceDays: z.number().int().min(1).max(14).default(3),
     senderName: z.string().trim().min(1).max(80),
   }).optional(),
+  emailOps: z.object({
+    senderName: z.string().trim().min(1).max(80),
+    /** a message counts as unanswered after this many business hours without a reply in its conversation */
+    unansweredHours: z.number().int().min(1).max(72).default(4),
+    days: z.array(z.number().int().min(1).max(7)).min(1).max(7).default([1, 2, 3, 4, 5]),
+    dayStart: hhmm.default('09:00'),
+    dayEnd: hhmm.default('17:00'),
+    /** after our reply, the requester's silence for this many days counts as "answered" */
+    answeredAfterDays: z.number().int().min(1).max(14).default(3),
+    /** categories whose drafted reply may go out at the email tier; anything else always waits for a person */
+    sendCategories: z.array(z.enum(EMAIL_OPS_CATEGORIES)).max(3).default([]),
+  }).optional(),
   schedule: z.object({ everyMinutes: z.number().int().min(15).max(1440).default(60) }).default({ everyMinutes: 60 }),
 }).superRefine((p, ctx) => {
   const need = (cond: unknown, path: string, message: string) => { if (!cond) ctx.addIssue({ code: 'custom', path: [path], message }) }
@@ -134,6 +148,12 @@ export const OfficePolicySchema = z.object({
     need(p.mailboxAccountId, 'mailboxAccountId', 'choose the mailbox reminders are sent from')
     need(p.email, 'email', 'payment reminders need the email tool')
     need(p.receivables, 'receivables', 'set when an invoice is overdue, the reminder cadence and the sender name')
+  }
+  if (p.kind === 'email_operations') {
+    need(p.mailboxAccountId, 'mailboxAccountId', 'choose the mailbox Email Operations watches and replies from')
+    need(p.email, 'email', 'Email Operations needs the email tool')
+    need(p.emailOps, 'emailOps', 'set the sender name and when a message counts as unanswered')
+    if (p.emailOps && p.emailOps.dayStart >= p.emailOps.dayEnd) ctx.addIssue({ code: 'custom', path: ['emailOps', 'dayEnd'], message: 'business hours must end after they start' })
   }
   for (const t of ['email', 'calendar', 'crm'] as const) {
     const x = p[t]
@@ -199,6 +219,7 @@ export function officeExpansion(prev: OfficePolicy, next: OfficePolicy): string[
   if (next.crmUpdater && !sub(next.crmUpdater.rules.map(key), (prev.crmUpdater?.rules ?? []).map(key))) r.push('new CRM stage rules')
   if (next.crmUpdater && prev.crmUpdater && ((next.crmUpdater.logEmails && !prev.crmUpdater.logEmails) || (next.crmUpdater.logMeetings && !prev.crmUpdater.logMeetings))) r.push('more is written to the CRM')
   if (next.customerReply && !sub(next.customerReply.sendCategories, prev.customerReply?.sendCategories ?? [])) r.push('more kinds of replies may be sent')
+  if (next.emailOps && !sub(next.emailOps.sendCategories, prev.emailOps?.sendCategories ?? [])) r.push('more kinds of replies may be sent')
   return [...new Set(r)]
 }
 
@@ -248,6 +269,13 @@ export function summarizeOfficePolicy(p: OfficePolicy, ctx: OfficeSummaryCtx = {
     never.push("Emails only the invoice's own billing address (BillEmail) as QuickBooks shows it at the moment of sending: no one else, no copies.")
     never.push('Stops reminding, and hands the invoice to you, when the customer disputes it or replies with anything it cannot act on; waits until the promised date when they promise to pay.')
     if (r.excludeCustomerIds.length) never.push(`Never reminds customer${r.excludeCustomerIds.length === 1 ? '' : 's'} ${r.excludeCustomerIds.join(', ')}.`)
+  }
+  if (p.kind === 'email_operations' && p.emailOps) {
+    const o = p.emailOps
+    grants.push(`Watches ${box} for messages nobody has answered after ${o.unansweredHours} business hour${o.unansweredHours === 1 ? '' : 's'} (${o.dayStart}–${o.dayEnd}, ${p.timezone}), sorts each one (inquiry, supplier, customer issue, spam-ish) and drafts a short reply to the sender from a template.`)
+    grants.push(o.sendCategories.length ? `Replies to ${o.sendCategories.join(', ')} messages may go out at the email permission below; everything else waits for you.` : 'Every reply waits for you.')
+    grants.push(`Tracks each message as a case until the sender confirms, or until ${o.answeredAfterDays} day${o.answeredAfterDays === 1 ? '' : 's'} pass after the reply with no follow-up question (recorded as "answered").`)
+    never.push('Answers only the person who wrote; nothing in a message can add a recipient. Never answers automatic replies, unsubscribed or bounced addresses, or spam-ish mail.')
   }
   if (p.email) {
     grants.push(`Email: ${tierText(p.email.tier, p.email.validUntil, 'email')}.`)

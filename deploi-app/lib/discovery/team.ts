@@ -72,6 +72,11 @@ const ENGINE_COPY: Record<TemplateKey, { monitors: string; schedule: string; lim
     schedule: 'Once a week',
     limits: ['At most 25 proposed changes per run and 100 per day', 'Reports only; changes nothing'],
   },
+  supplier_coordinator: {
+    monitors: 'Your imported purchase orders: missing confirmations, short or partial deliveries, late deliveries and price changes.',
+    schedule: 'Every 4 hours',
+    limits: ['Writes only to the supplier named on each purchase order', 'Changes an order only with your approval', 'Counts as resolved only when the order record shows the agreed state'],
+  },
   supplier_chaser: {
     monitors: 'Items with 2 or fewer available: drafts one restock request per supplier and one follow-up.',
     schedule: 'Every day at 08:00 (your time zone)',
@@ -120,6 +125,7 @@ const OFFICE_COPY: Record<OfficeKind, { monitors: string; schedule: string; limi
   meeting_scheduler: { monitors: 'Leads asking to meet: proposes three free times from your calendar.', schedule: 'Every hour', limits: ['At most 20 emails per day', 'Business hours only'] },
   crm_updater: { monitors: 'Emails and meetings, logged as notes on the HubSpot contact.', schedule: 'Every hour', limits: ['Moves stages only by the rules you set'] },
   customer_reply: { monitors: 'Incoming replies: sorted, with a drafted answer for each.', schedule: 'Every hour', limits: ['At most 20 emails per day', 'No emails between 19:00 and 08:00'] },
+  email_operations: { monitors: 'Your Deploi mailbox: messages nobody has answered after a few business hours, sorted, with a drafted reply to the sender.', schedule: 'Every hour', limits: ['Answers only the person who wrote', 'Every reply waits for you unless you allow a category', 'Never answers automatic replies, unsubscribed or bounced addresses'] },
   accounts_receivable: { monitors: 'Overdue QuickBooks invoices: drafts reminders to the invoice\'s billing address and checks QuickBooks for payment.', schedule: 'Every day', limits: ['Reminders only to the billing email on the invoice', 'Stops on a dispute and asks you', 'Counts as paid only when QuickBooks shows a zero balance', 'Never writes to QuickBooks'] },
 }
 const OFFICE_NEED: Record<'hubspot' | 'calendar' | 'mailbox' | 'quickbooks', string> = { hubspot: 'a connected HubSpot account', calendar: 'a connected Google Calendar', mailbox: 'a mailbox for Deploi Office', quickbooks: 'a connected QuickBooks company' }
@@ -144,8 +150,9 @@ function officeSetup(kind: OfficeKind): TemplateSetup {
   }
 }
 
+// supplier_coordinator is set up from the purchase orders page: its recipients come from the imported orders
 for (const k of ['inventory_watcher', 'store_health_checker', 'supplier_chaser', 'competitor_watcher'] as TemplateKey[]) registerTemplateSetup(k, engineSetup(k))
-for (const k of ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply', 'accounts_receivable'] as OfficeKind[]) registerTemplateSetup(k, officeSetup(k))
+for (const k of ['lead_followup', 'meeting_scheduler', 'crm_updater', 'customer_reply', 'accounts_receivable', 'email_operations'] as OfficeKind[]) registerTemplateSetup(k, officeSetup(k))
 
 // ------------------------------------------------------------------ aggregation
 

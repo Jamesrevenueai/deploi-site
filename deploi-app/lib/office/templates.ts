@@ -14,6 +14,8 @@ export const OFFICE_TEMPLATES: OfficeTemplate[] = [
     job: 'Sort incoming replies and draft an answer to the sender. Sends only what your permission allows.' },
   { key: 'accounts_receivable', name: 'Accounts Receivable', needs: ['quickbooks', 'mailbox'],
     job: 'Find invoices in QuickBooks that are past due, write a polite reminder to the invoice\'s billing address with the exact number, amount and due date, follow up on a cadence, and close the case only when QuickBooks shows the invoice paid. Disputes and anything unclear come to you.' },
+  { key: 'email_operations', name: 'Email Operations', needs: ['mailbox'],
+    job: 'Find messages in your mailbox nobody has answered after a few business hours, sort them (inquiry, supplier, customer issue, spam-ish) and draft a reply to the sender. Each one is tracked until the sender confirms or it is answered. Drafts only until you allow sending.' },
 ]
 export const officeTemplate = (k: string) => OFFICE_TEMPLATES.find(t => t.key === k) ?? null
 
@@ -29,5 +31,6 @@ export function officeTemplatePolicy(kind: OfficeKind, i: TemplateInput): Record
   if (kind === 'accounts_receivable') return { ...base, hubspotConnectionId: null, calendarConnectionId: null, quickbooksConnectionId: i.quickbooksConnectionId ?? null, email,
     receivables: { overdueDays: 7, cadenceDays: 7, maxReminders: 3, minBalance: 0, excludeCustomerIds: [], paidClaimGraceDays: 3, senderName } }
   if (kind === 'crm_updater') return { ...base, calendarConnectionId: null, mailboxAccountId: null, crm: { tier: 'draft', validUntil: null }, crmUpdater: { logEmails: true, logMeetings: true, rules: [] } }
+  if (kind === 'email_operations') return { ...base, hubspotConnectionId: null, calendarConnectionId: null, email, emailOps: { senderName, unansweredHours: 4, days: [1, 2, 3, 4, 5], dayStart: '09:00', dayEnd: '17:00', answeredAfterDays: 3, sendCategories: [] } }
   return { ...base, hubspotConnectionId: null, calendarConnectionId: null, email, customerReply: { senderName, sendCategories: [] } }
 }

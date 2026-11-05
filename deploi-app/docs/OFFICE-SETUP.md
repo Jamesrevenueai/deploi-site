@@ -133,3 +133,42 @@ to `EMAIL_TEST_RECIPIENTS`, `all` is production.
 `listOfficePendingApprovals(db, orgId)` and `decideOfficeAction(db, actor, actionId, 'approve' | 'reject')` in
 `lib/office/approvals.ts` are the integration points for the unified approvals inbox (`db` = a service-role
 connection; call `executeOfficeAction(id)` after an approval commits).
+
+## Office on the Resolution Engine (cases)
+
+Every lead, meeting request, CRM commitment and unanswered email an Office agent works on is a case
+(`lib/cases`, suite `office`), shown through the generic case views (`/api/store/cases`). Code:
+`lib/office/resolution.ts` (lead, meeting and CRM cases, handoffs, checkers), `lib/office/email-ops.ts`
+(Email Operations), `lib/office/case-sync.ts` (moving a case along its records). Migration
+`20261105000047_office_resolution.sql` only adds the `email_operations` agent kind.
+
+| Kind | Dedupe (one open case per) | Resolved only when |
+| --- | --- | --- |
+| `lead_followup` | HubSpot contact | a meeting is read back from Google Calendar (not cancelled, lead as guest); or a "not interested" / opt-out reply is recorded and the CRM Updater's note is read back from HubSpot; or a fresh HubSpot read shows the opt-out (`hs_email_optout`) or a lifecycle change |
+| `meeting_request` | HubSpot contact or email address | the booked event is read back from Google Calendar with the requester as guest |
+| `crm_commitment` | HubSpot contact | the contact or deal is re-read from HubSpot with the new stage |
+| `email_unanswered` | conversation | the requester's next reply acknowledges the answer; or no follow-up within `answeredAfterDays` after our accepted reply (recorded as "answered", not as confirmed); or the owner marks it handled with evidence |
+
+Lifecycle: proposed (draft) → awaiting_approval → executing (send) → waiting_external (next check = the
+follow-up cadence) → investigating (reply classified: interested / not interested / opt-out / question /
+out-of-office, keyword rules) → scheduling (shown as proposed / waiting_external with "Scheduling:" reasons;
+the engine has no separate status) → verifying → resolved. Sending never resolves a case.
+
+Decisions:
+- **Exhausted cadence** (all emails sent, reply window passed, no reply) → `escalated`, never `resolved`,
+  never silently `cancelled`: a person decides; a late reply still moves the case.
+- A **question** escalates to a person; an **out-of-office** (auto-reply flag or text) is recorded and the
+  cadence continues; an **opt-out** stops the sequence and suppresses the address for the organization.
+- **Handoffs** grant nothing: "interested" goes to the Meeting Scheduler, "not interested"/opt-out to the
+  CRM Updater; each proposes under its own policy (a scheduler with calendar drafts only books nothing).
+- **Organization stop**: open Office cases are blocked; runs and checks do nothing until it is cleared.
+- Durable checks: `case.check` jobs run the registered checkers (`lib/cases/jobs.ts` imports them) with fresh
+  reads of HubSpot and Google Calendar.
+
+Email Operations (template "Email Operations", drafts only by default) reads accepted inbound mail on its
+mailbox only (Deploi office mailbox or a synthetic one). Quarantined mail is never answered. Connected Gmail
+and Outlook accounts give reply senders and times only; their inboxes are not read, so no case is opened
+for them. Discovery detectors: `lib/discovery/detectors/office-crm.ts` (leads with no activity for 7+ days),
+`office-email.ts` (messages unanswered for 4+ business hours); both register on import.
+
+Not live-verified: all of the above runs against synthetic HubSpot, Calendar and mailbox only.

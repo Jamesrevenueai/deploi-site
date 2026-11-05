@@ -44,15 +44,15 @@ describe.skipIf(!ready)('Lead Follow-up end to end (synthetic HubSpot and mailbo
     expect((await getSynthMail(s.mailboxId)).sent).toHaveLength(0)
     const edited = await editOfficeAction(s.actor, a.id, { subject: 'Hello Ana', shownHash: a.payload_hash })
     expect(edited.payloadHash).not.toBe(a.payload_hash)
-    await expect(approveOfficeAction(s.actor, a.id, a.payload_hash)).rejects.toMatchObject({ code: 'hash_mismatch' })
+    await expect(approveOfficeAction(s.actor, a.id, a.payload_hash, { now: T })).rejects.toMatchObject({ code: 'hash_mismatch' })
     expect((await getSynthMail(s.mailboxId)).sent).toHaveLength(0)
-    const out = await approveOfficeAction(s.actor, a.id, edited.payloadHash)
+    const out = await approveOfficeAction(s.actor, a.id, edited.payloadHash, { now: T })
     expect(out.status).toBe('succeeded')
     const sent = (await getSynthMail(s.mailboxId)).sent
     expect(sent).toHaveLength(1)
     expect(sent[0]).toMatchObject({ to: ['ana@acme-studio.example'], cc: [], subject: 'Hello Ana' })
     // approving again or re-running never sends a second copy
-    await expect(approveOfficeAction(s.actor, a.id, edited.payloadHash)).rejects.toMatchObject({ code: 'not_pending' })
+    await expect(approveOfficeAction(s.actor, a.id, edited.payloadHash, { now: T })).rejects.toMatchObject({ code: 'not_pending' })
     await runOfficeAgent(agent, { trigger: 'test', now: new Date(T.getTime() + 60e3) })
     expect((await getSynthMail(s.mailboxId)).sent).toHaveLength(1)
     const [l] = await leads(agent)

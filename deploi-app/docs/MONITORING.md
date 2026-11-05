@@ -18,7 +18,7 @@
 - **Structured logs** (`lib/log.ts`): one JSON line per event, personal details redacted by key name. Events to
   alert on: `health.db_unreachable`, `cron.jobs.failed`, `jobs.attempt_failed`, `ai.provider_error`,
   `org.deletion_failed`, `store.api.failed`.
-- **Staff pages:** `/staff/economics` (per-organization variable cost against the $15-$40 target for a $249
+- **Staff pages:** `/staff/unit-economics` (per-organization variable cost against the $15-$40 target for a $249
   plan, flags), `/staff/audit`.
 
 ## Alert thresholds
@@ -35,7 +35,7 @@
 | AI provider errors | `ai.lastHour.providerErrors` > 5 | > 20% of `ai.lastHour.calls` | `/api/health`, log `ai.provider_error` |
 | AI stuck reservations | `ai.stalePending` > 0 | > 10 | `/api/health` |
 | AI configuration | `ai.provider` is not `off` and `ai.configured` is false | - | `/api/health` |
-| AI cost | an organization flagged `above_target` on `/staff/economics` | flagged `negative_margin` | staff page (weekly review) |
+| AI cost | an organization flagged `above_target` on `/staff/unit-economics` | flagged `negative_margin` | staff page (weekly review) |
 | Errors | `store.api.failed` > 10 in 10 min | > 50 in 10 min | log drain |
 
 The AI gateway enforces its own budgets and runaway caps before every call, so a cost alert is a pricing signal,

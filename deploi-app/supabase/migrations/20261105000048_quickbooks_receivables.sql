@@ -53,14 +53,15 @@ create table if not exists office_invoices (
   currency text,
   total_amt numeric(18, 2),
   balance numeric(18, 2),
-  txn_date date,
-  due_date date,
+  -- QuickBooks dates as QuickBooks gives them (YYYY-MM-DD, the company's calendar day)
+  txn_date text check (txn_date ~ '^\d{4}-\d{2}-\d{2}$'),
+  due_date text check (due_date ~ '^\d{4}-\d{2}-\d{2}$'),
   last_read_at timestamptz,
   -- reminder cadence
   reminders_sent int not null default 0,
   last_reminder_at timestamptz,
   next_reminder_at timestamptz,
-  promised_date date,
+  promised_date text check (promised_date ~ '^\d{4}-\d{2}-\d{2}$'),
   hold_until timestamptz,
   -- the first reminder (later reminders reply in its thread) and the newest one
   thread_message_id uuid,

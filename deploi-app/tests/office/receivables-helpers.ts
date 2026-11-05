@@ -45,7 +45,7 @@ export async function arAgent(s: ArSetup, tier: Tier = 'draft', patch: (r: Recor
   return r.agentId
 }
 
-export const inv = (id: string, due: string, total: number, o: Partial<QboInvoice> = {}) =>
+export const inv = (id: string, due: string, total: number, o: Omit<Partial<QboInvoice>, 'dueDate'> = {}) =>
   synthInvoice(id, { docNumber: id, totalAmt: total, dueDate: due, txnDate: due, customerId: '58', customerName: 'Acme Studio', billEmail: 'ap@acme-studio.example', ...o })
 
 export const invoices = (agentId: string) => admin(db => db.query<InvoiceRow>('select * from office_invoices where agent_id = $1 order by qbo_invoice_id', [agentId]))

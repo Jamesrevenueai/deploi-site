@@ -94,7 +94,7 @@ test('setup: from the first step to done, the discovered team at drafts only and
       await shoot(page, 'onboarding-agents')
       if (await grant.count()) {
         await grant.click()
-        await expect(page.getByText(/now working, at drafts only/)).toBeVisible()
+        await expect(page.getByText(/(now working, at drafts only|\d+ agents? working at drafts only)/).first()).toBeVisible()
       }
     } else if (w.current === 'done') {
       await step.getByRole('button', { name: 'Finish setup' }).click()

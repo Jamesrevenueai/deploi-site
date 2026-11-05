@@ -43,7 +43,10 @@ describe.skipIf(!ready)('cross-workstream integration', () => {
     const { items } = await listPendingApprovals(nw, { source: 'office' })
     const it0 = items.find(i => i.id === a.id)!
     expect(it0).toMatchObject({ source: 'office', version: a.payload_hash, decisions: ['approve', 'reject'] })
-    expect(it0.content).toMatchObject({ type: 'email', to: 'bo@lumen-cafe.example' })
+    // what goes out (recipient, subject, body), without internal bookkeeping
+    expect(it0.content).toMatchObject({ to: 'bo@lumen-cafe.example', subject: expect.any(String), body: expect.any(String) })
+    expect(it0.content).not.toHaveProperty('meta')
+    expect(it0.content).not.toHaveProperty('recipientSource')
     // the Office email is not listed a second time by the email source
     expect((await listPendingApprovals(nw)).items.filter(i => i.id === a.id || (i.source === 'email' && (i.content as { to?: string[] }).to?.includes('bo@lumen-cafe.example')))).toHaveLength(1)
 

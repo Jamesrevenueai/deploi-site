@@ -93,6 +93,17 @@ describe('Stripe client', () => {
     expect(stripeApiBase({ BILLING_MODE: 'test' })).toBe('https://api.stripe.com')
   })
 
+  it('the grace period defaults to 7 days when BILLING_GRACE_DAYS is unset or blank (not 0)', async () => {
+    const { stripeConfig } = await import('../../lib/billing/config')
+    const before = process.env.BILLING_GRACE_DAYS
+    try {
+      delete process.env.BILLING_GRACE_DAYS; expect(stripeConfig.graceDays).toBe(7)
+      process.env.BILLING_GRACE_DAYS = ''; expect(stripeConfig.graceDays).toBe(7)
+      process.env.BILLING_GRACE_DAYS = '0'; expect(stripeConfig.graceDays).toBe(0)
+      process.env.BILLING_GRACE_DAYS = '99'; expect(stripeConfig.graceDays).toBe(7)
+    } finally { if (before === undefined) delete process.env.BILLING_GRACE_DAYS; else process.env.BILLING_GRACE_DAYS = before }
+  })
+
   it('every request goes to api.stripe.com by default', async () => {
     const urls: string[] = []
     const rec = (async (u: string) => { urls.push(u); return new Response('{}', { status: 200 }) }) as unknown as typeof fetch

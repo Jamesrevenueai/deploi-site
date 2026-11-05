@@ -374,6 +374,14 @@ export class FakeStripe {
     this.emit('customer.subscription.deleted', s)
   }
 
+  /** Time passes until this trial's end (the clock stays put; the trial is shortened to end now). */
+  endTrialNow(subId: string): FakeEvent[] {
+    const s = this.subs.get(subId)!
+    s.items.data[0].current_period_end = this.clock; s.trial_end = this.clock
+    this.renew(s)
+    return this.drain()
+  }
+
   /** Stripe's 3-day warning before a trial ends. */
   trialWillEnd(subId: string): FakeEvent[] { this.emit('customer.subscription.trial_will_end', this.subs.get(subId)!); return this.drain() }
 

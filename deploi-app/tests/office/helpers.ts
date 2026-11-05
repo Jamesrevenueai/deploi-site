@@ -1,3 +1,4 @@
+import { vi } from 'vitest'
 import { admin } from '../../lib/db'
 import { enableProduct } from '../../lib/products'
 import type { Actor } from '../../lib/engine/actor'
@@ -46,7 +47,15 @@ export async function resetOffice(m: typeof NW, opts: { enable?: boolean } = {})
 }
 
 /** 14:00 UTC today (outside the default quiet hours), so tests are independent of the wall clock. */
-export function t0(): Date { const d = new Date(); d.setUTCHours(14, 0, 0, 0); return d }
+/** The most recent 14:00 UTC (outside the default quiet hours, never in the future), so tests do not depend on the wall clock. */
+export function t0(): Date { const d = new Date(); d.setUTCHours(14, 0, 0, 0); if (d.getTime() > Date.now()) d.setUTCDate(d.getUTCDate() - 1); return d }
+
+/**
+ * Code paths that read the clock themselves (approving an item and sending it, scheduler leases) must see the
+ * test's time too, or a run at night lands in quiet hours. Fakes only Date (timers stay real); undo with
+ * vi.useRealTimers().
+ */
+export function pinClock(at: Date) { vi.useFakeTimers({ toFake: ['Date'], now: at, shouldAdvanceTime: true }) }
 export const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 864e5)
 
 export type OfficeSetup = { actor: Actor; hubspotId: string; calendarId: string; mailboxId: string }

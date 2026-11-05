@@ -1,5 +1,5 @@
 import '../merchant/env'
-import { describe, it, expect, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import { admin, withUser } from '../../lib/db'
 import { prepareDb, SESSIONS } from '../db/helpers'
 import { signSessionToken } from '../../lib/connectors/shopify/auth'
@@ -15,7 +15,7 @@ import { GET as overviewRoute } from '../../app/api/office/overview/route'
 import { POST as connectionsRoute } from '../../app/api/office/connections/route'
 import { GET as cronRoute } from '../../app/api/cron/office/route'
 import { staffActor } from '../merchant/helpers'
-import { NW, HB, setupOffice, resetOffice, grantedAgent, policyFor, actions, leads, lead, t0, addDays, type OfficeSetup } from './helpers'
+import { NW, HB, setupOffice, resetOffice, grantedAgent, policyFor, actions, leads, lead, t0, addDays, type OfficeSetup, pinClock } from './helpers'
 
 const ready = await prepareDb()
 // leave no Office agents, actions or connections behind for other test files
@@ -26,7 +26,8 @@ const bearer = () => ({ authorization: `Bearer ${signSessionToken({ dest: `https
 describe.skipIf(!ready)('Deploi Office safety', () => {
   let s: OfficeSetup
   const T = t0()
-  beforeEach(async () => { s = await setupOffice(NW, [lead('701', ANA, new Date(T.getTime() - 3600e3))]) })
+  afterEach(() => { vi.useRealTimers() })
+  beforeEach(async () => { pinClock(T); s = await setupOffice(NW, [lead('701', ANA, new Date(T.getTime() - 3600e3))]) })
 
   it('pause cancels queued items at once (and their emails); resume proposes them again; revoke cancels drafts and approvals too', async () => {
     // 22:00 UTC is inside the default quiet hours: the approved email waits in the queue

@@ -3,7 +3,7 @@
  * stop switch covering Office agents, and the agreements gate on every connect / create / grant route.
  */
 import '../merchant/env'
-import { describe, it, expect, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { admin } from '../../lib/db'
@@ -15,7 +15,7 @@ import { resumeOfficeAgent } from '../../lib/office/agents'
 import { listPendingApprovals, decideApproval } from '../../lib/approvals'
 import { stopAllAgents, clearAgentStop } from '../../lib/agents/lifecycle'
 import { requireAgreements } from '../../lib/legal'
-import { NW, HB, merchantActor, setupOffice, grantedAgent, actions, lead, t0, type OfficeSetup, resetOffice } from '../office/helpers'
+import { NW, HB, merchantActor, setupOffice, grantedAgent, actions, lead, t0, type OfficeSetup, resetOffice, pinClock } from '../office/helpers'
 
 const ready = await prepareDb()
 // leave no Office agents, actions or connections behind for other test files
@@ -25,7 +25,8 @@ const clearStops = () => admin(db => db.query('update org_controls set agents_st
 describe.skipIf(!ready)('cross-workstream integration', () => {
   let s: OfficeSetup
   const T = t0()
-  beforeEach(async () => {
+  afterEach(() => { vi.useRealTimers() })
+  beforeEach(async () => { pinClock(T);
     await clearStops()
     s = await setupOffice(NW, [lead('801', 'bo@lumen-cafe.example', new Date(T.getTime() - 3600e3))])
   })

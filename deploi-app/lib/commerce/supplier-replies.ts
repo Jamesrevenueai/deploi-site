@@ -152,19 +152,23 @@ export function parseSupplierReply(input: { text: string; attachments?: ReplyAtt
   const segs = new Map<string, Segment[]>()
   const add = (sku: string, s: Segment) => segs.set(sku, [...(segs.get(sku) ?? []), s])
   const pieces = body.split(/\r?\n|;|(?<=\.)\s+(?=[A-Z])/).map(p => p.trim()).filter(Boolean)
-  for (const l of open) {
-    const re = new RegExp(`(^|[^A-Za-z0-9])${esc(l.sku)}($|[^A-Za-z0-9])`, 'i')
-    for (const p of pieces) if (re.test(p)) add(l.sku, readSegment(p, l.sku, po.poNumber, receivedAt))
+  for (const p of pieces) {
+    // where each SKU of the PO is mentioned in this piece; with several, each SKU's text runs to the next SKU
+    const at = open.flatMap(l => [...p.matchAll(new RegExp(`(^|[^A-Za-z0-9])(${esc(l.sku)})(?=$|[^A-Za-z0-9])`, 'gi'))].map(m => ({ sku: l.sku, i: (m.index ?? 0) + m[1].length })))
+      .sort((a, b) => a.i - b.i)
+    if (at.length === 1 || new Set(at.map(a => a.sku)).size === 1) { add(at[0].sku, readSegment(p, at[0].sku, po.poNumber, receivedAt)); continue }
+    at.forEach((a, k) => add(a.sku, readSegment(p.slice(a.i, at[k + 1]?.i ?? p.length), a.sku, po.poNumber, receivedAt)))
   }
   for (const { r } of atts) for (const row of r.rows) add(row.sku, row.seg)
   const skuMentioned = segs.size > 0
-  if (!skuMentioned && open.length === 1) {
+  // mentions of SKUs that are not on this PO are not used (and are never read as this PO's quantities)
+  const foreign = [...body.matchAll(/\b[A-Z]{2,}-[A-Z0-9-]{2,}\b/g)].map(m => m[0]).find(t => !po.lines.some(l => l.sku.toLowerCase() === t.toLowerCase()) && t.toLowerCase() !== po.poNumber.toLowerCase())
+  if (foreign) ignored.push(`SKU ${foreign.slice(0, 40)} is not on PO ${po.poNumber}`)
+  if (!skuMentioned && open.length === 1 && !foreign) {
     // a one-line order: what the reply says about quantity or price is about that line
     const s = readSegment(own, null, po.poNumber, receivedAt)
     if (s.qty.length || s.price.length || s.status) add(open[0].sku, { ...s, dates: [] })
   }
-  // mentions of SKUs that are not on this PO are not used
-  for (const m of body.matchAll(/\b[A-Z]{2,}-[A-Z0-9-]{2,}\b/g)) if (!po.lines.some(l => l.sku.toLowerCase() === m[0].toLowerCase()) && m[0].toLowerCase() !== po.poNumber.toLowerCase()) { ignored.push(`SKU ${m[0].slice(0, 40)} is not on PO ${po.poNumber}`); break }
 
   const lines: ReplyLine[] = []
   for (const l of open) {

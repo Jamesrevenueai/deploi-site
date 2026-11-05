@@ -239,7 +239,7 @@ async function draftFor(co: Coordinator, c: CaseRow, kind: MsgKind, extra: { rea
     const { decryptContent } = await import('../email/content')
     let subject = `Purchase order ${po.po_number}`
     try { subject = decryptContent(prev.id, s!.key_id, s!.content_ciphertext).subject } catch { /* keep the plain subject */ }
-    previous = { internetMessageId: prev.internet_message_id, subject, sentAt: prev.accepted_at }
+    previous = { internetMessageId: prev.internet_message_id, subject, sentAt: prev.accepted_at ? new Date(prev.accepted_at).toISOString() : null }
   }
   const d = supplierMessage(kind, { caseId: c.id, po, rule, agentName: co.name, storeName: co.storeName, reasons: extra.reasons, replyId: extra.replyId, previous })
   const created = await createAgentMessages({ agentId: co.agentId, runId: null, drafts: [d], actor: `agent:${co.name}`, now: extra.now })
@@ -269,6 +269,9 @@ export async function syncCaseMessages(orgId: string, now = new Date()): Promise
         await recordAction(db, c.id, { actor: 'system:supplier-coordinator', summary: `Sent the ${String(m.meta.kind ?? 'message')} about PO ${String(m.meta.po_number ?? '')} to the supplier (accepted by the email provider)`, ref: { type: 'email_message', id: m.id } })
         if (!pendingOptions?.n && ['detected', 'investigating', 'awaiting_approval', 'executing', 'blocked'].includes(c.status)) {
           const sent = m.accepted_at ? new Date(m.accepted_at) : now
+          // an approved message was sent: the case went through executing (the action), never straight to waiting
+          if ((await db.one<{ status: CaseStatus }>('select status from cases where id = $1', [c.id]))!.status === 'awaiting_approval')
+            await moveCase(db, c.id, 'executing', { actor: 'system:supplier-coordinator', reason: 'The message was approved and sent', ref: { type: 'email_message', id: m.id } })
           await moveCase(db, c.id, 'waiting_external', { actor: 'system:supplier-coordinator', reason: 'Waiting for the supplier to reply', approvalRequired: false,
             nextCheckAt: addDays(sent, FOLLOWUP_DAYS), nextAction: `If there is no reply by ${day(addDays(sent, FOLLOWUP_DAYS))}, one follow-up in the same thread`, ref: { type: 'email_message', id: m.id } })
           moved++
@@ -428,7 +431,7 @@ async function handleReply(r: InboundRow, now: Date, attachmentText: Record<stri
   if (outcome === 'clear') {
     await admin(async db => {
       for (const o of options) {
-        await db.query(`insert into purchase_order_resolutions (org_id, case_id, po_id, kind, summary, change, change_hash, reply_id) values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        await db.query(`insert into purchase_order_resolutions (org_id, case_id, po_id, kind, summary, change, change_hash, reply_id, created_at) values ($1,$2,$3,$4,$5,$6,$7,$8, clock_timestamp())`,
           [c.org_id, c.id, po.id, o.kind, o.summary.slice(0, 1000), JSON.stringify(o.change), optionHash(c.id, po.id, o), replyId])
       }
       await moveCase(db, c.id, 'proposed', { actor: 'system:supplier-coordinator', reason: `The supplier replied; ${options.length} option${options.length === 1 ? '' : 's'} to resolve it`, ref: { type: 'email_inbound', id: r.id } })

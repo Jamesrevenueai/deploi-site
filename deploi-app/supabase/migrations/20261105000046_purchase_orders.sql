@@ -77,7 +77,7 @@ create table if not exists purchase_order_resolutions (
   summary text not null check (length(summary) <= 1000),
   change jsonb not null default '{}'::jsonb,
   -- an approval is bound to this hash: anything else is refused as stale
-  change_hash text not null check (length(change_hash) = 64),
+  change_hash text not null check (change_hash ~ '^[0-9a-f]{64}$'),
   -- the supplier reply the option was built from (data only)
   reply_id uuid,
   status text not null default 'proposed' check (status in ('proposed', 'applied', 'rejected', 'superseded', 'stale', 'withdrawn')),
@@ -99,7 +99,7 @@ create table if not exists supplier_replies (
   -- the stored inbound email (lib/email/inbound.ts): each one is handled once
   inbound_id uuid not null unique,
   -- the supplier's own words (quoted history removed), hashed
-  content_hash text not null check (length(content_hash) = 64),
+  content_hash text not null check (content_hash ~ '^[0-9a-f]{64}$'),
   outcome text not null check (outcome in ('clear', 'ambiguous', 'ignored')),
   parsed jsonb not null default '{}'::jsonb,
   received_at timestamptz not null default now(),

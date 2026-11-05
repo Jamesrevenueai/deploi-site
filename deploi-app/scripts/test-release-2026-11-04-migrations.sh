@@ -60,7 +60,9 @@ LATER=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name 
 if [[ "$LATER" != "0" ]]; then
   OUT=$(npx tsx scripts/launch-migrations.ts rollback $SET --db "$PGURL/$COPY" --discard-data 2>&1 || true)
   if grep -q 'roll back the later release first' <<<"$OUT"; then echo "refused while 2026-11-05 is applied: ok"; else echo "NOT REFUSED: $OUT"; exit 1; fi
-  npx tsx scripts/launch-migrations.ts rollback --set=2026-11-05 --db "$PGURL/$COPY" --discard-data >/dev/null && echo "later release (2026-11-05) rolled back first: ok"
+  for LS in 2026-11-06 2026-11-05; do
+    npx tsx scripts/launch-migrations.ts rollback --set=$LS --db "$PGURL/$COPY" --discard-data >/dev/null && echo "later release ($LS) rolled back first: ok"
+  done
 fi
 
 step "7. rollback refuses while release tables hold data"

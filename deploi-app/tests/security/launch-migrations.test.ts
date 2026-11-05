@@ -52,6 +52,24 @@ describe('2026-11-05 release migration set', () => {
   })
 })
 
+describe('2026-11-06 release migration set', () => {
+  it('lists exactly the 2026-11-06 migrations on disk, in order, each with a rollback, and needs the 2026-11-05 release applied', async () => {
+    const { readdirSync, existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { RELEASE_2026_11_06, RELEASE_2026_11_05, SETS, setFrom, laterApplied } = await import('../../scripts/launch-migrations')
+    const dir = join(__dirname, '..', '..', 'supabase')
+    expect(RELEASE_2026_11_06).toEqual(readdirSync(join(dir, 'migrations')).filter(f => f.startsWith('20261106')).sort())
+    for (const f of RELEASE_2026_11_06) expect(existsSync(join(dir, 'rollback', f.replace(/\.sql$/, '.down.sql'))), f).toBe(true)
+    expect(SETS['2026-11-06'].prereq).toBe(RELEASE_2026_11_05[RELEASE_2026_11_05.length - 1])
+    expect(setFrom(['--set=2026-11-06']).files).toBe(RELEASE_2026_11_06)
+    // 2026-11-05 cannot come off while 2026-11-06 is applied
+    expect(laterApplied([...RELEASE_2026_11_05, RELEASE_2026_11_06[0]], SETS['2026-11-05'])).toEqual([RELEASE_2026_11_06[0]])
+    // every migration on disk belongs to a release set (or is the separately applied F-02 hotfix / earlier history)
+    const inSets = new Set(Object.values(SETS).flatMap(s => s.files))
+    expect(readdirSync(join(dir, 'migrations')).filter(f => f > '20261031000001_signup_trust_hotfix.sql' && !inSets.has(f))).toEqual([])
+  })
+})
+
 describe('release rollback order', () => {
   it('a release cannot be rolled back while a later one is applied', async () => {
     const { laterApplied, SETS } = await import('../../scripts/launch-migrations')

@@ -4,7 +4,7 @@
 # as scripts/migrate.ts does), plus existing merchant data. Never touches production or any Supabase project.
 # Needs a local Postgres reachable as $PGURL (default postgres:postgres@127.0.0.1).
 #
-#   bash scripts/test-release-2026-11-04-migrations.sh
+#   bash scripts/test-release-2026-11-05-migrations.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PGURL=${PGURL:-postgres://postgres:postgres@127.0.0.1:5432}
@@ -52,6 +52,14 @@ AFTER_ROWS=$(psql -tA "$PGURL/$COPY" -c "$ROWS"); [[ "$AFTER_ROWS" == "$BEFORE_R
 
 step "6. the app works on the migrated copy"
 MERCHANT_TEST_DATABASE_URL="$PGURL/$COPY" npx vitest run tests/integration tests/security tests/infra/email.test.ts tests/woocommerce/agents.test.ts tests/office/lead-followup.test.ts tests/legal 2>&1 | grep -E 'Test Files|Tests  '
+
+step "7a. rolling this release back is refused while a later release is applied"
+LATER=$(psql -tA "$PGURL/$COPY" -c "select count(*) from _migrations where name like '20261106%'")
+if [[ "$LATER" != "0" ]]; then
+  OUT=$(npx tsx scripts/launch-migrations.ts rollback $SET --db "$PGURL/$COPY" --discard-data 2>&1 || true)
+  if grep -q 'roll back the later release first' <<<"$OUT"; then echo "refused while 2026-11-06 is applied: ok"; else echo "NOT REFUSED: $OUT"; exit 1; fi
+  npx tsx scripts/launch-migrations.ts rollback --set=2026-11-06 --db "$PGURL/$COPY" --discard-data >/dev/null && echo "later release (2026-11-06) rolled back first: ok"
+fi
 
 step "7. rollback refuses while release tables hold data"
 psqlq "$PGURL/$COPY" -c "insert into cases (org_id, suite, kind, source_app, dedupe_key, title, problem, verification) values ('00000000-0000-4000-8000-000000000b01', 'commerce', 'rehearsal_case', 'import', 'rehearsal:1', 'Rehearsal case', 'kept to test the rollback guard', '{\"criteria\": \"rehearsal\"}')"

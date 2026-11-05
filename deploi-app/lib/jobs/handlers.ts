@@ -71,5 +71,8 @@ export async function enqueueDueWork(opts: { now?: Date; limit?: number } = {}) 
   for (const m of messages) out.sends.push(await enqueue({ kind: 'email.send', orgId: m.org_id, agentId: m.agent_id, payload: { messageId: m.id }, idempotencyKey: `${m.id}#${m.attempts}@${slot}` }))
   out.maintenance.push(await enqueue({ kind: 'email.reconcile', idempotencyKey: slot }))
   out.maintenance.push(await enqueue({ kind: 'engine.recover', idempotencyKey: slot }))
+  // Resolution Engine: due case checks (lib/cases/jobs.ts registers the handler)
+  const { enqueueDueCases } = await import('../cases/jobs')
+  out.maintenance.push(...(await enqueueDueCases(now, opts.limit ?? 200)))
   return out
 }

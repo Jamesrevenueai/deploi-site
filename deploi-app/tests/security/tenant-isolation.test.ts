@@ -59,6 +59,11 @@ async function valueFor(c: Client, col: Col, lits: Map<string, string>): Promise
 /** Columns whose check constraint is a pattern the generic generator cannot satisfy: a valid literal per column. */
 const VALUE_OVERRIDES: Record<string, string> = {
   'email_thread_state.thread_key': `'m:' || gen_random_uuid()::text`,
+  'cases.kind': `'isolation_test'`,
+  'cases.source_app': `'import'`,
+  'cases.suite': `'commerce'`,
+  'case_events.type': `'note'`,
+  'case_links.ref_type': `'isolation_test'`,
 }
 
 describe.skipIf(!ready)('cross-tenant isolation of every org-scoped table', () => {

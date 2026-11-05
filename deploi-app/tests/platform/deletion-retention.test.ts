@@ -181,8 +181,15 @@ describe.skipIf(!ready)('data retention', () => {
 
   it('purges only expired rows; unfinished messages and recent rows are kept; it is safe to run again', async () => {
     await seed()
+    const h = (c: string) => c.repeat(64)
+    await admin(db => db.query(`delete from privacy_exports where shop = 'ret-test.myshopify.com'`))
+    await admin(db => db.query(`insert into privacy_exports (org_id, shop, subject_hash, key_id, content_ciphertext, expires_at) values
+      ($1, 'ret-test.myshopify.com', $2, 'k', 'x', now() - interval '1 minute'), ($1, 'ret-test.myshopify.com', $3, 'k', 'x', now() + interval '1 day')`, [NW.org, h('a'), h('b')]))
     const r = await runRetention()
     expect(r.emailBodiesErased).toBeGreaterThanOrEqual(1)
+    expect(r.privacyExportsDeleted).toBeGreaterThanOrEqual(1)
+    expect(await admin(db => db.query(`select subject_hash from privacy_exports where shop = 'ret-test.myshopify.com'`))).toEqual([{ subject_hash: h('b') }])
+    await admin(db => db.query(`delete from privacy_exports where shop = 'ret-test.myshopify.com'`))
     const rows = await admin(db => db.query<{ dedupe_key: string; content_ciphertext: string; purged: boolean }>(`select dedupe_key, content_ciphertext, body_purged_at is not null as purged from email_messages where dedupe_key like 'ret-%' order by dedupe_key`))
     expect(rows).toEqual([
       { dedupe_key: 'ret-new', content_ciphertext: 'body', purged: false },

@@ -37,7 +37,7 @@ export function retentionDefaults(e: Record<string, string | undefined> = proces
   return out
 }
 
-export type RetentionResult = { emailBodiesErased: number; inboundErased: number; inboundEventsDeleted: number; jobsDeleted: number; rateLimitsDeleted: number; webhookReceiptsDeleted: number }
+export type RetentionResult = { emailBodiesErased: number; inboundErased: number; inboundEventsDeleted: number; jobsDeleted: number; rateLimitsDeleted: number; webhookReceiptsDeleted: number; privacyExportsDeleted: number }
 
 const days = (k: RetentionKey) => `make_interval(days => coalesce(case when (g.retention->>'${k}') ~ '^[0-9]{1,4}$' then least(greatest((g.retention->>'${k}')::int, 1), ${RETENTION_MAX_DAYS}) end, $2::int))`
 
@@ -57,6 +57,8 @@ export async function runRetention(opts: { now?: Date } = {}): Promise<Retention
           where j2.status in ('succeeded','failed','dead','cancelled') and coalesce(j2.finished_at, j2.updated_at) < $1::timestamptz - ${days('jobs')} limit 20000) old where j.id = old.id`, [now, d.jobs]),
       rateLimitsDeleted: await n(`delete from rate_limits where expires_at < $1::timestamptz - make_interval(days => $2::int)`, [now, d.rateLimits]),
       webhookReceiptsDeleted: await n(`delete from webhook_receipts where received_at < $1::timestamptz - make_interval(days => $2::int)`, [now, d.webhookReceipts]),
+      // a customer's data export (Shopify customers/data_request) is kept only until its expiry
+      privacyExportsDeleted: await n(`delete from privacy_exports where expires_at <= $1::timestamptz`, [now]),
     }
   })
   await recordHeartbeat('platform.retention', 'ok', r).catch(() => {})

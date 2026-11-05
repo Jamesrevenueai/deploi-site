@@ -32,14 +32,20 @@ npx tsx scripts/launch-migrations.ts dry-run --set=2026-11-04 --http=bhddgjcefwa
 npx tsx scripts/launch-migrations.ts apply   --set=2026-11-04 --http=bhddgjcefwasdyrrfptc --confirm-production=bhddgjcefwasdyrrfptc
 npx tsx scripts/launch-migrations.ts dry-run --set=2026-11-05 --http=bhddgjcefwasdyrrfptc --confirm-production=bhddgjcefwasdyrrfptc
 npx tsx scripts/launch-migrations.ts apply   --set=2026-11-05 --http=bhddgjcefwasdyrrfptc --confirm-production=bhddgjcefwasdyrrfptc
-# then any later sets listed in scripts/launch-migrations.ts (SETS), in date order
+npx tsx scripts/launch-migrations.ts dry-run --set=2026-11-06 --http=bhddgjcefwasdyrrfptc --confirm-production=bhddgjcefwasdyrrfptc
+npx tsx scripts/launch-migrations.ts apply   --set=2026-11-06 --http=bhddgjcefwasdyrrfptc --confirm-production=bhddgjcefwasdyrrfptc
 ```
 
 - **Check:** `status` lists every file as applied.
 - **Rollback:** `rollback` set by set, newest first. The tool refuses an older set while a newer one is applied. Add `--discard-data` only when losing the rows those releases created is acceptable.
 
-The same steps are rehearsed locally by `scripts/test-release-2026-11-04-migrations.sh` and
-`scripts/test-release-2026-11-05-migrations.sh`, which run on every change.
+Sets: `2026-11-04` (036–044), `2026-11-05` (045–051), `2026-11-06` (052–057: case adapters and Shopify
+privacy, members and support, inbox reading, connection health, billing lifecycle, operations). The F-02 hotfix
+(`20261031000001`) is applied separately before any of them (§0).
+
+The same steps are rehearsed locally by `scripts/test-release-2026-11-04-migrations.sh`,
+`scripts/test-release-2026-11-05-migrations.sh` and `scripts/test-release-2026-11-06-migrations.sh`, which run
+on every change. Each one also proves that its set refuses to roll back while a later set is applied.
 
 ## 2. Preview deployment: smoke test
 
@@ -102,7 +108,8 @@ Merge PR #16 into `main`. Vercel builds and promotes it. Then run `scripts/smoke
 reverts the app instantly, and the database can stay on the new migrations.
 
 `scripts/test-app-rollback-compat.sh` proves this: `main` plus the hotfix passed its whole suite (304/304) on a
-database migrated with every migration on this branch (2026-11-05). Rerun the script before the release.
+database migrated with every migration on this branch; rerun on 2026-11-05 with sets through `2026-11-06`:
+298/298 for `main`. Rerun the script before the release.
 
 ## 6. After the release
 

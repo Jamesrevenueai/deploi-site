@@ -178,7 +178,7 @@ function ConnectStep({ w, base }: StepProps) {
           {w.office.connected.length > 0 || w.office.mailboxes > 0
             ? <span className="text-grey-h"><Icon name="check" size={14} className="inline" /> Connected: {[...w.office.connected.map(p => OFFICE_LABEL[p] ?? p), ...(w.office.mailboxes ? [`${w.office.mailboxes} mailbox${w.office.mailboxes === 1 ? '' : 'es'}`] : [])].join(', ')}. </span>
             : null}
-          {avail(ROUTES.officeConnections, w.office.connected.length ? 'Connect more Office tools' : 'Connect HubSpot, Google Calendar, QuickBooks or a mailbox', ROUTES.officeConnections)}
+          {avail(ROUTES.officeConnections, w.office.connected.length ? 'Connect more Office tools' : 'Connect HubSpot, Google Calendar, QuickBooks or a mailbox', `${ROUTES.officeConnections}?from=setup`)}
         </li>
       )}
     </ul>

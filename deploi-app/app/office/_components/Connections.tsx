@@ -47,6 +47,7 @@ export function ConnectionsScreen() {
       <div aria-live="polite" className="mb-3 flex flex-col gap-3">
         {q.get('connected') && <Banner icon="check">Connected {q.get('connected') === 'hubspot' ? 'HubSpot' : q.get('connected') === 'quickbooks' ? 'QuickBooks' : 'Google Calendar'}.</Banner>}
         {q.get('error') && <Banner tone="warn">{q.get('error')}</Banner>}
+        {q.get('from') === 'setup' && <Banner icon="spark">Connect what you use, then <Link className="underline" href="/store/setup">continue setup</Link>.</Banner>}
         {err && <ErrorState error={err} />}
         {d.liveSends !== 'all' && <Banner tone="warn">Real email sending is {d.liveSends === 'off' ? 'off' : 'limited to test recipients'} in this environment (EMAIL_LIVE_SENDS). Approved emails to real recipients are held and marked failed with the reason.</Banner>}
       </div>

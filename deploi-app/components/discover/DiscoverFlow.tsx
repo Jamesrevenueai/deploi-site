@@ -66,7 +66,8 @@ export function DiscoverFlow({ embedded = false, onChange }: { embedded?: boolea
   if (error && !data) return <>{header({ title: 'Business discovery' })}<ErrorState error={error} onRetry={reload} /></>
   const v = data!
   const found = v.findings.total > 0
-  const notCreated = v.team.filter(t => !t.agent && t.setup === 'automatic' && t.needs.length === 0)
+  // every recommendation one-click setup can create; setup itself reports what is still missing for each (blocked)
+  const notCreated = v.team.filter(t => !t.agent && t.setup === 'automatic')
 
   return (
     <>

@@ -59,7 +59,7 @@ const HOST_LABEL: Record<OfficeHost, string> = { hubspot: 'HubSpot', google_cale
  * a lost answer to a write is reported as uncertain and reconciled by the caller.
  * `retryServer` (reads only): a GET answered 5xx is also retried with the same bounded backoff.
  */
-export async function officeRequest<T = Record<string, unknown>>(provider: OfficeHost, url: string, init: RequestInit & { json?: unknown; retryServer?: boolean } = {}): Promise<{ status: number; body: T }> {
+export async function officeRequest<T = Record<string, unknown>>(provider: OfficeHost, url: string, init: RequestInit & { json?: unknown; retryServer?: boolean } = {}): Promise<{ status: number; body: T; headers: Headers }> {
   assertApprovedHost(url, provider)
   const headers = new Headers(init.headers)
   let body = init.body
@@ -76,8 +76,8 @@ export async function officeRequest<T = Record<string, unknown>>(provider: Offic
     }
     if (res.status === 429 && attempt < officeConfig.maxRetries) { await sleeper(retryAfterMs(res, attempt)); continue }
     if (init.retryServer && method === 'GET' && res.status >= 500 && attempt < officeConfig.maxRetries) { await sleeper(Math.min(500 * 2 ** attempt, officeConfig.maxRetryWaitMs)); continue }
-    if (res.status === 204) return { status: 204, body: {} as T }
-    if (res.ok) return { status: res.status, body: (await res.json().catch(() => ({}))) as T }
+    if (res.status === 204) return { status: 204, body: {} as T, headers: res.headers }
+    if (res.ok) return { status: res.status, body: (await res.json().catch(() => ({}))) as T, headers: res.headers }
     const code = classify(res.status)
     throw new OfficeHttpError(res.status, code, `${HOST_LABEL[provider]} answered ${res.status}${code === 'rate_limited' ? ' (rate limited after retries)' : ''}: ${await reason(res)}`, provider)
   }

@@ -23,6 +23,7 @@ import type { OfficePolicy } from './policy'
 import { ReceivablesBlocked, runReceivables, syncReceivables } from './receivables'
 import { classifyLeadReply, handedLeadCases, proposeCaseCrmNotes, syncOfficeCases } from './resolution'
 import { emailOperationsRun } from './email-ops'
+import { officeBlockReason } from '../integrations/blocking'
 
 export type LeadRow = { id: string; org_id: string; agent_id: string; hubspot_contact_id: string; email: string; first_name: string | null; company: string | null; lifecycle_stage: string | null; status: string; touches: number; next_touch_at: string | null; thread_message_id: string | null; replied_at: string | null; stop_reason: string | null }
 export type MeetingRow = { id: string; org_id: string; agent_id: string; lead_id: string | null; contact_email: string; hubspot_contact_id: string | null; status: string; proposed_slots: Slot[]; chosen_slot: Slot | null; proposal_message_id: string | null; calendar_event_id: string | null; source_inbound_id: string | null }
@@ -50,7 +51,7 @@ async function proposeTouch(ctx: AgentCtx, lead: LeadRow, touch: number, firstSu
 async function pollLeads(ctx: AgentCtx, now: Date, counts: Counts) {
   const p = ctx.policy!
   const hc = await admin(db => conn(db, ctx.agent.org_id, p.hubspotConnectionId))
-  if (!hc) throw new Blocked('HubSpot is not connected')
+  if (!hc) throw new Blocked(await officeBlockReason(ctx.agent.org_id, p.hubspotConnectionId, 'HubSpot'))
   const hs = hubspotFor(hc)
   // overlap the previous poll by five minutes; HubSpot's search index can lag a little behind writes
   const since = ctx.agent.last_polled_at ? new Date(new Date(ctx.agent.last_polled_at).getTime() - 5 * 60e3) : new Date(now.getTime() - p.leadFollowup!.lookbackDays * 864e5)
@@ -93,7 +94,7 @@ async function checkReplies(ctx: AgentCtx, counts: Counts) {
 async function dueFollowups(ctx: AgentCtx, now: Date, counts: Counts) {
   const p = ctx.policy!, l = p.leadFollowup!
   const hc = await admin(db => conn(db, ctx.agent.org_id, p.hubspotConnectionId))
-  if (!hc) throw new Blocked('HubSpot is not connected')
+  if (!hc) throw new Blocked(await officeBlockReason(ctx.agent.org_id, p.hubspotConnectionId, 'HubSpot'))
   // a reply on any message in the thread stops the sequence
   // (an out-of-office reply this agent already sorted does not count: the cadence goes on)
   const replied = await admin(db => db.query<{ id: string }>(`select distinct l.id from office_leads l join office_actions a on a.lead_id = l.id join email_messages m on m.id = a.email_message_id
@@ -176,7 +177,7 @@ async function leadInbound(ctx: AgentCtx, counts: Counts) {
 async function freeSlotsFor(ctx: AgentCtx, now: Date): Promise<Slot[]> {
   const p = ctx.policy!, s = p.scheduler!
   const cc = await admin(db => conn(db, ctx.agent.org_id, p.calendarConnectionId))
-  if (!cc) throw new Blocked('Google Calendar is not connected')
+  if (!cc) throw new Blocked(await officeBlockReason(ctx.agent.org_id, p.calendarConnectionId, 'Google Calendar'))
   const busy = await calendarFor(cc).freeBusy({ timeMin: now.toISOString(), timeMax: new Date(now.getTime() + (s.horizonDays + 1) * 864e5).toISOString(), timeZone: p.timezone })
   return proposeSlots(busy, { timezone: p.timezone, days: s.days, dayStart: s.dayStart, dayEnd: s.dayEnd, durationMin: s.durationMin, bufferMin: s.bufferMin, minNoticeHours: s.minNoticeHours, horizonDays: s.horizonDays }, now, 3)
 }
@@ -278,7 +279,7 @@ async function customerReplyInbound(ctx: AgentCtx, now: Date, counts: Counts) {
 async function crmUpdates(ctx: AgentCtx, now: Date, counts: Counts) {
   const p = ctx.policy!, u = p.crmUpdater!
   const hc = await admin(db => conn(db, ctx.agent.org_id, p.hubspotConnectionId))
-  if (!hc) throw new Blocked('HubSpot is not connected')
+  if (!hc) throw new Blocked(await officeBlockReason(ctx.agent.org_id, p.hubspotConnectionId, 'HubSpot'))
   const propose = (kind: 'crm_note' | 'crm_update_contact' | 'crm_deal_stage', key: string, purpose: string, payload: Parameters<typeof proposeAction>[1]['payload']) =>
     admin(db => proposeAction(db, { agentId: ctx.agent.id, kind, purpose, idempotencyKey: key, payload, now })).then(r => { if (!r.duplicate) counts.proposed = (counts.proposed ?? 0) + 1 })
   // what other office agents did, with the HubSpot contact it concerns

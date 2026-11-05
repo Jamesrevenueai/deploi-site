@@ -19,6 +19,7 @@ import { isRealmId, quickbooksAuthorizeUrl, quickbooksClient, quickbooksExchange
 import { demoInvoices, mutateQboSynth } from './quickbooks-synthetic'
 import { assertOfficeConnectionSlot } from '../plans/entitlements'
 import { assertCan } from '../platform/rbac'
+import { restoredIfBroken } from '../integrations/events'
 
 export type OfficeConnectionRow = {
   id: string; org_id: string; provider: OfficeProvider; status: 'active' | 'needs_reauth' | 'disconnected'; status_reason: string | null; is_synthetic: boolean
@@ -109,6 +110,8 @@ async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvid
         [i.orgId, i.provider, i.synthetic, i.externalId, i.displayName, i.tokens.scopes, i.provider === 'google_calendar' ? 'primary' : null, i.timezone ?? null, i.actor]))!
   await saveOfficeTokens(db, row.id, i.orgId, i.tokens)
   await officeAudit(db, { orgId: i.orgId, entityType: 'office_connection', entityId: row.id, event: live ? 'connection.reconnected' : 'connection.connected', actor: i.actor, detail: { provider: i.provider, synthetic: i.synthetic, scopes: i.tokens.scopes } })
+  // integration hub: a reconnection of a broken connection clears its health and resumes the agents that use it (same id)
+  if (live) await restoredIfBroken(db, { orgId: i.orgId, integration: i.provider, connectionId: row.id, actor: i.actor, rowBroken: live.status !== 'active' })
   return row
 }
 

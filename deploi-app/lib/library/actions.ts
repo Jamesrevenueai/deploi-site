@@ -20,6 +20,7 @@ import { recordUsage } from './usage'
 import { runAgent } from '../agents/run'
 import { orgStopReason } from '../engine/kill-switch'
 import { allowanceBlock } from '../plans/allowance'
+import { assertCan } from '../platform/rbac'
 
 /** Action types that move money or publish to the outside world: approval-only at every permission level. */
 export const APPROVAL_ONLY = new Set(['approve_return', 'create_discount', 'end_discount', 'send_customer_reply'])
@@ -194,6 +195,7 @@ async function visibleAction(actor: Actor, id: string): Promise<ActionRow> {
 export async function approveAction(actor: Actor, id: string, now = new Date()) {
   const a = await visibleAction(actor, id)
   assertMerchant(actor, a.org_id)
+  await assertCan(actor, a.org_id, 'approve') // owners and admins; members only when the owner allows it
   if (a.status !== 'draft') throw new LibraryError('conflict', `this action is ${a.status}, not waiting for approval`)
   if (a.expires_at && new Date(a.expires_at).getTime() < now.getTime()) {
     await admin(db => db.query(`update library_actions set status = 'expired', status_reason = 'expired before it was approved' where id = $1`, [id]))

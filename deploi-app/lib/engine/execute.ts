@@ -22,6 +22,7 @@ import { authorizeAgentAction, type AuthzResult } from './authorize'
 import { orgStopReason } from './kill-switch'
 import { allowanceBlock } from '../plans/allowance'
 import type { ApplyResult, ConnectionRow, Correction, ResourceRecord } from './types'
+import { assertCan } from '../platform/rbac'
 
 export type ExecutionStatus = 'queued' | 'prechecking' | 'blocked' | 'stale' | 'executing' | 'applied' | 'unknown' | 'verified' | 'failed' | 'verification_failed'
 export type ExecutionResult = { executionId: string | null; status: ExecutionStatus | 'not_approved'; reason?: string; duplicate?: boolean }
@@ -88,6 +89,7 @@ export async function retryExecution(actor: Actor, executionId: string, opts: { 
   const visible = await withActor(actor, db => db.one<{ id: string; org_id: string }>('select id, org_id from executions where id = $1', [executionId]), { ip: opts.ip })
   if (!visible) throw new EngineError('not_found', 'execution not found')
   assertMerchant(actor, visible.org_id)
+  await assertCan(actor, visible.org_id, 'approve') // a retry acts on the approval again
   const claimed = await admin(async db => {
     const r = await db.one<ExecRow>(
       `update executions set status = 'prechecking', attempt = attempt + 1, status_reason = null where id = $1 and status in ('failed','unknown','verification_failed') returning *`, [executionId])

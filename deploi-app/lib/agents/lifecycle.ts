@@ -19,6 +19,7 @@ import { recheckTasks } from './tasks'
 import { assertActiveAgentSlot, assertWithinPlan } from '../plans/entitlements'
 import { cancelJobs } from '../jobs/queue'
 import { orgStopReason } from '../engine/kill-switch'
+import { assertCan } from '../platform/rbac'
 
 async function visibleConnection(actor: Actor, connectionId: string) {
   const c = await withActor(actor, db => db.one<{ id: string; org_id: string; display_name: string | null; external_id: string; status: string }>('select id, org_id, display_name, external_id, status from store_connections where id = $1', [connectionId]))
@@ -158,6 +159,7 @@ export function overlap(a: AgentPolicy, b: AgentPolicy, bName: string): OverlapC
 /** Grant the exact policy version the merchant reviewed (bound by its hash). Activates the agent. */
 export async function grantPolicy(actor: Actor, agentId: string, policyId: string, shownHash: string) {
   const a0 = await visibleAgent(actor, agentId)
+  await assertCan(actor, a0.org_id, 'agent.grant') // F-08: owners and admins only
   return admin(async db => {
     const agent = (await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId]))!
     if (agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
@@ -221,6 +223,7 @@ export async function pauseAgentInTx(db: Db, orgId: string, agentId: string, act
 
 export async function resumeAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
+  await assertCan(actor, a0.org_id, 'agent.grant') // resuming re-activates a granted authorization
   return admin(async db => {
     const agent = await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId])
     if (!agent || agent.status !== 'paused' || !agent.active_policy_id) throw new EngineError('not_pending', 'only a paused agent with an active authorization can resume')

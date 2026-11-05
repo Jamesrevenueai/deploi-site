@@ -8,6 +8,8 @@ export type Session = {
   fullName?: string | null
   /** 'merchant' for store owners; anything else is an account with no store (it sees /no-store) */
   orgType?: string | null
+  /** owner | admin | member | viewer in the organization (lib/platform/rbac.ts); null without one */
+  orgRole?: string | null
 }
 
 /** Where a signed-in user lands. */

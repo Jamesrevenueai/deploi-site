@@ -13,6 +13,7 @@ import { assertOfficeSeat } from '../plans/entitlements'
 import { officeAudit } from './audit'
 import { cancelAgentActions, type AgentRow } from './actions'
 import { officeExpansion, officePolicyHash, parseOfficePolicy, summarizeOfficePolicy, type OfficeKind, type OfficePolicy } from './policy'
+import { assertCan } from '../platform/rbac'
 
 type PolicyRow = { id: string; agent_id: string; version: number; policy: unknown; policy_hash: string; status: string }
 
@@ -114,6 +115,7 @@ export async function editOfficeAgent(actor: Actor, agentId: string, input: { na
 export async function grantOfficePolicy(actor: Actor, agentId: string, policyId: string, shownHash: string, opts: { now?: Date } = {}) {
   merchant(actor)
   const a0 = await visibleAgent(actor, agentId)
+  await assertCan(actor, a0.org_id, 'agent.grant') // F-08: owners and admins only
   return admin(async db => {
     await assertProduct(db, a0.org_id, 'office')
     const agent = (await db.one<AgentRow>('select * from office_agents where id = $1 for update', [agentId]))!
@@ -158,6 +160,7 @@ export async function pauseOfficeAgentInTx(db: Db, orgId: string, agentId: strin
 export async function resumeOfficeAgent(actor: Actor, agentId: string) {
   merchant(actor)
   const a0 = await visibleAgent(actor, agentId)
+  await assertCan(actor, a0.org_id, 'agent.grant')
   return admin(async db => {
     await assertProduct(db, a0.org_id, 'office')
     const stopped = await orgStopReason(db, a0.org_id)

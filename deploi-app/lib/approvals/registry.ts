@@ -17,6 +17,7 @@
 import { withActor, assertMerchant, type Actor } from '../engine/actor'
 import type { Db } from '../db'
 import { EngineError } from '../engine/errors'
+import { assertCan } from '../platform/rbac'
 
 export type ApprovalDecision = 'approve' | 'reject'
 
@@ -98,6 +99,7 @@ export async function decideApproval(actor: Actor, sourceKey: string, id: string
   const item = await withActor(actor, db => s.find(db, actor.orgId, id), { ip: input.ip })
   if (!item) throw new EngineError('not_found', 'this item is not waiting for a decision')
   assertMerchant(actor, item.orgId)
+  if (decision === 'approve') await assertCan(actor, item.orgId, 'approve') // owners and admins; members only when the owner allows it
   if (item.expiresAt && new Date(item.expiresAt).getTime() <= (opts.now ?? new Date()).getTime()) throw new EngineError('expired', 'this item expired before it was decided; run the agent again for a fresh one')
   if (item.version !== input.version) throw new EngineError('hash_mismatch', 'this item changed after you opened it; review it again')
   if (!item.decisions.includes(decision)) throw new EngineError('forbidden', decision === 'approve' ? 'this item can only be rejected (its agent is drafts only)' : 'this item cannot be rejected here')

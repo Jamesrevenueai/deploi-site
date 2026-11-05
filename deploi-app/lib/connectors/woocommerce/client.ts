@@ -19,6 +19,7 @@ import type { ConnectionRow } from '../../engine/types'
 import { WC_API_BASE, WC_PER_PAGE, wooConfig } from './config'
 import { realWooTransport, WooRequestRefused, type WooMethod, type WooTransport } from './http'
 import { syntheticWooTransport } from './synthetic'
+import { countWorkflow } from '../../ai/meter'
 
 export type WooCreds = { consumerKey: string; consumerSecret: string }
 export type AuthMode = 'basic' | 'query'
@@ -139,5 +140,7 @@ export async function siteFor(conn: ConnectionRow): Promise<WooSite> {
     : conn.is_synthetic ? syntheticWooTransport(conn.id)
     : realWooTransport(new URL(siteUrl).hostname)
   if (!creds && !conn.is_synthetic) throw new WooApiError('no API key is stored for this store; connect it again', 'auth')
-  return { siteUrl, creds, authMode: meta?.auth_mode ?? 'basic', transport }
+  // workflow cost: every real REST call to the store (lib/ai/meter.ts); synthetic stores are not counted
+  const counted: typeof transport = conn.is_synthetic ? transport : (r => { countWorkflow(conn.org_id, 'provider_call', 'woocommerce'); return transport(r) })
+  return { siteUrl, creds, authMode: meta?.auth_mode ?? 'basic', transport: counted }
 }

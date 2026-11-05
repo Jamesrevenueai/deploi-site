@@ -15,6 +15,7 @@ import { actionSettled, agentCtx, executeOfficeAction, payloadHash, type ActionP
 // registers the case hooks (Office actions move their Resolution Engine case)
 import './resolution'
 import { tierRank, TOOL_OF } from './policy'
+import { assertCan } from '../platform/rbac'
 
 export type OfficeApproval = {
   id: string; orgId: string; agentId: string; agentName: string; agentKind: string; kind: OfficeActionRow['kind']; purpose: string
@@ -33,6 +34,7 @@ export async function decideOfficeAction(db: Db, actor: Actor, actionId: string,
   const owner = await db.one<{ agent_id: string; org_id: string }>('select agent_id, org_id from office_actions where id = $1', [actionId])
   if (!owner) throw new EngineError('not_found', 'action not found')
   assertMerchant(actor, owner.org_id)
+  if (decision === 'approve') await assertCan(actor, owner.org_id, 'approve', db) // owners and admins; members only when the owner allows it
   await db.query('select id from office_agents where id = $1 for share', [owner.agent_id])
   const a = (await db.one<OfficeActionRow>('select * from office_actions where id = $1 for update', [actionId]))!
   if (a.status !== 'awaiting_approval') throw new EngineError('not_pending', `this item is ${a.status.replace('_', ' ')}`)

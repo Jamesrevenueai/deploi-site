@@ -18,6 +18,7 @@ import { demoContacts, mutateOfficeSynth, syntheticToken } from './synthetic'
 import { isRealmId, quickbooksAuthorizeUrl, quickbooksClient, quickbooksExchange, quickbooksRevoke, QBO_SCOPES } from './quickbooks'
 import { demoInvoices, mutateQboSynth } from './quickbooks-synthetic'
 import { assertOfficeConnectionSlot } from '../plans/entitlements'
+import { assertCan } from '../platform/rbac'
 
 export type OfficeConnectionRow = {
   id: string; org_id: string; provider: OfficeProvider; status: 'active' | 'needs_reauth' | 'disconnected'; status_reason: string | null; is_synthetic: boolean
@@ -38,6 +39,7 @@ function merchantOnly(actor: Actor): asserts actor is Exclude<Actor, { kind: 'st
 /** Start connecting: returns the provider consent URL. PKCE (S256) for Google; HubSpot's flow has no PKCE parameters. */
 export async function startOfficeConnect(actor: Actor, provider: OfficeProvider, opts: { now?: Date } = {}) {
   merchantOnly(actor)
+  await assertCan(actor, actor.orgId, 'connect') // owners and admins only (F-08)
   if (!providerConfigured(provider)) throw new OfficeNotConfigured(provider)
   const state = b64url(randomBytes(32))
   const verifier = provider === 'google_calendar' ? b64url(randomBytes(48)) : null
@@ -113,6 +115,7 @@ async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvid
 /** Synthetic HubSpot or Calendar for tests and demos (never on a production deployment). */
 export async function connectSyntheticOffice(actor: Actor, provider: OfficeProvider, opts: { demoData?: boolean; timezone?: string } = {}) {
   merchantOnly(actor)
+  await assertCan(actor, actor.orgId, 'connect')
   if (!officeConfig.syntheticAllowed) throw new EngineError('forbidden', 'synthetic connections are not available on this deployment')
   const row = await admin(db => saveConnection(db, { orgId: actor.orgId, provider, actor: actor.label, synthetic: true, externalId: provider === 'hubspot' ? 'synthetic-portal' : provider === 'quickbooks' ? 'synthetic-realm' : 'calendar@synthetic.example',
     displayName: provider === 'hubspot' ? 'Synthetic HubSpot (test only)' : provider === 'quickbooks' ? 'Synthetic QuickBooks (test only)' : 'Synthetic calendar (test only)', tokens: syntheticToken(provider), timezone: opts.timezone ?? 'America/New_York' }))
@@ -127,6 +130,7 @@ export async function connectSyntheticOffice(actor: Actor, provider: OfficeProvi
  */
 export async function disconnectOffice(actor: Actor, connectionId: string) {
   merchantOnly(actor)
+  await assertCan(actor, actor.orgId, 'connect')
   // QuickBooks: revoke the grant at Intuit first (best effort; the credential is deleted here either way)
   const qb = await admin(db => db.one<OfficeConnectionRow>(`select * from office_connections where id = $1 and org_id = $2 and provider = 'quickbooks' and not is_synthetic`, [connectionId, actor.orgId]))
   let revoked: boolean | null = null

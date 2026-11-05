@@ -22,7 +22,7 @@ import { pauseAgentInTx } from '../agents/lifecycle'
 import { pauseOfficeAgentInTx } from '../office/agents'
 import { switchOffExcluded } from '../library/switches'
 import { tierByKey, type TierKey } from '../library/config'
-import { effectiveTier, PLAN_LIMITS } from './entitlements'
+import { effectiveTier, planLimits } from './entitlements'
 
 export type EnforceResult = { tier: TierKey; lapsed: boolean; librarySwitchedOff: string[]; agentsPaused: string[]; officeAgentsPaused: string[]; changed: boolean }
 
@@ -33,7 +33,7 @@ export async function enforcePlanLimits(db: Db, orgId: string, opts: { actor: st
   const { tier, lapsed, entitlements: e } = await effectiveTier(db, orgId, opts.now)
   const name = tierByKey(tier)?.name ?? tier
   // a lapsed subscription keeps its paid plan on record; the lowest tier's limits apply until it is paid again
-  const limits = lapsed ? PLAN_LIMITS[tier] : e
+  const limits = lapsed ? await planLimits(db, tier) : e
   const planWords = lapsed ? `the subscription lapsed, so the ${name} limits apply` : `the ${e.label} applies`
   const librarySwitchedOff = await switchOffExcluded(db, orgId, tier, opts.actor, `${planWords}: the plan no longer includes this agent`)
 

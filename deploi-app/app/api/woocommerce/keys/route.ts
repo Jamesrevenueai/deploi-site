@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   try {
     const actor = await resolveActor(req, { mutating: true })
     await requireAgreements(actor, 'commerce')
-    const m = merchantFor(actor)
+    const m = await merchantFor(actor)
     const body = await readJson(req)
     const creds = { consumerKey: String(body.consumerKey ?? '').trim(), consumerSecret: String(body.consumerSecret ?? '').trim() }
     const r = await connectStore({ orgId: m.orgId, actor: m.label, siteUrl: String(body.siteUrl ?? ''), creds, permissions: 'read_write', via: 'manual' })

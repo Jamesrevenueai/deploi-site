@@ -16,6 +16,9 @@ import { APPROVAL_ONLY, type SwitchRow } from './actions'
 import { usageSummary, type UsageSummary } from './usage'
 import { billingMode } from '../billing/config'
 import { effectiveTier } from '../plans/entitlements'
+import { assertCan } from '../platform/rbac'
+
+const PERMISSION_RANK: Record<string, number> = { read: 0, draft: 1, act: 2 }
 
 export type GrantView = { actionType: string; label: string; maxPerDay: number; grantedAt: string; grantedBy: string }
 export type TeamAgent = LibraryAgent & {
@@ -102,6 +105,8 @@ export async function setSwitch(actor: Actor, agentKey: string, enabled: boolean
   assertMerchant(actor, orgId)
   const cfg = agentByKey(agentKey)
   if (!cfg) throw new LibraryError('not_found', 'unknown agent')
+  // switching on grants the agent its permission level (and its engine agent's authorization): owners and admins only (F-08)
+  if (enabled) await assertCan(actor, orgId, 'agent.grant')
   const notify = actor.kind === 'profile' ? actor.session.email : null
   return admin(async db => {
     if (enabled) await assertUnlocked(db, orgId, agentKey)
@@ -149,6 +154,8 @@ export async function setPermission(actor: Actor, agentKey: string, level: unkno
   return admin(async db => {
     await assertUnlocked(db, orgId, agentKey)
     const sw = await ensureSwitch(db, orgId, agentKey)
+    // widening (read -> draft -> act) is a grant: owners and admins only; anyone who may work may narrow
+    if (PERMISSION_RANK[level] > PERMISSION_RANK[sw.permission]) await assertCan(actor, orgId, 'agent.grant', db)
     await db.query('update library_switches set permission = $3 where org_id = $1 and agent_key = $2', [orgId, agentKey, level])
     // lowering below "act" ends every auto-run grant at once
     if (level !== 'act') await db.query('update library_auto_run_grants set revoked_at = now(), revoked_by = $3 where org_id = $1 and agent_key = $2 and revoked_at is null', [orgId, agentKey, actor.label])
@@ -195,6 +202,7 @@ export async function grantAutoRun(actor: Actor, agentKey: string, actionType: s
   if (!at) throw new LibraryError('invalid_input', 'unknown action type for this agent')
   if (APPROVAL_ONLY.has(actionType)) throw new LibraryError('forbidden', `"${at.label}" moves money or publishes, so it is approval-only at every permission level`)
   if (!at.writes) throw new LibraryError('invalid_input', `"${at.label}" only reports; it needs no grant`)
+  await assertCan(actor, orgId, 'agent.grant') // auto-run is the autonomous tier: owners and admins only (F-08)
   const cap = Math.min(500, Math.max(1, Math.floor(maxPerDay)))
   return admin(async db => {
     await assertUnlocked(db, orgId, agentKey)
@@ -222,6 +230,7 @@ export async function setTier(actor: Actor, tier: unknown) {
   const orgId = orgOf(actor)
   assertMerchant(actor, orgId)
   if (!isTierKey(tier)) throw new LibraryError('invalid_input', 'unknown tier')
+  await assertCan(actor, orgId, 'billing') // the plan is a billing decision
   return admin(async db => {
     const from = await orgTier(db, orgId)
     await db.query(`update agencies set plan_tier = $2, plan_changed_at = now(), onboarding = onboarding || '{"tierChosen": true}'::jsonb where id = $1`, [orgId, tier])

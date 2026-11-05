@@ -17,6 +17,9 @@
  *
  * The agent library's own tiers (lib/library/agent-library.json) decide which library agents can be switched
  * on; these limits sit underneath them and apply to every engine agent.
+ *
+ * The limits come from the `plans` table (lib/plans/catalog.ts: editable by staff without a code change,
+ * cached per instance). PLAN_LIMITS below is the fallback used when the table is empty or a limit is missing.
  */
 import type { Db } from '../db'
 import { EngineError } from '../engine/errors'
@@ -24,6 +27,7 @@ import type { AgentPolicy } from '../agents/policy'
 import { LIBRARY, tierByKey, isTierKey, type TierKey } from '../library/config'
 import { billingMode } from '../billing/config'
 import { billingState, type BillingState } from '../billing/state'
+import { applicablePlan } from './catalog'
 
 const num = (k: string, d: number) => { const v = Number((process.env[k] ?? '').trim()); return Number.isInteger(v) && v > 0 ? v : d }
 
@@ -41,6 +45,10 @@ export type PlanLimits = {
   monthlyEmails: number
   officeSeats: number
   officeConnections: number
+  /** monthly model-provider budget in USD for the whole organization (lib/ai/budgets.ts) */
+  aiBudgetUsd: number
+  /** monthly budget per agent in USD; null: half the organization's budget */
+  aiAgentBudgetUsd: number | null
 }
 
 /**
@@ -48,9 +56,23 @@ export type PlanLimits = {
  * monthlyActions is read from the tier in agent-library.json so the app and the site never disagree.
  */
 export const PLAN_LIMITS: Record<TierKey, PlanLimits> = {
-  starter: { maxAgents: 5, maxCompetitorStores: 5, monthlyActions: tierByKey('starter')?.monthlyActions ?? 150, monthlyEmails: 200, officeSeats: 2, officeConnections: 2 },
-  growth: { maxAgents: 12, maxCompetitorStores: 15, monthlyActions: tierByKey('growth')?.monthlyActions ?? 500, monthlyEmails: 1000, officeSeats: 5, officeConnections: 5 },
-  pro: { maxAgents: 30, maxCompetitorStores: 50, monthlyActions: tierByKey('pro')?.monthlyActions ?? 1500, monthlyEmails: 5000, officeSeats: 15, officeConnections: 15 },
+  starter: { maxAgents: 5, maxCompetitorStores: 5, monthlyActions: tierByKey('starter')?.monthlyActions ?? 150, monthlyEmails: 200, officeSeats: 2, officeConnections: 2, aiBudgetUsd: 5, aiAgentBudgetUsd: null },
+  growth: { maxAgents: 12, maxCompetitorStores: 15, monthlyActions: tierByKey('growth')?.monthlyActions ?? 500, monthlyEmails: 1000, officeSeats: 5, officeConnections: 5, aiBudgetUsd: 12, aiAgentBudgetUsd: null },
+  pro: { maxAgents: 30, maxCompetitorStores: 50, monthlyActions: tierByKey('pro')?.monthlyActions ?? 1500, monthlyEmails: 5000, officeSeats: 15, officeConnections: 15, aiBudgetUsd: 30, aiAgentBudgetUsd: null },
+}
+
+/** The limits of a tier (or the organization's chosen plan): the plans table over the PLAN_LIMITS fallback. */
+export async function planLimits(db: Db, tier: TierKey, planKey?: string | null): Promise<PlanLimits & { planKey: string | null; planName: string | null }> {
+  const row = await applicablePlan(tier, planKey, db)
+  const base = PLAN_LIMITS[tier]
+  const l = (row?.limits ?? {}) as Partial<Record<keyof PlanLimits, unknown>>
+  const n = (k: keyof PlanLimits, d: number) => (typeof l[k] === 'number' && Number.isFinite(l[k] as number) && (l[k] as number) >= 0 ? l[k] as number : d)
+  return {
+    maxAgents: n('maxAgents', base.maxAgents), maxCompetitorStores: n('maxCompetitorStores', base.maxCompetitorStores), monthlyActions: n('monthlyActions', base.monthlyActions),
+    monthlyEmails: n('monthlyEmails', base.monthlyEmails), officeSeats: n('officeSeats', base.officeSeats), officeConnections: n('officeConnections', base.officeConnections),
+    aiBudgetUsd: n('aiBudgetUsd', base.aiBudgetUsd), aiAgentBudgetUsd: typeof l.aiAgentBudgetUsd === 'number' ? l.aiAgentBudgetUsd : base.aiAgentBudgetUsd,
+    planKey: row?.key ?? null, planName: row?.display_name ?? null,
+  }
 }
 
 export type OrgEntitlements = PlanLimits & {
@@ -65,17 +87,20 @@ export type OrgEntitlements = PlanLimits & {
 
 /** The organization's entitlements now: the free beta while billing is off, otherwise its paid plan. */
 export async function orgEntitlements(db: Db, orgId: string, now = new Date()): Promise<OrgEntitlements> {
-  const org = await db.one<{ plan_tier: string | null }>('select plan_tier from agencies where id = $1', [orgId])
+  const org = await db.one<{ plan_tier: string | null; plan_key: string | null }>('select plan_tier, plan_key from agencies where id = $1', [orgId])
   const orgTier: TierKey = isTierKey(org?.plan_tier) ? org!.plan_tier as TierKey : LIBRARY.tiers[0].key
   const billing = await billingState(db, orgId, now)
   if (billing.mode === 'off') {
     const e = entitlements()
-    return { ...PLAN_LIMITS[orgTier], maxAgents: e.maxAgents, maxCompetitorStores: e.maxCompetitorStores, plan: e.plan, tier: orgTier, label: e.label, priced: false, billing, writesAllowed: true }
+    const { planKey: _k, planName: _n, ...limits } = await planLimits(db, orgTier, org?.plan_key)
+    return { ...limits, maxAgents: e.maxAgents, maxCompetitorStores: e.maxCompetitorStores, plan: e.plan, tier: orgTier, label: e.label, priced: false, billing, writesAllowed: true }
   }
   // a Stripe subscription's plan wins; Shopify-billed organizations keep the tier recorded on the organization
   const tier: TierKey = billing.provider === 'stripe' && billing.plan ? billing.plan : orgTier
   const t = tierByKey(tier)
-  return { ...PLAN_LIMITS[tier], plan: tier, tier, label: `${t?.name ?? tier} plan`, priced: true, billing, writesAllowed: !billing.readOnly }
+  const { planKey, planName, ...limits } = await planLimits(db, tier, org?.plan_key)
+  const custom = planKey && planKey !== tier ? planName : null
+  return { ...limits, plan: planKey ?? tier, tier, label: `${custom ?? t?.name ?? tier} plan`, priced: true, billing, writesAllowed: !billing.readOnly }
 }
 
 /** Throws when creating (agentId null) or widening this agent would exceed the plan. */

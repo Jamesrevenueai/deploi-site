@@ -27,12 +27,12 @@ export class StripeError extends Error {
   constructor(public status: number, public type: string, message: string) { super(message); this.name = 'StripeError' }
 }
 
-export async function stripeRequest<T = Record<string, unknown>>(method: 'GET' | 'POST', path: string, params: Params = {}, opts: { idempotencyKey?: string; fetchImpl?: typeof fetch; key?: string } = {}): Promise<T> {
+export async function stripeRequest<T = Record<string, unknown>>(method: 'GET' | 'POST' | 'DELETE', path: string, params: Params = {}, opts: { idempotencyKey?: string; fetchImpl?: typeof fetch; key?: string } = {}): Promise<T> {
   const key = opts.key ?? stripeConfig.secretKey
   if (!key) throw new StripeError(0, 'not_configured', 'Stripe is not configured (STRIPE_SECRET_KEY)')
   if (!/^\/v1\/[a-z_/]+[A-Za-z0-9_/]*$/.test(path)) throw new StripeError(0, 'invalid_path', 'invalid Stripe path')
   const body = formEncode(params)
-  const url = method === 'GET' && body ? `${API}${path}?${body}` : `${API}${path}`
+  const url = method !== 'POST' && body ? `${API}${path}?${body}` : `${API}${path}`
   assertApprovedHost(url, 'stripe')
   const headers: Record<string, string> = { authorization: `Bearer ${key}`, accept: 'application/json' }
   if (method === 'POST') headers['content-type'] = 'application/x-www-form-urlencoded'

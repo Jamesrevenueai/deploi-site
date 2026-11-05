@@ -43,3 +43,29 @@ export async function connectSyntheticMailbox(actor: Actor, address?: string) {
   const state = new URL(url, 'http://x').searchParams.get('state')!
   return (await completeConnect(actor, { state, code: syntheticCode(address ?? `office.${actor.orgId.slice(0, 8)}@synthetic-office.example`, [SYNTH_SEND, SYNTH_READ]), error: null })).account
 }
+
+/** What the owner reads before the provider's consent screen asks for inbox access (shown first in the UI). */
+export const INBOX_READ_EXPLANATION = [
+  'Deploi reads new mail in this inbox so Email Operations can find messages nobody has answered: sender, recipients, subject, text and the names and sizes of attachments.',
+  'Attachments are never opened, downloaded or stored. Message text is stored encrypted and shown only to your organization.',
+  'Nothing in a message can change what the agent may do or who it writes to. Replies still follow the permission you granted, and the first reply to a new sender always waits for you.',
+  'Google calls this permission "View your email messages and settings" (gmail.readonly); Microsoft calls it "Read your mail" (Mail.Read). In many Microsoft 365 organizations an administrator must approve it.',
+  'You can turn it off at any time by disconnecting the account; Deploi then deletes its tokens.',
+]
+
+/**
+ * Start the consent for reading the inbox of an Email Operations agent's Gmail / Outlook mailbox. Only for an
+ * agent whose granted policy turned "read my inbox" on; owners and admins only (startConnect checks it).
+ */
+export async function requestInboxReading(actor: Actor, agentId: string) {
+  if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff cannot connect a mailbox for a customer')
+  const { agentCtx } = await import('./actions')
+  const ctx = await admin(db => agentCtx(db, agentId))
+  if (!ctx || ctx.agent.org_id !== actor.orgId) throw new EngineError('not_found', 'agent not found')
+  if (ctx.agent.kind !== 'email_operations' || !ctx.policy?.emailOps) throw new EngineError('invalid_input', 'only an Email Operations agent reads an inbox')
+  if (!ctx.policy.emailOps.readInbox) throw new EngineError('invalid_input', 'turn on "Read my inbox" in the agent\'s permission and grant it first')
+  const acc = await admin(db => db.one<EmailAccountRow>('select * from email_accounts where id = $1 and org_id = $2', [ctx.policy!.mailboxAccountId, actor.orgId]))
+  if (!acc || (acc.provider !== 'gmail' && acc.provider !== 'microsoft')) throw new EngineError('invalid_input', 'inbox reading is for a connected Gmail or Outlook mailbox; the Deploi mailbox is read already')
+  const { url } = await startConnect(actor, { provider: acc.provider, accountId: acc.id, read: true, inbox: true, returnTo: '/office/agents' })
+  return { url, explanation: INBOX_READ_EXPLANATION }
+}

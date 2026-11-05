@@ -28,15 +28,21 @@ import type { EmailAccountRow } from './accounts'
 type MsgRow = { id: string; org_id: string; agent_id: string | null; account_id: string; task_key: string; status: string; status_reason: string | null; from_address: string; to_addresses: string[]; cc_addresses: string[]
   internet_message_id: string; in_reply_to: string | null; created_at: string; accepted_at: string | null; approved_by: string | null; meta: Record<string, unknown> }
 type InRow = { id: string; org_id: string; agent_id: string | null; account_id: string; internet_message_id: string | null; from_address: string; to_addresses: string[]; classification: string; status: string; status_reason: string | null
-  thread_message_id: string | null; received_at: string; attachments: { filename: string; contentType: string; size: number | null }[]; auto_reply: boolean; auto_reply_reason: string | null }
+  thread_message_id: string | null; received_at: string; attachments: { filename: string; contentType: string; size: number | null }[]; auto_reply: boolean; auto_reply_reason: string | null
+  first_contact: boolean; quarantine_code: string | null; released_by: string | null; released_at: string | null }
+/** Where a conversation's mail lives: the Deploi agent mailbox, or a connected Gmail / Outlook inbox. */
+export type MailSource = 'deploi' | 'gmail' | 'microsoft' | 'synthetic'
 
 export type InboxItem = {
   id: string; direction: 'outbound' | 'inbound'; at: string; from: string; to: string[]; status: string; statusReason: string | null
   subject: string | null; body: string | null; byPerson: string | null; attachments: { filename: string; contentType: string; size: number | null }[]; autoReply: string | null
+  /** inbound only: a first message from a new sender (its reply waits for an owner), the quarantine reason code, who released it */
+  firstContact?: boolean; quarantineCode?: string | null; releasedBy?: string | null
 }
 export type InboxThread = {
   key: string; agentId: string | null; agentName: string | null; mailbox: string | null; subject: string | null; participants: string[]
   lastAt: string; unread: boolean; inboundCount: number; outboundCount: number; assignedAgentId: string | null; assignedAgentName: string | null; quarantined: boolean
+  source: MailSource; firstContact: boolean
 }
 
 const KEY = /^[mi]:[0-9a-f-]{36}$/
@@ -81,12 +87,13 @@ async function loadOrgMail(db: Db, actor: Actor) {
   const scope = actor.kind === 'staff' ? 'true' : 'm.org_id = current_org_id()'
   const msgs = await db.query<MsgRow>(
     `select m.id, m.org_id, m.agent_id, m.account_id, m.task_key, m.status, m.status_reason, m.from_address, m.to_addresses, m.cc_addresses, m.internet_message_id, m.in_reply_to, m.created_at, m.accepted_at, m.approved_by, m.meta
-     from email_messages m join email_accounts a on a.id = m.account_id where ${scope} and a.provider = 'deploi' order by m.created_at desc limit 500`)
+     from email_messages m join email_accounts a on a.id = m.account_id where ${scope} and a.provider in ('deploi', 'gmail', 'microsoft') order by m.created_at desc limit 500`)
   const inbound = await db.query<InRow>(
-    `select i.id, i.org_id, i.agent_id, i.account_id, i.internet_message_id, i.from_address, i.to_addresses, i.classification, i.status, i.status_reason, i.thread_message_id, i.received_at, i.attachments, i.auto_reply, i.auto_reply_reason
+    `select i.id, i.org_id, i.agent_id, i.account_id, i.internet_message_id, i.from_address, i.to_addresses, i.classification, i.status, i.status_reason, i.thread_message_id, i.received_at, i.attachments, i.auto_reply, i.auto_reply_reason,
+       i.first_contact, i.quarantine_code, i.released_by, i.released_at
      from email_inbound i where ${scope.replace('m.', 'i.')} order by i.received_at desc limit 500`)
   const agents = await db.query<{ id: string; name: string }>(`select id, name from agents where ${scope.replace('m.', '')}`)
-  const accounts = await db.query<{ id: string; address: string; agent_id: string | null }>(`select id, address, agent_id from email_accounts a where ${scope.replace('m.', 'a.')} and provider = 'deploi'`)
+  const accounts = await db.query<{ id: string; address: string; agent_id: string | null; provider: MailSource }>(`select id, address, agent_id, provider from email_accounts a where ${scope.replace('m.', 'a.')}`)
   const states = await db.query<{ thread_key: string; read_at: string | null; assigned_agent_id: string | null }>(`select thread_key, read_at, assigned_agent_id from email_thread_state where ${scope.replace('m.', '')}`)
   // timestamps as ISO strings, so ordering and comparisons are by time
   const t = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string).toISOString())
@@ -134,6 +141,7 @@ export async function listInboxThreads(actor: Actor, f: { filter?: 'all' | 'unre
       lastAt: new Date(Math.max(...times)).toISOString(), unread, inboundCount: g.inbound.length, outboundCount: g.msgs.length,
       assignedAgentId: st?.assigned_agent_id ?? null, assignedAgentName: st?.assigned_agent_id ? d.agents.get(st.assigned_agent_id) ?? null : null,
       quarantined: g.inbound.length > 0 && g.inbound.every(i => i.status === 'quarantined'),
+      source: acc?.provider ?? 'deploi', firstContact: g.inbound.some(i => i.first_contact && i.status === 'accepted'),
     }
     if (f.filter === 'unread' && !t.unread) continue
     if (f.filter === 'assigned' && (!t.assignedAgentId || (f.agentId && t.assignedAgentId !== f.agentId))) continue
@@ -153,7 +161,8 @@ export async function getInboxThread(actor: Actor, key: string): Promise<{ threa
     ...msgs.map(m => ({ id: m.id, direction: 'outbound' as const, at: m.accepted_at ?? m.created_at, from: m.from_address, to: [...m.to_addresses, ...m.cc_addresses], status: m.status, statusReason: m.status_reason,
       subject: content.get(`m:${m.id}`)?.subject ?? null, body: content.has(`m:${m.id}`) ? shown(content.get(`m:${m.id}`)!.body) : null, byPerson: m.task_key === 'human_reply' ? m.approved_by : null, attachments: [], autoReply: null })),
     ...inbound.map(i => ({ id: i.id, direction: 'inbound' as const, at: i.received_at, from: i.from_address, to: i.to_addresses, status: i.status, statusReason: i.status_reason,
-      subject: content.get(`i:${i.id}`)?.subject ?? null, body: content.has(`i:${i.id}`) ? shown(content.get(`i:${i.id}`)!.body) : null, byPerson: null, attachments: i.attachments ?? [], autoReply: i.auto_reply ? i.auto_reply_reason ?? 'automatic reply' : null })),
+      subject: content.get(`i:${i.id}`)?.subject ?? null, body: content.has(`i:${i.id}`) ? shown(content.get(`i:${i.id}`)!.body) : null, byPerson: null, attachments: i.attachments ?? [], autoReply: i.auto_reply ? i.auto_reply_reason ?? 'automatic reply' : null,
+      firstContact: i.first_contact, quarantineCode: i.quarantine_code, releasedBy: i.released_by })),
   ].sort((a, b) => a.at.localeCompare(b.at))
   const thread = (await listInboxThreads(actor)).find(t => t.key === key)!
   return { thread, items }
@@ -222,7 +231,8 @@ export async function replyToThread(actor: Actor, key: string, input: { bodyText
     const dup = await db.one<{ id: string }>(`select id from email_messages where org_id = $1 and dedupe_key = $2`, [t.orgId, `human_reply:${input.idempotencyKey}`])
     if (dup) return { id: dup.id, duplicate: true }
     const account = await db.one<EmailAccountRow & { agent_id: string | null }>('select * from email_accounts where id = $1', [accountId])
-    if (!account || account.provider !== 'deploi' || account.org_id !== t.orgId || !account.agent_id) throw new EngineError('not_found', 'the mailbox of this conversation is no longer available')
+    if (account && account.provider !== 'deploi') throw new EngineError('invalid_input', `replies in your ${account.provider === 'gmail' ? 'Gmail' : 'Outlook'} inbox go out through the Email Operations agent: approve its drafted reply, or answer in ${account.provider === 'gmail' ? 'Gmail' : 'Outlook'} itself`)
+    if (!account || account.org_id !== t.orgId || !account.agent_id) throw new EngineError('not_found', 'the mailbox of this conversation is no longer available')
     const agent = await db.one<{ id: string; status: string; active_policy_id: string | null }>('select id, status, active_policy_id from agents where id = $1', [account.agent_id])
     const pol = agent?.active_policy_id ? await db.one<{ id: string; version: number; status: string; policy: unknown }>('select id, version, status, policy from agent_policies where id = $1', [agent.active_policy_id]) : null
     const policy = pol ? parsePolicy(pol.policy) : null

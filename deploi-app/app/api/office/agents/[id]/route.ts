@@ -8,6 +8,8 @@ import { requireAgreements } from '@/lib/legal'
 import { editOfficeAgent, grantOfficePolicy, pauseOfficeAgent, resumeOfficeAgent, revokeOfficeAgent } from '@/lib/office/agents'
 import { agentCtx } from '@/lib/office/actions'
 import { runOfficeAgent, startMeeting } from '@/lib/office/run'
+import { requestInboxReading } from '@/lib/office/mailbox'
+import { limitActor } from '@/lib/store/request'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +24,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 /**
  * Body { op: 'grant', policyId, policyHash } | { op: 'edit', policy, name? } | { op: 'pause' } | { op: 'resume' } | { op: 'revoke' } | { op: 'delete' }
  *      | { op: 'run' } | { op: 'meet', email, name? } (Meeting Scheduler: propose three times to this person)
+ *      | { op: 'read_inbox' } (Email Operations with "read my inbox" granted: { url, explanation } of the provider consent)
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -36,6 +39,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (b.op === 'revoke' || b.op === 'delete') return NextResponse.json({ ok: true, ...(await revokeOfficeAgent(actor, id, { delete: b.op === 'delete' })) })
     // run and meet: the agent must be this organization's (checked through RLS by the detail read)
     await officeAgentDetail(actor, id)
+    // Email Operations, "read my inbox": the provider consent for gmail.readonly / Mail.Read on the agent's mailbox
+    if (b.op === 'read_inbox') { await requireAgreements(actor, 'office'); await limitActor('oauth_start', actor); return NextResponse.json({ ok: true, ...(await requestInboxReading(actor, id)) }) }
     if (b.op === 'run') return NextResponse.json({ ok: true, ...(await runOfficeAgent(id, { trigger: 'manual' })) })
     if (b.op === 'meet') {
       const c = await admin(db => agentCtx(db, id))

@@ -23,6 +23,10 @@ export { NW, HB, merchantActor }
 /** Remove every office record (and the org's email rows) for a merchant, and enable Office. */
 export async function resetOffice(m: typeof NW, opts: { enable?: boolean } = {}) {
   await admin(async db => {
+    await db.query(`delete from jobs where kind = 'case.check' and org_id = $1`, [m.org])
+    await db.query(`delete from cases where org_id = $1 and suite = 'office'`, [m.org])
+    await db.query('delete from email_suppressions where org_id = $1', [m.org])
+    await db.query('delete from org_controls where org_id = $1', [m.org])
     await db.query('update office_agents set active_policy_id = null where org_id = $1', [m.org])
     await db.query('delete from email_messages where org_id = $1', [m.org])
     await db.query('delete from office_inbound_handled where org_id = $1', [m.org])

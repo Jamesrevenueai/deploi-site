@@ -177,7 +177,7 @@ export function syntheticToken(provider: P) {
  * Tests and demos: deliver an inbound email to a SYNTHETIC mailbox exactly as the inbound webhook stores it
  * (encrypted content, threaded to our message, accepted only from a recipient of that thread or a member).
  */
-export async function injectSyntheticInbound(input: { accountId: string; from: string; subject: string; text: string; threadMessageId?: string | null; receivedAt?: Date }) {
+export async function injectSyntheticInbound(input: { accountId: string; from: string; subject: string; text: string; threadMessageId?: string | null; receivedAt?: Date; autoReply?: string | null }) {
   return admin(async db => {
     const acc = await db.one<{ id: string; org_id: string; is_synthetic: boolean }>('select id, org_id, is_synthetic from email_accounts where id = $1', [input.accountId])
     if (!acc?.is_synthetic) throw new Error('inbound can be injected only into a synthetic mailbox')
@@ -186,14 +186,15 @@ export async function injectSyntheticInbound(input: { accountId: string; from: s
     const member = await db.one('select id from profiles where agency_id = $1 and lower(email) = $2', [acc.org_id, from])
     const allowed = Boolean(member) || Boolean(thread && [...thread.to_addresses, ...thread.cc_addresses].includes(from))
     const at = (input.receivedAt ?? new Date()).toISOString()
+    // an automatic reply (out of office, delivery report) is stored like the inbound webhook stores it: kept, never counted as a reply
     const row = (await db.one<{ id: string }>(`insert into email_inbound (org_id, account_id, agent_id, provider_email_id, internet_message_id, from_address, to_addresses, cc_addresses, classification, status, status_reason,
-        thread_message_id, auth_results, key_id, content_ciphertext, attachment_count, received_at)
-      values ($1,$2,null,$3,$4,$5,'{}','{}',$6,$7,$8,$9,'{}','pending','pending',0,$10) returning id`,
+        thread_message_id, auth_results, key_id, content_ciphertext, attachment_count, received_at, auto_reply, auto_reply_reason)
+      values ($1,$2,null,$3,$4,$5,'{}','{}',$6,$7,$8,$9,'{}','pending','pending',0,$10,$11,$12) returning id`,
       [acc.org_id, acc.id, `syn-in-${randomBytes(6).toString('hex')}`, `<syn-${randomBytes(6).toString('hex')}@synthetic.example>`, from, thread ? 'reply' : member ? 'merchant_forward' : 'other',
-        allowed ? 'accepted' : 'quarantined', allowed ? null : "the sender is not on this agent's allowed list", thread?.id ?? null, at]))!
+        allowed ? 'accepted' : 'quarantined', allowed ? null : "the sender is not on this agent's allowed list", thread?.id ?? null, at, Boolean(input.autoReply), input.autoReply ?? null]))!
     const enc = encryptSecret(JSON.stringify({ subject: input.subject.slice(0, 500), text: input.text.slice(0, 100_000) }), `email-inbound:${row.id}`)
     await db.query('update email_inbound set key_id = $2, content_ciphertext = $3 where id = $1', [row.id, enc.keyId, enc.ciphertext])
-    if (thread && allowed) await db.query('update email_messages set reply_count = reply_count + 1, reply_seen_at = greatest(coalesce(reply_seen_at, $2), $2) where id = $1', [thread.id, at])
+    if (thread && allowed && !input.autoReply) await db.query('update email_messages set reply_count = reply_count + 1, reply_seen_at = greatest(coalesce(reply_seen_at, $2), $2) where id = $1', [thread.id, at])
     return { inboundId: row.id, status: allowed ? 'accepted' as const : 'quarantined' as const }
   })
 }

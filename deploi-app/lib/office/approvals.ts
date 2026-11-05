@@ -11,7 +11,9 @@ import { admin, type Db } from '../db'
 import { assertMerchant, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { officeAudit } from './audit'
-import { agentCtx, executeOfficeAction, payloadHash, type ActionPayload, type OfficeActionRow } from './actions'
+import { actionSettled, agentCtx, executeOfficeAction, payloadHash, type ActionPayload, type OfficeActionRow } from './actions'
+// registers the case hooks (Office actions move their Resolution Engine case)
+import './resolution'
 import { tierRank, TOOL_OF } from './policy'
 
 export type OfficeApproval = {
@@ -52,13 +54,15 @@ export async function decideOfficeAction(db: Db, actor: Actor, actionId: string,
 }
 
 /** Approve the exact item shown (bound to its hash) and carry it out. */
-export async function approveOfficeAction(actor: Actor, actionId: string, shownHash: string) {
+export async function approveOfficeAction(actor: Actor, actionId: string, shownHash: string, opts: { now?: Date } = {}) {
   await admin(db => decideOfficeAction(db, actor, actionId, 'approve', { shownHash }))
-  return executeOfficeAction(actionId, { actor: actor.label })
+  return executeOfficeAction(actionId, { actor: actor.label, now: opts.now })
 }
 
-export async function rejectOfficeAction(actor: Actor, actionId: string) {
-  return admin(db => decideOfficeAction(db, actor, actionId, 'reject'))
+export async function rejectOfficeAction(actor: Actor, actionId: string, opts: { now?: Date } = {}) {
+  const r = await admin(db => decideOfficeAction(db, actor, actionId, 'reject'))
+  await actionSettled(actionId, opts.now ?? new Date())
+  return r
 }
 
 /** Edit an email's subject or body (or an event's title and description) before it goes out. Any change clears an earlier approval. */

@@ -20,6 +20,8 @@ import { classifyInbound, crmMarker, customerReplyDraft, firstTouch, followUp, m
 import { proposeSlots, type Slot } from './slots'
 import { eventIdFor } from './calendar'
 import type { OfficePolicy } from './policy'
+import { classifyLeadReply, handedLeadCases, proposeCaseCrmNotes, syncOfficeCases } from './resolution'
+import { emailOperationsRun } from './email-ops'
 
 export type LeadRow = { id: string; org_id: string; agent_id: string; hubspot_contact_id: string; email: string; first_name: string | null; company: string | null; lifecycle_stage: string | null; status: string; touches: number; next_touch_at: string | null; thread_message_id: string | null; replied_at: string | null; stop_reason: string | null }
 export type MeetingRow = { id: string; org_id: string; agent_id: string; lead_id: string | null; contact_email: string; hubspot_contact_id: string | null; status: string; proposed_slots: Slot[]; chosen_slot: Slot | null; proposal_message_id: string | null; calendar_event_id: string | null; source_inbound_id: string | null }
@@ -92,8 +94,10 @@ async function dueFollowups(ctx: AgentCtx, now: Date, counts: Counts) {
   const hc = await admin(db => conn(db, ctx.agent.org_id, p.hubspotConnectionId))
   if (!hc) throw new Blocked('HubSpot is not connected')
   // a reply on any message in the thread stops the sequence
+  // (an out-of-office reply this agent already sorted does not count: the cadence goes on)
   const replied = await admin(db => db.query<{ id: string }>(`select distinct l.id from office_leads l join office_actions a on a.lead_id = l.id join email_messages m on m.id = a.email_message_id
-    where l.agent_id = $1 and l.status = 'active' and m.reply_count > 0`, [ctx.agent.id]))
+    where l.agent_id = $1 and l.status = 'active' and m.reply_count > (select count(*) from email_inbound i join office_inbound_handled h on h.inbound_id = i.id and h.agent_id = $1
+      where i.thread_message_id = m.id and h.classification = 'out_of_office')`, [ctx.agent.id]))
   for (const r of replied) { await stopLead(r.id, 'the lead replied', actorOf(ctx), 'replied'); counts.stopped = (counts.stopped ?? 0) + 1 }
   // a first email that was cancelled before anything happened (the agent was paused) is proposed again
   const unsent = await admin(db => db.query<LeadRow>(`select l.* from office_leads l where l.agent_id = $1 and l.status = 'active' and l.touches = 0
@@ -124,7 +128,7 @@ async function unhandledInbound(ctx: AgentCtx): Promise<Inbound[]> {
   const mailbox = ctx.policy?.mailboxAccountId
   if (!mailbox) return []
   return admin(db => db.query<Inbound>(`select i.id, i.org_id, i.account_id, i.from_address, i.thread_message_id, i.received_at, i.key_id, i.content_ciphertext from email_inbound i
-    where i.account_id = $1 and i.org_id = $2 and i.status = 'accepted' and i.key_id <> 'pending' and i.received_at > $3::timestamptz - interval '1 day'
+    where i.account_id = $1 and i.org_id = $2 and i.status = 'accepted' and not i.auto_reply and i.key_id <> 'pending' and i.received_at > $3::timestamptz - interval '1 day'
       and not exists (select 1 from office_inbound_handled h where h.agent_id = $4 and h.inbound_id = i.id) order by i.received_at limit 50`,
     [mailbox, ctx.agent.org_id, ctx.agent.created_at, ctx.agent.id]))
 }
@@ -158,6 +162,8 @@ async function leadInbound(ctx: AgentCtx, counts: Counts) {
     const t = await threadOf(i)
     if (!t?.lead || t.lead.agent_id !== ctx.agent.id || i.from_address !== t.lead.email) { await markHandled(ctx, i, 'not_ours', 'not a reply from one of this agent\'s leads'); continue }
     const c = readInbound(i)
+    // an out-of-office answer is not a reply: noted, and the follow-up cadence continues
+    if (classifyLeadReply(c.subject, c.text) === 'out_of_office') { await markHandled(ctx, i, 'out_of_office', 'automatic reply: the sequence continues'); continue }
     const { category } = classifyInbound(c.subject, c.text)
     if (category === 'unsubscribe') await stopLead(t.lead.id, 'unsubscribed', actorOf(ctx))
     else await stopLead(t.lead.id, 'the lead replied', actorOf(ctx), 'replied')
@@ -208,6 +214,20 @@ async function book(ctx: AgentCtx, m: MeetingRow, slotIndex: number, now: Date) 
       payload: { type: 'event', eventId: eventIdFor(`${ctx.agent.org_id}:${key}`), summary: s.meetingTitle, description: `Booked by Deploi Office for ${m.contact_email}.`, start: slot.start, end: slot.end, timeZone: p.timezone,
         attendees: [m.contact_email], meet: Boolean(p.calendar?.allowMeet), bufferMin: s.bufferMin } })
   })
+}
+
+/**
+ * Lead cases handed to this scheduler (the lead replied "interested"): propose three times to the lead, under
+ * THIS agent's own policy and tiers. Nothing the lead agent was allowed carries over (lib/office/resolution.ts).
+ */
+async function handedCases(ctx: AgentCtx, now: Date, counts: Counts) {
+  for (const h of await handedLeadCases(ctx.agent.id)) {
+    const c = readInbound(h.inbound)
+    try {
+      const r = await startMeeting(ctx, { contactEmail: h.lead.email, name: h.lead.first_name, leadId: h.lead.id, hubspotContactId: h.lead.hubspot_contact_id, inboundId: h.inbound.id, threadMessageId: h.inbound.thread_message_id, subject: c.subject }, now)
+      if (r) counts.meetings_proposed = (counts.meetings_proposed ?? 0) + 1
+    } catch (e) { if (!(e instanceof Blocked)) throw e; counts.handoff_blocked = (counts.handoff_blocked ?? 0) + 1 }
+  }
 }
 
 async function schedulerInbound(ctx: AgentCtx, now: Date, counts: Counts) {
@@ -314,9 +334,10 @@ export async function runOfficeAgent(agentId: string, opts: { trigger?: 'manual'
   let status: 'completed' | 'failed' | 'blocked' = 'completed', reason: string | null = null
   try {
     if (p.kind === 'lead_followup') { await leadInbound(ctx, counts); await checkReplies(ctx, counts); await pollLeads(ctx, now, counts); await dueFollowups(ctx, now, counts) }
-    if (p.kind === 'meeting_scheduler') await schedulerInbound(ctx, now, counts)
+    if (p.kind === 'meeting_scheduler') { await handedCases(ctx, now, counts); await schedulerInbound(ctx, now, counts) }
     if (p.kind === 'customer_reply') await customerReplyInbound(ctx, now, counts)
-    if (p.kind === 'crm_updater') await crmUpdates(ctx, now, counts)
+    if (p.kind === 'crm_updater') { await crmUpdates(ctx, now, counts); await proposeCaseCrmNotes(ctx, now, counts) }
+    if (p.kind === 'email_operations') await emailOperationsRun(ctx, now, counts)
     if (opts.execute !== false) counts.executed = (await executeDue(ctx.agent.org_id, { agentId, now })).length
   } catch (e) {
     status = e instanceof Blocked ? 'blocked' : 'failed'
@@ -324,6 +345,8 @@ export async function runOfficeAgent(agentId: string, opts: { trigger?: 'manual'
     if (e instanceof OfficeAuthError) status = 'blocked'
     if (status === 'failed') log.error('office.run.failed', { agent_id: agentId, error: (e as Error).message?.slice(0, 300) })
   }
+  // the Resolution Engine cases follow what this run did (a failure here never fails the run; the durable check catches up)
+  try { await syncOfficeCases(ctx.agent.org_id, now, { agentId }) } catch (e) { log.error('office.case_sync_failed', { agent_id: agentId, error: (e as Error).message?.slice(0, 300) }) }
   await admin(async db => {
     await db.query(`update office_runs set status = $2, status_reason = $3, counts = $4, finished_at = now() where id = $1`, [run.id, status, reason, JSON.stringify(counts)])
     await officeAudit(db, { orgId: ctx.agent.org_id, entityType: 'office_run', entityId: run.id, event: `run.${status}`, actor: actorOf(ctx), detail: { agent_id: agentId, kind: p.kind, policy_version: ctx.policyVersion, counts, reason } })

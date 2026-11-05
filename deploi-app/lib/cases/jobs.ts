@@ -5,6 +5,8 @@
 import { admin } from '../db'
 import { enqueue, registerJobHandler, type EnqueueResult } from '../jobs/queue'
 import { dueCases, runCaseCheck } from './index'
+// case kinds whose checkers the job runs (each domain registers its own on import)
+import '../office/resolution'
 
 registerJobHandler('case.check', async payload => {
   const caseId = String(payload.caseId ?? '')

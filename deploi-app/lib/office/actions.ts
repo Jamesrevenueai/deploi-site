@@ -437,7 +437,7 @@ async function performEmail(a: OfficeActionRow, ctx: AgentCtx, conn: OfficeConne
 export async function executeOfficeAction(actionId: string, opts: { now?: Date; actor?: string } = {}): Promise<{ actionId: string; status: ActionStatus; reason: string | null }> {
   const now = opts.now ?? new Date()
   const c = await claim(actionId, now, opts.actor)
-  if (c.kind === 'skip') return { actionId, status: c.status, reason: c.reason }
+  if (c.kind === 'skip') { await actionSettled(actionId, now); return { actionId, status: c.status, reason: c.reason } }
   const { a, ctx, conn, actor } = c
   let out: Outcome
   try {
@@ -446,7 +446,22 @@ export async function executeOfficeAction(actionId: string, opts: { now?: Date; 
       : await performCrm(a, conn!)
   } catch (e) { out = uncertain(e) ? { status: 'unknown', reason: 'no definite answer; checking before any retry' } : failure(e, a.kind) }
   await finishAction(a, out, actor, now)
+  await actionSettled(actionId, now)
   return { actionId, status: out.status, reason: out.reason }
+}
+
+/**
+ * After an action was carried out, refused or declined, the Resolution Engine moves the case the action
+ * belongs to (lib/office/resolution.ts registers the hook). A hook failure never changes the action's outcome:
+ * the case's durable check catches up.
+ */
+type SettledHook = (actionId: string, now: Date) => Promise<void>
+const settledHooks: SettledHook[] = []
+export function onOfficeActionSettled(h: SettledHook) { if (!settledHooks.includes(h)) settledHooks.push(h) }
+export async function actionSettled(actionId: string, now: Date) {
+  for (const h of settledHooks) {
+    try { await h(actionId, now) } catch (e) { const { log } = await import('../log'); log.error('office.case_sync_failed', { action_id: actionId, error: (e as Error).message?.slice(0, 300) }) }
+  }
 }
 
 async function finishAction(a: OfficeActionRow, out: Outcome, actor: string, now: Date) {

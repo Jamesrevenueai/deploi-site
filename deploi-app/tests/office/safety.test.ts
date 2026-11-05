@@ -178,7 +178,7 @@ describe.skipIf(!ready)('Deploi Office safety', () => {
 
   it('the scheduler takes a per-organization lease and refuses unauthenticated calls', async () => {
     const agent = await grantedAgent(s, 'lead_followup', { email: 'send_autonomous' })
-    expect(await acquireOrgLock(NW.org, 'other-run')).toBe(true)
+    expect(await acquireOrgLock(NW.org, 'other-run', T)).toBe(true)
     let r = await runOfficeScheduler({ now: T })
     expect(r.orgs.find(o => o.orgId === NW.org)).toMatchObject({ skipped: 'locked' })
     expect((await getSynthMail(s.mailboxId)).sent).toHaveLength(0)

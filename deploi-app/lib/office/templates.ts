@@ -12,6 +12,8 @@ export const OFFICE_TEMPLATES: OfficeTemplate[] = [
     job: 'Log every email and meeting as a note on the HubSpot contact, and move lifecycle or deal stages only by the rules you set.' },
   { key: 'customer_reply', name: 'Customer Reply', needs: ['mailbox'],
     job: 'Sort incoming replies and draft an answer to the sender. Sends only what your permission allows.' },
+  { key: 'email_operations', name: 'Email Operations', needs: ['mailbox'],
+    job: 'Find messages in your mailbox nobody has answered after a few business hours, sort them (inquiry, supplier, customer issue, spam-ish) and draft a reply to the sender. Each one is tracked until the sender confirms or it is answered. Drafts only until you allow sending.' },
 ]
 export const officeTemplate = (k: string) => OFFICE_TEMPLATES.find(t => t.key === k) ?? null
 
@@ -25,5 +27,6 @@ export function officeTemplatePolicy(kind: OfficeKind, i: TemplateInput): Record
   if (kind === 'lead_followup') return { ...base, email, leadFollowup: { followupDays: 3, maxTouches: 3, lookbackDays: 2, senderName, pitch: (i.pitch || 'We help teams like yours save time every week.').slice(0, 600) } }
   if (kind === 'meeting_scheduler') return { ...base, hubspotConnectionId: null, email, calendar: { tier: 'draft', validUntil: null, allowMeet: false }, scheduler: { senderName } }
   if (kind === 'crm_updater') return { ...base, calendarConnectionId: null, mailboxAccountId: null, crm: { tier: 'draft', validUntil: null }, crmUpdater: { logEmails: true, logMeetings: true, rules: [] } }
+  if (kind === 'email_operations') return { ...base, hubspotConnectionId: null, calendarConnectionId: null, email, emailOps: { senderName, unansweredHours: 4, days: [1, 2, 3, 4, 5], dayStart: '09:00', dayEnd: '17:00', answeredAfterDays: 3, sendCategories: [] } }
   return { ...base, hubspotConnectionId: null, calendarConnectionId: null, email, customerReply: { senderName, sendCategories: [] } }
 }

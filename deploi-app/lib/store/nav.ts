@@ -19,7 +19,7 @@ export const MERCHANT_NAV: NavItem[] = [
   { href: '/store/insights', label: 'Business Insights', short: 'Insights', icon: 'spark', also: ['/store/discover'] },
   { href: '/store/integrations', label: 'Integrations', short: 'Connect', icon: 'plug', also: ['/store/connections', '/store/connect'] },
   { href: '/store/billing', label: 'Billing', icon: 'dollar', also: ['/store/plan'] },
-  { href: '/store/settings', label: 'Settings', icon: 'shield', also: ['/store/rules', '/store/legal', '/store/onboarding'] },
+  { href: '/store/settings', label: 'Settings', icon: 'shield', also: ['/store/rules', '/store/legal', '/store/onboarding', '/store/privacy'] },
 ]
 
 /** The exact labels, in order (the brief's navigation). */

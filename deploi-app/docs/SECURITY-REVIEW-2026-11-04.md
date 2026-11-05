@@ -18,7 +18,7 @@ Severity: **Critical** (cross-tenant or privilege compromise reachable by an out
 | F-04 | High | `TRUNCATE` (not subject to RLS) granted to `anon`/`authenticated` on most tables | Fixed |
 | F-05 | Medium | `_migrations` had no RLS and was writable by user roles | Fixed |
 | F-06 | Medium | No script/style Content-Security-Policy (only `frame-ancestors`) | Fixed (script policy, enforced; styles not restricted) |
-| F-07 | Medium | Shopify `customers/redact` and `customers/data_request` answer "no customer data held"; untrue once order/customer agents or agent e-mail hold shopper data | Open |
+| F-07 | Medium | Shopify `customers/redact` and `customers/data_request` answer "no customer data held"; untrue once order/customer agents or agent e-mail hold shopper data | Fixed locally 2026-11-06: data requests export, erasures delete or anonymize (`lib/privacy`, `tests/privacy`) |
 | F-08 | Medium | Any member of an organization (or any Shopify admin user of the store) can grant agent authorizations; no owner-only role | Fixed (2026-11-05) |
 | F-09 | Medium | With billing on, `/api/store/plan` would let a merchant switch to any tier for free | Fixed |
 | F-10 | Low | Monthly agent-action allowance is shown but not enforced at run time | Fixed |

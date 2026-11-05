@@ -61,7 +61,7 @@ export async function handleShopifyWebhook(req: Request, defer: (fn: () => Promi
       const r = await admin(db => handleCompliance(db, { topic: topic as ComplianceTopic, shop, webhookId, payload, conn, actor: `shopify:${shop}` }))
       await done('processed', topic === 'shop/redact'
         ? (r.result.shop_data_erased ? `shop data erased${r.result.organization_erased ? ' with its organization' : ''}` : r.result.skipped ? String(r.result.skipped) : 'no data held for this shop')
-        : r.result.customer_data_held === false ? 'no customer data is stored by this app' : `customer request recorded (${JSON.stringify(r.result)})`)
+        : r.result.customer_data_held === false ? 'nothing is held for this customer' : topic === 'customers/data_request' ? 'customer data exported for the merchant to download' : `customer data erased (${JSON.stringify(r.result.tables ?? {})})`.slice(0, 500))
     } else if (topic === 'app_subscriptions/update') {
       // never trusted alone: re-read the subscription from Shopify (no-op unless billing is configured)
       if (conn) await admin(async db => {

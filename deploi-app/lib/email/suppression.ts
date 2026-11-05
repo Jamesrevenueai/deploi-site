@@ -6,6 +6,7 @@
  */
 import type { Db } from '../db'
 import { audit } from '../engine/audit'
+import { addressHash } from '../privacy/customer-data'
 
 export type SuppressionReason = 'bounced' | 'complained' | 'unsubscribed' | 'manual'
 
@@ -24,6 +25,9 @@ export async function suppressAddresses(db: Db, s: { orgId: string; addresses: s
 /** Which of these addresses this organization may no longer send to. */
 export async function suppressedAmong(db: Db, orgId: string, addresses: string[]): Promise<string[]> {
   if (!addresses.length) return []
-  const rows = await db.query<{ address: string }>('select address from email_suppressions where org_id = $1 and address = any($2::text[])', [orgId, addresses.map(a => a.toLowerCase())])
-  return rows.map(r => r.address)
+  const plain = addresses.map(a => a.toLowerCase())
+  // an address erased at a customer's request is kept only as a one-way hash, so its opt-out still holds (lib/privacy/customer-data.ts)
+  const hashed = new Map(plain.map(a => [`sha256:${addressHash(orgId, a)}`, a]))
+  const rows = await db.query<{ address: string }>('select address from email_suppressions where org_id = $1 and address = any($2::text[])', [orgId, [...plain, ...hashed.keys()]])
+  return [...new Set(rows.map(r => hashed.get(r.address) ?? r.address))]
 }

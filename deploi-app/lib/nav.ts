@@ -21,4 +21,5 @@ export const STAFF_NAV: NavItem[] = [
   { href: '/staff/unit-economics', label: 'Unit economics', icon: 'dollar' },
   { href: '/staff/integrations', label: 'Integrations', icon: 'plug' },
   { href: '/staff/finance', label: 'Finance', icon: 'file' },
+  { href: '/staff/ops', label: 'Operations', icon: 'alert' },
 ]

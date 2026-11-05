@@ -29,12 +29,14 @@
  */
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { admin, type Db } from '../db'
-import { addEvidence, caseForRecord, openCase, registerCaseKind, resolveCase, TERMINAL, type CaseRow, type Evidence } from '../cases'
+import { addEvidence, addNote, caseForRecord, openCase, registerCaseKind, resolveCase, TERMINAL, type CaseRow, type Evidence } from '../cases'
 import { agentCtx, proposeAction, type AgentCtx, type OfficeActionRow } from './actions'
 import { newText } from './content'
 import { needsFirstReplyApproval } from '../email/sender-policy'
 import { canReadInbox, syncAccountInbox } from '../email/inbox-sync'
 import type { EmailAccountRow } from '../email/accounts'
+import { attachAssistToCase } from '../ai/assist'
+import { classifyEmailAssisted, polishReplyDraft } from './ai-assist'
 import { actorOf, blockForStop, ensureActionRecorded, ensureLink, inboundContent, iso, moveCase, RESOLUTION_ACTOR, stepFor, stopped, type InboundMail } from './case-sync'
 
 export const FIRST_CONTACT_BLOCKER = 'a first message from a new sender: the first reply always waits for an owner or admin'
@@ -169,14 +171,16 @@ async function handleUnanswered(ctx: AgentCtx, i: Unanswered, account: { id: str
   const p = ctx.policy!, o = p.emailOps!
   const actor = actorOf(ctx)
   const content = inboundContent(i)
-  let category = classifyEmail(content.subject, content.text)
+  // the rules sort it; the AI gateway may (lib/office/ai-assist.ts): a category the rules did not choose always waits for a person
+  const sorted = await classifyEmailAssisted({ orgId: ctx.agent.org_id, agentRef: `office:${ctx.agent.id}`, inboundId: i.id, subject: content.subject, text: content.text })
+  let category = sorted.category
   // a follow-up keeps its conversation's category (a customer issue stays one, whatever the next message says)
   const thread = i.thread_message_id ? await admin(db => caseForRecord(db, ctx.agent.org_id, 'email_message', i.thread_message_id!)) : null
   const first = thread && !TERMINAL.includes(thread.status) ? thread.evidence.map(e => (e.detail as { category?: EmailCategory } | undefined)?.category).find(Boolean) : undefined
   if (first && first !== 'spam_ish') category = first
   const hours = Math.floor(i.business_minutes / 60)
   const evidence: Evidence = { label: `No reply for ${hours} business hours: message from ${i.from_address} received ${iso(i.received_at).slice(0, 16).replace('T', ' ')} UTC, sorted as "${EMAIL_CATEGORY_LABEL[category]}"`,
-    source: SOURCE[account.provider] ?? 'deploi_email', observedAt: now.toISOString(), ref: { type: 'email_inbound', id: i.id }, detail: { category, business_hours: hours, mailbox: account.address } }
+    source: SOURCE[account.provider] ?? 'deploi_email', observedAt: now.toISOString(), ref: { type: 'email_inbound', id: i.id }, detail: { category, business_hours: hours, mailbox: account.address, ...sorted.detail } }
   // a follow-up in a conversation we already answered belongs to that conversation's open case
   let c: CaseRow | null = i.thread_message_id ? await admin(db => caseForRecord(db, ctx.agent.org_id, 'email_message', i.thread_message_id!)) : null
   if (c && TERMINAL.includes(c.status)) c = null
@@ -203,13 +207,19 @@ async function handleUnanswered(ctx: AgentCtx, i: Unanswered, account: { id: str
     return
   }
   await moveCase(c.id, { status: 'investigating', reason: `Sorted as "${EMAIL_CATEGORY_LABEL[category]}"; drafting a reply to ${i.from_address}` }, actor)
+  await attachAssistToCase(sorted.outcome, c.id, ctx.agent.org_id)
   const d = emailOpsDraft(category, o.senderName, content.subject)
   const may = (o.sendCategories as string[]).includes(category)
   // a sender the organization never wrote to: the first reply always waits for an owner's approval, whatever the tier
   const firstContact = await admin(db => needsFirstReplyApproval(db, ctx.agent.org_id, i.id))
-  const blockers = [...(may ? [] : [`replies to a ${EMAIL_CATEGORY_LABEL[category]} always wait for a person`]), ...(firstContact ? [FIRST_CONTACT_BLOCKER] : [])]
+  // the wording may be polished by the gateway (body only; recipient, subject and approval rules unchanged)
+  const polish = await polishReplyDraft({ orgId: ctx.agent.org_id, agentRef: `office:${ctx.agent.id}`, caseId: c.id, subjectRef: `emailops:${ctx.agent.id}:${i.id}`, draft: d, senderName: o.senderName, inbound: content })
+  if (polish.outcome.path === 'ai' || Object.keys(polish.detail).length) await admin(db => addNote(db, c!.id, polish.outcome.path === 'ai' ? 'The reply\'s wording was polished by the AI-assisted step (checked: no new facts, numbers, links or addresses)' : `The reply uses the standard wording (AI polish not used: ${polish.outcome.path === 'rules' ? polish.outcome.fallback : ''})`, actor))
+  const blockers = [...(may ? [] : [`replies to a ${EMAIL_CATEGORY_LABEL[category]} always wait for a person`]),
+    ...(category !== sorted.rules ? ['sorted by the AI-assisted step differently from the rules: a person checks it'] : []),
+    ...(firstContact ? [FIRST_CONTACT_BLOCKER] : [])]
   const { action } = await admin(db => proposeAction(db, { agentId: ctx.agent.id, kind: 'send_email', purpose: `Reply to an unanswered ${EMAIL_CATEGORY_LABEL[category]}`, idempotencyKey: `emailops:${ctx.agent.id}:${i.id}`, now,
-    payload: { type: 'email', to: i.from_address, subject: d.subject, body: d.body, inReplyToMessageId: i.thread_message_id, recipientSource: { kind: 'inbound', inboundId: i.id }, meta: { category, subject: d.subject, inbound_id: i.id, case_ref: c!.ref, ...(firstContact ? { first_contact: true } : {}) } },
+    payload: { type: 'email', to: i.from_address, subject: d.subject, body: polish.body, inReplyToMessageId: i.thread_message_id, recipientSource: { kind: 'inbound', inboundId: i.id }, meta: { category, subject: d.subject, inbound_id: i.id, case_ref: c!.ref, ...(firstContact ? { first_contact: true } : {}), ...(polish.outcome.path === 'ai' ? { wording: 'ai_polished' } : {}) } },
     standingBlockers: blockers }))
   await ensureLink(c.id, { type: 'office_action', id: action.id, label: action.purpose }, actor)
   await markHandled(ctx, i.id, category, 'reply drafted')

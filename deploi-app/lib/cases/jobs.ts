@@ -15,9 +15,14 @@ import '../library/case-sync'
 import '../competitors/case-sync'
 registerEngineCaseKinds()
 
-registerJobHandler('case.check', async payload => {
+registerJobHandler('case.check', async (payload, ctx) => {
   const caseId = String(payload.caseId ?? '')
   if (!/^[0-9a-f-]{36}$/i.test(caseId)) return { skipped: true, reason: 'invalid case id' }
+  // reliability fix R-2: a job acts only on its own organization's case (the id in a payload is data)
+  if (ctx.job.org_id) {
+    const own = await admin(db => db.one<{ org_id: string }>('select org_id from cases where id = $1', [caseId]))
+    if (own && own.org_id !== ctx.job.org_id) return { skipped: true, reason: 'the case belongs to another organization' }
+  }
   return runCaseCheck(caseId)
 }, { leaseMs: 3 * 60_000, maxAttempts: 3 })
 

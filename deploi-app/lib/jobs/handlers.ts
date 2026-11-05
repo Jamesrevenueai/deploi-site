@@ -28,10 +28,13 @@ import '../discovery/jobs'
 // connection.health (lib/integrations/health.ts registers the handler)
 import { enqueueHealthWork } from '../integrations/health'
 
-registerJobHandler('agent.run', async payload => {
+registerJobHandler('agent.run', async (payload, ctx) => {
   const agentId = String(payload.agentId ?? '')
   if (!/^[0-9a-f-]{36}$/i.test(agentId)) return { skipped: true, reason: 'invalid agent id' }
-  const az = await admin(db => authorizeAgentAction(db, { agentId, orgId: typeof payload.orgId === 'string' ? payload.orgId : null, action: { tool: 'run' } }))
+  // reliability fix R-2: the job's own organization decides, never an organization id carried in the payload
+  const orgId = ctx.job.org_id ?? (typeof payload.orgId === 'string' ? payload.orgId : null)
+  if (ctx.job.org_id && typeof payload.orgId === 'string' && payload.orgId !== ctx.job.org_id) return { skipped: true, reason: 'the payload names another organization', code: 'wrong_org' }
+  const az = await admin(db => authorizeAgentAction(db, { agentId, orgId, action: { tool: 'run' } }))
   if (!az.ok) return { skipped: true, reason: az.reason, code: az.code }
   try {
     const r = await runAgent(agentId, { trigger: payload.trigger === 'manual' ? 'manual' : 'schedule', actor: 'system:jobs' })
@@ -43,9 +46,14 @@ registerJobHandler('agent.run', async payload => {
   }
 }, { leaseMs: 6 * 60_000, maxAttempts: 3 })
 
-registerJobHandler('email.send', async payload => {
+registerJobHandler('email.send', async (payload, ctx) => {
   const id = String(payload.messageId ?? '')
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { skipped: true, reason: 'invalid message id' }
+  // reliability fix R-2: a job sends only its own organization's message
+  if (ctx.job.org_id) {
+    const own = await admin(db => db.one<{ org_id: string }>('select org_id from email_messages where id = $1', [id]))
+    if (own && own.org_id !== ctx.job.org_id) return { skipped: true, reason: 'the message belongs to another organization' }
+  }
   const r = await sendMessage(id, { actor: 'system:jobs' })
   return { status: r.status, reason: r.reason ?? null, duplicate: r.duplicate ?? false }
 }, { leaseMs: 2 * 60_000, maxAttempts: 3 })
@@ -86,5 +94,8 @@ export async function enqueueDueWork(opts: { now?: Date; limit?: number } = {}) 
   out.maintenance.push(...(await enqueuePlatformWork(now)))
   // integrations: the hourly connection-health probes (lib/integrations/health.ts)
   out.maintenance.push(await enqueueHealthWork(now))
+  // operations: alert evaluation once per ten-minute window (lib/ops/jobs.ts)
+  const { enqueueOpsWork } = await import('../ops/jobs')
+  out.maintenance.push(...(await enqueueOpsWork(now)))
   return out
 }

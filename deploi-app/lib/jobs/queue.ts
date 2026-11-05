@@ -23,6 +23,7 @@ import { audit } from '../engine/audit'
 import { log } from '../log'
 import { orgStopReason } from '../engine/kill-switch'
 import { flushWorkflowCounters, recordWorkflow } from '../ai/meter'
+import { jobLog } from '../ops/logs'
 
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'dead' | 'cancelled'
 export type JobRow = {
@@ -188,15 +189,20 @@ export async function runClaimed(job: JobRow, workerId: string, opts: { deadline
   const h = handlers.get(job.kind)
   if (!h) return settle(job, workerId, { ok: false, error: `no handler is registered for ${job.kind}`, permanent: false }, now)
   const beat = setInterval(() => { extendLease(job.id, workerId, h.leaseMs).catch(() => {}) }, Math.max(1000, Math.floor(h.leaseMs / 3)))
+  const started = Date.now()
+  let outcome: JobOutcome
   try {
     const result = await h.fn(job.payload ?? {}, { job, workerId, deadline: opts.deadline ?? Date.now() + h.leaseMs })
-    return await settle(job, workerId, { ok: true, result: result ?? null }, now)
+    outcome = await settle(job, workerId, { ok: true, result: result ?? null }, now)
   } catch (err) {
     log.warn('jobs.attempt_failed', { job_id: job.id, kind: job.kind, attempts: job.attempts, error: (err as Error).message.slice(0, 200) })
-    return await settle(job, workerId, { ok: false, error: (err as Error).message || 'failed', permanent: err instanceof PermanentJobError }, now)
+    outcome = await settle(job, workerId, { ok: false, error: (err as Error).message || 'failed', permanent: err instanceof PermanentJobError }, now)
   } finally {
     clearInterval(beat)
   }
+  // operational log, correlated by job, organization and case (lib/ops/logs.ts); never fails the job
+  await jobLog(job, outcome, Date.now() - started).catch(() => {})
+  return outcome
 }
 
 /** Claim and run due jobs one after another until `limit` jobs ran, nothing is due, or `deadlineMs` passed. */

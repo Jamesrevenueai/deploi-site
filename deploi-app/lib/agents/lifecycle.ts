@@ -279,9 +279,18 @@ export async function deleteAgent(actor: Actor, agentId: string) {
  */
 export async function stopAllAgents(actor: Actor, reason: string) {
   if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff can view but not change a merchant organization')
-  const orgId = actor.orgId
   const why = reason.trim().slice(0, 300) || 'stopped by the merchant'
-  return admin(async db => {
+  return admin(db => stopOrgAgentsInTx(db, actor.orgId, actor.label, why))
+}
+
+/**
+ * The stop itself, in the caller's transaction: also used by Deploi staff stopping an organization on the
+ * customer's behalf (lib/ops/staff.ts). Stopping never grants anything, so staff may do it; they never clear
+ * an agent's pause or grant (each agent is resumed by the merchant).
+ */
+export async function stopOrgAgentsInTx(db: Db, orgId: string, actorLabel: string, why: string) {
+  const actor = { label: actorLabel }
+  {
     await db.query(`insert into org_controls (org_id, agents_stopped, stop_reason, stopped_by, stopped_at) values ($1, true, $2, $3, now())
       on conflict (org_id) do update set agents_stopped = true, stop_reason = $2, stopped_by = $3, stopped_at = now()`, [orgId, why, actor.label])
     const active = await db.query<{ id: string }>(`select id from agents where org_id = $1 and status = 'active' order by id for update`, [orgId])
@@ -303,7 +312,7 @@ export async function stopAllAgents(actor: Actor, reason: string) {
     const jobs = await cancelJobs(db, { orgId, reason: 'all agents were stopped', actor: actor.label, agentWorkOnly: true })
     await audit(db, { orgId, entityType: 'org', entityId: orgId, event: 'org.agents_stopped', actor: actor.label, detail: { reason: why, agents_paused: active.length, office_agents_paused: officeActive.length, proposals_blocked: proposals, emails_cancelled: emails, jobs_cancelled: jobs } })
     return { agentsPaused: active.length + officeActive.length, officeAgentsPaused: officeActive.length, proposalsBlocked: proposals, emailsCancelled: emails, jobsCancelled: jobs }
-  })
+  }
 }
 
 /** Turn the organization stop off. Nothing restarts by itself: each agent is resumed by the merchant. */

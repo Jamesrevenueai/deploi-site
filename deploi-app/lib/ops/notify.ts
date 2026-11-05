@@ -1,7 +1,6 @@
 /**
- * Where alert notices go. Alerts (lib/ops/alerts.ts) speak only to this small interface; the system mailer
- * (lib/email/system.ts) is wired to it at integration by `setOpsNotifier`. Until then the default notifier
- * writes one structured log line per notice and reports that nothing was sent, which the alert records.
+ * Where alert notices go. Alerts (lib/ops/alerts.ts) speak only to this small interface; the default is the
+ * system mailer (lib/email/system.ts). logNotifier remains for environments that should only log.
  *
  * Recipients:
  *   staff   every address in STAFF_EMAILS, for every alert
@@ -33,9 +32,28 @@ export const logNotifier: OpsNotifier = {
   },
 }
 
-let current: OpsNotifier = logNotifier
-/** Integration: wire the system mailer. Tests: install a recording fake. */
-export function setOpsNotifier(n: OpsNotifier | null) { current = n ?? logNotifier }
+/**
+ * The system mailer (lib/email/system.ts, template 'notice'): one message per recipient, idempotent per alert,
+ * event and recipient. EMAIL_LIVE_SENDS applies there: with live sends off nothing leaves and the alert
+ * records that the notice was held.
+ */
+export const systemMailNotifier: OpsNotifier = {
+  async send(n) {
+    const { sendSystemEmail } = await import('../email/system')
+    const link = n.audience === 'owner' ? `${env.appUrl.replace(/\/$/, '')}/store` : `${env.appUrl.replace(/\/$/, '')}/staff/ops`
+    const results = []
+    for (const to of n.to) results.push(await sendSystemEmail({ key: `ops:${n.alertId}:${n.event}:${to}`, template: 'notice', to,
+      params: { subject: n.subject, body: n.text, link, linkLabel: n.audience === 'owner' ? 'Open Deploi' : 'Open the operations console' } }))
+    const sent = results.filter(r => r.status === 'sent').length
+    if (sent === results.length && sent > 0) return { ok: true }
+    const held = results.filter(r => r.status === 'held').length
+    return { ok: false, reason: held ? `${held} of ${results.length} held: live sending is off` : `${results.length - sent} of ${results.length} not sent` }
+  },
+}
+
+let current: OpsNotifier = systemMailNotifier
+/** Tests install a recording fake; null restores the system mailer. */
+export function setOpsNotifier(n: OpsNotifier | null) { current = n ?? systemMailNotifier }
 export const opsNotifier = () => current
 
 /** A fake that records every notice (tests; also a dry run for the console). */

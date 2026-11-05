@@ -182,3 +182,13 @@ registerSystemTemplate('contact_staff', p => ({
   text: [`${p.name} <${p.email}>${p.company ? ` from ${p.company}` : ''} wrote through the website contact form (${p.topic}):`, '', p.message].join('\n'),
   html: layout(html`<p>${p.name} &lt;${p.email}&gt;${p.company ? raw(html` from ${p.company}`) : ''} wrote through the website contact form (${p.topic}):</p><blockquote style="white-space:pre-wrap;border-left:3px solid #e3e6ea;margin:0;padding-left:12px">${p.message}</blockquote>`),
 }))
+
+/**
+ * A plain notice (billing and operations alerts): params.subject, params.body (plain text, paragraphs separated
+ * by blank lines) and optionally params.link + params.linkLabel. Everything is escaped.
+ */
+registerSystemTemplate('notice', p => ({
+  subject: p.subject,
+  text: [p.body, ...(p.link ? ['', `${p.linkLabel || 'Open'}: ${p.link}`] : [])].join('\n'),
+  html: layout(p.body.split(/\n{2,}/).map(par => html`<p>${par}</p>`).join('') + (p.link ? button(p.link, p.linkLabel || 'Open') : '')),
+}))

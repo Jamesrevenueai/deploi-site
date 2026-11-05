@@ -7,9 +7,8 @@
  * pending ones after that transaction commits (the webhook route, and the hourly cron for anything left).
  *
  * Sending goes through a small local interface (BillingNotifier). The default implementation is the system
- * mailer (lib/email/system.ts, `sendSystemEmail`) once integration wires it in `systemMailer` below; until
- * then a notice is recorded as skipped and logged, never sent from here. EMAIL_LIVE_SENDS gating stays in
- * the system mailer. Tests use recordingNotifier().
+ * mailer (lib/email/system.ts, `sendSystemEmail`, template 'notice'); EMAIL_LIVE_SENDS gating stays there, so
+ * with live sends off a notice is held and recorded as skipped. Tests use recordingNotifier().
  */
 import { admin, type Db } from '../db'
 import { env } from '../env'
@@ -23,14 +22,15 @@ export type NoticeResult = { ok: true } | { ok: false; skipped?: boolean; error:
 /** What billing needs from a mailer. */
 export interface BillingNotifier { send(notice: BillingNotice): Promise<NoticeResult> }
 
-/**
- * Integration point: when lib/email/system.ts exists, replace this body with
- *   return sendSystemEmail({ to: n.to, subject: n.subject, text: n.body, link: n.link, category: `billing.${n.kind}`, orgId: n.orgId })
- * (mapped to that function's own signature and result).
- */
+/** The system mailer (EMAIL_LIVE_SENDS applies there): held while live sends are off, recorded either way. */
 async function systemMailer(n: BillingNotice): Promise<NoticeResult> {
-  log.info('billing.notice.not_sent', { kind: n.kind, org: n.orgId, reason: 'system mailer not wired' })
-  return { ok: false, skipped: true, error: 'the system mailer is not wired in this build' }
+  const { sendSystemEmail } = await import('../email/system')
+  const r = await sendSystemEmail({ key: `billing:${n.id}`, template: 'notice', to: n.to, orgId: n.orgId,
+    params: { subject: n.subject, body: n.body, link: n.link ?? '', linkLabel: n.link ? 'Manage billing' : '' } })
+  if (r.status === 'sent') return { ok: true }
+  if (r.status === 'held') return { ok: false, skipped: true, error: r.reason ?? 'held: live sending is off' }
+  log.warn('billing.notice.not_sent', { kind: n.kind, org: n.orgId, status: r.status })
+  return { ok: false, error: r.reason ?? r.status }
 }
 
 let current: BillingNotifier = { send: systemMailer }

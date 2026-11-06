@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
+import { assertNotEmbedded } from '@/lib/store/embedded-gate'
 import { MAX_COMPETITOR_STORES, normalizeStoreUrl, storeKey } from '@/lib/competitors/url'
 import { probeStore, type ProbeResult } from '@/lib/competitors/collect'
 import { PoliteFetcher } from '@/lib/competitors/fetch'
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: Request) {
   try {
-    await resolveActor(req, { mutating: true })
+    assertNotEmbedded(await resolveActor(req, { mutating: true })) // the competitor watcher is not offered inside Shopify
     const body = await readJson(req)
     const urls = Array.isArray(body.urls) ? body.urls.filter((x): x is string => typeof x === 'string').map(x => x.slice(0, 300)) : []
     if (!urls.length) throw new HttpError(400, 'invalid_input', 'enter at least one store address')

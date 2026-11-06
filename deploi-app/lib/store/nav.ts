@@ -50,18 +50,4 @@ export const CASE_VIEWS: Record<'work' | 'approvals' | 'completed', CaseView[]> 
 /** The page a case reference opens. */
 export const caseHref = (ref: string) => `/store/work/${encodeURIComponent(ref)}`
 
-/** The embedded app's home route (App Bridge marks it rel="home"; it is the app's landing page, not a menu entry). */
-export const EMBEDDED_HOME = '/shopify'
-
-/** Pages listed in the embedded app's App Bridge navigation menu, in order. */
-export const EMBEDDED_NAV: { href: string; label: string }[] = [
-  { href: '/shopify/team', label: 'Team' },
-  { href: '/shopify/agents', label: 'Agents' },
-  { href: '/shopify/inbox', label: 'Approvals' },
-  { href: '/shopify/connections', label: 'Connections' },
-  { href: EMBEDDED_HOME, label: 'Overview' },
-  { href: '/shopify/issues', label: 'Issues' },
-  { href: '/shopify/activity', label: 'Activity' },
-  { href: '/shopify/rules', label: 'Rules' },
-  { href: '/shopify/plan', label: 'Plan' },
-]
+/** The embedded Shopify app's menu and the features it shows: lib/shopify/embedded.ts (embeddedNav, EMBEDDED_FEATURES). */

@@ -69,9 +69,10 @@ async function embeddedHeaders(req: NextRequest) {
       return new NextResponse(appBridgeFirst(await r.text()), { status: 200, headers })
     }
   }
-  // tells the root layout to render the App Bridge meta and script in <head>
+  // tells the root layout to render the App Bridge meta and script in <head>, and the /shopify layout which path
+  // it renders (it 404s a feature hidden from Shopify review: lib/shopify/embedded.ts). Set here, never taken from the client.
   const p = policyFor(req, true)
-  return p.apply(NextResponse.next({ request: { headers: p.forward({ 'x-deploi-embedded': '1' }) } }))
+  return p.apply(NextResponse.next({ request: { headers: p.forward({ 'x-deploi-embedded': '1', 'x-deploi-path': req.nextUrl.pathname }) } }))
 }
 
 export async function middleware(req: NextRequest) {

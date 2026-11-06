@@ -21,6 +21,12 @@
  *    after a backoff (30 min, 2 h) up to MAX_ATTEMPTS; then the case fails and the owner is told it needs them.
  *  - Re-runs are idempotent: a waiting loop answers waiting_for_owner, a blocked loop before its retry time
  *    answers failed with the same reason, a finished problem is not detected again.
+ *  - The mode of a new loop (effectiveMode): a MONEY action (lib/autonomy MONEY_ACTIONS) always asks the owner first,
+ *    whatever else is set; otherwise the autonomy level the owner chose for this agent (lib/app/profiles.ts:
+ *    ask_first asks, act_then_tell and autonomous act) overrides the organization's mode for the action type; with no
+ *    level chosen, the organization's mode applies. 'autonomous' tells the owner in the daily summary only (digest).
+ *  - An agent the owner paused (agent_profiles.paused_at) does nothing. The owner's standing instructions for the
+ *    agent are handed to detect/describe/act/verify (LoopContext), stored with the loop and noted on its case.
  * Bookkeeping (cases, loops, approvals, undo) is written in its own service-role transactions, so a failing act
  * cannot roll back the record of the attempt; detect/act/verify run on the caller's `db` and must not write the
  * loop's case themselves.
@@ -36,6 +42,10 @@ import { notifyOwner, type ProofItem, type OwnerUpdate } from '../notify'
 import { log } from '../log'
 import { isOutboundAction, takeOutboundSlot } from '../autonomy/pacing'
 import { currentEvent, EVENT_JOB } from './index'
+import { loopAgentState, type AgentAutonomy, type LoopAgentState } from '../app/profiles'
+
+/** What the loop hands an agent's callbacks: who it is in the app and the owner's standing instructions for it. */
+export type LoopContext = { agentRef: string | null; instructions: string[]; autonomy: AgentAutonomy | null }
 
 export type LoopSpec<P> = {
   orgId: string
@@ -46,13 +56,13 @@ export type LoopSpec<P> = {
   /** stable key for this problem, so the same problem is never handled twice (e.g. 'order:1001:stuck') */
   problemKey: string
   /** find the problem; null when there is nothing to do */
-  detect: (db: Db) => Promise<P | null>
+  detect: (db: Db, ctx: LoopContext) => Promise<P | null>
   /** what the agent will do, in plain words (shown to the owner before or after) */
-  describe: (p: P) => { title: string; whatHappened: string; whatIDid: string[] }
+  describe: (p: P, ctx: LoopContext) => { title: string; whatHappened: string; whatIDid: string[] }
   /** do it; return how to undo it when it can be undone */
-  act: (db: Db, p: P) => Promise<{ undo?: { kind: string; payload: Record<string, unknown> } | null; proof?: ProofItem[] }>
+  act: (db: Db, p: P, ctx: LoopContext) => Promise<{ undo?: { kind: string; payload: Record<string, unknown> } | null; proof?: ProofItem[] }>
   /** read the source again and confirm the fix holds */
-  verify: (db: Db, p: P) => Promise<{ ok: boolean; proof: ProofItem[] }>
+  verify: (db: Db, p: P, ctx: LoopContext) => Promise<{ ok: boolean; proof: ProofItem[] }>
   detailsPath?: string
   /** which suite the case belongs to (default: the agent's pack; commerce when unknown) */
   suite?: 'commerce' | 'office'
@@ -66,7 +76,7 @@ export type LoopSpec<P> = {
   now?: () => Date
 }
 export type LoopOutcome =
-  | { status: 'nothing_to_do'; reason?: 'owned_by_other_agent' | 'in_progress' | 'cleared' | 'queued'; ownerAgent?: string; caseRef?: string | null; releaseAt?: string }
+  | { status: 'nothing_to_do'; reason?: 'owned_by_other_agent' | 'in_progress' | 'cleared' | 'queued' | 'paused'; ownerAgent?: string; caseRef?: string | null; releaseAt?: string }
   | { status: 'done'; verified: true; proof: ProofItem[]; mode: ActionMode; caseRef?: string | null; undoToken?: string | null }
   | { status: 'not_verified'; proof: ProofItem[]; caseRef?: string | null; retryAt?: string | null }
   | { status: 'waiting_for_owner'; approvalId: string | null; caseRef?: string | null }
@@ -85,7 +95,7 @@ export type LoopState = 'acting' | 'awaiting_owner' | 'approved' | 'blocked' | '
 export const OPEN_LOOP_STATES: LoopState[] = ['acting', 'awaiting_owner', 'approved', 'blocked']
 export type LoopRow = {
   id: string; org_id: string; case_id: string | null; agent_key: string; agent_name: string; action_type: string; problem_key: string; mode: ActionMode; state: LoopState
-  action: { title?: string; whatHappened?: string; whatIDid?: string[] }; asked_at: string | null; reminded_at: string | null; escalated_at: string | null
+  action: { title?: string; whatHappened?: string; whatIDid?: string[]; instructions?: string[]; autonomy?: AgentAutonomy | null; money?: boolean }; asked_at: string | null; reminded_at: string | null; escalated_at: string | null
   decided_by: string | null; decided_at: string | null; attempts: number; last_error: string | null; next_retry_at: string | null; undo_token_id: string | null; created_at: string; updated_at: string
 }
 
@@ -153,10 +163,25 @@ async function setLoop(id: string, fields: Record<string, unknown>, now: Date) {
 
 // ---------------------------------------------------------------- the loop
 
+/**
+ * The mode a new loop runs in. The money guard comes first: an action that moves money always waits for the owner,
+ * whatever the organization's mode or the agent's autonomy level. Then the level the owner chose for the agent,
+ * then the organization's mode for the action type.
+ */
+export async function effectiveMode(db: Db, orgId: string, actionType: string, autonomy: AgentAutonomy | null): Promise<ActionMode> {
+  if (isMoneyAction(actionType)) return 'ask_first'
+  if (autonomy) return autonomy === 'ask_first' ? 'ask_first' : 'act_and_tell'
+  return modeFor(db, orgId, actionType)
+}
+
 export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutcome> {
   const now = () => s.now?.() ?? new Date()
+  let agent: LoopAgentState
+  try { agent = await loopAgentState(s.orgId, s.agentKey) } catch (e) { return { status: 'failed', error: (e as Error).message } }
+  if (agent.paused) return { status: 'nothing_to_do', reason: 'paused' }
+  const ctx: LoopContext = { agentRef: agent.agentRef, instructions: agent.instructions, autonomy: agent.autonomy }
   let p: P | null
-  try { p = await s.detect(db) } catch (e) { return { status: 'failed', error: (e as Error).message } }
+  try { p = await s.detect(db, ctx) } catch (e) { return { status: 'failed', error: (e as Error).message } }
   const existing = await openLoopFor(s.orgId, s.problemKey)
 
   if (!p) {
@@ -169,7 +194,7 @@ export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutco
     }
     return { status: 'nothing_to_do' }
   }
-  const d = s.describe(p)
+  const d = s.describe(p, ctx)
   let loop: LoopRow
   if (existing) {
     const caseRef = await caseRefOf(existing.case_id)
@@ -184,14 +209,14 @@ export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutco
     if (!got) return { status: 'nothing_to_do', reason: 'in_progress', caseRef }
     loop = got
   } else {
-    const mode = await modeFor(db, s.orgId, s.actionType)
+    const mode = await effectiveMode(db, s.orgId, s.actionType, agent.autonomy)
     const at = now()
     // first-day pacing: an outbound action that goes ahead on its own waits for a later hour when the cap is reached
     if (mode === 'act_and_tell' && (s.outbound ?? isOutboundAction(s.actionType))) {
       const held = await holdIfPaced(s, at)
       if (held) return held
     }
-    const created = await createLoop(s, d, mode, at)
+    const created = await createLoop(s, d, mode, at, ctx)
     if (!created) {
       // another runner opened it a moment ago: it owns the problem (never act twice, even if it already finished)
       const other = await openLoopFor(s.orgId, s.problemKey)
@@ -204,7 +229,7 @@ export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutco
     loop = created
     if (mode === 'ask_first') return askOwner(s, loop, d, at)
   }
-  return actVerifyTell(db, s, p, d, loop, now)
+  return actVerifyTell(db, s, p, d, loop, now, ctx)
 }
 
 /** Take a first-day pacing slot; when there is none, the handler that found this runs again when the hold ends. */
@@ -229,7 +254,7 @@ async function noteOnce(l: LoopRow, s: { agentKey: string }, note: string) {
   }).catch(e => log.warn('loop.note_failed', { error: (e as Error).message.slice(0, 200) }))
 }
 
-async function createLoop<P>(s: LoopSpec<P>, d: { title: string; whatHappened: string; whatIDid: string[] }, mode: ActionMode, now: Date): Promise<LoopRow | null> {
+async function createLoop<P>(s: LoopSpec<P>, d: { title: string; whatHappened: string; whatIDid: string[] }, mode: ActionMode, now: Date, ctx: LoopContext): Promise<LoopRow | null> {
   return adm(async db => {
     const ask = mode === 'ask_first'
     const l = await db.one<LoopRow>(
@@ -237,7 +262,8 @@ async function createLoop<P>(s: LoopSpec<P>, d: { title: string; whatHappened: s
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
        on conflict (org_id, problem_key) where state in ('acting','awaiting_owner','approved','blocked') do nothing returning *`,
       [s.orgId, clip(s.agentKey, 120), clip(s.agentName, 160), clip(s.actionType, 64), clip(s.problemKey, 300), mode, ask ? 'awaiting_owner' : 'acting',
-        JSON.stringify({ title: clip(d.title, 300), whatHappened: clip(d.whatHappened, 4000), whatIDid: d.whatIDid.slice(0, 20).map(x => clip(x, 500)) }), ask ? 0 : 1, ask ? now.toISOString() : null, now.toISOString()])
+        JSON.stringify({ title: clip(d.title, 300), whatHappened: clip(d.whatHappened, 4000), whatIDid: d.whatIDid.slice(0, 20).map(x => clip(x, 500)),
+          ...(ctx.instructions.length ? { instructions: ctx.instructions.slice(0, 20).map(x => clip(x, 500)) } : {}), autonomy: ctx.autonomy, money: isMoneyAction(s.actionType) }), ask ? 0 : 1, ask ? now.toISOString() : null, now.toISOString()])
     if (!l) return null
     const title = d.title.trim().length >= 3 ? d.title : `${s.agentName}: ${d.title}`.padEnd(3, '.')
     const { case: c } = await openCase(db, {
@@ -249,6 +275,8 @@ async function createLoop<P>(s: LoopSpec<P>, d: { title: string; whatHappened: s
       nextAction: d.whatIDid.join(' ').slice(0, 1000) || null, actor: actorOf(s.agentKey),
     })
     await db.query('update agent_loops set case_id = $2 where id = $1', [l.id, c.id])
+    // the owner's standing instructions this agent works under, on the case (the proof page shows them)
+    if (ctx.instructions.length) await addNote(db, c.id, `Standing instructions: ${ctx.instructions.map(x => `"${clip(x, 500)}"`).join('; ')}`.slice(0, 1000), actorOf(s.agentKey))
     return { ...l, case_id: c.id }
   })
 }
@@ -264,17 +292,17 @@ async function askOwner<P>(s: LoopSpec<P>, loop: LoopRow, d: { title: string; wh
   return { status: 'waiting_for_owner', approvalId: loop.id, caseRef }
 }
 
-async function actVerifyTell<P>(db: Db, s: LoopSpec<P>, p: P, d: { title: string; whatHappened: string; whatIDid: string[] }, loop: LoopRow, now: () => Date): Promise<LoopOutcome> {
+async function actVerifyTell<P>(db: Db, s: LoopSpec<P>, p: P, d: { title: string; whatHappened: string; whatIDid: string[] }, loop: LoopRow, now: () => Date, ctx: LoopContext): Promise<LoopOutcome> {
   const actor = actorOf(s.agentKey)
   const caseRef = await caseRefOf(loop.case_id)
   await moveCase(loop.case_id, 'executing', actor, loop.decided_by ? `Approved by ${loop.decided_by}; ${s.agentName} is doing it now` : `${s.agentName} is doing it now`, { approvalRequired: false })
   let done: Awaited<ReturnType<LoopSpec<P>['act']>>
-  try { done = await s.act(db, p) ?? {} } catch (e) { return block(s, d, loop, `${s.agentName} could not finish: ${(e as Error).message}`, [], now, 'failed') }
+  try { done = await s.act(db, p, ctx) ?? {} } catch (e) { return block(s, d, loop, `${s.agentName} could not finish: ${(e as Error).message}`, [], now, 'failed') }
   const actProof = done.proof ?? []
   if (loop.case_id) await adm(async x => { await recordAction(x, loop.case_id!, { actor, summary: d.whatIDid.join(' ') || d.title, detail: { proof: actProof } }) }).catch(() => {})
   await moveCase(loop.case_id, 'verifying', actor, 'Reading the source again to confirm the fix holds')
   let v: { ok: boolean; proof: ProofItem[] }
-  try { v = await s.verify(db, p) } catch (e) { return block(s, d, loop, `The fix could not be confirmed: ${(e as Error).message}`, actProof, now, 'not_verified') }
+  try { v = await s.verify(db, p, ctx) } catch (e) { return block(s, d, loop, `The fix could not be confirmed: ${(e as Error).message}`, actProof, now, 'not_verified') }
   const proof = [...actProof, ...(v?.proof ?? [])]
   if (!v?.ok || !(v.proof ?? []).length) return block(s, d, loop, v?.ok ? 'The check returned no proof, so the fix is not confirmed' : 'A fresh read does not show the fix holding', proof, now, 'not_verified')
 
@@ -294,7 +322,8 @@ async function actVerifyTell<P>(db: Db, s: LoopSpec<P>, p: P, d: { title: string
     } catch (e) { log.warn('loop.undo_failed', { error: (e as Error).message.slice(0, 200) }) }
   }
   await setLoop(loop.id, { state: 'done', last_error: null, next_retry_at: null, undo_token_id: undoId }, now())
-  await tell({ ...base(s, d, caseRef), whatIDid: d.whatIDid, proof, undoToken, severity: 'info', dedupeKey: `${s.agentKey}:${s.problemKey}:${loop.id}:done` })
+  // autonomous: done work is told in the daily summary only
+  await tell({ ...base(s, d, caseRef), whatIDid: d.whatIDid, proof, undoToken, severity: 'info', dedupeKey: `${s.agentKey}:${s.problemKey}:${loop.id}:done`, ...(ctx.autonomy === 'autonomous' ? { digest: true } : {}) })
   return { status: 'done', verified: true, proof, mode: loop.mode, caseRef, undoToken }
 }
 

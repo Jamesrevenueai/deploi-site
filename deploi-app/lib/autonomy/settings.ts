@@ -8,7 +8,7 @@ import { withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { audit } from '../engine/audit'
 import { assertCan, actorRole } from '../platform/rbac'
-import { ACTION_TYPE, DEFAULT_MODE, isActionMode, knownActionTypes, type ActionMode } from './index'
+import { ACTION_TYPE, DEFAULT_MODE, isActionMode, isMoneyAction, knownActionTypes, type ActionMode } from './index'
 
 export type ModeRow = { key: string; label: string; money: boolean; mode: ActionMode; custom: boolean; updatedBy: string | null; updatedAt: string | null }
 export type ModesView = { actions: ModeRow[]; money: ModeRow[]; canChange: boolean; defaultMode: ActionMode }
@@ -28,7 +28,8 @@ export async function listModes(actor: Actor, opts: { orgId?: string } = {}): Pr
   for (const r of rows) if (!types.some(t => t.key === r.action_type)) types.push({ key: r.action_type, label: r.action_type.replace(/[_.]/g, ' '), money: false })
   const all = types.map(t => {
     const r = byKey.get(t.key)
-    return { key: t.key, label: t.label, money: t.money, mode: isActionMode(r?.mode) ? r!.mode : DEFAULT_MODE, custom: Boolean(r), updatedBy: r?.updated_by ?? null, updatedAt: r ? new Date(r.updated_at).toISOString() : null }
+    // the money guard: a money action always waits for the owner, whatever is stored
+    return { key: t.key, label: t.label, money: t.money, mode: t.money ? 'ask_first' as const : isActionMode(r?.mode) ? r!.mode : DEFAULT_MODE, custom: Boolean(r), updatedBy: r?.updated_by ?? null, updatedAt: r ? new Date(r.updated_at).toISOString() : null }
   })
   const role = actor.kind === 'staff' ? null : await actorRole(actor, orgId)
   return { actions: all.filter(a => !a.money), money: all.filter(a => a.money), canChange: role === 'owner' || role === 'admin', defaultMode: DEFAULT_MODE }
@@ -39,6 +40,7 @@ export async function setMode(actor: Actor, actionType: unknown, mode: unknown, 
   if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff can view but not change how a customer\'s agents act')
   if (typeof actionType !== 'string' || !ACTION_TYPE.test(actionType)) throw new EngineError('invalid_input', 'unknown action type')
   if (!isActionMode(mode)) throw new EngineError('invalid_input', 'mode must be act_and_tell or ask_first')
+  if (isMoneyAction(actionType) && mode !== 'ask_first') throw new EngineError('invalid_input', 'an action that moves money always waits for your approval; it cannot be set to act on its own')
   await assertCan(actor, actor.orgId, 'settings')
   const types = await knownActionTypes()
   const stored = await admin(db => db.one('select 1 from org_action_modes where org_id = $1 and action_type = $2', [actor.orgId, actionType]))

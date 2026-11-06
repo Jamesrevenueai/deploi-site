@@ -22,11 +22,11 @@ export async function runPackLoop<P>(db: Db, pack: PackKey, spec: LoopSpec<P>): 
   if (prior?.status === 'done') return { status: 'already_done' }
   let described: ReturnType<LoopSpec<P>['describe']> | null = null
   // a failed act leaves nothing half-written in this transaction
-  const act: LoopSpec<P>['act'] = async (d, p) => {
+  const act: LoopSpec<P>['act'] = async (d, p, c) => {
     await d.query('savepoint pack_act')
-    try { const r = await spec.act(d, p); await d.query('release savepoint pack_act'); return r } catch (e) { await d.query('rollback to savepoint pack_act'); throw e }
+    try { const r = await spec.act(d, p, c); await d.query('release savepoint pack_act'); return r } catch (e) { await d.query('rollback to savepoint pack_act'); throw e }
   }
-  const out = await runAgentLoop(db, { ...spec, act, describe: p => (described = spec.describe(p)) })
+  const out = await runAgentLoop(db, { ...spec, act, describe: (p, c) => (described = spec.describe(p, c)) })
   if (out.status === 'nothing_to_do') return out
   const d = described as ReturnType<LoopSpec<P>['describe']> | null
   // the loop reports a thrown act as "<agent> could not finish: <message>", and a re-run before the retry time

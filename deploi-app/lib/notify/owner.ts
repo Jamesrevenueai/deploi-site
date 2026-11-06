@@ -8,6 +8,7 @@
  *    secret param: the stored copy of the email never holds it.
  *  - Text and voice note (off by default) go through the channel adapter (simulated unless a provider is set).
  *  - digest 'daily': a routine (info) update is recorded as queued for the morning report instead of emailed.
+ *  - digest: true on the update (an agent the owner set to autonomous): the same, whatever the person's preference.
  */
 import { admin } from '../db'
 import { env } from '../env'
@@ -62,10 +63,12 @@ export async function notifyOwnerImpl(input: OwnerUpdate): Promise<NotifyResult>
     const people = await updateRecipients(db, u.orgId)
     const plan: Planned[] = []
     const urgent = u.severity !== 'info'
+    // an autonomous agent's routine update goes to the morning report only
+    const summaryOnly = !urgent && u.digest === true
     for (const p of people) {
-      if (p.prefs.email) plan.push({ channel: !urgent && p.prefs.digest === 'daily' ? 'digest' : 'email', profileId: p.profileId, to: p.email })
-      if (p.prefs.text && p.prefs.phone) plan.push({ channel: 'text', profileId: p.profileId, to: p.prefs.phone })
-      if (p.prefs.voice && p.prefs.phone && (urgent || p.prefs.digest !== 'daily')) plan.push({ channel: 'voice', profileId: p.profileId, to: p.prefs.phone })
+      if (p.prefs.email) plan.push({ channel: !urgent && (p.prefs.digest === 'daily' || summaryOnly) ? 'digest' : 'email', profileId: p.profileId, to: p.email })
+      if (p.prefs.text && p.prefs.phone && !summaryOnly) plan.push({ channel: 'text', profileId: p.profileId, to: p.prefs.phone })
+      if (p.prefs.voice && p.prefs.phone && !summaryOnly && (urgent || p.prefs.digest !== 'daily')) plan.push({ channel: 'voice', profileId: p.profileId, to: p.prefs.phone })
     }
     const insert = (pl: Planned, status: Outcome['status'], reason: string | null) => db.one<{ id: string }>(
       `insert into owner_updates (org_id, dedupe_key, kind, agent_key, agent_name, case_ref, headline, severity, content, recipient_profile_id, recipient, channel, status, status_reason)

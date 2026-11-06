@@ -22,6 +22,8 @@ export type OwnerUpdate = {
   severity?: 'info' | 'action' | 'warning'
   /** one update per dedupeKey */
   dedupeKey: string
+  /** a routine update for the daily summary only (an agent the owner set to autonomous): never emailed, texted or voiced on its own */
+  digest?: boolean
 }
 export type NotifyResult = { status: 'sent' | 'held' | 'queued' | 'skipped' | 'failed'; id: string | null; reason?: string }
 export type CrewMessage = {

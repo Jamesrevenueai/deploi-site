@@ -20,7 +20,7 @@ export const FIRST_RUN_MS = 24 * 3600e3
 export const PACE_WINDOW_MS = 3600e3
 export const DEFAULT_FIRST_RUN_CAP = 20
 /** action types that send something to a person outside the business */
-export const OUTBOUND_ACTIONS = ['send_customer_email', 'send_vendor_email', 'send_supplier_email', 'send_reminder', 'reply_to_lead', 'invoice_send', 'send_text'] as const
+export const OUTBOUND_ACTIONS = ['send_customer_email', 'send_vendor_email', 'send_supplier_email', 'reorder', 'send_reminder', 'reply_to_lead', 'invoice_send', 'send_text'] as const
 export const isOutboundAction = (t: string) => (OUTBOUND_ACTIONS as readonly string[]).includes(t)
 
 export type Slot = { ok: true; paced: boolean } | { ok: false; releaseAt: Date; cap: number; reason: string }

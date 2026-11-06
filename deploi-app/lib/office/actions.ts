@@ -57,7 +57,9 @@ export type OfficeActionRow = {
 }
 
 export type AgentRow = { id: string; org_id: string; kind: OfficePolicy['kind']; name: string; status: string; active_policy_id: string | null; next_run_at: string | null; last_run_at: string | null; last_polled_at: string | null; created_at: string }
-export type AgentCtx = { agent: AgentRow; policyId: string | null; policyVersion: number; policyStatus: string; policy: OfficePolicy | null }
+export type AgentCtx = { agent: AgentRow; policyId: string | null; policyVersion: number; policyStatus: string; policy: OfficePolicy | null
+  /** the owner's standing instructions for this agent (lib/app/profiles.ts instructionsFor), set for a run; what a future prompt builder reads */
+  instructions?: string[] }
 
 export const payloadHash = (p: ActionPayload) => createHash('sha256').update(canonicalJson(p)).digest('hex')
 export const sha = (s: string) => createHash('sha256').update(s).digest('hex')

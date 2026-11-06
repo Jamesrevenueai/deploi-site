@@ -92,7 +92,7 @@ const outOfStock = (pr: CProduct) => pr.variants.length > 0 && pr.variants.every
 const inventoryWatcher: CommerceAgent = {
   key: 'inventory_watcher', name: 'Inventory Watcher', scoped: false,
   job: 'Watches stock on every sale and stock change; asks the supplier to restock a best seller before it runs out and stops products selling past zero.',
-  triggers: ['inventory_levels/update', 'orders/create', 'products/update', 'sweep'], actions: ['send_supplier_email', 'update_inventory_policy'],
+  triggers: ['inventory_levels/update', 'orders/create', 'products/update', 'sweep'], actions: ['reorder', 'update_inventory_policy'],
   async find(c) {
     const out: Problem[] = []
     const units = await salesByProduct(c)
@@ -123,7 +123,7 @@ const inventoryWatcher: CommerceAgent = {
         const subject = `Restock request: ${pr.title}`
         const text = `Hello,\n\nCould you confirm availability and lead time for:\n\n- ${pr.title}${v.title !== 'Default Title' ? ` (${v.title})` : ''}${v.sku ? `, SKU ${v.sku}` : ''}: ${qty} units\n\nWe have ${v.available} left and sell about ${(rate * 7).toFixed(1)} a week.\n\nThanks,\n${c.shopName}`
         const base = {
-          key: `restock:${v.id}:${isoWeek(c.now)}`, kind: 'best_seller_low_stock', actionType: 'send_supplier_email', recordIds: [pr.id, v.id],
+          key: `restock:${v.id}:${isoWeek(c.now)}`, kind: 'best_seller_low_stock', actionType: 'reorder', recordIds: [pr.id, v.id],
           evidence: { productId: pr.id, variantId: v.id, available: v.available, threshold, unitsSold30d: units.get(pr.id) ?? 0, rank: ranked.indexOf(pr.id) + 1, supplier: supplier?.email ?? null, leadTimeDays: lead, quantity: qty },
           stillThere: async (cc: Ctx) => { const f = await variantOf(cc, v.id); return Boolean(f && (f.variant.available ?? Infinity) <= threshold) },
         }

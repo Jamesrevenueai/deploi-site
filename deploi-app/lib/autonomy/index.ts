@@ -2,7 +2,10 @@
  * Autonomy model (owner setting per action type). SHARED INTERFACE — owned by workstream W1.
  *   'act_and_tell' (default): the agent acts on its own, verifies, logs proof and tells the owner after.
  *   'ask_first': the agent prepares the exact action and waits for the owner's approval.
- * Money actions (refunds, discounts, payout disputes) are act_and_tell by default too, and can be switched to ask_first.
+ * MONEY GUARD: an action that moves money (MONEY_ACTIONS: refunds, discounts, payout disputes, invoices, credit notes,
+ * payments, purchase orders and reorders) ALWAYS waits for the owner's approval, whatever the organization's mode
+ * and whatever autonomy level the owner gave the agent (lib/app). The agent loop enforces it (lib/events/loop.ts:
+ * effectiveMode), so no caller can act on money by itself; setMode refuses act_and_tell for a money action.
  * Hard limits (amount caps, daily caps, allowed recipients) still apply in both modes.
  *
  * Stored in org_action_modes (one row per organization and action type; no row = the default). Only owners and
@@ -13,15 +16,16 @@ import type { Db } from '../db'
 
 export type ActionMode = 'act_and_tell' | 'ask_first'
 export const DEFAULT_MODE: ActionMode = 'act_and_tell'
-/** action types that move money; listed separately in settings so an owner can switch them to ask_first */
-export const MONEY_ACTIONS = ['refund', 'discount', 'payout_dispute', 'invoice_send', 'credit_note'] as const
+/** action types that move money: they always wait for the owner's approval (the money guard); listed separately in settings */
+export const MONEY_ACTIONS = ['refund', 'discount', 'payout_dispute', 'invoice_send', 'credit_note', 'payment', 'purchase_order', 'reorder'] as const
 
 export const isActionMode = (v: unknown): v is ActionMode => v === 'act_and_tell' || v === 'ask_first'
 export const ACTION_TYPE = /^[a-z][a-z0-9_.]{1,63}$/
 export const isMoneyAction = (t: string) => (MONEY_ACTIONS as readonly string[]).includes(t)
 
-/** The owner's mode for one action type in one organization (default act_and_tell). */
+/** The owner's mode for one action type in one organization (default act_and_tell; a money action is always ask_first). */
 export async function modeFor(db: Db, orgId: string, actionType: string): Promise<ActionMode> {
+  if (isMoneyAction(actionType)) return 'ask_first'
   if (!ACTION_TYPE.test(actionType)) return DEFAULT_MODE
   const r = await db.one<{ mode: string }>('select mode from org_action_modes where org_id = $1 and action_type = $2', [orgId, actionType])
   return isActionMode(r?.mode) ? r.mode : DEFAULT_MODE
@@ -37,6 +41,9 @@ const MONEY_LABELS: Record<(typeof MONEY_ACTIONS)[number], string> = {
   payout_dispute: 'Answer a payout dispute or chargeback',
   invoice_send: 'Send an invoice',
   credit_note: 'Issue a credit note',
+  payment: 'Pay a bill, a vendor or a supplier',
+  purchase_order: 'Place a purchase order',
+  reorder: 'Reorder stock from a supplier',
 }
 const known = new Map<string, string>([
   ['send_customer_email', 'Email a customer'],

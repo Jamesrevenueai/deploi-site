@@ -4,6 +4,7 @@
  * commission invoices, maintenance requests, leads). Reads run as the user (RLS); writes as the service role
  * after the caller is shown to be a merchant of the organization.
  */
+import './all' // every pack's agents, commerce included, are registered before a page lists them
 import { admin, type Db } from '../db'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
@@ -32,6 +33,8 @@ export async function packsOverview(actor: Actor) {
 }
 
 async function packRecords(db: Db, orgId: string, pack: PackKey, today: string) {
+  // the commerce agents keep their work in the store work log (library_actions), shown on Completed Work
+  if (pack === 'commerce') return {}
   if (pack === 'home_services' || pack === 'office') return {
     jobs: await db.query(`select id, ref, customer_name, status, amount, currency, scheduled_start, invoice_number, invoice_balance, quote_follow_ups, payment_reminders, updated_at from pack_work_orders where org_id = $1 and pack = $2 order by updated_at desc limit 50`, [orgId, pack]),
     crew: await db.query(`select id, name, email, phone, trade, active from pack_crew_members where org_id = $1 order by name`, [orgId]),
@@ -56,7 +59,7 @@ async function packRecords(db: Db, orgId: string, pack: PackKey, today: string) 
 }
 
 export async function packView(actor: Actor, pack: unknown, today = new Date().toISOString().slice(0, 10)) {
-  if (!isPack(pack) || pack === 'commerce') throw new EngineError('not_found', 'no such pack')
+  if (!isPack(pack)) throw new EngineError('not_found', 'no such pack')
   const orgId = orgOf(actor)
   return withActor(actor, async db => {
     const o = await orgPacks(db, orgId)

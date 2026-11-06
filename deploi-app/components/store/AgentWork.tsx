@@ -163,7 +163,7 @@ function MailThreads({ mail }: { mail: MailResponse }) {
           <article key={t.id} className="rounded-[16px] border border-line p-3">
             <div className="flex flex-wrap items-center gap-2"><Badge tone={st.tone}>{st.label}</Badge><span className="min-w-0 break-words font-medium text-ink">{t.subject ?? '(content hidden)'}</span></div>
             <p className="pt-1 text-[13px] text-grey-h">From the agent to {t.to_addresses.join(', ')} · {fmtTime(t.accepted_at ?? t.created_at)}{t.reply_count ? ` · ${t.reply_count} repl${t.reply_count === 1 ? 'y' : 'ies'}` : ''}</p>
-            {t.body && <pre className="mt-2 whitespace-pre-wrap break-words rounded-[12px] bg-[#0A0A0A] p-3 font-sans text-[14px] text-grey">{t.body}</pre>}
+            {t.body && <pre className="mt-2 whitespace-pre-wrap break-words rounded-[12px] bg-sunken p-3 font-sans text-[14px] text-grey">{t.body}</pre>}
             {t.replies.map(r => <InboundView key={r.id} i={r} nested />)}
           </article>
         )
@@ -185,7 +185,7 @@ function InboundView({ i, nested = false }: { i: InboundFull; nested?: boolean }
       </div>
       {quarantined && i.status_reason && <p className="pt-1 text-[13px] text-warn">{i.status_reason}. The agent will not see it.</p>}
       {i.subject && <p className="pt-1 text-[14px] text-ink">{i.subject}</p>}
-      {i.text && <pre className="mt-1 whitespace-pre-wrap break-words rounded-[12px] bg-[#0A0A0A] p-3 font-sans text-[14px] text-grey">{i.text}</pre>}
+      {i.text && <pre className="mt-1 whitespace-pre-wrap break-words rounded-[12px] bg-sunken p-3 font-sans text-[14px] text-grey">{i.text}</pre>}
       <p className="pt-1 text-[12px] text-grey-h">Received mail is shown to you only. It never changes what the agent may do.</p>
     </div>
   )

@@ -68,7 +68,7 @@ describe('embedded app shell', () => {
     expect(head).toContain('<meta name="shopify-api-key"')
     expect(head).toContain('https://cdn.shopify.com/shopifycloud/app-bridge.js')
     expect(head).not.toMatch(/async|defer/)
-    expect(readFileSync('middleware.ts', 'utf8')).toContain("headers.set('x-deploi-embedded', '1')")
+    expect(readFileSync('middleware.ts', 'utf8')).toContain("p.forward({ 'x-deploi-embedded': '1' })")
     expect(readFileSync('app/shopify/layout.tsx', 'utf8')).not.toContain('app-bridge.js"')
     expect(frameAncestors('/shopify/agents', 'demo.myshopify.com')).toBe('frame-ancestors https://demo.myshopify.com https://admin.shopify.com;')
     expect(frameAncestors('/store', null)).toBe("frame-ancestors 'none';")

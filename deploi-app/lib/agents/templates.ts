@@ -6,7 +6,7 @@
  */
 import { OVERSOLD_WATCH } from './watch'
 
-export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'store_health_checker' | 'competitor_watcher'
+export type TemplateKey = 'inventory_watcher' | 'supplier_chaser' | 'supplier_coordinator' | 'store_health_checker' | 'competitor_watcher'
 /** public_web: reads other stores' public pages (read only); it is never a permission over your store */
 export type TemplateTool = 'shopify' | 'email' | 'public_web'
 
@@ -34,10 +34,17 @@ export const TEMPLATES: AgentTemplate[] = [
   },
   {
     key: 'supplier_chaser', name: 'Supplier Chaser',
-    job: 'Every day, find products with 2 or fewer available and draft a restock request to my supplier from your own address. If the supplier has not replied after 3 days, draft one follow-up in the same thread. Do not send anything without me.',
+    job: 'Every day, find products with 2 or fewer available and draft one restock request per supplier from your own address, using my supplier list for who supplies each SKU. If a supplier has not replied after 3 days, draft one follow-up in the same thread, and stop once they reply. Do not send anything without me.',
     tools: ['shopify', 'email'], mailbox: true,
-    needs: ["your supplier's email address"],
+    needs: ["your supplier's email address", 'optional: a supplier list (CSV: sku, supplier_email, reorder_qty, lead_time_days)'],
     minutesPerItem: 10,
+  },
+  {
+    key: 'supplier_coordinator', name: 'Supplier Coordinator',
+    job: 'Watch my imported purchase orders for exceptions: no confirmation after 3 days, quantities or prices that differ from the order, and late or revised deliveries. Write to the supplier named on the order from your own address, read their reply, and show me the options. Do not send anything or change an order without me.',
+    tools: ['email'], mailbox: true,
+    needs: ['your purchase orders (CSV)', "the suppliers' email addresses (taken from your purchase orders)"],
+    minutesPerItem: 15,
   },
   {
     key: 'store_health_checker', name: 'Store Health Checker',
@@ -65,7 +72,9 @@ const EXEMPT = ['preorder', 'pre-order', 'backorder', 'made-to-order', 'made to 
  */
 export type CompetitorTemplateInput = { stores?: string[]; keywords?: string[]; cadence?: 'daily' | 'weekly'; alerts?: string[]; minPriceChangePct?: number; emailSummary?: boolean }
 
-export function templatePolicy(key: TemplateKey, input: { connectionId: string; timezone: string; notify?: string | null; supplierAddress?: string | null; competitor?: CompetitorTemplateInput }): Record<string, unknown> {
+export type SupplierTemplateInput = { mappingSourceId?: string | null; mappedAddresses?: string[]; unmapped?: 'default_supplier' | 'skip' }
+
+export function templatePolicy(key: TemplateKey, input: { connectionId: string; timezone: string; notify?: string | null; supplierAddress?: string | null; competitor?: CompetitorTemplateInput; supplier?: SupplierTemplateInput }): Record<string, unknown> {
   const notify = (input.notify ?? '').trim().toLowerCase()
   const supplier = (input.supplierAddress ?? '').trim().toLowerCase()
   const base = { connectionId: input.connectionId, productScope: { mode: 'all' }, approvalMode: 'draft', validUntil: null, limits: { maxChangesPerRun: 25, maxChangesPerDay: 100 } }
@@ -77,13 +86,29 @@ export function templatePolicy(key: TemplateKey, input: { connectionId: string; 
     email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Alert the store owner about inventory problems that need a person', tasks: ['needs_person_alert'],
       recipients: { addresses: notify ? [notify] : [], domains: [] }, notify: notify ? [notify] : [], limits: { perRun: 5, perDay: 10 }, maxRecipientsPerMessage: 3 },
   }
-  if (key === 'supplier_chaser') return {
+  if (key === 'supplier_chaser') {
+    // every address in the supplier list becomes an allowed recipient, shown in the summary the merchant grants
+    const mapped = [...new Set((input.supplier?.mappedAddresses ?? []).map(a => a.trim().toLowerCase()).filter(Boolean))].filter(a => a !== supplier).slice(0, 49)
+    const mapping = input.supplier?.mappingSourceId ? { mappingSourceId: input.supplier.mappingSourceId, unmapped: input.supplier.unmapped ?? 'default_supplier' } : {}
+    return {
     ...base, correctionTypes: [], rules: {}, watch: [],
     schedule: { kind: 'daily', hour: 8, minute: 0, timezone: input.timezone },
     email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Ask the supplier to confirm restock of low-stock products, and follow up once', tasks: ['supplier_reorder', 'supplier_followup'],
-      recipients: { addresses: supplier ? [supplier] : [], domains: [] }, notify: [], limits: { perRun: 5, perDay: 10 }, maxRecipientsPerMessage: 2,
-      supplierReorder: supplier ? { supplierAddress: supplier, thresholdAvailable: 2, cooldownDays: 7, followupDays: 3 } : undefined,
+      recipients: { addresses: [...(supplier ? [supplier] : []), ...mapped], domains: [] }, notify: [], limits: { perRun: 5, perDay: 10 }, maxRecipientsPerMessage: 2,
+      supplierReorder: supplier ? { supplierAddress: supplier, thresholdAvailable: 2, cooldownDays: 7, followupDays: 3, ...mapping } : undefined,
       read: { enabled: true, scope: 'replies_to_agent_messages' } },
+    }
+  }
+  if (key === 'supplier_coordinator') {
+    // recipients: the supplier addresses on the merchant's imported purchase orders, shown in the summary they grant
+    const addresses = [...new Set([supplier, ...(input.supplier?.mappedAddresses ?? [])].map(a => a.trim().toLowerCase()).filter(Boolean))].slice(0, 50)
+    return {
+      ...base, correctionTypes: [], rules: {}, watch: [],
+      schedule: { kind: 'interval', everyHours: 4 },
+      email: { accountId: placeholderAccount, permission: 'draft', purpose: 'Resolve exceptions on purchase orders with the supplier named on each order', tasks: ['supplier_exception'],
+        recipients: { addresses, domains: [] }, notify: [], limits: { perRun: 10, perDay: 20 }, maxRecipientsPerMessage: 1,
+        read: { enabled: true, scope: 'replies_to_agent_messages' } },
+    }
   }
   if (key === 'competitor_watcher') {
     const c = input.competitor ?? {}

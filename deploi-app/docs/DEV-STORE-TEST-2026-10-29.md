@@ -194,7 +194,7 @@ New evidence in `proof/shopify-e2e/` (29 files now).
 | B4 | Cherry-pick `395f37c`; uninstall pauses agents, credentials 1 → 0 | **Pass** | Synthetic store, real webhook handler | `9c92c90`; 5 agents active → paused; credentials 1 → 0; audit `connection.uninstalled {agents_paused: 5}` | `70-uninstall-before-agents-active.png`, `71-uninstall-after-agents-paused.png`, `72-uninstall-record.json` |
 | B5 | Plan to get the templates onto `main` | **Pass (plan, nothing merged)** | n/a | 3 branches compared; 38 conflicts platform-launch → retire-consulting; 0 conflicts retire-consulting → main | `docs/MERGE-PLAN-TEMPLATES-TO-MAIN.md` |
 | B6 | README: `DEMO_CONTROLS` and every new env var | **Pass** | n/a | 17 variables documented | `README.md` |
-| B7 | Delete `claude/jolly-ptolemy-kp7ljd` on `Jamesrevenueai/Jamesrevenueai` | **Blocked** | Live (GitHub) | `git push --delete` → HTTP 403 from the session's git proxy (ref deletion is not allowed from here); the branch equals `main` (`dfadae8`) | one click for you: GitHub → branches → delete |
+| B7 | Delete `claude/jolly-ptolemy-kp7ljd` on `the organization's other repository` | **Blocked** | Live (GitHub) | `git push --delete` → HTTP 403 from the session's git proxy (ref deletion is not allowed from here); the branch equals `main` (`dfadae8`) | one click for you: GitHub → branches → delete |
 | C8 | Install scopes read only; `write_products` optional, requested only when widening | **Pass** | Synthetic store (Shopify's grant screen simulated); real App Bridge call wired for the embedded app | required 3, optional 3; drafts need 0 extra; widening reports `["write_products"]`; approve → `blocked: missing permission: write_products`; after grant + sync → `[]`; tests 3 + 1 | `80-scope-notice-before-shopify-grant.png`, `81-write-blocked-missing-permission.png`, `82-scope-notice-after-shopify-grant.png`, `83-scope-record.json` |
 | D9 | "READY FOR SHOPIFY LOGIN" | **Sent with this report** | | | |
 | D10 to D12 | Live dev-store run, billing, email delivery | **Waiting on your sign-in** | | | first-pass table rows 1a to 4c |
@@ -243,6 +243,6 @@ checked from logs, and the app keeps no database record of dev sign-ins. Nothing
 1. **Reply "ready"** for the Shopify device-code login (D9); I will then create "Deploi (dev)" (after checking for a
    duplicate), link, deploy, and run D11 live.
 2. **`RESEND_API_KEY` and a test mailbox** for D12 (else the chase email stays held).
-3. **Delete** `claude/jolly-ptolemy-kp7ljd` in `Jamesrevenueai/Jamesrevenueai` (B7; blocked from this session).
+3. **Delete** `claude/jolly-ptolemy-kp7ljd` in `the organization's other repository` (B7; blocked from this session).
 4. **Approve** the merge order in `docs/MERGE-PLAN-TEMPLATES-TO-MAIN.md` (PR #6 → `claude/retire-consulting`, then
    PR #5 re-based onto `main`), and the competitor-watcher choice.

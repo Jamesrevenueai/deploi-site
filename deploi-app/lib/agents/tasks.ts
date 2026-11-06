@@ -116,7 +116,7 @@ export async function cancelTask(actor: Actor, taskId: string) {
 export function taskOutcome(r: Pick<AgentRunResult, 'status' | 'reason' | 'counts' | 'runId'>): { status: TaskStatus; reason: string; proof: Record<string, unknown> } {
   const c = r.counts
   const proof = { run_id: r.runId, run_status: r.status, verified: c.verified, failed: c.failed, blocked: c.blocked, awaiting_approval: c.awaitingApproval, drafted: c.drafted ?? 0,
-    needs_person: c.needsPerson, issues_found: c.issuesFound, email: c.email ?? null, competitors: c.competitors ?? null }
+    needs_person: c.needsPerson, issues_found: c.issuesFound, email: c.email ?? null, competitors: c.competitors ?? null, supplier: c.supplier ?? null }
   if (r.status !== 'completed') return { status: 'failed', reason: `The run ${r.status}: ${r.reason ?? 'no reason given'}. Nothing more was done.`, proof }
   if (c.failed > 0 || c.unconfirmed > 0) return { status: 'failed', reason: `${c.failed} change(s) failed and ${c.unconfirmed} could not be confirmed. See the work log.`, proof }
   const emailWaiting = (c.email?.emailAwaiting ?? 0) + (c.email?.emailDrafted ?? 0) + (c.email?.emailUnknown ?? 0)
@@ -125,7 +125,8 @@ export function taskOutcome(r: Pick<AgentRunResult, 'status' | 'reason' | 'count
   const k = c.competitors
   const store = `${c.verified} change(s) verified by a fresh read, ${c.issuesFound} issue(s) found`
   const comp = k ? `read the public pages of ${k.storesChecked} competitor store(s)${k.storesSkipped ? ` (${k.storesSkipped} skipped)` : ''}, ${k.findings} new finding(s)` : ''
-  return { status: 'done', reason: `Run finished: ${[k && !c.verified && !c.issuesFound ? '' : store, comp].filter(Boolean).join('; ')}${c.email ? `, ${c.email.emailAccepted} email(s) accepted by the provider` : ''}.`, proof }
+  const sup = c.supplier && c.supplier.requests ? `; supplier requests: ${c.supplier.sent} sent, ${c.supplier.followedUp} followed up, ${c.supplier.replied} replied` : ''
+  return { status: 'done', reason: `Run finished: ${[k && !c.verified && !c.issuesFound ? '' : store, comp].filter(Boolean).join('; ')}${c.email ? `, ${c.email.emailAccepted} email(s) accepted by the provider` : ''}${sup}.`, proof }
 }
 
 /** Run one queued task now (or leave it queued, honestly, while the agent is paused). */

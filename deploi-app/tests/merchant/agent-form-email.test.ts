@@ -10,7 +10,7 @@ function emailOnly(over: Partial<AgentFormState> = {}): AgentFormState {
   return {
     ...emptyForm(CONN),
     emailOn: true, emailAccountId: ACC, emailPermission: 'send_approved', emailPurpose: 'Restock requests and run summaries',
-    emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: true, supplier_followup: false },
+    emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: true, supplier_followup: false, supplier_exception: false },
     emailAddresses: 'owner@northwind-goods.example', emailDomains: 'supplier.example', emailNotify: 'owner@northwind-goods.example',
     supplierAddress: 'orders@supplier.example', scopeMode: 'all',
     ...over,
@@ -33,7 +33,7 @@ describe('agent form: email section', () => {
   })
 
   it('does not need products or a change-approval mode for summaries only', () => {
-    const f = emailOnly({ emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: false, supplier_followup: false }, scopeMode: '', supplierAddress: '' })
+    const f = emailOnly({ emailTasks: { run_report: true, needs_person_alert: false, supplier_reorder: false, supplier_followup: false, supplier_exception: false }, scopeMode: '', supplierAddress: '' })
     const { policy, problems } = policyFromForm(f, 'UTC')
     expect(problems).toEqual([])
     expect(parsePolicy(policy).productScope.mode).toBe('all')

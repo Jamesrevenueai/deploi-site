@@ -3,16 +3,20 @@
  * Every request must carry a valid X-Shopify-Hmac-Sha256 over the raw body (401 otherwise, as the
  * compliance requirements demand); there is no unsigned path, even in development. Deliveries are
  * de-duplicated by X-Shopify-Webhook-Id; the response is sent quickly and rescans run after it.
+ * Record changes (products/*, inventory_levels/update, inventory_items/update) are debounced into one
+ * targeted rescan per record (rescans.ts). app_subscriptions/update only triggers a re-read of the
+ * subscription from Shopify: the payload is never trusted on its own.
  */
 import { NextResponse } from 'next/server'
 import { admin } from '../../db'
 import { log } from '../../log'
-import { audit } from '../../engine/audit'
-import { runScan } from '../../engine/scan'
 import { invalidateProposal, type ProposalRow } from '../../engine/proposals'
 import { verifyWebhookHmac, normalizeShop } from './auth'
 import { shopifyConfig } from './config'
-import { markUninstalled, redactShop } from './install'
+import { markUninstalled } from './install'
+import { handleCompliance, type ComplianceTopic } from './compliance'
+import { enqueueRescan, flushRescans, rescanConfig } from './rescans'
+import { syncSubscription } from './billing'
 import '../index'
 
 const COMPLIANCE = new Set(['customers/data_request', 'customers/redact', 'shop/redact'])
@@ -53,13 +57,18 @@ export async function handleShopifyWebhook(req: Request, defer: (fn: () => Promi
     if (topic === 'app/uninstalled') {
       await admin(db => markUninstalled(db, shop, `shopify:${shop}:webhook`))
       await done('processed', 'connection marked uninstalled; credentials deleted')
-    } else if (topic === 'customers/data_request' || topic === 'customers/redact') {
-      // The app requests no customer or order scopes and stores no customer data, so there is nothing to export or erase.
-      if (conn) await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'webhook', entityId: receipt.id, event: `compliance.${topic.replace('/', '.')}`, actor: `shopify:${shop}`, detail: { customer_data_held: false } }))
-      await done('processed', 'no customer data is stored by this app')
-    } else if (topic === 'shop/redact') {
-      const r = await admin(db => redactShop(db, shop))
-      await done('processed', r.deleted ? `shop data erased${r.orgDeleted ? ' with its organization' : ''}` : 'no data held for this shop')
+    } else if (COMPLIANCE.has(topic)) {
+      const r = await admin(db => handleCompliance(db, { topic: topic as ComplianceTopic, shop, webhookId, payload, conn, actor: `shopify:${shop}` }))
+      await done('processed', topic === 'shop/redact'
+        ? (r.result.shop_data_erased ? `shop data erased${r.result.organization_erased ? ' with its organization' : ''}` : r.result.skipped ? String(r.result.skipped) : 'no data held for this shop')
+        : r.result.customer_data_held === false ? 'nothing is held for this customer' : topic === 'customers/data_request' ? 'customer data exported for the merchant to download' : `customer data erased (${JSON.stringify(r.result.tables ?? {})})`.slice(0, 500))
+    } else if (topic === 'app_subscriptions/update') {
+      // never trusted alone: re-read the subscription from Shopify (no-op unless billing is configured)
+      if (conn) await admin(async db => {
+        const c = await db.one<{ id: string; org_id: string; external_id: string; shop_gid: string | null; is_synthetic: boolean }>('select id, org_id, external_id, shop_gid, is_synthetic from store_connections where id = $1', [conn.id])
+        if (c) await syncSubscription(db, c, { force: true, actor: `shopify:${shop}:webhook` }).catch(e => log.warn('shopify.billing.sync_failed', { error: (e as Error).message }))
+      })
+      await done('processed', 'subscription re-read from Shopify')
     } else if (topic === 'app/scopes_update') {
       const current = Array.isArray(payload.current) ? payload.current.map(String) : null
       if (conn && current) await admin(db => db.query('update store_connections set scopes = $2 where id = $1', [conn.id, current]))
@@ -76,19 +85,23 @@ export async function handleShopifyWebhook(req: Request, defer: (fn: () => Promi
     } else {
       const ids = targetIds(topic, payload)
       if (conn?.status === 'active' && ids.length) {
-        // Re-read the changed records after responding. This also settles proposals whose records changed (stale)
-        // and closes issues fixed outside Deploi. Deploi's own writes come back here too; re-reading them is harmless.
+        // Debounced: the ids wait in the rescan queue and are re-read once the burst is over. The re-read also settles
+        // proposals whose records changed (stale) and closes issues fixed outside Deploi. Deploi's own writes come back
+        // here too; re-reading them is harmless.
+        const fresh = await admin(db => enqueueRescan(db, conn.id, ids, topic))
+        await done('processed', `queued a targeted rescan of ${ids.length} record(s)${fresh < ids.length ? ' (already waiting)' : ''}`)
         defer(async () => {
-          try { await runScan(conn.id, { trigger: 'webhook', resourceIds: ids, actor: `shopify:${shop}:webhook:${topic}` }); await done('processed', `targeted rescan of ${ids.length} record(s)`) }
-          catch (e) { await admin(db => db.query(`update webhook_receipts set status = 'failed', note = $2, processed_at = now() where id = $1`, [receipt.id, (e as Error).message.slice(0, 200)])) }
+          if (rescanConfig.debounceMs > 0) await new Promise(r => setTimeout(r, rescanConfig.debounceMs + 250))
+          try { await flushRescans({ connectionId: conn.id, actor: `shopify:${shop}:webhook:${topic}` }) }
+          catch (e) { log.warn('shopify.rescan.flush_failed', { error: (e as Error).message }) }
         })
-      } else await done('ignored', conn ? 'no records to re-read' : 'shop not connected')
+      } else await done('ignored', conn ? (conn.status === 'active' ? 'no records to re-read' : `the connection is ${conn.status}`) : 'shop not connected')
     }
     return NextResponse.json({ ok: true })
   } catch (e) {
     log.error('shopify.webhook.failed', { topic, error: (e as Error).message })
     await admin(db => db.query(`update webhook_receipts set status = 'failed', note = $2, processed_at = now() where id = $1`, [receipt.id, (e as Error).message.slice(0, 200)]))
-    // compliance topics must be acknowledged; other failures return 500 so Shopify retries
-    return NextResponse.json({ ok: false }, { status: COMPLIANCE.has(topic) ? 200 : 500 })
+    // every failure (compliance topics included) returns 500 so Shopify retries: a redaction must not be lost to a transient error
+    return NextResponse.json({ ok: false }, { status: 500 })
   }
 }

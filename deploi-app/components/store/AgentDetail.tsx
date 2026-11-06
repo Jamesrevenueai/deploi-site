@@ -20,6 +20,7 @@ import { AuthorizationSummaryView, BackToAgents, StatusBadge, countsInWords, use
 import { AgentEmailSections } from './AgentEmail'
 import { AgentWorkSections } from './AgentWork'
 import { CompetitorSections } from './Competitors'
+import { EditPreview, PermissionsAtAGlance } from '@/components/cx/AgentPermissions'
 import {
   AGENT_CORRECTION_LABEL, TRIGGER_LABEL, toolBadges, actorLabel, agentWords, changeInWords, executionWords, fmtTime, fmtUntil, fmtValue, fieldLabel,
   proposalWords, runWords, scheduleLabel,
@@ -130,6 +131,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
         <div className="mt-4">
           <AgentPolicyForm value={editing.form} onChange={form => setEditing({ ...editing, form })} connections={basics.data?.connections ?? []} timezone={timezone} lockConnection showProblems={editing.showProblems} agentId={agent.id} />
         </div>
+        <div className="mt-4"><EditPreview current={active?.policy ?? null} next={check.policy} /></div>
         <div className="mt-5 flex flex-wrap gap-2">
           <Button onClick={saveEdit} disabled={busy !== null || (editing.showProblems && !check.policy)}><Icon name="check" size={16} />{busy === 'edit' ? 'Saving…' : 'Save changes'}</Button>
           <Button variant="ghost" onClick={() => setEditing(null)} disabled={busy !== null}>Cancel</Button>
@@ -179,6 +181,7 @@ export function AgentDetailScreen({ id }: { id: string }) {
 
       <Section id="authorization" title="Authorization" sub="What this agent is allowed to do. Each change it makes records the version it ran under and why it qualified.">
         <div className="flex flex-col gap-3">
+          {latest && <PermissionsAtAGlance policy={(active ?? latest).policy} version={(active ?? latest).version} granted={Boolean(active)} />}
           {pending && (
             <Panel tone="warn">
               <div className="flex flex-wrap items-center gap-2">
@@ -319,7 +322,7 @@ const VERSION_STATUS: Record<string, string> = { pending_grant: 'waiting for you
 function ChangeBox({ field, from, to }: { field: string; from: unknown; to: unknown }) {
   const c = changeInWords({ field, from, to })
   return (
-    <div className="rounded-[14px] border border-line bg-[#0A0A0A] p-3">
+    <div className="rounded-[14px] border border-line bg-sunken p-3">
       <div className="text-[13px] text-grey-h">{c.label}</div>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-[1.1rem] font-semibold text-ink break-all"><span>{c.from}</span><Icon name="arrow-right" size={16} /><span>{c.to}</span></div>
     </div>

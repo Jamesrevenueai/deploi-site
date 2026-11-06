@@ -31,12 +31,19 @@ redirect_urls = ["https://app.getdeploi.com/api/shopify/auth/callback"]
 
 [webhooks]
 api_version = "2026-10"
+# Inventory monitoring: products/* and inventory_* trigger a debounced targeted rescan (lib/connectors/shopify/rescans.ts).
+# app_subscriptions/update is deliberately absent: App Pricing sends none (billing.ts); the handler only re-reads if one arrives.
 
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled", "app/scopes_update", "products/create", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
   uri = "https://app.getdeploi.com/api/shopify/webhooks"
 
-  # mandatory privacy compliance topics (configurable only here or in the Dev Dashboard)
+  # mandatory privacy compliance topics (configurable only here or in the Dev Dashboard). Deploi answers them:
+  #   customers/data_request -> an encrypted export of everything held for that customer, downloaded by the merchant
+  #                             in the app (Settings > Privacy requests); nothing is sent by Deploi
+  #   customers/redact       -> the customer's mail deleted, everything else that names them anonymized (per table)
+  #   shop/redact            -> the shop's data erased, including cases, POs, discovery and AI usage
+  # See docs/SHOPIFY-SETUP.md section 4a.
   [[webhooks.subscriptions]]
   compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
   uri = "https://app.getdeploi.com/api/shopify/webhooks"

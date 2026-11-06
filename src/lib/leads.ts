@@ -8,7 +8,7 @@ export type Platform = 'shopify' | 'woocommerce' | 'amazon'
 
 export const PLATFORMS: { value: Platform; label: string; planned: boolean }[] = [
   { value: 'shopify', label: 'Shopify', planned: false },
-  { value: 'woocommerce', label: 'WooCommerce', planned: true },
+  { value: 'woocommerce', label: 'WooCommerce', planned: false },
   { value: 'amazon', label: 'Amazon Seller Central', planned: true },
 ]
 

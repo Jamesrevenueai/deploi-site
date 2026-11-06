@@ -12,6 +12,7 @@ import { LibraryError } from './errors'
 import { runLibraryAgent, type LibraryRunResult } from './actions'
 import { matchCapabilities } from './runners'
 import { orgTier } from './switches'
+import { assertCan } from '../platform/rbac'
 
 export type CustomAgentRow = { id: string; org_id: string; name: string; job: string; permission: PermissionLevel; enabled: boolean; created_by: string; created_at: string }
 
@@ -28,6 +29,7 @@ export async function createCustomAgent(actor: Actor, input: { name: string; job
   if (!job || job.length > 2000) throw new LibraryError('invalid_input', 'describe the job in up to 2000 characters')
   // the default is the most restrictive level; anything else must be chosen on purpose
   const permission: PermissionLevel = input.permission === undefined || input.permission === null || input.permission === '' ? 'read' : isPermissionLevel(input.permission) ? input.permission : (() => { throw new LibraryError('invalid_input', 'permission must be read, draft or act') })()
+  if (permission !== 'read') await assertCan(actor, orgId, 'agent.grant') // any level above read is a grant (F-08)
   return admin(async db => {
     const tier = await orgTier(db, orgId)
     if (!tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is included in the Pro tier', { tier, upgradeTo: 'pro' })
@@ -43,6 +45,9 @@ export async function updateCustomAgent(actor: Actor, id: string, patch: { enabl
   const row = await withActor(actor, db => db.one<CustomAgentRow>('select * from custom_agents where id = $1', [id]))
   if (!row) throw new LibraryError('not_found', 'custom agent not found')
   if (patch.permission !== undefined && !isPermissionLevel(patch.permission)) throw new LibraryError('invalid_input', 'permission must be read, draft or act')
+  const RANK: Record<string, number> = { read: 0, draft: 1, act: 2 }
+  // widening the permission, or switching the agent on, is a grant: owners and admins only (F-08)
+  if ((patch.permission !== undefined && RANK[patch.permission as string] > RANK[row.permission]) || (patch.enabled && !row.enabled)) await assertCan(actor, orgId, 'agent.grant')
   return admin(async db => {
     const tier = await orgTier(db, orgId)
     if (patch.enabled && !tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is included in the Pro tier', { tier, upgradeTo: 'pro' })

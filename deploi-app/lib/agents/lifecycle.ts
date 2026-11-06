@@ -16,7 +16,10 @@ import { randomUUID } from 'node:crypto'
 import { cancelAgentEmail } from '../email/engine'
 import { closeAgentMailbox, provisionMailbox } from '../email/mailbox'
 import { recheckTasks } from './tasks'
-import { assertWithinPlan } from '../plans/entitlements'
+import { assertActiveAgentSlot, assertWithinPlan } from '../plans/entitlements'
+import { cancelJobs } from '../jobs/queue'
+import { orgStopReason } from '../engine/kill-switch'
+import { assertCan } from '../platform/rbac'
 
 async function visibleConnection(actor: Actor, connectionId: string) {
   const c = await withActor(actor, db => db.one<{ id: string; org_id: string; display_name: string | null; external_id: string; status: string }>('select id, org_id, display_name, external_id, status from store_connections where id = $1', [connectionId]))
@@ -156,12 +159,16 @@ export function overlap(a: AgentPolicy, b: AgentPolicy, bName: string): OverlapC
 /** Grant the exact policy version the merchant reviewed (bound by its hash). Activates the agent. */
 export async function grantPolicy(actor: Actor, agentId: string, policyId: string, shownHash: string) {
   const a0 = await visibleAgent(actor, agentId)
+  await assertCan(actor, a0.org_id, 'agent.grant') // F-08: owners and admins only
   return admin(async db => {
     const agent = (await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId]))!
     if (agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
+    const stopped = await orgStopReason(db, a0.org_id)
+    if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before granting an agent`)
     const pr = await db.one<PolicyRow>('select * from agent_policies where id = $1 and agent_id = $2 for update', [policyId, agentId])
     if (!pr || pr.status !== 'pending_grant') throw new EngineError('not_pending', 'this version is not waiting for a grant')
     if (pr.policy_hash !== shownHash) throw new EngineError('hash_mismatch', 'the authorization you reviewed is not the current version; review it again')
+    if (agent.status !== 'active') await assertActiveAgentSlot(db, a0.org_id, agentId)
     const policy = parsePolicy(pr.policy)
     await checkSources(db, a0.org_id, policy, agentId)
     const others = await db.query<{ name: string; policy: AgentPolicy }>(
@@ -192,21 +199,41 @@ async function retireAgentProposals(db: Db, agentId: string, status: 'stale' | '
 /** Pause: no runs and no writes, including changes already approved and queued. Authorization is kept. */
 export async function pauseAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
-  return admin(async db => {
-    const r = await db.query(`update agents set status = 'paused', next_run_at = null where id = $1 and status = 'active' returning id`, [agentId])
-    if (!r.length) throw new EngineError('not_pending', 'only an active agent can be paused')
-    const n = await retireAgentProposals(db, agentId, 'blocked', 'the agent was paused', actor.label)
-    const m = await cancelAgentEmail(db, agentId, 'the agent was paused; queued messages are not sent', false)
-    await audit(db, { orgId: a0.org_id, entityType: 'agent', entityId: agentId, event: 'agent.paused', actor: actor.label, detail: { proposals_blocked: n, emails_cancelled: m } })
-    return { proposalsBlocked: n, emailsCancelled: m }
+  const out = await admin(async db => {
+    const r = await pauseAgentInTx(db, a0.org_id, agentId, actor.label)
+    if (!r) throw new EngineError('not_pending', 'only an active agent can be paused')
+    return r
   })
+  // its cases show the changes the pause retired (blocked, with the reason)
+  const { syncAgentCases } = await import('../engine/case-sync')
+  await syncAgentCases(agentId, { since: new Date(Date.now() - 60_000), actor: actor.label }).catch(() => undefined)
+  return out
+}
+
+/**
+ * Pause inside the caller's transaction (also used by plan enforcement, which has no merchant actor): exactly
+ * what Pause does. Returns null when the agent was not active. `reason` is recorded with the audit entry.
+ */
+export async function pauseAgentInTx(db: Db, orgId: string, agentId: string, actor: string, reason?: string) {
+  const r = await db.query(`update agents set status = 'paused', next_run_at = null where id = $1 and org_id = $2 and status = 'active' returning id`, [agentId, orgId])
+  if (!r.length) return null
+  const why = reason ?? 'the agent was paused'
+  const n = await retireAgentProposals(db, agentId, 'blocked', why, actor)
+  const m = await cancelAgentEmail(db, agentId, `${why}; queued messages are not sent`, false)
+  const j = await cancelJobs(db, { agentId, reason: why, actor })
+  await audit(db, { orgId, entityType: 'agent', entityId: agentId, event: 'agent.paused', actor, detail: { proposals_blocked: n, emails_cancelled: m, jobs_cancelled: j, ...(reason ? { reason } : {}) } })
+  return { proposalsBlocked: n, emailsCancelled: m, jobsCancelled: j }
 }
 
 export async function resumeAgent(actor: Actor, agentId: string) {
   const a0 = await visibleAgent(actor, agentId)
+  await assertCan(actor, a0.org_id, 'agent.grant') // resuming re-activates a granted authorization
   return admin(async db => {
     const agent = await db.one<AgentRow>('select * from agents where id = $1 for update', [agentId])
     if (!agent || agent.status !== 'paused' || !agent.active_policy_id) throw new EngineError('not_pending', 'only a paused agent with an active authorization can resume')
+    const stopped = await orgStopReason(db, a0.org_id)
+    if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before resuming an agent`)
+    await assertActiveAgentSlot(db, a0.org_id, agentId)
     const next = nextRunAt(agent.schedule, new Date())
     await db.query(`update agents set status = 'active', next_run_at = $2 where id = $1`, [agentId, next?.toISOString() ?? null])
     await audit(db, { orgId: a0.org_id, entityType: 'agent', entityId: agentId, event: 'agent.resumed', actor: actor.label })
@@ -225,10 +252,11 @@ async function revokeInTx(db: Db, orgId: string, agentId: string, actor: string,
   const n = await retireAgentProposals(db, agentId, 'blocked', status === 'deleted' ? 'the agent was deleted' : 'the agent\'s authorization was revoked', actor)
   const m = await cancelAgentEmail(db, agentId, status === 'deleted' ? 'the agent was deleted' : 'the agent\'s authorization was revoked', true)
   const closed = status === 'deleted' ? await closeAgentMailbox(db, agentId, actor) : 0
+  const jobs = await cancelJobs(db, { agentId, reason: status === 'deleted' ? 'the agent was deleted' : "the agent's authorization was revoked", actor })
   // plain-language tasks that have not run are cancelled with the agent
   await db.query(`update agent_tasks set status = 'cancelled', status_reason = $2, finished_at = now() where agent_id = $1 and status in ('needs_approval','queued')`, [agentId, status === 'deleted' ? 'the agent was deleted' : "the agent's authorization was revoked"])
-  await audit(db, { orgId, entityType: 'agent', entityId: agentId, event: `agent.${status}`, actor, detail: { reason, proposals_blocked: n, emails_cancelled: m, mailbox_closed: closed > 0 } })
-  return { proposalsBlocked: n, emailsCancelled: m }
+  await audit(db, { orgId, entityType: 'agent', entityId: agentId, event: `agent.${status}`, actor, detail: { reason, proposals_blocked: n, emails_cancelled: m, mailbox_closed: closed > 0, jobs_cancelled: jobs } })
+  return { proposalsBlocked: n, emailsCancelled: m, jobsCancelled: jobs }
 }
 
 /** Delete: revoke and hide. History (issues, executions, audit) is kept for the record. */
@@ -240,5 +268,61 @@ export async function deleteAgent(actor: Actor, agentId: string) {
     await db.query('delete from competitor_findings where agent_id = $1', [agentId])
     await db.query('delete from competitor_sources where agent_id = $1', [agentId])
     return r
+  })
+}
+
+/**
+ * Organization kill switch: stop every agent now. Each active agent is paused exactly as Pause does
+ * (queued changes closed, queued email cancelled), every queued agent job of the organization is
+ * cancelled, and sends stay held until the stop is turned off. Owners and members of the organization
+ * only (staff cannot act for a merchant). Audited with who and why.
+ */
+export async function stopAllAgents(actor: Actor, reason: string) {
+  if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff can view but not change a merchant organization')
+  const why = reason.trim().slice(0, 300) || 'stopped by the merchant'
+  return admin(db => stopOrgAgentsInTx(db, actor.orgId, actor.label, why))
+}
+
+/**
+ * The stop itself, in the caller's transaction: also used by Deploi staff stopping an organization on the
+ * customer's behalf (lib/ops/staff.ts). Stopping never grants anything, so staff may do it; they never clear
+ * an agent's pause or grant (each agent is resumed by the merchant).
+ */
+export async function stopOrgAgentsInTx(db: Db, orgId: string, actorLabel: string, why: string) {
+  const actor = { label: actorLabel }
+  {
+    await db.query(`insert into org_controls (org_id, agents_stopped, stop_reason, stopped_by, stopped_at) values ($1, true, $2, $3, now())
+      on conflict (org_id) do update set agents_stopped = true, stop_reason = $2, stopped_by = $3, stopped_at = now()`, [orgId, why, actor.label])
+    const active = await db.query<{ id: string }>(`select id from agents where org_id = $1 and status = 'active' order by id for update`, [orgId])
+    let proposals = 0, emails = 0
+    for (const a of active) {
+      await db.query(`update agents set status = 'paused', next_run_at = null where id = $1`, [a.id])
+      proposals += await retireAgentProposals(db, a.id, 'blocked', 'all agents were stopped', actor.label)
+      emails += await cancelAgentEmail(db, a.id, 'all agents were stopped; queued messages are not sent', false)
+      await audit(db, { orgId, entityType: 'agent', entityId: a.id, event: 'agent.paused', actor: actor.label, detail: { reason: 'all agents were stopped', org_stop: true } })
+    }
+    // Deploi Office agents stop with the rest: paused, queued sends, bookings and CRM writes cancelled
+    const { cancelAgentActions } = await import('../office/actions')
+    const officeActive = await db.query<{ id: string }>(`update office_agents set status = 'paused', next_run_at = null where org_id = $1 and status = 'active' returning id`, [orgId])
+    for (const o of officeActive) {
+      const n = await cancelAgentActions(db, o.id, 'all agents were stopped; queued items are not carried out', false)
+      emails += n.emails
+      await audit(db, { orgId, entityType: 'agent', entityId: o.id, event: 'office_agent.paused', actor: actor.label, detail: { reason: 'all agents were stopped', org_stop: true, actions_cancelled: n.actions } })
+    }
+    const jobs = await cancelJobs(db, { orgId, reason: 'all agents were stopped', actor: actor.label, agentWorkOnly: true })
+    await audit(db, { orgId, entityType: 'org', entityId: orgId, event: 'org.agents_stopped', actor: actor.label, detail: { reason: why, agents_paused: active.length, office_agents_paused: officeActive.length, proposals_blocked: proposals, emails_cancelled: emails, jobs_cancelled: jobs } })
+    return { agentsPaused: active.length + officeActive.length, officeAgentsPaused: officeActive.length, proposalsBlocked: proposals, emailsCancelled: emails, jobsCancelled: jobs }
+  }
+}
+
+/** Turn the organization stop off. Nothing restarts by itself: each agent is resumed by the merchant. */
+export async function clearAgentStop(actor: Actor) {
+  if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff can view but not change a merchant organization')
+  const orgId = actor.orgId
+  return admin(async db => {
+    const r = await db.query(`update org_controls set agents_stopped = false, resumed_by = $2, resumed_at = now() where org_id = $1 and agents_stopped returning org_id`, [orgId, actor.label])
+    if (!r.length) throw new EngineError('not_pending', 'agents are not stopped')
+    await audit(db, { orgId, entityType: 'org', entityId: orgId, event: 'org.agents_stop_cleared', actor: actor.label, detail: {} })
+    return { cleared: true }
   })
 }

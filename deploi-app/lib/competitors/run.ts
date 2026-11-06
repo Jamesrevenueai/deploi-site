@@ -10,6 +10,7 @@ import type { CompetitorPolicy } from '../agents/policy'
 import { collectStore } from './collect'
 import { compareStore, crossStore, type Finding, type StoredProduct, type StoreProducts } from './compare'
 import { PoliteFetcher, competitorFetchOverridden } from './fetch'
+import { syncCompetitorCases } from './case-sync'
 import { isSyntheticHost, syntheticAllowed, syntheticTransport } from './synthetic'
 
 export type CompetitorRunCounts = { storesChecked: number; storesSkipped: number; baselines: number; productsSeen: number; findings: number; opportunities: number }
@@ -122,5 +123,7 @@ export async function runCompetitorStep(input: {
       counts.opportunities = (await admin(db => db.one<{ n: number }>(`select count(*)::int as n from competitor_findings where run_id = $1 and kind = 'opportunity'`, [input.runId])))!.n
     }
   }
+  // every new finding is one informational case (lib/competitors/case-sync.ts)
+  await syncCompetitorCases(agentId, { runId: input.runId }).catch(() => undefined)
   return counts
 }

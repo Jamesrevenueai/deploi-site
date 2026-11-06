@@ -18,6 +18,9 @@ import { runnerFor, type ActionDraft, type RunnerContext } from './runners'
 import { storeDataFor, type StoreData } from './store-data'
 import { recordUsage } from './usage'
 import { runAgent } from '../agents/run'
+import { orgStopReason } from '../engine/kill-switch'
+import { allowanceBlock } from '../plans/allowance'
+import { assertCan } from '../platform/rbac'
 
 /** Action types that move money or publish to the outside world: approval-only at every permission level. */
 export const APPROVAL_ONLY = new Set(['approve_return', 'create_discount', 'end_discount', 'send_customer_reply'])
@@ -61,6 +64,9 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
   const logKey = opts.customAgentId ? `custom:${opts.customAgentId}` : opts.agentKey
   const sw = opts.customAgentId ? null : await admin(db => db.one<SwitchRow>('select * from library_switches where org_id = $1 and agent_key = $2', [opts.orgId, opts.agentKey]))
   if (!opts.customAgentId && (!sw || !sw.enabled)) throw new LibraryError('conflict', 'this agent is switched off')
+  // organization stop ("stop all agents"): no library agent runs either
+  const stopped = await admin(db => orgStopReason(db, opts.orgId))
+  if (stopped) throw new LibraryError('conflict', stopped)
   const permission: PermissionLevel = opts.permission ?? sw?.permission ?? 'draft'
   const instructions = opts.instructions ?? sw?.standing_instructions ?? ''
   const settings = opts.settings ?? sw?.settings ?? {}
@@ -132,6 +138,14 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
           counts.approvedUnsent++
           return
         }
+        // the month's action allowance (lib/plans/allowance.ts): kept as a draft with the reason, never dropped
+        const held = await allowanceBlock(db, opts.orgId, { now, lock: true })
+        if (held) {
+          const id = await insert(db, { orgId: opts.orgId, agentKey: logKey, runId, d, payload, mode: 'draft', status: 'draft', basis: `act: held, ${held.reason}; approve it to carry it out then`, proof: null })
+          await recordUsage(db, { orgId: opts.orgId, agentKey: logKey, actionType: d.actionType, actionId: id })
+          counts.drafted++
+          return
+        }
         const r = await performWrite(data, d.actionType, payload, now)
         const id = await insert(db, { orgId: opts.orgId, agentKey: logKey, runId, d, payload, mode: 'auto', status: r.ok ? 'done' : 'failed', basis: `act: auto-run granted for "${at.label}" (max ${grant.max_per_day} a day)`, proof: r.proof, reason: r.ok ? null : r.reason, executedAt: now })
         await recordUsage(db, { orgId: opts.orgId, agentKey: logKey, actionType: d.actionType, actionId: id })
@@ -143,6 +157,12 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
       await recordUsage(db, { orgId: opts.orgId, agentKey: logKey, actionType: d.actionType, actionId: id })
       counts.drafted++
     })
+  }
+  // the run's work is carried onto Resolution Engine cases (lib/library/case-sync.ts)
+  {
+    const { syncLibraryRun } = await import('./case-sync')
+    const produced = new Set(drafts.map(d => `${d.actionType}|${String(d.payload.dedupeKey ?? '')}`))
+    await syncLibraryRun(opts.orgId, logKey, runId, produced, { now, engineBacked: Boolean(sw?.engine_agent_id) }).catch(() => undefined)
   }
   return finish('completed', undefined, engine)
 }
@@ -181,6 +201,7 @@ async function visibleAction(actor: Actor, id: string): Promise<ActionRow> {
 export async function approveAction(actor: Actor, id: string, now = new Date()) {
   const a = await visibleAction(actor, id)
   assertMerchant(actor, a.org_id)
+  await assertCan(actor, a.org_id, 'approve') // owners and admins; members only when the owner allows it
   if (a.status !== 'draft') throw new LibraryError('conflict', `this action is ${a.status}, not waiting for approval`)
   if (a.expires_at && new Date(a.expires_at).getTime() < now.getTime()) {
     await admin(db => db.query(`update library_actions set status = 'expired', status_reason = 'expired before it was approved' where id = $1`, [id]))
@@ -192,8 +213,12 @@ export async function approveAction(actor: Actor, id: string, now = new Date()) 
         [id, SENDS.has(a.action_type) ? 'approved; email sending is off in this environment, so nothing was sent. Copy the text to send it yourself.' : 'approved', actor.label, now.toISOString(), JSON.stringify({ approvedBy: actor.label, sent: false })])
       await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: 'library.action.approved', actor: actor.label, detail: { action_id: id, action_type: a.action_type, executed: false } })
     })
+    await syncCase(id)
     return { status: 'approved' as const, executed: false }
   }
+  // the month's action allowance: the draft stays waiting (approve it again next month or after an upgrade)
+  const held = await admin(db => allowanceBlock(db, a.org_id, { now }))
+  if (held) throw new LibraryError('allowance_exhausted', `held: ${held.reason}`, { limit: held.limit, used: held.used, resetsAt: held.resetsAt })
   const src = await storeDataFor(a.org_id, now)
   const r = await performWrite(src.data, a.action_type, a.payload, now)
   await admin(async db => {
@@ -201,7 +226,14 @@ export async function approveAction(actor: Actor, id: string, now = new Date()) 
       [id, r.ok ? 'done' : 'failed', r.ok ? null : r.reason ?? null, actor.label, now.toISOString(), JSON.stringify({ ...r.proof, approvedBy: actor.label })])
     await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: r.ok ? 'library.action.done' : 'library.action.failed', actor: actor.label, detail: { action_id: id, action_type: a.action_type, reason: r.reason ?? null } })
   })
+  await syncCase(id, now)
   return { status: r.ok ? ('done' as const) : ('failed' as const), executed: r.ok, reason: r.reason, proof: { ...r.proof, approvedBy: actor.label } }
+}
+
+/** The action's Resolution Engine case follows the decision (lib/library/case-sync.ts). */
+async function syncCase(id: string, now?: Date) {
+  const { syncLibraryAction } = await import('./case-sync')
+  await syncLibraryAction(id, { now }).catch(() => undefined)
 }
 
 export async function declineAction(actor: Actor, id: string, reason?: string, now = new Date()) {
@@ -212,6 +244,7 @@ export async function declineAction(actor: Actor, id: string, reason?: string, n
     await db.query(`update library_actions set status = 'declined', status_reason = $2, decided_by = $3, decided_at = $4 where id = $1`, [id, reason?.slice(0, 300) || 'declined by you', actor.label, now.toISOString()])
     await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: 'library.action.declined', actor: actor.label, detail: { action_id: id, action_type: a.action_type, reason: reason ?? null } })
   })
+  await syncCase(id, now)
 }
 
 export type LogEntry = { at: string; kind: 'action' | 'run' | 'switch' | 'engine'; what: string; status: string; permission: string; ref: { type: string; id: string | null }; detail?: Record<string, unknown> }

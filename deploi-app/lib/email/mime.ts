@@ -4,6 +4,7 @@
  */
 import { randomBytes } from 'node:crypto'
 import type { OutgoingMessage } from './types'
+import { unsubscribeFooter } from './unsubscribe'
 
 export class UnsafeHeader extends Error { constructor(field: string) { super(`unsafe value in ${field}`); this.name = 'UnsafeHeader' } }
 
@@ -45,9 +46,11 @@ export function buildMime(m: OutgoingMessage, date = new Date()): string {
     ...(m.inReplyTo ? [`In-Reply-To: ${safe('in-reply-to', m.inReplyTo)}`] : []),
     ...(m.references?.length ? [`References: ${m.references.map(r => safe('references', r)).join(' ')}`] : []),
     ...(m.replyTo ? [`Reply-To: ${mailbox(m.replyTo, null)}`] : []),
+    ...(m.listUnsubscribe ? [`List-Unsubscribe: <${safe('list-unsubscribe', m.listUnsubscribe)}>`, 'List-Unsubscribe-Post: List-Unsubscribe=One-Click'] : []),
     'MIME-Version: 1.0',
   ]
-  const text = ['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', wrap76(Buffer.from(m.content.bodyText, 'utf8').toString('base64'))].join('\r\n')
+  const bodyText = m.listUnsubscribe ? m.content.bodyText + unsubscribeFooter(m.listUnsubscribe) : m.content.bodyText
+  const text = ['Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64', '', wrap76(Buffer.from(bodyText, 'utf8').toString('base64'))].join('\r\n')
   if (!m.content.attachments.length) return [...headers, text].join('\r\n') + '\r\n'
   const boundary = `deploi_${randomBytes(12).toString('hex')}`
   const parts = [text, ...m.content.attachments.map(a => [

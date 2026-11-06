@@ -4,6 +4,8 @@ import { MERCHANT_NAV } from '@/lib/store/nav'
 import { AppShell } from '@/components/shell/AppShell'
 import { StoreProvider } from '@/components/store/bits'
 import { FeedbackButton } from '@/components/team/FeedbackButton'
+import { BillingStatusBanner } from '@/components/store/BillingStatusBanner'
+import { HelpMenu } from '@/components/support/HelpMenu'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: { default: 'Store', template: '%s · Deploi AI' } }
@@ -11,10 +13,10 @@ export const metadata = { title: { default: 'Store', template: '%s · Deploi AI'
 /** Merchant area of the Deploi web app. Staff are redirected by requireRole; an account without a store sees /no-store. */
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole('client')
-  if (session.orgType !== 'merchant') redirect('/no-store')
+  if (session.orgType !== 'merchant') redirect(session.agencyId ? '/no-store' : '/start')
   return (
     <AppShell items={MERCHANT_NAV} session={session}>
-      <StoreProvider base="/store">{children}<FeedbackButton /></StoreProvider>
+      <StoreProvider base="/store"><BillingStatusBanner />{children}<HelpMenu /><FeedbackButton /></StoreProvider>
     </AppShell>
   )
 }

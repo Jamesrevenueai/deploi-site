@@ -9,6 +9,7 @@ import { log } from '@/lib/log'
 import { emailConfig } from '@/lib/email/config'
 import { inboundConfigured, processInbound } from '@/lib/email/inbound'
 import { verifySvix } from '@/lib/email/svix'
+import { limitRejectedWebhook } from '@/lib/security/rate-limit'
 
 export const dynamic = 'force-dynamic'
 const TOLERANCE_SEC = 300
@@ -20,7 +21,8 @@ export async function POST(req: Request) {
   const age = Math.abs(Date.now() / 1000 - Number(ts))
   if (!Number.isFinite(age) || age > TOLERANCE_SEC || !verifySvix(emailConfig.agentMailWebhookSecret, id, ts, req.headers.get('svix-signature'), raw)) {
     log.warn('agent_mail.webhook.rejected', { reason: !Number.isFinite(age) || age > TOLERANCE_SEC ? 'timestamp' : 'signature' })
-    return NextResponse.json({ ok: false }, { status: 403 })
+    // only rejected deliveries are counted (per IP); a valid one is never limited
+    return limitRejectedWebhook(req, NextResponse.json({ ok: false }, { status: 403 }))
   }
   let evt: { type?: string; data?: Record<string, unknown> }
   try { evt = JSON.parse(raw) } catch { return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400 }) }

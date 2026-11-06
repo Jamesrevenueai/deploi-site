@@ -6,7 +6,7 @@ These are the three changes only you can make. They are listed in the order to d
 
 This stops anyone, me included, from pushing straight to `main` and redeploying production.
 
-1. Open `https://github.com/Jamesrevenueai/deploi-site`.
+1. Open `https://github.com/<github-org>/deploi-site`.
 2. Click **Settings** (top bar, far right), then **Rules → Rulesets** in the left menu.
 3. Click **New ruleset → New branch ruleset**.
 4. **Ruleset name:** `protect main`. **Enforcement status:** **Active**.

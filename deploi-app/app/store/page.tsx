@@ -1,7 +1,8 @@
-import { OverviewScreen } from '@/components/store/Overview'
+import { HomeScreen } from '@/components/work/Home'
 
-export const metadata = { title: 'Overview' }
+export const metadata = { title: 'Home' }
 
-export default function StoreOverviewPage() {
-  return <OverviewScreen />
+/** Home: the Control Room with the work overview (components/work/Home.tsx). */
+export default function StoreHomePage() {
+  return <HomeScreen />
 }

@@ -43,7 +43,7 @@ export function IssuesScreen({ initialStatus, initialKind }: { initialStatus?: s
         <div role="tablist" aria-label="Issue status" className="flex gap-1 rounded-full border border-line p-1 self-start">
           {([['live', 'Live'], ['resolved', 'Resolved'], ['all', 'All']] as const).map(([v, l]) => (
             <button key={v} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); sync(v, kind) }}
-              className={`rounded-full px-4 py-1.5 text-[14px] font-medium ${status === v ? 'bg-white text-black' : 'text-grey hover:text-ink'}`}>{l}</button>
+              className={`rounded-full px-4 py-1.5 text-[14px] font-medium ${status === v ? 'bg-ink text-surface' : 'text-grey hover:text-ink'}`}>{l}</button>
           ))}
         </div>
         <Chips label="Issue type" value={kind} onChange={k => { setKind(k); sync(status, k) }} options={[['', 'All types'], ['correctable', 'Correctable'], ['needs_person', 'Needs a person']]} />
@@ -74,7 +74,7 @@ function IssueRow({ i }: { i: IssueView }) {
   const live = i.status === 'open' || i.status === 'needs_review'
   return (
     <li className="fade-up">
-      <Link href={`${base}/issues/${i.id}`} className="block rounded-[20px] border border-line p-4 md:p-5 transition-colors hover:bg-[#0A0A0A]" aria-label={`${i.check_title}: ${i.resource_label ?? i.resource_id}`}>
+      <Link href={`${base}/issues/${i.id}`} className="block rounded-[20px] border border-line p-4 md:p-5 transition-colors hover:bg-sunken" aria-label={`${i.check_title}: ${i.resource_label ?? i.resource_id}`}>
         <div className="flex flex-wrap items-center gap-2">
           <SeverityBadge severity={i.severity} />
           <Badge tone={i.status === 'needs_review' ? 'warn' : live ? 'none' : 'muted'}>{ISSUE_STATUS_LABEL[i.status] ?? i.status}</Badge>

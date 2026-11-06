@@ -29,6 +29,8 @@ redirect_urls = ["https://<tunnel or app host>/api/shopify/auth/callback"]
 
 [webhooks]
 api_version = "2026-10"
+# Inventory monitoring: products/* and inventory_* trigger a debounced targeted rescan (lib/connectors/shopify/rescans.ts).
+# app_subscriptions/update is deliberately absent: App Pricing sends none (billing.ts); the handler only re-reads if one arrives.
 
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled", "app/scopes_update", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]

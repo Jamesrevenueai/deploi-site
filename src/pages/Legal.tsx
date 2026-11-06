@@ -19,7 +19,7 @@ export function termsSections(entity: string): LegalSection[] {
     },
     {
       title: 'What Deploi AI is',
-      body: <>{BRAND} is subscription software that finds supported stock and listing problems in an online store, shows the evidence, proposes a fix, makes the change you approve through the platform&rsquo;s official API, and re-reads the store to confirm the change took effect. The Shopify version is in <strong>early access</strong>. WooCommerce and Amazon Seller Central integrations are planned and are not available yet. We do not provide legal, tax or accounting advice.</>,
+      body: <>{BRAND} is subscription software that finds supported stock and listing problems in an online store, shows the evidence, proposes a fix, makes the change you approve through the platform&rsquo;s official API, and re-reads the store to confirm the change took effect. It is offered as a <strong>pilot</strong>: each integration&rsquo;s status (Pilot or Planned) is shown on the Integrations page, and none is generally available yet. We do not provide legal, tax or accounting advice.</>,
     },
     {
       title: 'Early access',
@@ -165,7 +165,7 @@ export default function Legal({ kind }: Props) {
     <div className="page">
       <div className="container-narrow">
         <Link to="/" className="back">← Back to {BRAND}</Link>
-        {!env.legalReviewed && <div className="draft-badge" role="status">Draft — pending legal review</div>}
+        {!env.legalReviewed && <div className="draft-badge" role="status">DRAFT — pending legal review</div>}
         <h1>{title}</h1>
         <div className="legal-meta">Last updated: {LEGAL_UPDATED}</div>
         <ol className="legal-sections">

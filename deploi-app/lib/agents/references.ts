@@ -1,5 +1,5 @@
 /**
- * Merchant reference files: price lists, SKU mappings and publication lists, uploaded as CSV.
+ * Merchant reference files: price lists, SKU mappings, publication lists and supplier mappings, uploaded as CSV.
  * Contents are data only: recognised columns are parsed into typed values, every other column is
  * ignored, and nothing in a file can change an agent's permissions. Each upload under the same name
  * becomes a new version; proposals record the version and row they relied on, so changed reference
@@ -10,19 +10,24 @@ import { createHash } from 'node:crypto'
 import type { Db } from '../db'
 import { audit } from '../engine/audit'
 
-export type ReferenceKind = 'price_list' | 'sku_mapping' | 'publication_list'
+export type ReferenceKind = 'price_list' | 'sku_mapping' | 'publication_list' | 'supplier_mapping'
 export type RowError = { row: number; message: string }
 export type PriceRow = { kind: 'price_list'; key: string; sku: string | null; variantId: string | null; price: string; compareAtPrice: string | null; currency: string | null; ambiguous: boolean }
 export type SkuRow = { kind: 'sku_mapping'; key: string; matchBy: 'variant_id' | 'barcode' | 'handle_option'; variantId: string | null; barcode: string | null; handle: string | null; variantTitle: string | null; sku: string; ambiguous: boolean; duplicateTarget: boolean }
 export type PublicationRow = { kind: 'publication_list'; key: string; productId: string | null; handle: string | null; published: boolean; ambiguous: boolean }
-export type ReferenceRow = PriceRow | SkuRow | PublicationRow
+/** Supplier mapping: which supplier to ask about a SKU, how many to reorder and the usual lead time. Recipients come only from here (and the policy's recipient rules). */
+export type SupplierRow = { kind: 'supplier_mapping'; key: string; sku: string; supplierEmail: string; supplierName: string | null; reorderQty: number | null; leadTimeDays: number | null; ambiguous: boolean }
+export type ReferenceRow = PriceRow | SkuRow | PublicationRow | SupplierRow
 export type ParsedReference = { rows: { rowNumber: number; row: ReferenceRow }[]; errors: RowError[]; columns: string[]; ambiguousKeys: number }
 
 export const REFERENCE_TEMPLATES: Record<ReferenceKind, { columns: string[]; example: string[]; notes: string }> = {
   price_list: { columns: ['sku', 'variant_id', 'price', 'compare_at_price', 'currency'], example: ['NW-LTB-OAT', '', '89.00', '', 'USD'], notes: 'Identify each variant by sku or variant_id. price is required (up to 2 decimals). compare_at_price and currency are optional; currency must match the store currency.' },
   sku_mapping: { columns: ['variant_id', 'barcode', 'product_handle', 'variant_title', 'sku'], example: ['', '0890000000017', '', '', 'NW-WSB-01'], notes: 'Identify each variant by variant_id, or barcode, or product_handle + variant_title. sku is the correct SKU.' },
   publication_list: { columns: ['product_id', 'product_handle', 'published'], example: ['', 'walnut-serving-board', 'yes'], notes: 'Identify each product by product_id or product_handle. published is yes or no.' },
+  supplier_mapping: { columns: ['sku', 'supplier_email', 'reorder_qty', 'lead_time_days', 'supplier_name'], example: ['NW-LTB-OAT', 'orders@supplier.example', '24', '10', 'Linen Mill'], notes: 'One row per SKU. supplier_email is who is asked to restock it. reorder_qty (whole number) and lead_time_days are optional and are only quoted in the request.' },
 }
+const SUPPLIER_EMAIL = /^[^\s@<>(),;:"\[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const wholeOrNull = (v: string, max: number): number | null | 'bad' => { if (!v) return null; if (!/^\d+$/.test(v)) return 'bad'; const n = Number(v); return n <= max ? n : 'bad' }
 
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 const variantGid = (v: string) => (/^\d+$/.test(v) ? `gid://shopify/ProductVariant/${v}` : /^gid:\/\/shopify\/ProductVariant\/\d+$/.test(v) ? v : null)
@@ -45,6 +50,7 @@ export function parseReference(kind: ReferenceKind, csv: string): ParsedReferenc
   if (kind === 'price_list' && (!columns.includes('price') || !need(['sku', 'variant_id']))) errors.push({ row: 0, message: 'needs a price column and a sku or variant_id column' })
   if (kind === 'sku_mapping' && (!columns.includes('sku') || !(need(['variant_id', 'barcode']) || (columns.includes('product_handle') && columns.includes('variant_title'))))) errors.push({ row: 0, message: 'needs a sku column and variant_id, barcode, or product_handle + variant_title' })
   if (kind === 'publication_list' && (!columns.includes('published') || !need(['product_id', 'product_handle']))) errors.push({ row: 0, message: 'needs a published column and a product_id or product_handle column' })
+  if (kind === 'supplier_mapping' && (!columns.includes('sku') || !columns.includes('supplier_email'))) errors.push({ row: 0, message: 'needs a sku column and a supplier_email column' })
   if (errors.length) return { rows, errors, columns, ambiguousKeys: 0 }
   if (r.data.length > 20000) return { rows, errors: [{ row: 0, message: 'at most 20,000 rows per file' }], columns, ambiguousKeys: 0 }
 
@@ -75,6 +81,18 @@ export function parseReference(kind: ReferenceKind, csv: string): ParsedReferenc
       if (!matchBy) return void errors.push({ row: n, message: 'needs variant_id, barcode, or product_handle + variant_title' })
       const key = matchBy === 'variant_id' ? `variant:${variantId}` : matchBy === 'barcode' ? `barcode:${barcode}` : `handle:${handle}|${title!.toLowerCase()}`
       rows.push({ rowNumber: n, row: { kind, key, matchBy, variantId, barcode, handle, variantTitle: title, sku, ambiguous: false, duplicateTarget: false } })
+    } else if (kind === 'supplier_mapping') {
+      const sku = clean(raw.sku)
+      if (!sku) return void errors.push({ row: n, message: 'sku is empty' })
+      if (sku.length > 255) return void errors.push({ row: n, message: 'sku is longer than 255 characters' })
+      const email = clean(raw.supplier_email).toLowerCase()
+      if (!SUPPLIER_EMAIL.test(email) || email.length > 254) return void errors.push({ row: n, message: 'supplier_email is not a valid email address' })
+      const qty = wholeOrNull(clean(raw.reorder_qty), 1_000_000)
+      if (qty === 'bad') return void errors.push({ row: n, message: 'reorder_qty must be a whole number' })
+      const lead = wholeOrNull(clean(raw.lead_time_days), 365)
+      if (lead === 'bad') return void errors.push({ row: n, message: 'lead_time_days must be a whole number of days (at most 365)' })
+      const name = clean(raw.supplier_name).replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120) || null
+      rows.push({ rowNumber: n, row: { kind, key: `sku:${sku.toLowerCase()}`, sku, supplierEmail: email, supplierName: name, reorderQty: qty, leadTimeDays: lead, ambiguous: false } })
     } else {
       const productId = clean(raw.product_id) ? productGid(clean(raw.product_id)) : null
       if (clean(raw.product_id) && !productId) return void errors.push({ row: n, message: 'product_id is not a Shopify product id' })

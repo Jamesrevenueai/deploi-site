@@ -1,6 +1,6 @@
 /**
  * The customer's work, end to end (synthetic Northwind store, dev auth, DEMO_CONTROLS=true):
- * Home -> Work in Progress -> the case page -> Needs My Approval -> approve -> Completed Work, with the
+ * Command center -> Work in Progress -> the case page -> Needs you -> approve -> Proof log (Completed Work), with the
  * verified outcome and its evidence on the case page. The case is opened through the test-only demo action
  * (POST /api/store/demo { action: 'open_case' }), which works on synthetic stores only.
  * Screenshots at 1440 and 390 go to proof/ui-*.png (deviceScaleFactor 1).
@@ -45,14 +45,16 @@ test.afterAll(async ({ browser }) => {
 test('the navigation has the customer labels, and old URLs still work', async ({ page }) => {
   await signIn(page, NORTHWIND)
   await expect(page).toHaveURL(/\/store$/)
-  const nav = page.locator('nav.rail')
-  const labels = ['Home', 'My AI Team', 'Work in Progress', 'Needs My Approval', 'Completed Work', 'Inbox', 'Business Insights', 'Integrations', 'Billing', 'Settings']
-  await expect(nav.getByRole('link')).toHaveText(['deploi.', ...labels])
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const labels = ['Command center', 'Needs you', 'My agents', 'Agent library', 'Proof log', 'Connections', 'Plan & actions']
+  // a label may carry its live count after it ("Needs you 2", "My agents 5")
+  await expect(nav.getByRole('link')).toHaveText(labels.map(l => new RegExp(`^${l.replace(/[&]/g, '\\$&')}\\s*\\d*$`)))
+  await expect(nav.getByRole('link', { name: /^Command center/ })).toHaveAttribute('aria-current', 'page')
   await page.goto('/store/control-room')
   await expect(page).toHaveURL(/\/store$/)
   await page.goto('/store/inbox')
   await expect(page).toHaveURL(/\/store\/approvals$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Needs My Approval' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible()
   for (const [path, h] of [['/store/my-team', 'My AI Team'], ['/store/insights', 'Business Insights'], ['/store/settings', 'Settings'], ['/store/completed', 'Completed Work']] as const) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1, name: h })).toBeVisible()
@@ -67,7 +69,7 @@ test('the navigation has the customer labels, and old URLs still work', async ({
   await expect(page.getByRole('heading', { level: 1, name: 'Set up Deploi' })).toBeVisible()
 })
 
-test('Home -> Work in Progress -> case -> Needs My Approval -> approve -> Completed Work', async ({ page }) => {
+test('Command center -> Work in Progress -> case -> Needs you -> approve -> Proof log (Completed Work)', async ({ page }) => {
   await signIn(page, NORTHWIND)
   const cr = await api<{ connections: { stores: { id: string; synthetic: boolean }[] } }>(page, 'GET', '/api/store/control-room')
   connectionId = cr.json.connections.stores.find(s => s.synthetic)!.id
@@ -76,15 +78,15 @@ test('Home -> Work in Progress -> case -> Needs My Approval -> approve -> Comple
   ref = opened.json.case.ref
   expect(opened.json.case.status).toBe('awaiting_approval')
 
-  // Home counts it
+  // the Command center counts it: the sidebar's Needs you carries the count
   await page.goto('/store')
-  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
-  await expect(page.locator('[data-metric="discovered"]')).not.toContainText('—')
-  await expect(page.getByTestId('approvals-count')).toHaveText(/[1-9]\d*/)
+  await expect(page.getByRole('heading', { level: 1, name: /Your team is on it\.$/ })).toBeVisible()
+  await expect(page.getByTestId('command-center')).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Needs you/ })).toContainText(/[1-9]/)
   await shoot(page, 'home')
 
-  // Work in Progress points to Needs My Approval; the case page shows the whole case
-  await page.locator('nav.rail').getByRole('link', { name: 'Work in Progress' }).click()
+  // Work in Progress points to Needs you; the case page shows the whole case
+  await page.goto('/store/work')
   await expect(page.getByRole('heading', { level: 1, name: 'Work in Progress' })).toBeVisible()
   await page.goto(`/store/work/${ref}`)
   const c = page.locator(`[data-case-page="${ref}"]`)
@@ -94,9 +96,9 @@ test('Home -> Work in Progress -> case -> Needs My Approval -> approve -> Comple
   await expect(page.locator('#decisions')).toContainText('Exactly what you are deciding')
   await shoot(page, 'case-detail')
 
-  // Needs My Approval: decide there
-  await page.locator('nav.rail').getByRole('link', { name: 'Needs My Approval' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Needs My Approval' })).toBeVisible()
+  // Needs you: decide there
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Needs you/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible()
   const card = page.locator('[data-approval^="case:"]').filter({ hasText: 'needs-review' }).first()
   await expect(card).toBeVisible()
   await expect(card.getByRole('link', { name: ref })).toBeVisible()
@@ -105,7 +107,7 @@ test('Home -> Work in Progress -> case -> Needs My Approval -> approve -> Comple
   await expect(page.getByText(/Approved: .*Result: Resolved/)).toBeVisible({ timeout: 30_000 })
 
   // Completed Work lists it, and the case page shows the verified outcome with its evidence
-  await page.locator('nav.rail').getByRole('link', { name: 'Completed Work' }).click()
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Proof log' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Completed Work' })).toBeVisible()
   await expect(page.locator(`[data-case="${ref}"]`)).toBeVisible()
   await page.locator(`[data-case="${ref}"] a`).click()

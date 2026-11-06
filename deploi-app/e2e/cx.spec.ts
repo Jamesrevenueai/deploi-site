@@ -2,8 +2,8 @@
  * Customer experience end to end (synthetic Northwind store, dev auth, DEMO_CONTROLS=true):
  * the one setup path (/store/setup) walks business → agreements (off here) → products → connect → find the work
  * (discovery, the recommended team set up at drafts only and granted explicitly) → done, and resumes wherever it
- * was left; setting the team up again never duplicates an agent. The old URL /store/onboarding redirects. The Control Room shows the agents, approvals, connections and
- * issues; Stop all agents asks first and pauses every agent; Integrations shows honest statuses.
+ * was left; setting the team up again never duplicates an agent. The old URL /store/onboarding redirects. The Command center shows the team, what needs
+ * the owner and the connected store; Stop all agents asks first and pauses every agent; Integrations shows honest statuses.
  * Screenshots at 1440 and 390 go to proof/cx-*.png. Agents this spec creates are deleted afterwards and
  * agents it paused are resumed, so other specs see the seed as it was.
  */
@@ -115,23 +115,25 @@ test('setup: from the first step to done, the discovered team at drafts only and
     if (p.email) expect(p.email.permission).toBe('draft')
   }
   await page.goto('/store/setup')
-  await expect(page.getByRole('link', { name: 'Go to Home' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to the Command center' })).toBeVisible()
 })
 
-test('Home (the Control Room): agents, approvals, connections and issues; Stop all asks first and pauses everything', async ({ page }) => {
+test('the Command center: the team, what needs you and the connected store; Stop all asks first and pauses everything', async ({ page }) => {
   await signIn(page, NORTHWIND)
   await expect(page).toHaveURL(/\/store$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /Your team is on it\.$/ })).toBeVisible()
   const cr = await api<{ agents: { id: string; name: string; status: string }[]; approvals: { count: number }; org: { id: string } }>(page, 'GET', '/api/store/control-room')
   expect(cr.status).toBe(200)
-  for (const a of cr.json.agents) await expect(page.locator(`[data-agent="${a.name}"]`).first()).toBeVisible()
-  await expect(page.getByTestId('approvals-count')).toHaveText(/\d+/)
-  await expect(page.getByRole('list', { name: 'Connection health' })).toContainText('Shopify')
-  await expect(page.getByRole('heading', { name: 'Issues by severity' })).toBeVisible()
-  // the old Control Room URL still works: it redirects to Home
+  const cc = await api<{ workspace: string; team: { id: string; name: string }[]; needsYou: unknown[] }>(page, 'GET', '/api/app/command-center')
+  expect(cc.status).toBe(200)
+  await expect(page.getByTestId('team-row')).toHaveCount(cc.json.team.length)
+  for (const a of cc.json.team) await expect(page.getByRole('link', { name: `Open ${a.name}` })).toHaveAttribute('href', `/agents/${encodeURIComponent(a.id)}`)
+  await expect(page.getByTestId('needs-you-card')).toHaveCount(cc.json.needsYou.length)
+  await expect(page.getByTestId('workspace-name')).toContainText('Shopify')
+  // the old Control Room URL still works: it redirects to the Command center
   await page.goto('/store/control-room')
   await expect(page).toHaveURL(/\/store$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
+  await expect(page.getByTestId('command-center')).toBeVisible()
   await shoot(page, 'control-room')
 
   // another organization sees only its own agents
@@ -155,7 +157,7 @@ test('Home (the Control Room): agents, approvals, connections and issues; Stop a
   expect((await api<{ agents: { status: string }[] }>(page, 'GET', '/api/store/control-room')).json.agents.filter(a => a.status === 'active').length).toBe(pausedBySpec.length)
   await page.getByTestId('stop-all').click()
   await page.getByRole('button', { name: 'Yes, stop all agents' }).click()
-  await expect(page.getByText('All agents stopped.')).toBeVisible()
+  await expect(page.getByText('All agents are stopped.')).toBeVisible()
   const after = await api<{ agents: { status: string }[]; orgStop: unknown }>(page, 'GET', '/api/store/control-room')
   expect(after.json.agents.filter(a => a.status === 'active')).toHaveLength(0)
   expect(after.json.orgStop).not.toBeNull()

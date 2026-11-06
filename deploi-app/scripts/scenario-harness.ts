@@ -363,8 +363,11 @@ add({ id: 'A04', pack: 'A', title: 'Supplier silent three days -> one follow-up 
 
 add({ id: 'A05', pack: 'A', title: 'Order stuck unfulfilled -> customer emailed, packer messaged', kind: 'normal', agents: ['order_tracker'], expected: 'customer email for #1201; a crew message to the packer delivered (crew_messages row); owner told',
   rules: 'fully', rulesWhy: 'Order age vs dispatch promise; templates for customer and packer.', synthetic: SYN_SHOP,
-  run: async c => { await resetCommerce(c.m, ['stuck_order']); await commerceSweep(c) },
-  check: async (o, c) => { const mail = (await commerceOf(c.m)).outbox.find(m => m.to === 'kit@shopper.example'); return [
+  run: async c => { await resetCommerce(c.m, ['stuck_order']); await commerceSweep(c)
+    // if the action did not finish, let its retry come due and sweep again: the customer must still get one email
+    await q(`update agent_loops set next_retry_at = now() - interval '1 minute' where org_id = $1 and state = 'blocked'`, [c.m.org]); await c.sweep(commerceSweepTime()) },
+  check: async (o, c) => { const all = (await commerceOf(c.m)).outbox.filter(m => m.to === 'kit@shopper.example'); const mail = all[0]; return [
+    ['customer emailed once, even after a retry', all.length === 1, all.length],
     ['work done', workOf(o, 'stuck_order').some(w => w.status === 'done'), workOf(o, 'stuck_order').map(w => `${w.status}:${w.status_reason ?? ''}`)],
     ['customer emailed', Boolean(mail)],
     ['packer message delivered (real crew pipeline)', o.crew.length >= 1 && o.crewCalls.every(x => x.r.status !== 'failed' && x.r.status !== 'skipped'), o.crewCalls.map(x => `${x.r.status}: ${x.r.reason ?? ''} (crewMemberId=${x.m.crewMemberId})`)],

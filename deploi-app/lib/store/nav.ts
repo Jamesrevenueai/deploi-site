@@ -11,7 +11,7 @@ import type { CaseView } from '../cases'
 
 export const MERCHANT_NAV: NavItem[] = [
   { href: '/store', label: 'Home', icon: 'home', exact: true, also: ['/store/control-room'], mobile: true },
-  { href: '/store/my-team', label: 'My AI Team', short: 'Team', icon: 'users', also: ['/store/agents', '/store/team', '/office'] },
+  { href: '/store/my-team', label: 'My AI Team', short: 'Team', icon: 'users', also: ['/store/agents', '/store/team', '/office', '/store/packs'] },
   { href: '/store/work', label: 'Work in Progress', short: 'Work', icon: 'pipeline', also: ['/store/issues', '/store/purchase-orders'], mobile: true },
   { href: '/store/approvals', label: 'Needs My Approval', short: 'Approvals', icon: 'check', mobile: true },
   { href: '/store/completed', label: 'Completed Work', short: 'Done', icon: 'badge', also: ['/store/activity', '/store/weekly'] },

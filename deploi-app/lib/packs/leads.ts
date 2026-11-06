@@ -46,7 +46,7 @@ export function parseMoney(v: string | null): number | null {
   if (!v) return null
   const m = /\$?\s*(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?\s*(k)?\b/i.exec(v)
   if (!m) return null
-  const n = Number(m[1].replace(/,/g, '')) * (m[3] ? 1000 : 1) + (m[2] ? Number(`0.${m[2]}`) : 0)
+  const n = (Number(m[1].replace(/,/g, '')) + (m[2] ? Number(`0.${m[2]}`) : 0)) * (m[3] ? 1000 : 1)
   return n > 0 && n < 1e7 ? Math.round(n * 100) / 100 : null
 }
 export function parseBedrooms(v: string | null): number | null {

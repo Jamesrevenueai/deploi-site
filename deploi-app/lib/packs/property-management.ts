@@ -100,11 +100,15 @@ export async function dispatchVendor(db: Db, e: AgentEvent, org: OrgPacks, r: Re
   const tried = (r.declined_vendor_ids ?? []).length
   return runPackLoop(db, PACK, {
     orgId: e.orgId, agentKey: 'pm_vendor_dispatch', agentName: NAME.pm_vendor_dispatch, actionType: 'send_vendor_email', problemKey: `req:${r.id}:dispatch:${tried}`, detailsPath: PATH,
-    detect: async d => ({ vendor: await pickVendor(d, e.orgId, r) }),
+    detect: async d => {
+      const vendor = await pickVendor(d, e.orgId, r)
+      // nobody left to send it to: the request is the owner's now (kept even though the step below stops)
+      if (!vendor) await d.query(`update pm_maintenance_requests set status = 'escalated', escalated_at = $2, status_reason = 'no vendor available for the trade' where id = $1`, [r.id, now.toISOString()])
+      return { vendor }
+    },
     describe: p => ({ title: p.vendor ? `${ref(r)} sent to ${p.vendor.name}` : `${ref(r)}: no vendor left to send it to`, whatHappened: `${r.category} request${r.unit ? ` for unit ${r.unit}` : ''}${tried ? ` (${tried} vendor${tried === 1 ? '' : 's'} could not take it)` : ''}.`, whatIDid: [p.vendor ? `Sent the work order to ${p.vendor.name}.` : 'Handed it to you: no other active vendor covers this trade.'] }),
     act: async (d, p) => {
       if (!p.vendor) {
-        await d.query(`update pm_maintenance_requests set status = 'escalated', escalated_at = $2, status_reason = 'no vendor available for the trade' where id = $1`, [r.id, now.toISOString()])
         throw new PackBlocked(`no active vendor covers ${r.category}${tried ? ' who has not already declined' : ''}; add one or call your usual contractor`)
       }
       const s = await sendPackMessage(d, { orgId: e.orgId, agentKey: 'pm_vendor_dispatch', to: p.vendor.email!, ...vendorDispatch({ vendor: p.vendor.name, business: org.config.senderName, ref: ref(r), property: r.property, unit: r.unit, category: r.category, description: r.description, emergency: r.urgency === 'emergency', tenant: r.tenant_name, tenantPhone: r.tenant_phone }), dedupeKey: `pm:req:${r.id}:dispatch:${p.vendor.id}`, policy: 'general', recipientNames: [p.vendor.name] })

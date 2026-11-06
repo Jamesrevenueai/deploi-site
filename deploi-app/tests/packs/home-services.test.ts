@@ -205,6 +205,7 @@ describe.skipIf(!ready)('home services pack', () => {
     expect((await getSynth(NW.org, 'invoicing')).invoices).toHaveLength(0)
     expect((await activity(NW, 'hs_invoice'))[0]).toMatchObject({ status: 'blocked' })
     expect((await activity(NW, 'hs_invoice'))[0].error).toMatch(/no price/)
+    expect((await one(`select status, done_at from pack_work_orders where id = $1`, [wo!.id]))!.status).toBe('done')
   })
 
   it('chases a late invoice on the cadence, notes a part payment, marks it paid from a fresh read, then asks for a review', async () => {

@@ -318,11 +318,13 @@ export async function onCrewDone(db: Db, e: AgentEvent, cfg?: OrgPacks) {
     detect: async d => {
       const w = await d.one<WorkOrder>('select * from pack_work_orders where id = $1', [wo.id])
       // already invoiced or paid: nothing to do (a second DONE never bills twice)
-      return w && !['invoiced', 'paid', 'cancelled'].includes(w.status) ? w : null
+      if (!w || ['invoiced', 'paid', 'cancelled'].includes(w.status)) return null
+      // the job is done whatever happens to the invoice step
+      await d.query(`update pack_work_orders set status = 'done', done_at = coalesce(done_at, $2) where id = $1`, [w.id, now.toISOString()])
+      return w
     },
     describe: w => ({ title: `Job ${w.ref} done: invoice sent`, whatHappened: `The crew marked job ${w.ref} done.`, whatIDid: [`Created the invoice in your accounting system for ${money(w)} and sent it to ${w.customer_name ?? 'the customer'}.`] }),
     act: async (d, w) => {
-      await d.query(`update pack_work_orders set status = 'done', done_at = coalesce(done_at, $2) where id = $1`, [w.id, now.toISOString()])
       if (!w.amount || Number(w.amount) <= 0) throw new PackBlocked(`job ${w.ref} has no price, so it cannot be invoiced; add the amount and I will send it`)
       if (!w.customer_email) throw new PackBlocked(`job ${w.ref} has no customer email address for the invoice`)
       const ports = await portsFor(e.orgId)

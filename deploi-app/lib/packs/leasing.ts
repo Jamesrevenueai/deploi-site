@@ -130,7 +130,7 @@ export async function onLeasingReply(db: Db, e: AgentEvent, cfg?: OrgPacks) {
   const now = eventNow(e)
   if (optedOut(text)) { await db.query(`update pack_leads set status = 'stopped', next_follow_up_at = null where id = $1`, [lead.id]); return { status: 'nothing_to_do' } as const }
   await db.query(`update pack_leads set last_inbound_at = $2, next_follow_up_at = null where id = $1`, [lead.id, now.toISOString()])
-  if (lead.status === 'slots_offered' && slotChoice(text)) return bookTour(db, e, org, lead, slotChoice(text)!, now)
+  if (lead.status === 'slots_offered' && slotChoice(text)) return bookTour(db, e, org, lead, slotChoice(text)!)
   const asked = missingCriteria(lead.criteria).map(q => q.key)
   const answers = answersIn(newText(String(e.payload.text ?? '')), asked, isoDay(now))
   const merged = { ...lead.criteria, ...answers }
@@ -139,7 +139,7 @@ export async function onLeasingReply(db: Db, e: AgentEvent, cfg?: OrgPacks) {
   return criteriaReply(db, e, org, { ...lead, criteria: merged }, 'ls_qualify', PACK, now)
 }
 
-async function bookTour(db: Db, e: AgentEvent, org: OrgPacks, lead: LeadRow, n: number, now: Date) {
+async function bookTour(db: Db, e: AgentEvent, org: OrgPacks, lead: LeadRow, n: number) {
   const slot = lead.proposed_slots[n - 1]
   const appUrl = org.config.applicationUrl
   return runPackLoop(db, PACK, {

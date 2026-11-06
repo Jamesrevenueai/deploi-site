@@ -38,10 +38,9 @@ const EMAIL = /^[^\s@<>(),;:"[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i
 
 /** Replace the recipient's own name and address with neutral tokens before scanning. */
 export function maskRecipient(text: string, names: (string | null | undefined)[], to: string | null): string {
-  let t = text
+  let t = to ? text.split(to).join('[address]') : text
   const parts = names.flatMap(n => (n ?? '').split(/\s+/)).map(p => p.replace(/[^\p{L}\p{N}'-]/gu, '')).filter(p => p.length >= 2)
   for (const p of [...new Set(parts)].sort((a, b) => b.length - a.length)) t = t.replace(new RegExp(`(^|[^\\p{L}])${esc(p)}(?=$|[^\\p{L}])`, 'giu'), '$1[name]')
-  if (to) t = t.split(to).join('[address]')
   return t
 }
 

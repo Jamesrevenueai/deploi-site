@@ -38,8 +38,8 @@ export async function recordPlacement(db: Db, orgId: string, p: { propertyId: st
 
 /** The lines and total of one property's next invoice: every moved-in placement not yet billed, oldest move-in first. */
 export async function invoiceDraftFor(db: Db, orgId: string, propertyId: string): Promise<{ placements: PlacementRow[]; lines: CommissionLine[]; totalCents: number }> {
-  const placements = await db.query<PlacementRow>(`select * from leasing_placements where org_id = $1 and property_id = $2 and status = 'moved_in' and invoice_id is null order by move_in_date, created_at, id`, [orgId, propertyId])
-  const lines = placements.map(p => ({ tenant: p.tenant_name, unit: p.unit, moveIn: String(p.move_in_date).slice(0, 10), rent: Number(p.monthly_rent), rule: ruleLabel({ type: p.commission_type, value: Number(p.commission_value) }), commission: Number(p.commission_amount) }))
+  const placements = await db.query<PlacementRow>(`select *, to_char(move_in_date, 'YYYY-MM-DD') as move_in_date from leasing_placements x where org_id = $1 and property_id = $2 and status = 'moved_in' and invoice_id is null order by x.move_in_date, x.created_at, x.id`, [orgId, propertyId])
+  const lines = placements.map(p => ({ tenant: p.tenant_name, unit: p.unit, moveIn: p.move_in_date, rent: Number(p.monthly_rent), rule: ruleLabel({ type: p.commission_type, value: Number(p.commission_value) }), commission: Number(p.commission_amount) }))
   return { placements, lines, totalCents: lines.reduce((a, l) => a + cents(l.commission), 0) }
 }
 

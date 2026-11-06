@@ -171,7 +171,10 @@ export async function emitSweep(now = new Date(), opts: { limit?: number } = {})
     `select a.id from agencies a left join org_controls c on c.org_id = a.id
      where a.org_type = 'merchant' and a.deleted_at is null and not coalesce(c.agents_stopped, false) order by a.created_at limit $1`, [opts.limit ?? 5000]))
   let routed = 0, duplicates = 0, jobs = 0
+  const { inferFromConnections } = await import('../packs/settings')
   for (const o of orgs) {
+    // a business connected before packs switched on by themselves gets them from its existing connections
+    await admin(db => inferFromConnections(db, o.id)).catch(() => false)
     const r = await routeEvent({ source: 'sweep', type: 'sweep', orgId: o.id, externalId: `sweep:${slot}`, occurredAt: now.toISOString(), payload: { slot } })
     if (r.status === 'duplicate') duplicates++; else routed++
     jobs += r.jobs.length

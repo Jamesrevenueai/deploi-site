@@ -9,7 +9,7 @@ import { admin, type Db } from '../db'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { PACK_AGENTS, PACKS, type PackKey } from './registry'
-import { BUSINESS_TYPES, TRADES, orgPacks, type PackConfig } from './settings'
+import { BUSINESS_TYPES, TRADES, orgPacks, inferFromConnections, type PackConfig } from './settings'
 import { recordPlacement, recordPayment, weeklyTotals } from './commission'
 import { recordQuote, scheduleJob } from './home-services'
 import { PackBlocked } from './loop'
@@ -21,6 +21,7 @@ export const isPack = (v: unknown): v is PackKey => typeof v === 'string' && v i
 
 export async function packsOverview(actor: Actor) {
   const orgId = orgOf(actor)
+  await admin(db => inferFromConnections(db, orgId)) // systems already connected switch their packs on
   return withActor(actor, async db => {
     const o = await orgPacks(db, orgId)
     const counts = await db.query<{ pack: string; done: number; attention: number }>(`select pack, count(*) filter (where status = 'done' and updated_at > now() - interval '30 days')::int as done,
@@ -63,6 +64,7 @@ async function packRecords(db: Db, orgId: string, pack: PackKey, today: string) 
 export async function packView(actor: Actor, pack: unknown, today = new Date().toISOString().slice(0, 10)) {
   if (!isPack(pack)) throw new EngineError('not_found', 'no such pack')
   const orgId = orgOf(actor)
+  await admin(db => inferFromConnections(db, orgId))
   return withActor(actor, async db => {
     const o = await orgPacks(db, orgId)
     const agents = PACK_AGENTS.filter(a => a.pack === pack)

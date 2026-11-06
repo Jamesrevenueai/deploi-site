@@ -14,7 +14,9 @@ import { takeOutboundSlot } from '../../lib/autonomy/pacing'
 import { runAgentLoop } from '../../lib/events/loop'
 import { currentEvent } from '../../lib/events'
 import { setMode } from '../../lib/autonomy/settings'
-import { chooseBusinessType, orgPacks, updatePackConfig } from '../../lib/packs/settings'
+import { chooseBusinessType, orgPacks, updatePackConfig, inferFromConnections } from '../../lib/packs/settings'
+import { packsOverview } from '../../lib/packs/dashboard'
+import { emitSweep } from '../../lib/events'
 import { connectSyntheticOffice } from '../../lib/office/connections'
 import { connectSyntheticMailbox } from '../../lib/office/mailbox'
 import { revokeOfficeAgent } from '../../lib/office/agents'
@@ -248,5 +250,23 @@ describe.skipIf(!ready)('first-day pacing of customer messages (the backlog guar
     // an hour later there is room again
     expect((await admin(db => takeOutboundSlot(db, NW.org, 'late-one', {}, new Date(T.getTime() + 62 * 60e3)))).ok).toBe(true)
     await admin(db => db.query(`delete from jobs where org_id = $1 and kind = 'event.handle'`, [NW.org]))
+  })
+
+  it('a business connected before this release gets its packs from its existing connections (sweep or packs page); an owner choice is kept', async () => {
+    await clean(NW)
+    // the seeded store connection is active, but no pack_settings row exists (connected before packs switched on by themselves)
+    expect(await one(`select 1 from pack_settings where org_id = $1`, [NW.org])).toBeNull()
+    const view = await packsOverview(await merchantActor(NW))
+    expect((await admin(db => orgPacks(db, NW.org))).packs).toEqual(expect.arrayContaining(['commerce', 'office']))
+    expect(JSON.stringify(view)).toContain('commerce')
+    expect(await one<{ source: string; inferred_from: string }>(`select source, inferred_from from pack_settings where org_id = $1`, [NW.org])).toEqual({ source: 'inferred', inferred_from: 'existing:store' })
+    // the sweep does the same for a business nobody looks at
+    await clean(NW)
+    await emitSweep(new Date())
+    expect((await admin(db => orgPacks(db, NW.org))).businessType).toBe('store')
+    // an owner's choice is never replaced
+    await chooseBusinessType(await merchantActor(NW), { businessType: 'office' })
+    expect(await admin(db => inferFromConnections(db, NW.org))).toBe(false)
+    expect((await admin(db => orgPacks(db, NW.org))).businessType).toBe('office')
   })
 })

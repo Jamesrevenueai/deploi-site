@@ -82,6 +82,23 @@ export async function inferBusinessType(db: Db, orgId: string, businessType: Bus
   }
   return { changed: false, businessType: cur.business_type, source: cur.source, packs: cur.packs }
 }
+/**
+ * A business that connected its systems before packs could switch on by themselves (or whose connect hook never ran)
+ * has no pack_settings row. Infer its type from the connections it already has, exactly as a new connect would:
+ * an active store -> store; an active Buildium -> property manager; any other active connection or mailbox -> office.
+ * Never touches an owner's choice (a row already exists then). Returns true when packs were switched on.
+ */
+export async function inferFromConnections(db: Db, orgId: string): Promise<boolean> {
+  if (await db.one('select 1 from pack_settings where org_id = $1', [orgId])) return false
+  const c = (await db.one<{ store: boolean; buildium: boolean; other: boolean }>(`select
+      exists (select 1 from store_connections where org_id = $1 and status = 'active') as store,
+      exists (select 1 from office_connections where org_id = $1 and status = 'active' and provider = 'buildium') as buildium,
+      exists (select 1 from office_connections where org_id = $1 and status = 'active')
+        or exists (select 1 from email_accounts where org_id = $1 and status <> 'disconnected') as other`, [orgId]))!
+  const type: BusinessType | null = c.store ? 'store' : c.buildium ? 'property_manager' : c.other ? 'office' : null
+  if (!type) return false
+  return (await inferBusinessType(db, orgId, type, `existing:${c.store ? 'store' : c.buildium ? 'buildium' : 'connection'}`, 'autonomy:existing-connections')).changed
+}
 export async function packOn(db: Db, orgId: string, pack: PackKey) { return (await orgPacks(db, orgId)).packs.includes(pack) }
 
 function merchantOrg(actor: Actor): string {

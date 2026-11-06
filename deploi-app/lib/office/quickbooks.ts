@@ -1,7 +1,9 @@
 /**
- * QuickBooks Online (Intuit OAuth 2.0 + Accounting API v3). Deploi only READS: open invoices (the query
- * endpoint, paged), one invoice, one payment, one customer and the company name. Nothing is ever written
- * to QuickBooks. The company (realmId) is fixed when the connection is made: every request goes to
+ * QuickBooks Online (Intuit OAuth 2.0 + Accounting API v3). Reads: open invoices (the query endpoint, paged),
+ * one invoice, one payment, one customer, the company name, and the change data capture feed (/cdc) for change
+ * detection. Writes (launch build, used only for actions the owner approves or grants): create an invoice, record a
+ * payment against an invoice, and send an invoice by email. Every write carries a requestid, so a retried write
+ * after a lost answer is not applied twice (Intuit returns the original result for a repeated requestid). The company (realmId) is fixed when the connection is made: every request goes to
  * /v3/company/{that realmId}, and a connection can never be pointed at another company.
  * Intuit refresh tokens rotate: every refresh answer carries the refresh token to use next time, and
  * the newest one is stored (encrypted) under the credential row lock (lib/office/credentials.ts).
@@ -110,13 +112,37 @@ const notFound = (e: unknown) => e instanceof OfficeHttpError && (e.code === 'no
 
 export const quickbooksBase = () => (officeConfig.quickbooksSandbox ? QBO_SANDBOX_API : QBO_API)
 
-export function quickbooksClient(token: () => Promise<string>, realmId: string): QuickBooksApi {
+export type QboLine = { amount: number; description?: string | null; itemId?: string | null; qty?: number | null; unitPrice?: number | null }
+export type QboChange = { entity: 'Invoice' | 'Payment'; id: string; deleted: boolean; updatedAt: string | null }
+
+/** Reads plus the launch-build writes and the change feed (the synthetic provider implements the reads only). */
+export interface QuickBooksFullApi extends QuickBooksApi {
+  createInvoice(i: { customerId: string; lines: QboLine[]; dueDate?: string | null; billEmail?: string | null; docNumber?: string | null; requestId: string }): Promise<QboInvoice>
+  recordPayment(p: { customerId: string; amount: number; invoiceId: string; txnDate?: string | null; requestId: string }): Promise<QboPayment>
+  /** email the invoice (to its BillEmail, or `to`); QuickBooks records the send on the invoice */
+  sendInvoice(id: string, opts?: { to?: string | null; requestId?: string }): Promise<{ id: string; emailStatus: string | null }>
+  /** invoices and payments created, changed or deleted since `since` (at most 30 days back, Intuit's limit) */
+  changes(since: Date): Promise<QboChange[]>
+}
+
+const requestId = (v: string) => { if (!/^[\w-]{1,50}$/.test(v)) throw new OfficeHttpError(400, 'invalid', 'a QuickBooks requestid is 1-50 letters, digits, _ or -', 'quickbooks'); return v }
+const amount = (v: number) => { if (!Number.isFinite(v) || v <= 0 || v > 1e9) throw new OfficeHttpError(400, 'invalid', 'not a valid amount', 'quickbooks'); return Math.round(v * 100) / 100 }
+
+export function quickbooksClient(token: () => Promise<string>, realmId: string, opts: { refresh?: (rejected: string) => Promise<string> } = {}): QuickBooksFullApi {
   if (!isRealmId(realmId)) throw new OfficeHttpError(400, 'invalid', 'not a QuickBooks company id', 'quickbooks')
-  const get = async <T>(path: string, params: Record<string, string> = {}): Promise<T> => {
-    const q = new URLSearchParams({ ...params, minorversion: officeConfig.quickbooksMinorVersion })
+  // a 401 refreshes the token once and repeats the request (a refused request was not applied)
+  const authed = async <T>(fn: (t: string) => Promise<T>): Promise<T> => {
     const t = await token()
-    return (await officeRequest<T>('quickbooks', `${quickbooksBase()}/v3/company/${realmId}${path}?${q}`, { headers: { authorization: `Bearer ${t}` }, retryServer: true })).body
+    try { return await fn(t) } catch (e) {
+      if (!opts.refresh || !(e instanceof OfficeHttpError) || e.code !== 'auth') throw e
+      return fn(await opts.refresh(t))
+    }
   }
+  const url = (path: string, params: Record<string, string> = {}) => `${quickbooksBase()}/v3/company/${realmId}${path}?${new URLSearchParams({ ...params, minorversion: officeConfig.quickbooksMinorVersion })}`
+  const get = <T>(path: string, params: Record<string, string> = {}): Promise<T> =>
+    authed(async t => (await officeRequest<T>('quickbooks', url(path, params), { headers: { authorization: `Bearer ${t}` }, retryServer: true })).body)
+  const post = <T>(path: string, body: unknown, params: Record<string, string> = {}): Promise<T> =>
+    authed(async t => (await officeRequest<T>('quickbooks', url(path, params), { method: 'POST', json: body, headers: { authorization: `Bearer ${t}` } })).body)
   const maybe = async <T>(path: string): Promise<T | null> => { try { return await get<T>(path) } catch (e) { if (notFound(e)) return null; throw e } }
   return {
     async companyInfo() {
@@ -135,6 +161,47 @@ export function quickbooksClient(token: () => Promise<string>, realmId: string):
       const r = await maybe<{ Customer?: { Id?: string; DisplayName?: string; PrimaryEmailAddr?: { Address?: string }; Active?: boolean } }>(`/customer/${entityId(id)}`)
       const c = r?.Customer
       return c ? { id: String(c.Id ?? id), displayName: str(c.DisplayName, 120), email: str(c.PrimaryEmailAddr?.Address, 254)?.toLowerCase() ?? null, active: c.Active !== false } : null
+    },
+    async createInvoice(i) {
+      if (!i.lines.length) throw new OfficeHttpError(400, 'invalid', 'an invoice needs at least one line', 'quickbooks')
+      const body = {
+        CustomerRef: { value: entityId(i.customerId) },
+        Line: i.lines.map(l => ({ Amount: amount(l.amount), DetailType: 'SalesItemLineDetail', ...(l.description ? { Description: l.description.slice(0, 4000) } : {}),
+          SalesItemLineDetail: { ...(l.itemId ? { ItemRef: { value: entityId(l.itemId) } } : {}), ...(l.qty ? { Qty: l.qty } : {}), ...(l.unitPrice ? { UnitPrice: l.unitPrice } : {}) } })),
+        ...(i.dueDate && date(i.dueDate) ? { DueDate: i.dueDate } : {}),
+        ...(i.billEmail ? { BillEmail: { Address: i.billEmail.slice(0, 100) } } : {}),
+        ...(i.docNumber ? { DocNumber: i.docNumber.slice(0, 21) } : {}),
+      }
+      const r = await post<{ Invoice?: RawInvoice }>('/invoice', body, { requestid: requestId(i.requestId) })
+      if (!r.Invoice?.Id) throw new OfficeHttpError(200, 'server', 'QuickBooks did not return the new invoice', 'quickbooks')
+      return toInvoice(r.Invoice)
+    },
+    async recordPayment(p) {
+      const amt = amount(p.amount)
+      const body = { CustomerRef: { value: entityId(p.customerId) }, TotalAmt: amt, ...(p.txnDate && date(p.txnDate) ? { TxnDate: p.txnDate } : {}),
+        Line: [{ Amount: amt, LinkedTxn: [{ TxnId: entityId(p.invoiceId), TxnType: 'Invoice' }] }] }
+      const r = await post<{ Payment?: RawPayment }>('/payment', body, { requestid: requestId(p.requestId) })
+      if (!r.Payment?.Id) throw new OfficeHttpError(200, 'server', 'QuickBooks did not return the new payment', 'quickbooks')
+      return toPayment(r.Payment)
+    },
+    async sendInvoice(id, o = {}) {
+      const params: Record<string, string> = {}
+      if (o.to) params.sendTo = o.to.slice(0, 100)
+      if (o.requestId) params.requestid = requestId(o.requestId)
+      const r = await authed(async t => (await officeRequest<{ Invoice?: RawInvoice & { EmailStatus?: string } }>('quickbooks', url(`/invoice/${entityId(id)}/send`, params),
+        { method: 'POST', headers: { authorization: `Bearer ${t}`, 'content-type': 'application/octet-stream' } })).body)
+      return { id, emailStatus: str(r.Invoice?.EmailStatus, 40) }
+    },
+    async changes(since) {
+      const oldest = Date.now() - 30 * 864e5
+      const at = new Date(Math.max(since.getTime(), oldest)).toISOString().replace(/\.\d{3}Z$/, 'Z')
+      const r = await get<{ CDCResponse?: { QueryResponse?: { Invoice?: (RawInvoice & { status?: string })[]; Payment?: (RawPayment & { status?: string; MetaData?: { LastUpdatedTime?: string } })[] }[] }[] }>('/cdc', { entities: 'Invoice,Payment', changedSince: at })
+      const out: QboChange[] = []
+      for (const qr of r.CDCResponse?.[0]?.QueryResponse ?? []) {
+        for (const x of qr.Invoice ?? []) if (x.Id) out.push({ entity: 'Invoice', id: String(x.Id), deleted: x.status === 'Deleted', updatedAt: str(x.MetaData?.LastUpdatedTime, 40) })
+        for (const x of qr.Payment ?? []) if (x.Id) out.push({ entity: 'Payment', id: String(x.Id), deleted: x.status === 'Deleted', updatedAt: str(x.MetaData?.LastUpdatedTime, 40) })
+      }
+      return out
     },
   }
 }

@@ -42,16 +42,20 @@ function retryAfterMs(res: Response, attempt: number): number {
 /** Short, content-free reason from a provider error body. */
 async function reason(res: Response): Promise<string> {
   try {
-    const j = (await res.json()) as { message?: string; category?: string; error?: { message?: string; status?: string } | string; error_description?: string; Fault?: { type?: string; Error?: { code?: string }[] } }
+    const raw = (await res.json()) as unknown
+    // Salesforce answers errors as an array: [{ errorCode: 'INVALID_FIELD', message }] (only the code is kept)
+    if (Array.isArray(raw)) { const c = (raw[0] as { errorCode?: string } | undefined)?.errorCode; return String(c || res.statusText).replace(/[^\w .:-]/g, '').slice(0, 80) }
+    const j = raw as { code?: string | number; errorCode?: string; message?: string; category?: string; error?: { message?: string; status?: string } | string; error_description?: string; Fault?: { type?: string; Error?: { code?: string }[] } }
     // QuickBooks: { Fault: { type: 'ValidationFault', Error: [{ code: '6000', Message, Detail }] } } (only the type and code are kept)
     const fault = j.Fault ? `${j.Fault.type ?? 'Fault'}${j.Fault.Error?.[0]?.code ? ` ${j.Fault.Error[0].code}` : ''}` : ''
-    const m = fault || (typeof j.error === 'string' ? (j.error_description ?? j.error) : (j.error?.status ?? j.category ?? ''))
+    // Zoho: { code: 'INVALID_DATA', message } ; Buildium: { errorCode?, UserMessage } ; Graph: { error: { code, message } }
+    const m = fault || (typeof j.error === 'string' ? (j.error_description ?? j.error) : (j.error?.status ?? (j.error as { code?: string } | undefined)?.code ?? j.category ?? j.errorCode ?? (typeof j.code === 'string' ? j.code : '')))
     return String(m || res.statusText).replace(/[^\w .:-]/g, '').slice(0, 80)
   } catch { return res.statusText.slice(0, 80) }
 }
 
-export type OfficeHost = 'hubspot' | 'google_calendar' | 'quickbooks'
-const HOST_LABEL: Record<OfficeHost, string> = { hubspot: 'HubSpot', google_calendar: 'Google Calendar', quickbooks: 'QuickBooks' }
+export type OfficeHost = 'hubspot' | 'google_calendar' | 'quickbooks' | 'salesforce' | 'pipedrive' | 'zoho_crm' | 'buildium' | 'outlook'
+const HOST_LABEL: Record<OfficeHost, string> = { hubspot: 'HubSpot', google_calendar: 'Google Calendar', quickbooks: 'QuickBooks', salesforce: 'Salesforce', pipedrive: 'Pipedrive', zoho_crm: 'Zoho CRM', buildium: 'Buildium', outlook: 'Microsoft 365' }
 
 /**
  * One request to a provider. 429 is retried with a bounded backoff (Retry-After, at most maxRetries

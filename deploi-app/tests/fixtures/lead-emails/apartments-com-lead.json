@@ -1,0 +1,15 @@
+{
+  "from": "Apartments.com <leads@apartments.com>",
+  "subject": "New Lead from Apartments.com: Priya Natarajan for The Alder at Midtown",
+  "text": "New lead for The Alder at Midtown\n\nContact Information\nName: Priya Natarajan\nEmail: priya.n@outlook.com\nPhone: 512-555-0123\n\nLead Details\nMove-In Date: January 5, 2027\nBeds: 2\nComments: Looking for a 2 bed with in-unit laundry. Available for a call after 5pm.\n\nThis lead was sent to you by Apartments.com, a CoStar Group company.",
+  "expect": {
+    "source": "apartments_com",
+    "name": "Priya Natarajan",
+    "email": "priya.n@outlook.com",
+    "phone": "+15125550123",
+    "property": "The Alder at Midtown",
+    "moveIn": "2027-01-05",
+    "message": "Looking for a 2 bed with in-unit laundry. Available for a call after 5pm.",
+    "confidence": "high"
+  }
+}

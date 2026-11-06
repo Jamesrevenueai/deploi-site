@@ -20,7 +20,7 @@ import { Q_SHOP } from '../connectors/shopify/queries'
 import { siteFor, wooRequest, WooApiError } from '../connectors/woocommerce/client'
 import { officeAccessToken, OfficeAuthError } from '../office/credentials'
 import { OfficeHttpError, officeRequest } from '../office/http'
-import { calendarFor, quickbooksFor } from '../office/providers'
+import { buildiumFor, calendarFor, pipedriveFor, quickbooksFor, salesforceFor, zohoFor } from '../office/providers'
 import { syntheticHubSpot } from '../office/synthetic'
 import type { OfficeConnectionRow } from '../office/connections'
 import { accessToken, EmailAuthError, type EmailAccountRow } from '../email/accounts'
@@ -143,6 +143,22 @@ async function quickbooks(c: ConnRef) {
   } catch (e) { const f = officeFailure(e, 'QuickBooks'); if (f) return f; throw e }
 }
 
+// salesforce / pipedrive / zoho_crm: the organization (or company) the token belongs to; buildium: the account the key belongs to
+async function crmProbe(c: ConnRef) {
+  const row = await officeRow(c.id)
+  const label = c.integration === 'salesforce' ? 'Salesforce' : c.integration === 'pipedrive' ? 'Pipedrive' : c.integration === 'zoho_crm' ? 'Zoho CRM' : 'Buildium'
+  if (!row || row.status === 'disconnected') return fail('not_found', `The ${label} connection no longer exists.`)
+  try {
+    let name: string | null = null, id: string
+    if (row.provider === 'salesforce') { name = (await salesforceFor(row).identity()).orgName; id = row.external_account_id }
+    else if (row.provider === 'pipedrive') { const me = await pipedriveFor(row).me(); name = me.companyName; id = me.companyId }
+    else if (row.provider === 'zoho_crm') { const o = await zohoFor(row).org(); name = o.name; id = o.id }
+    else { const a = await buildiumFor(row).account(); name = a.name; id = a.id }
+    if (id !== row.external_account_id) return fail('identity_changed', `The connection now belongs to a different ${label} account. Reconnect the right one.`)
+    return ok(`${label} answered: read the account "${(name ?? row.display_name ?? id).slice(0, 80)}" (nothing changed).`)
+  } catch (e) { const f = officeFailure(e, label); if (f) return f; throw e }
+}
+
 // ---------------------------------------------------------------- email
 
 async function mailbox(c: ConnRef) {
@@ -154,7 +170,8 @@ async function mailbox(c: ConnRef) {
     countWorkflow(acc.org_id, 'provider_call', c.integration === 'gmail' ? 'gmail' : 'microsoft_graph')
     const who = await emailAdapter(acc.provider).identity(token)
     if (who.address.toLowerCase() !== acc.address.toLowerCase()) return fail('identity_changed', `The connection now signs in as a different account than ${acc.address}. Reconnect the right account.`)
-    return ok(`${label} answered: signed in as ${acc.address}.`)
+    const cal = acc.provider === 'microsoft' && acc.granted_scopes.some(x => x.toLowerCase() === 'calendars.readwrite')
+    return ok(`${label} answered: signed in as ${acc.address}${cal ? ' (mail and calendar)' : ''}.`, acc.provider === 'microsoft' ? { calendarAccess: cal } : {})
   } catch (e) {
     if (e instanceof EmailAuthError) return fail('auth', `${label} no longer accepts this connection. Reconnect the account.`)
     const m = /\((\d{3})\)/.exec((e as Error).message ?? '')
@@ -187,7 +204,7 @@ async function stripe(c: ConnRef) {
 }
 
 const PROBES: Record<IntegrationKey, (c: ConnRef) => Promise<Omit<ProbeResult, 'latencyMs'>>> = {
-  shopify, woocommerce, hubspot, google_calendar: calendar, quickbooks, gmail: mailbox, microsoft: mailbox, agent_mailbox: agentMailbox, stripe,
+  shopify, woocommerce, hubspot, salesforce: crmProbe, pipedrive: crmProbe, zoho_crm: crmProbe, buildium: crmProbe, google_calendar: calendar, quickbooks, gmail: mailbox, microsoft: mailbox, agent_mailbox: agentMailbox, stripe,
 }
 
 export class ProbeTimeout extends Error { constructor() { super('probe timed out'); this.name = 'ProbeTimeout' } }

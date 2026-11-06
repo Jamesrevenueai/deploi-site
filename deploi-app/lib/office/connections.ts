@@ -10,9 +10,14 @@ import { assertMerchant, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { decryptSecret, encryptSecret } from '../connectors/credentials'
 import { officeAudit } from './audit'
-import { officeConfig, providerConfigured, PROVIDER_LABEL, type OfficeProvider } from './config'
+import { isCrmProvider, isSyntheticProvider, officeConfig, providerConfigured, PROVIDER_LABEL, type OfficeOAuthProvider, type OfficeProvider, type SyntheticOfficeProvider } from './config'
 import { deleteOfficeCredential, loadOfficeTokens, saveOfficeTokens } from './credentials'
-import { hubspotAuthorizeUrl, hubspotExchange, hubspotIdentity, HUBSPOT_SCOPES, type OAuthTokens } from './hubspot'
+import { hubspotAuthorizeUrl, hubspotExchange, hubspotIdentity, hubspotRevoke, HUBSPOT_SCOPES, type OAuthTokens } from './hubspot'
+import { salesforceAuthorizeUrl, salesforceClient, salesforceExchange, salesforceRevoke } from './salesforce'
+import { pipedriveAuthorizeUrl, pipedriveClient, pipedriveExchange, pipedriveRevoke } from './pipedrive'
+import { zohoAuthorizeUrl, zohoClient, zohoExchange, zohoRevoke } from './zoho'
+import { fixedToken } from './token'
+import { buildiumBase, buildiumClient, encodeBuildiumKey, validBuildiumKey, type BuildiumKey } from '../buildium/client'
 import { calendarScopesOk, googleAuthorizeUrl, googleExchange, googleIdentity } from './calendar'
 import { demoContacts, mutateOfficeSynth, syntheticToken } from './synthetic'
 import { isRealmId, quickbooksAuthorizeUrl, quickbooksClient, quickbooksExchange, quickbooksRevoke, QBO_SCOPES } from './quickbooks'
@@ -24,7 +29,12 @@ import { restoredIfBroken } from '../integrations/events'
 export type OfficeConnectionRow = {
   id: string; org_id: string; provider: OfficeProvider; status: 'active' | 'needs_reauth' | 'disconnected'; status_reason: string | null; is_synthetic: boolean
   external_account_id: string; display_name: string | null; scopes: string[]; calendar_id: string | null; timezone: string | null; connected_by: string; connected_at: string
+  /** the provider host the connection is bound to (Salesforce instance, Pipedrive company domain, Zoho data center, Buildium environment) */
+  api_base?: string | null
 }
+
+/** Office providers that need PKCE on their consent (S256). HubSpot, Intuit, Pipedrive and Zoho take none: the one-time state protects them. */
+const PKCE = new Set<OfficeProvider>(['google_calendar', 'salesforce'])
 
 /** Raised when a provider's OAuth client is not configured here: the API answers 503 and the button says "needs setup". */
 export class OfficeNotConfigured extends Error { constructor(public provider: OfficeProvider) { super(`${PROVIDER_LABEL[provider]} needs setup: its OAuth client is not configured in this environment`); this.name = 'OfficeNotConfigured' } }
@@ -37,13 +47,25 @@ function merchantOnly(actor: Actor): asserts actor is Exclude<Actor, { kind: 'st
   assertMerchant(actor, actor.orgId)
 }
 
-/** Start connecting: returns the provider consent URL. PKCE (S256) for Google; HubSpot's flow has no PKCE parameters. */
+function authorizeUrl(provider: OfficeOAuthProvider, state: string, challenge: string | null): string {
+  switch (provider) {
+    case 'hubspot': return hubspotAuthorizeUrl(state)
+    case 'quickbooks': return quickbooksAuthorizeUrl(state)
+    case 'google_calendar': return googleAuthorizeUrl(state, challenge!)
+    case 'salesforce': return salesforceAuthorizeUrl(state, challenge!)
+    case 'pipedrive': return pipedriveAuthorizeUrl(state)
+    case 'zoho_crm': return zohoAuthorizeUrl(state)
+  }
+}
+
+/** Start connecting: returns the provider consent URL. PKCE (S256) for Google and Salesforce; the others take no PKCE parameters. */
 export async function startOfficeConnect(actor: Actor, provider: OfficeProvider, opts: { now?: Date } = {}) {
   merchantOnly(actor)
   await assertCan(actor, actor.orgId, 'connect') // owners and admins only (F-08)
+  if (provider === 'buildium') throw new EngineError('invalid_input', 'Buildium connects with an API key, not a sign-in page')
   if (!providerConfigured(provider)) throw new OfficeNotConfigured(provider)
   const state = b64url(randomBytes(32))
-  const verifier = provider === 'google_calendar' ? b64url(randomBytes(48)) : null
+  const verifier = PKCE.has(provider) ? b64url(randomBytes(48)) : null
   const now = opts.now ?? new Date()
   await admin(async db => {
     const enc = verifier ? encryptSecret(verifier, `office-oauth-state:${state}`) : null
@@ -52,13 +74,29 @@ export async function startOfficeConnect(actor: Actor, provider: OfficeProvider,
     await db.query(`delete from office_oauth_states where expires_at < now() - interval '1 day'`)
     await officeAudit(db, { orgId: actor.orgId, entityType: 'office_connection', event: 'connection.started', actor: actor.label, detail: { provider } })
   })
-  const url = provider === 'hubspot' ? hubspotAuthorizeUrl(state) : provider === 'quickbooks' ? quickbooksAuthorizeUrl(state) : googleAuthorizeUrl(state, b64url(createHash('sha256').update(verifier!).digest()))
+  const url = authorizeUrl(provider, state, verifier ? b64url(createHash('sha256').update(verifier).digest()) : null)
   return { url, state }
 }
 
 /** tests only: replace the code exchange + identity read */
-type Exchanger = (provider: OfficeProvider, code: string, verifier: string | null, extra?: { realmId?: string | null }) => Promise<{ tokens: OAuthTokens; externalId: string; displayName: string | null }>
+type Exchanger = (provider: OfficeProvider, code: string, verifier: string | null, extra?: { realmId?: string | null; accountsServer?: string | null }) => Promise<{ tokens: OAuthTokens; externalId: string; displayName: string | null; apiBase?: string | null }>
 const realExchange: Exchanger = async (provider, code, verifier, extra) => {
+  if (provider === 'salesforce') {
+    if (!verifier) throw new Error('missing PKCE verifier')
+    const g = await salesforceExchange(code, verifier)
+    const who = await salesforceClient(fixedToken(g.accessToken), g.instanceUrl).identity().catch(() => ({ orgName: null }))
+    return { tokens: g, externalId: g.orgId, displayName: who.orgName ?? `Salesforce org ${g.orgId}`, apiBase: g.instanceUrl }
+  }
+  if (provider === 'pipedrive') {
+    const g = await pipedriveExchange(code)
+    const me = await pipedriveClient(fixedToken(g.accessToken), g.apiDomain).me()
+    return { tokens: g, externalId: me.companyId, displayName: me.companyName ?? `Pipedrive company ${me.companyId}`, apiBase: g.apiDomain }
+  }
+  if (provider === 'zoho_crm') {
+    const g = await zohoExchange(code, extra?.accountsServer ?? null)
+    const org = await zohoClient(fixedToken(g.accessToken), g.apiDomain).org()
+    return { tokens: g, externalId: org.id, displayName: org.name ?? `Zoho CRM org ${org.id}`, apiBase: g.apiDomain }
+  }
   if (provider === 'quickbooks') {
     // the company Intuit returned on the callback; reading its name with the new token proves token and company belong together
     const realmId = extra?.realmId
@@ -81,7 +119,7 @@ let exchanger: Exchanger = realExchange
 export function setOfficeExchanger(x: Exchanger | null) { exchanger = x ?? realExchange }
 
 /** OAuth callback: single-use, unexpired state of the same organization and user; then exchange, identity, encrypted storage. */
-export async function completeOfficeConnect(actor: Actor, input: { provider: OfficeProvider; state: string; code: string | null; error: string | null; realmId?: string | null }) {
+export async function completeOfficeConnect(actor: Actor, input: { provider: OfficeProvider; state: string; code: string | null; error: string | null; realmId?: string | null; accountsServer?: string | null }) {
   merchantOnly(actor)
   const st = await admin(db => db.one<{ state: string; org_id: string; provider: OfficeProvider; created_by: string; key_id: string | null; verifier_ciphertext: string | null }>(
     `update office_oauth_states set used_at = now() where state = $1 and used_at is null and expires_at > now() returning *`, [input.state]))
@@ -92,22 +130,45 @@ export async function completeOfficeConnect(actor: Actor, input: { provider: Off
   if (!providerConfigured(st.provider)) throw new OfficeNotConfigured(st.provider)
   const verifier = st.verifier_ciphertext && st.key_id ? decryptSecret(st.key_id, st.verifier_ciphertext, `office-oauth-state:${st.state}`) : null
   if (st.provider === 'quickbooks' && !isRealmId(input.realmId)) throw new EngineError('invalid_input', 'QuickBooks did not return a company id (realmId); start again')
-  const got = await exchanger(st.provider, input.code, verifier, { realmId: input.realmId ?? null })
+  if (PKCE.has(st.provider) && !verifier) throw new EngineError('invalid_input', 'this connection attempt is missing its PKCE verifier; start again')
+  const got = await exchanger(st.provider, input.code, verifier, { realmId: input.realmId ?? null, accountsServer: input.accountsServer ?? null })
   if (st.provider === 'quickbooks' && (got.externalId !== input.realmId || !QBO_SCOPES.every(s => got.tokens.scopes.includes(s)))) throw new EngineError('invalid_input', 'QuickBooks did not grant access to the company that was chosen; connect again')
   if (st.provider === 'hubspot' && !HUBSPOT_SCOPES.every(s => got.tokens.scopes.includes(s))) throw new EngineError('invalid_input', 'HubSpot did not grant every permission Deploi Office needs (contacts and deals, read and write); connect again and approve all of them')
   if (st.provider === 'google_calendar' && !calendarScopesOk(got.tokens.scopes)) throw new EngineError('invalid_input', 'Google did not grant calendar access (events and availability); connect again and tick both boxes')
-  return admin(db => saveConnection(db, { orgId: st.org_id, provider: st.provider, actor: actor.label, synthetic: false, externalId: got.externalId, displayName: got.displayName, tokens: got.tokens }))
+  if ((st.provider === 'salesforce' || st.provider === 'pipedrive' || st.provider === 'zoho_crm') && !got.apiBase) throw new EngineError('invalid_input', `${PROVIDER_LABEL[st.provider]} did not say which server the account is on; connect again`)
+  return admin(db => saveConnection(db, { orgId: st.org_id, provider: st.provider, actor: actor.label, synthetic: false, externalId: got.externalId, displayName: got.displayName, tokens: got.tokens, apiBase: got.apiBase ?? null }))
 }
 
-async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvider; actor: string; synthetic: boolean; externalId: string; displayName: string | null; tokens: OAuthTokens; timezone?: string }) {
+/**
+ * Buildium: the customer creates an API key (client id + secret) in Buildium and pastes it here. The key is checked
+ * with one read (the account) before anything is stored, then stored encrypted like an OAuth token. It never expires;
+ * a refused key marks the connection for reconnection (a new key).
+ */
+export async function connectBuildium(actor: Actor, input: Partial<BuildiumKey>) {
+  merchantOnly(actor)
+  await assertCan(actor, actor.orgId, 'connect')
+  if (!providerConfigured('buildium')) throw new OfficeNotConfigured('buildium')
+  if (!validBuildiumKey(input)) throw new EngineError('invalid_input', 'paste the Buildium API key: its client ID and its secret')
+  const key = { clientId: input.clientId.trim(), clientSecret: input.clientSecret.trim() }
+  const base = buildiumBase()
+  let account: { id: string; name: string | null }
+  try { account = await buildiumClient(async () => key, base).account() } catch (e) {
+    const code = (e as { code?: string }).code
+    throw new EngineError('invalid_input', code === 'auth' || code === 'forbidden' ? 'Buildium did not accept this API key (check that it is active and has read and write access)' : 'Buildium did not answer; try again in a minute')
+  }
+  return admin(db => saveConnection(db, { orgId: actor.orgId, provider: 'buildium', actor: actor.label, synthetic: false, externalId: account.id, displayName: account.name ?? `Buildium account ${account.id}`,
+    tokens: { accessToken: encodeBuildiumKey(key), refreshToken: null, expiresIn: null, scopes: ['api_key'] }, apiBase: new URL(base).origin }))
+}
+
+async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvider; actor: string; synthetic: boolean; externalId: string; displayName: string | null; tokens: OAuthTokens; timezone?: string; apiBase?: string | null }) {
   const live = await db.one<OfficeConnectionRow>(`select * from office_connections where org_id = $1 and provider = $2 and status <> 'disconnected' for update`, [i.orgId, i.provider])
   if (live && (live.is_synthetic !== i.synthetic || live.external_account_id !== i.externalId)) throw new EngineError('invalid_input', `another ${PROVIDER_LABEL[i.provider]} account is connected; disconnect it first`)
   // the plan's Office connections (only while billing is on); reconnecting the same account needs no new one
   if (!live) await assertOfficeConnectionSlot(db, i.orgId)
   const row = live
-    ? (await db.one<OfficeConnectionRow>(`update office_connections set status = 'active', status_reason = null, scopes = $2, display_name = $3 where id = $1 returning *`, [live.id, i.tokens.scopes, i.displayName]))!
-    : (await db.one<OfficeConnectionRow>(`insert into office_connections (org_id, provider, is_synthetic, external_account_id, display_name, scopes, calendar_id, timezone, connected_by) values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
-        [i.orgId, i.provider, i.synthetic, i.externalId, i.displayName, i.tokens.scopes, i.provider === 'google_calendar' ? 'primary' : null, i.timezone ?? null, i.actor]))!
+    ? (await db.one<OfficeConnectionRow>(`update office_connections set status = 'active', status_reason = null, scopes = $2, display_name = $3, api_base = coalesce($4, api_base) where id = $1 returning *`, [live.id, i.tokens.scopes, i.displayName, i.apiBase ?? null]))!
+    : (await db.one<OfficeConnectionRow>(`insert into office_connections (org_id, provider, is_synthetic, external_account_id, display_name, scopes, calendar_id, timezone, connected_by, api_base) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning *`,
+        [i.orgId, i.provider, i.synthetic, i.externalId, i.displayName, i.tokens.scopes, i.provider === 'google_calendar' ? 'primary' : null, i.timezone ?? null, i.actor, i.apiBase ?? null]))!
   await saveOfficeTokens(db, row.id, i.orgId, i.tokens)
   await officeAudit(db, { orgId: i.orgId, entityType: 'office_connection', entityId: row.id, event: live ? 'connection.reconnected' : 'connection.connected', actor: i.actor, detail: { provider: i.provider, synthetic: i.synthetic, scopes: i.tokens.scopes } })
   // integration hub: a reconnection of a broken connection clears its health and resumes the agents that use it (same id)
@@ -116,7 +177,7 @@ async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvid
 }
 
 /** Synthetic HubSpot or Calendar for tests and demos (never on a production deployment). */
-export async function connectSyntheticOffice(actor: Actor, provider: OfficeProvider, opts: { demoData?: boolean; timezone?: string } = {}) {
+export async function connectSyntheticOffice(actor: Actor, provider: SyntheticOfficeProvider, opts: { demoData?: boolean; timezone?: string } = {}) {
   merchantOnly(actor)
   await assertCan(actor, actor.orgId, 'connect')
   if (!officeConfig.syntheticAllowed) throw new EngineError('forbidden', 'synthetic connections are not available on this deployment')
@@ -134,19 +195,19 @@ export async function connectSyntheticOffice(actor: Actor, provider: OfficeProvi
 export async function disconnectOffice(actor: Actor, connectionId: string) {
   merchantOnly(actor)
   await assertCan(actor, actor.orgId, 'connect')
-  // QuickBooks: revoke the grant at Intuit first (best effort; the credential is deleted here either way)
-  const qb = await admin(db => db.one<OfficeConnectionRow>(`select * from office_connections where id = $1 and org_id = $2 and provider = 'quickbooks' and not is_synthetic`, [connectionId, actor.orgId]))
+  // revoke the grant at the provider first where it allows it (best effort; the credential is deleted here either way)
+  const real = await admin(db => db.one<OfficeConnectionRow>(`select * from office_connections where id = $1 and org_id = $2 and not is_synthetic`, [connectionId, actor.orgId]))
   let revoked: boolean | null = null
-  if (qb) {
-    const t = await admin(db => loadOfficeTokens(db, qb.id)).catch(() => null)
-    if (t) revoked = await quickbooksRevoke(t.refreshToken ?? t.accessToken)
+  if (real && real.provider !== 'google_calendar' && real.provider !== 'buildium') {
+    const t = await admin(db => loadOfficeTokens(db, real.id)).catch(() => null)
+    if (t) revoked = await revokeAt(real, t.refreshToken ?? t.accessToken)
   }
   return admin(async db => {
     const c = await db.one<OfficeConnectionRow>('select * from office_connections where id = $1 for update', [connectionId])
     if (!c || c.org_id !== actor.orgId) throw new EngineError('not_found', 'connection not found')
     const removed = await deleteOfficeCredential(db, c.id)
     await db.query(`update office_connections set status = 'disconnected', status_reason = 'disconnected by you', disconnected_at = now() where id = $1`, [c.id])
-    const kinds = c.provider === 'hubspot' ? ['crm_note', 'crm_task', 'crm_update_contact', 'crm_deal_stage'] : c.provider === 'quickbooks' ? [] : ['create_event', 'patch_event', 'delete_event']
+    const kinds = isCrmProvider(c.provider) ? ['crm_note', 'crm_task', 'crm_update_contact', 'crm_deal_stage'] : c.provider === 'google_calendar' ? ['create_event', 'patch_event', 'delete_event'] : []
     const cancelled = await db.query(`update office_actions set status = 'cancelled', status_reason = $3, next_attempt_at = null where org_id = $1 and kind = any($2::text[]) and status in ('draft','awaiting_approval','queued') returning id`,
       [c.org_id, kinds, `${PROVIDER_LABEL[c.provider]} was disconnected`])
     // QuickBooks: invoice reminders not yet sent are cancelled (they could no longer be checked against QuickBooks)
@@ -156,6 +217,20 @@ export async function disconnectOffice(actor: Actor, connectionId: string) {
     return { credentialDeleted: removed, actionsCancelled: cancelled.length, ...(revoked !== null ? { revokedAtProvider: revoked } : {}) }
   })
 }
+
+/** Revoke at the provider (refresh token where there is one). Buildium keys are deactivated by the customer in Buildium. */
+async function revokeAt(c: OfficeConnectionRow, token: string): Promise<boolean> {
+  switch (c.provider) {
+    case 'quickbooks': return quickbooksRevoke(token)
+    case 'hubspot': return hubspotRevoke(token)
+    case 'salesforce': return salesforceRevoke(token)
+    case 'pipedrive': return pipedriveRevoke(token)
+    case 'zoho_crm': return zohoRevoke(token, c.api_base ?? null)
+    default: return false
+  }
+}
+
+export { isSyntheticProvider }
 
 export async function activeConnection(db: Db, orgId: string, provider: OfficeProvider) {
   return db.one<OfficeConnectionRow>(`select * from office_connections where org_id = $1 and provider = $2 and status = 'active'`, [orgId, provider])

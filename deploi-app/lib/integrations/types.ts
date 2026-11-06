@@ -9,7 +9,7 @@
  *   not_connected   available here, nothing connected yet
  *   not_configured  this deployment lacks the settings it needs (staff see which; customers see "Not available yet")
  */
-export const INTEGRATION_KEYS = ['shopify', 'woocommerce', 'hubspot', 'google_calendar', 'quickbooks', 'agent_mailbox', 'gmail', 'microsoft', 'stripe'] as const
+export const INTEGRATION_KEYS = ['shopify', 'woocommerce', 'hubspot', 'salesforce', 'pipedrive', 'zoho_crm', 'google_calendar', 'quickbooks', 'buildium', 'agent_mailbox', 'gmail', 'microsoft', 'stripe'] as const
 export type IntegrationKey = (typeof INTEGRATION_KEYS)[number]
 export type HealthStatus = 'connected' | 'needs_reauth' | 'error' | 'not_connected' | 'not_configured'
 export type Suite = 'commerce' | 'office' | 'email' | 'billing'
@@ -29,6 +29,8 @@ export type ConnectionView = {
 export type IntegrationView = {
   key: IntegrationKey; name: string; suite: Suite; authKind: AuthKind
   usedFor: string; permissions: string[]; scopes: ScopeExplained[]; docs: string; liveVerified: boolean
+  /** this deployment talks to the provider's sandbox / test environment only (QuickBooks sandbox, Buildium sandbox, Salesforce sandbox login) */
+  sandboxOnly?: boolean
   status: HealthStatus; detail: string
   lastCheckedAt: string | null; lastSuccessAt: string | null
   lastError: { code: string | null; message: string; at: string | null } | null

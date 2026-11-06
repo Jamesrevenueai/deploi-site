@@ -1,0 +1,15 @@
+{
+  "from": "noreply@costar.com",
+  "subject": "Guest card: Sam Ortiz is interested in 455 Market St",
+  "text": "Sam Ortiz is interested in 455 Market St.\n\nEmail: sam.ortiz.4471@renter.apartments.com\nMove-in: ASAP\n",
+  "expect": {
+    "source": "apartments_com",
+    "email": "sam.ortiz.4471@renter.apartments.com",
+    "replyVia": "portal_relay",
+    "phone": null,
+    "moveIn": "ASAP",
+    "confidence": "high",
+    "name": "Sam Ortiz",
+    "property": "455 Market St"
+  }
+}

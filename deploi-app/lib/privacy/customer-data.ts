@@ -35,6 +35,11 @@ export const PRIVACY_COVERAGE: Record<string, TableStep> = {
   library_chat_messages: { export: 'chat messages to library agents that name the customer', redact: 'the address and ids erased from the text' },
   cases: { export: 'Resolution Engine cases whose text, evidence or records name the customer', redact: 'the address and ids erased from the text, evidence and records' },
   case_events: { export: 'case history entries that name the customer', redact: 'the address and ids erased from the summary and detail (the only change ever allowed to case history)' },
+  owner_updates: { export: 'agent updates to the owner whose headline or content names the customer', redact: 'the address and ids erased from the headline and content' },
+  notify_outbox: { export: 'text messages and voice notes (to the owner or crew) whose words name the customer', redact: 'the address and ids erased from the message and transcript' },
+  crew_jobs: { export: 'crew jobs whose reference, address or details name the customer', redact: 'the address and ids erased from the job reference, address, details and last message snapshot' },
+  crew_messages: { export: 'messages to and from the crew that name the customer', redact: 'the address and ids erased from the subject and text' },
+  morning_reports: { export: 'morning reports whose content names the customer', redact: 'the address and ids erased from the report content' },
   engine_audit: { export: 'the number of audit entries that name the customer (expected none: entries hold record ids)', redact: 'kept unchanged: the tamper-evident audit trail is retained for audit; it holds record ids, not addresses or content' },
 }
 
@@ -61,6 +66,8 @@ export const PRIVACY_EXEMPT: Record<string, string> = {
   applicants: 'the retired home-care agency product (no Shopify shop)',
   clients: 'the retired home-care agency product (no Shopify shop)',
   engagements: 'the retired consulting product\'s agency contacts (no Shopify shop)',
+  notify_preferences: 'how the business\'s own owners and admins get updates (their own phone number), never a shopper',
+  crew_members: 'the business\'s own crew (employees and contractors: name, work email and phone), managed by the owner; personal data of staff, never a shopper; deleted with the organization',
 }
 
 /** Column names that look like personal data (the coverage test reads the catalog with this). */
@@ -122,6 +129,11 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
   tables.library_chat_messages = await db.query(`select id, agent_key, role, text, created_at from library_chat_messages where org_id = $1 and ${names(`text || coalesce(outcome::text, '')`, 2)}`, [s.orgId, tokens])
   tables.cases = await db.query(`select id, ref, kind, title, problem, status, status_reason, evidence, records, outcome, opened_at, closed_at from cases where org_id = $1 and ${names(caseText, 2)}`, [s.orgId, tokens])
   tables.case_events = await db.query(`select e.id::text, c.ref as case_ref, e.at, e.type, e.summary, e.detail from case_events e join cases c on c.id = e.case_id where e.org_id = $1 and ${names(`e.summary || e.detail::text`, 2)} order by e.id`, [s.orgId, tokens])
+  tables.owner_updates = await db.query(`select id, dedupe_key, agent_name, headline, severity, content, channel, status, created_at from owner_updates where org_id = $1 and ${names(`headline || ' ' || content::text`, 2)} order by created_at`, [s.orgId, tokens])
+  tables.notify_outbox = await db.query(`select id, audience, channel, body, transcript, status, created_at from notify_outbox where org_id = $1 and ${names(`body || ' ' || coalesce(transcript, '')`, 2)} order by created_at`, [s.orgId, tokens])
+  tables.crew_jobs = await db.query(`select id, job_ref, job_date, address, details, photos, status, done_at, created_at from crew_jobs where org_id = $1 and ${names(crewJobText, 2)} order by created_at`, [s.orgId, tokens])
+  tables.crew_messages = await db.query(`select id, direction, channel, subject, body, status, created_at from crew_messages where org_id = $1 and ${names(`coalesce(subject, '') || ' ' || body`, 2)} order by created_at`, [s.orgId, tokens])
+  tables.morning_reports = await db.query(`select id, report_date, facts, status from morning_reports where org_id = $1 and ${names('facts::text', 2)} order by report_date`, [s.orgId, tokens])
   const audit = await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens])
   tables.engine_audit = audit?.n ? [{ entries_naming_the_customer: audit.n, note: 'audit entries are retained unchanged for audit' }] : []
   if (!email) notes.push('No email address was given: only records carrying the Shopify customer or order ids were searched.')
@@ -131,6 +143,7 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
     matching: 'email address (any case) and the Shopify customer and order ids, within this shop\'s organization only', tables, counts, notes }
 }
 
+const crewJobText = `job_ref || ' ' || coalesce(address, '') || ' ' || coalesce(details, '') || ' ' || array_to_string(photos, ' ') || ' ' || coalesce(last_sent::text, '')`
 const caseText = `title || ' ' || problem || ' ' || coalesce(why_it_matters, '') || ' ' || coalesce(status_reason, '') || ' ' || coalesce(next_action, '') || evidence::text || records::text || coalesce(outcome::text, '')`
 
 /** Erase the subject from the organization. Idempotent: a second run finds nothing more to change. */
@@ -170,6 +183,12 @@ export async function redactCustomerData(db: Db, s: Subject): Promise<Record<str
   out.cases = (await db.query(`update cases set title = ${rx('title')}, problem = ${rx('problem')}, why_it_matters = ${rx('why_it_matters')}, status_reason = ${rx('status_reason')}, next_action = ${rx('next_action')},
       evidence = ${rx('evidence::text')}::jsonb, records = ${rx('records::text')}::jsonb, outcome = case when outcome is null then null else ${rx('outcome::text')}::jsonb end
     where org_id = $1 and ${names(caseText, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.owner_updates = (await db.query(`update owner_updates set headline = ${rx('headline')}, content = ${rx('content::text')}::jsonb where org_id = $1 and ${names(`headline || ' ' || content::text`, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.notify_outbox = (await db.query(`update notify_outbox set body = ${rx('body')}, transcript = ${rx('transcript')} where org_id = $1 and ${names(`body || ' ' || coalesce(transcript, '')`, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.crew_jobs = (await db.query(`update crew_jobs set job_ref = case when ${names('job_ref', 2)} then 'erased-' || left(id::text, 8) else job_ref end, address = ${rx('address')}, details = ${rx('details')}, photos = string_to_array(${rx(`array_to_string(photos, chr(31))`)}, chr(31)), last_sent = case when last_sent is null then null else ${rx('last_sent::text')}::jsonb end
+    where org_id = $1 and ${names(crewJobText, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.crew_messages = (await db.query(`update crew_messages set subject = ${rx('subject')}, body = ${rx('body')} where org_id = $1 and ${names(`coalesce(subject, '') || ' ' || body`, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.morning_reports = (await db.query(`update morning_reports set facts = ${rx('facts::text')}::jsonb where org_id = $1 and ${names('facts::text', 2)} returning id`, [s.orgId, tokens, pat])).length
   // case history is append-only; erasing an address is the one change the database allows (migration 052)
   await db.query(`select set_config('deploi.privacy_redaction', 'on', true)`)
   out.case_events = (await db.query(`update case_events set summary = ${rx('summary')}, detail = ${rx('detail::text')}::jsonb where org_id = $1 and ${names('summary || detail::text', 2)} returning id`, [s.orgId, tokens, pat])).length

@@ -37,7 +37,23 @@ export type CrewMessage = {
 
 let ownerImpl: (u: OwnerUpdate) => Promise<NotifyResult> = async () => ({ status: 'skipped', id: null, reason: 'owner updates not wired yet' })
 let crewImpl: (m: CrewMessage) => Promise<NotifyResult> = async () => ({ status: 'skipped', id: null, reason: 'crew messages not wired yet' })
-export const notifyOwner = (u: OwnerUpdate) => ownerImpl(u)
-export const notifyCrew = (m: CrewMessage) => crewImpl(m)
-/** W2 installs the real implementations */
-export function setNotifyImpl(o: { owner?: typeof ownerImpl; crew?: typeof crewImpl }) { if (o.owner) ownerImpl = o.owner; if (o.crew) crewImpl = o.crew }
+// the real implementations (lib/notify/impl.ts) are loaded on first use, so a caller imports only this module;
+// an implementation installed with setNotifyImpl first (e.g. a test fake) is kept
+const installed = { owner: false, crew: false }
+let loading: Promise<unknown> | null = null
+async function ensure(kind: 'owner' | 'crew') {
+  if (installed[kind]) return
+  loading ??= import('./impl')
+  await loading
+}
+export const notifyOwner = async (u: OwnerUpdate) => { await ensure('owner'); return ownerImpl(u) }
+export const notifyCrew = async (m: CrewMessage) => { await ensure('crew'); return crewImpl(m) }
+/** W2 installs the real implementations (lib/notify/impl.ts) */
+export function setNotifyImpl(o: { owner?: typeof ownerImpl; crew?: typeof crewImpl }) {
+  if (o.owner) { ownerImpl = o.owner; installed.owner = true }
+  if (o.crew) { crewImpl = o.crew; installed.crew = true }
+}
+/** The real implementations, installed only where nothing was installed first (lib/notify/impl.ts calls this). */
+export function setNotifyDefaults(o: { owner: typeof ownerImpl; crew: typeof crewImpl }) {
+  setNotifyImpl({ owner: installed.owner ? undefined : o.owner, crew: installed.crew ? undefined : o.crew })
+}

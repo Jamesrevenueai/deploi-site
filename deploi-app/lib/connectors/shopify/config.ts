@@ -67,5 +67,14 @@ export const EVENT_TOPIC_SCOPES: Record<string, { scope: string; protectedData: 
   'discounts/update': { scope: 'read_discounts', protectedData: false },
 }
 export const SHOPIFY_EVENT_TOPICS = new Set(Object.keys(EVENT_TOPIC_SCOPES))
-/** Read scopes the agent topics add to the install (declared in shopify.app.toml [access_scopes]). */
-export const EVENT_SCOPES = [...new Set(Object.values(EVENT_TOPIC_SCOPES).map(t => t.scope))].filter(s => !REQUIRED_SCOPES.includes(s)).sort()
+/**
+ * Topics the app subscribes to now. The first App Store submission opts out of protected customer data, so the
+ * order, fulfillment, customer, refund and return topics (protectedData) are handled but not subscribed: they are
+ * phase 2, after Shopify approves the protected customer data request (docs/app-store/PROTECTED-CUSTOMER-DATA.md).
+ */
+export const SUBSCRIBED_EVENT_TOPICS = Object.keys(EVENT_TOPIC_SCOPES).filter(t => !EVENT_TOPIC_SCOPES[t].protectedData)
+export const PHASE2_EVENT_TOPICS = Object.keys(EVENT_TOPIC_SCOPES).filter(t => EVENT_TOPIC_SCOPES[t].protectedData)
+/** Read scopes the subscribed agent topics add to the install (declared in shopify.app.toml [access_scopes]). */
+export const EVENT_SCOPES = [...new Set(SUBSCRIBED_EVENT_TOPICS.map(t => EVENT_TOPIC_SCOPES[t].scope))].filter(s => !REQUIRED_SCOPES.includes(s)).sort()
+/** Scopes phase 2 adds (all protected customer data). */
+export const PHASE2_EVENT_SCOPES = [...new Set(PHASE2_EVENT_TOPICS.map(t => EVENT_TOPIC_SCOPES[t].scope))].sort()

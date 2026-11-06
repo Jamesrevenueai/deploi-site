@@ -27,6 +27,7 @@ import { gmailRead, gmailWatch, type ReadBatch } from './readers/gmail'
 import { graphRead, graphSubscribe } from './readers/microsoft'
 import { ReadError } from './readers/http'
 import type { ProviderMessage } from './readers/parse'
+import { emitMailEvents } from '../outlook/mail-events'
 
 export type SyncState = {
   account_id: string; org_id: string; provider: string; lease_until?: string | null; cursor: string | null; sent_cursor: string | null; status: string
@@ -145,6 +146,8 @@ export async function storeProviderMessage(acc: EmailAccountRow, m: ProviderMess
     const text = m.truncated && !m.text ? `(This message is too large to show here; open it in ${acc.provider === 'gmail' ? 'Gmail' : 'Outlook'}.)` : m.text
     const enc = encryptSecret(JSON.stringify({ subject: m.subject.slice(0, 500), text }), `email-inbound:${row.id}`)
     await db.query('update email_inbound set key_id = $2, content_ciphertext = $3 where id = $1', [row.id, enc.keyId, enc.ciphertext])
+    // Outlook (launch build): new mail and lead emails become agent events, once per message (lib/outlook/mail-events.ts)
+    if (acc.provider === 'microsoft') await emitMailEvents(db, { orgId: acc.org_id, accountId: acc.id, inboundId: row.id, status: decision.status, message: m })
     if (thread && decision.status === 'accepted' && !autoReply) await db.query('update email_messages set reply_count = reply_count + 1, reply_seen_at = greatest(coalesce(reply_seen_at, $2), $2) where id = $1', [thread.id, m.receivedAt])
     await audit(db, { orgId: acc.org_id, entityType: 'execution', entityId: row.id, event: `email.inbound.${decision.status}`, actor,
       detail: { email_inbound: true, source: acc.provider, classification, thread_message_id: thread?.id ?? null, reason: decision.reason, quarantine_code: decision.code, first_contact: decision.firstContact, attachments: m.attachments.length, auto_reply: autoReply, truncated: m.truncated } })

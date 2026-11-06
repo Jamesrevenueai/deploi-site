@@ -47,6 +47,11 @@ export async function hubspotRefresh(refreshToken: string, scopes: string[]): Pr
   return { ...t, refreshToken: t.refreshToken ?? refreshToken }
 }
 
+/** Revoke on disconnect: deletes the refresh token at HubSpot (the app's grant for that portal ends). Best effort. */
+export async function hubspotRevoke(refreshToken: string): Promise<boolean> {
+  try { const r = await officeRequest('hubspot', `${API}/oauth/v1/refresh-tokens/${encodeURIComponent(refreshToken)}`, { method: 'DELETE' }); return r.status === 204 || r.status === 200 } catch { return false }
+}
+
 /** The portal (hub) the token belongs to, and its granted scopes. */
 export async function hubspotIdentity(accessToken: string): Promise<{ hubId: string; user: string | null; hubDomain: string | null; scopes: string[] }> {
   const r = await officeRequest<{ hub_id?: number; user?: string; hub_domain?: string; scopes?: string[] }>('hubspot', `${API}/oauth/v1/access-tokens/${encodeURIComponent(accessToken)}`)

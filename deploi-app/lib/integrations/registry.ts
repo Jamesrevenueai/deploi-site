@@ -25,7 +25,10 @@ import { HUBSPOT_SCOPES } from '../office/hubspot'
 import { CAL_EVENTS, CAL_FREEBUSY } from '../office/calendar'
 import { QBO_SCOPES } from '../office/quickbooks'
 import { GMAIL_READ, GMAIL_SEND } from '../email/adapters/gmail'
-import { MS_READ, MS_SEND } from '../email/adapters/microsoft'
+import { MS_CALENDAR, MS_MAIL_RW, MS_READ, MS_SEND } from '../email/adapters/microsoft'
+import { SALESFORCE_SCOPES } from '../office/salesforce'
+import { PIPEDRIVE_SCOPES } from '../office/pipedrive'
+import { ZOHO_SCOPES } from '../office/zoho'
 import { officeConfig } from '../office/config'
 import { connectSyntheticOffice, disconnectOffice, startOfficeConnect } from '../office/connections'
 import { mutateOfficeSynth } from '../office/synthetic'
@@ -65,7 +68,10 @@ const storeRows = (platform: 'shopify' | 'woocommerce') => async (db: Db, orgId:
   `select id, org_id, coalesce(display_name, external_id) as label, status, status_reason as reason, is_synthetic as synthetic, external_id as external, installed_at::text as connected_at
    from store_connections where platform = $1 and status in ('active', 'error', 'pending') and ($2::uuid is null or org_id = $2) order by created_at`, [platform, orgId]))
 
-const officeRows = (provider: 'hubspot' | 'google_calendar' | 'quickbooks') => async (db: Db, orgId: string | null) => refs(provider, await db.query<Row>(
+type OfficeKey = 'hubspot' | 'google_calendar' | 'quickbooks' | 'salesforce' | 'pipedrive' | 'zoho_crm' | 'buildium'
+const OFFICE_KEYS: readonly IntegrationKey[] = ['hubspot', 'google_calendar', 'quickbooks', 'salesforce', 'pipedrive', 'zoho_crm', 'buildium']
+const isOfficeKey = (k: IntegrationKey): k is OfficeKey => OFFICE_KEYS.includes(k)
+const officeRows = (provider: OfficeKey) => async (db: Db, orgId: string | null) => refs(provider, await db.query<Row>(
   `select id, org_id, coalesce(display_name, external_account_id) as label, status, status_reason as reason, is_synthetic as synthetic, external_account_id as external, connected_at::text as connected_at
    from office_connections where provider = $1 and status <> 'disconnected' and ($2::uuid is null or org_id = $2) order by connected_at`, [provider, orgId]))
 
@@ -113,13 +119,51 @@ export const INTEGRATIONS: IntegrationDef[] = [
   },
   {
     key: 'quickbooks', name: 'QuickBooks Online', suite: 'office', authKind: 'oauth2', docs: 'docs/QUICKBOOKS-SETUP.md', connectHref: '/office/connections', webhooks: 'portal', monitored: true, reconnectable: true, disconnectable: true,
-    usedFor: 'The Accounts Receivable agent reads open invoices and payments to follow up overdue invoices.',
-    permissions: ['Read invoices, payments, customers and the company name', 'Nothing is ever written to QuickBooks'],
-    scopes: QBO_SCOPES.map(s => ({ scope: s, why: 'read invoices and payments (Deploi only reads; the scope is Intuit\'s only Accounting scope)' })),
+    usedFor: 'The Accounts Receivable agent reads open invoices and payments to follow up overdue invoices, and notices changes within minutes.',
+    permissions: ['Read invoices, payments, customers and the company name', 'Create an invoice, record a payment or send an invoice only for actions you approve or grant'],
+    scopes: QBO_SCOPES.map(s => ({ scope: s, why: 'read invoices and payments; create invoices, record payments and send invoices only as you approve (Intuit\'s only Accounting scope)' })),
     env: [{ name: 'QUICKBOOKS_CLIENT_ID', required: true, purpose: 'Intuit app client id' }, { name: 'QUICKBOOKS_CLIENT_SECRET', required: true, purpose: 'Intuit app client secret' }, KEY,
       { name: 'QUICKBOOKS_WEBHOOK_VERIFIER_TOKEN', required: false, purpose: 'verifies Intuit webhook deliveries (without it updates wait for the next read)' },
       { name: 'QUICKBOOKS_ENVIRONMENT', required: false, purpose: '"sandbox" for Intuit sandbox companies' }],
     connections: officeRows('quickbooks'),
+  },
+  {
+    key: 'salesforce', name: 'Salesforce', suite: 'office', authKind: 'oauth2_pkce', docs: 'docs/CONNECTIONS.md', connectHref: '/office/connections', webhooks: 'none', monitored: true, reconnectable: true, disconnectable: true,
+    usedFor: 'Agents find and update leads and contacts, log tasks and notes, and move opportunity stages in your Salesforce org.',
+    permissions: ['Read leads, contacts, opportunities and tasks', 'Create or update them only for actions you approve or grant'],
+    scopes: SALESFORCE_SCOPES.map(s => ({ scope: s, why: s === 'api' ? 'read and write leads, contacts, opportunities, tasks and notes through the REST API' : 'stay connected without signing in again (refresh token)' })),
+    env: [{ name: 'SALESFORCE_CLIENT_ID', required: true, purpose: 'connected app consumer key' }, { name: 'SALESFORCE_CLIENT_SECRET', required: true, purpose: 'connected app consumer secret' }, KEY,
+      { name: 'SALESFORCE_LOGIN_URL', required: false, purpose: 'https://test.salesforce.com to connect sandbox orgs (default login.salesforce.com)' },
+      { name: 'SALESFORCE_REDIRECT_URL', required: false, purpose: 'OAuth callback (default <app>/api/office/oauth/salesforce/callback)' }],
+    connections: officeRows('salesforce'),
+  },
+  {
+    key: 'pipedrive', name: 'Pipedrive', suite: 'office', authKind: 'oauth2', docs: 'docs/CONNECTIONS.md', connectHref: '/office/connections', webhooks: 'none', monitored: true, reconnectable: true, disconnectable: true,
+    usedFor: 'Agents find and update people, log activities and notes, and move deal stages in Pipedrive.',
+    permissions: ['Read people, deals and activities', 'Create or update them only for actions you approve or grant'],
+    scopes: PIPEDRIVE_SCOPES.map(s => ({ scope: s, why: s.startsWith('contacts') ? 'find, create and update people' : s.startsWith('deals') ? 'read deals and move their stage' : s.startsWith('activities') ? 'create and complete follow-up activities' : 'show which company is connected' })),
+    env: [{ name: 'PIPEDRIVE_CLIENT_ID', required: true, purpose: 'Pipedrive app client id (Developer Hub)' }, { name: 'PIPEDRIVE_CLIENT_SECRET', required: true, purpose: 'Pipedrive app client secret' }, KEY,
+      { name: 'PIPEDRIVE_REDIRECT_URL', required: false, purpose: 'OAuth callback (default <app>/api/office/oauth/pipedrive/callback)' }],
+    connections: officeRows('pipedrive'),
+  },
+  {
+    key: 'zoho_crm', name: 'Zoho CRM', suite: 'office', authKind: 'oauth2', docs: 'docs/CONNECTIONS.md', connectHref: '/office/connections', webhooks: 'none', monitored: true, reconnectable: true, disconnectable: true,
+    usedFor: 'Agents find and update leads and contacts, log tasks and notes, and move deal stages in Zoho CRM (US, EU, India or Australia data center).',
+    permissions: ['Read leads, contacts and deals', 'Create or update them only for actions you approve or grant'],
+    scopes: ZOHO_SCOPES.map(s => ({ scope: s, why: s.includes('org') ? 'show which Zoho organization is connected' : `read and write ${s.split('.')[2]}, only as you grant` })),
+    env: [{ name: 'ZOHO_CLIENT_ID', required: true, purpose: 'Zoho API console client id (server-based application)' }, { name: 'ZOHO_CLIENT_SECRET', required: true, purpose: 'Zoho API console client secret' }, KEY,
+      { name: 'ZOHO_DEFAULT_DC', required: false, purpose: 'where sign-in starts: com (default), eu, in or com.au; the customer\'s own data center is used after' },
+      { name: 'ZOHO_REDIRECT_URL', required: false, purpose: 'OAuth callback (default <app>/api/office/oauth/zoho/callback)' }],
+    connections: officeRows('zoho_crm'),
+  },
+  {
+    key: 'buildium', name: 'Buildium', suite: 'office', authKind: 'api_key', docs: 'docs/CONNECTIONS.md', connectHref: '/office/connections', webhooks: 'none', monitored: true, reconnectable: true, disconnectable: true,
+    usedFor: 'Property management agents read properties, units, leases, tenants, rental applications and work orders, and notice changes within minutes.',
+    permissions: ['Read properties, units, leases, tenants, applications and work orders', 'Create work orders, update their status or an application\'s status only for actions you approve or grant'],
+    scopes: [{ scope: 'API key (client ID and secret)', why: 'created by you in Buildium under Settings, Application settings, API settings; give it read and write access to Rentals, Leasing, Applicants and Tasks' }],
+    env: [KEY, { name: 'BUILDIUM_ENVIRONMENT', required: false, purpose: '"sandbox" to connect Buildium sandbox accounts (apisandbox.buildium.com)' },
+      { name: 'BUILDIUM_ENABLED', required: false, purpose: '"off" hides Buildium in this deployment' }],
+    connections: officeRows('buildium'),
   },
   {
     key: 'agent_mailbox', name: 'Deploi Email (agent mailboxes)', suite: 'email', authKind: 'platform_key', docs: 'docs/EMAIL-SETUP.md', connectHref: '/store/connections', webhooks: 'none', monitored: false, reconnectable: false, disconnectable: false,
@@ -141,9 +185,11 @@ export const INTEGRATIONS: IntegrationDef[] = [
   },
   {
     key: 'microsoft', name: 'Microsoft 365 / Outlook', suite: 'email', authKind: 'oauth2_pkce', docs: 'docs/EMAIL-SETUP.md', connectHref: '/store/connections', webhooks: 'none', monitored: true, reconnectable: true, disconnectable: true,
-    usedFor: 'Agents send approved email from your own address instead of their Deploi mailbox.',
-    permissions: ['Send email you approve (one at a time, unless you grant more)', 'Read reply senders and times, only when a task needs it'],
-    scopes: [{ scope: MS_SEND, why: 'send the messages you approve' }, { scope: MS_READ, why: 'only if you allow it: notice replies to messages an agent sent' }, { scope: 'offline_access User.Read', why: 'stay connected and show which account is connected' }],
+    usedFor: 'Agents send approved email from your own address, read new mail (including Zillow, Apartments.com and Zumper lead emails) and, when you connect the calendar too, book and move meetings.',
+    permissions: ['Send email you approve (one at a time, unless you grant more)', 'Read new mail and calendar changes when you connect them', 'Create or move calendar events only for actions you approve or grant'],
+    scopes: [{ scope: MS_SEND, why: 'send the messages you approve' }, { scope: MS_READ, why: 'only if you allow it: notice replies to messages an agent sent' },
+      { scope: MS_MAIL_RW, why: 'with mail and calendar: read new mail (to spot leads and requests) and file replies in their conversation' },
+      { scope: MS_CALENDAR, why: 'with mail and calendar: see your events, and create or move the ones you approve' }, { scope: 'offline_access User.Read', why: 'stay connected and show which account is connected' }],
     env: [{ name: 'EMAIL_OAUTH_PROVIDERS', required: true, purpose: 'must be "on": Gmail and Microsoft are off by default (not live-verified)', valid: v => v === 'on' },
       { name: 'MICROSOFT_OAUTH_CLIENT_ID', required: true, purpose: 'Microsoft Entra app client id' }, { name: 'MICROSOFT_OAUTH_CLIENT_SECRET', required: true, purpose: 'Microsoft Entra app client secret' }, KEY],
     connections: mailRows('microsoft', 'microsoft'),
@@ -196,9 +242,10 @@ export async function statusOf(db: Db, def: IntegrationDef, orgId: string): Prom
   const views = conns.map(c => connectionStatus(c, states.find(s => s.connection_id === c.id) ?? null))
   const status: HealthStatus = views.length ? views.map(v => v.status).sort((a, b) => RANK[b] - RANK[a])[0] : configured(def) ? 'not_connected' : 'not_configured'
   const errs = views.filter(v => v.lastError).sort((a, b) => String(b.lastError!.at).localeCompare(String(a.lastError!.at)))
-  const synthetic = def.suite === 'office' ? officeConfig.syntheticAllowed : false
+  const synthetic = def.key === 'hubspot' || def.key === 'google_calendar' || def.key === 'quickbooks' ? officeConfig.syntheticAllowed : false
+  const sandboxOnly = (def.key === 'quickbooks' && officeConfig.quickbooksSandbox) || (def.key === 'buildium' && officeConfig.buildiumSandbox) || (def.key === 'salesforce' && officeConfig.salesforceLoginUrl === 'https://test.salesforce.com')
   return {
-    key: def.key, name: def.name, suite: def.suite, authKind: def.authKind, usedFor: def.usedFor, permissions: def.permissions, scopes: def.scopes, docs: def.docs, liveVerified: false,
+    key: def.key, name: def.name, suite: def.suite, authKind: def.authKind, usedFor: def.usedFor, permissions: def.permissions, scopes: def.scopes, docs: def.docs, liveVerified: false, sandboxOnly,
     status, detail: detailFor(def, status, views),
     lastCheckedAt: latest(views.map(v => v.lastCheckedAt)), lastSuccessAt: latest(views.map(v => v.lastSuccessAt)), lastError: errs[0]?.lastError ?? null,
     connections: views,
@@ -291,11 +338,17 @@ export async function reconnectIntegration(actor: Actor, key: IntegrationKey, co
   await assertCan(actor, actor.orgId, 'connect')
   if (c.synthetic) return restoreSynthetic(actor, def, c)
   switch (key) {
-    case 'hubspot': case 'google_calendar': case 'quickbooks':
+    case 'hubspot': case 'google_calendar': case 'quickbooks': case 'salesforce': case 'pipedrive': case 'zoho_crm':
       // the same account comes back to the same row (saveConnection matches the external account)
       return { kind: 'redirect', url: (await startOfficeConnect(actor, key)).url }
-    case 'gmail': case 'microsoft':
-      return { kind: 'redirect', url: (await startConnect(actor, { provider: key, accountId: c.id, returnTo: '/store/integrations' })).url }
+    case 'buildium':
+      return { kind: 'link', href: '/office/connections?reconnect=buildium', message: 'Paste a new Buildium API key for the same account; the connection keeps its history.' }
+    case 'gmail': case 'microsoft': {
+      // reconnecting never narrows what was granted: inbox reading and the calendar are asked for again when the account had them
+      const acc = await admin(db => db.one<{ granted_scopes: string[] }>('select granted_scopes from email_accounts where id = $1', [c.id]))
+      const scopes = (acc?.granted_scopes ?? []).map(x => x.toLowerCase())
+      return { kind: 'redirect', url: (await startConnect(actor, { provider: key, accountId: c.id, returnTo: '/store/integrations', inbox: scopes.includes('mail.read') || scopes.includes('mail.readwrite'), calendar: scopes.includes('calendars.readwrite') })).url }
+    }
     case 'woocommerce':
       if (callbackUrl().startsWith('https://')) {
         const a = await startAuthorization({ orgId: actor.orgId, actor: actor.label, profileId: actor.kind === 'profile' ? actor.session.uid : null, siteUrl: c.external })
@@ -342,7 +395,7 @@ export async function disconnectIntegration(actor: Actor, key: IntegrationKey, c
   if (!def.disconnectable) throw new EngineError('invalid_input', key === 'shopify' ? 'Shopify is disconnected by uninstalling the Deploi app in your Shopify admin' : `${def.name} cannot be disconnected here`)
   await ownConnection(def, actor.orgId, connectionId)
   await assertCan(actor, actor.orgId, 'connect')
-  if (key === 'hubspot' || key === 'google_calendar' || key === 'quickbooks') { const r = await disconnectOffice(actor, connectionId); return { message: `${def.name} is disconnected; ${r.actionsCancelled} queued action${r.actionsCancelled === 1 ? '' : 's'} cancelled.` } }
+  if (isOfficeKey(key)) { const r = await disconnectOffice(actor, connectionId); return { message: `${def.name} is disconnected; ${r.actionsCancelled} queued action${r.actionsCancelled === 1 ? '' : 's'} cancelled.` } }
   if (key === 'gmail' || key === 'microsoft') { const r = await disconnectAccount(actor, connectionId); return { message: `${def.name} is disconnected; ${r.messagesCancelled} unsent message${r.messagesCancelled === 1 ? '' : 's'} cancelled.` } }
   if (key === 'woocommerce') { await disconnectStore(actor.orgId, connectionId, actor.label); return { message: 'WooCommerce is disconnected. Delete the key in WooCommerce > Settings > Advanced > REST API too.' } }
   throw new EngineError('invalid_input', `${def.name} cannot be disconnected here`)

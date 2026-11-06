@@ -1,5 +1,7 @@
 # Shopify App Store: what is still open
 
+> **2026-11-06:** for the current submission state, use `docs/app-store/SUBMISSION-CHECKLIST.md` (requirement audit and founder steps), `docs/app-store/LISTING.md` and `docs/app-store/PROTECTED-CUSTOMER-DATA.md`. This page is kept for history.
+
 As of 2026-11-04. The full listing checklist and draft copy are in `APP-STORE-CHECKLIST.md`. This page covers the five open decisions and assets (§1–5) and the live verification that must happen before submission (§6). Shopify's own figures (fees, limits) change; check them in the Partner Dashboard before relying on them.
 
 ## 1. Pricing: options and a recommendation

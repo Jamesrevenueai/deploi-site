@@ -102,5 +102,5 @@ Rent Manager, ResMan, Rently: apply through each vendor's partner program (`docs
 allow-lists caller IPs, so Deploi needs fixed outbound IPs (Vercel Secure Compute or a proxy) first.
 
 ## 15. Your written OK (nothing below happens without it)
-- Apply release set 2026-11-07 (migrations 058–061) to **deploi-preview** for a browser run of the new packs.
+- Apply release set 2026-11-07 (migrations 058–062) to **deploi-preview** for a browser run of the new packs.
 - Merge PR #16 and this branch's PR; apply migrations to **deploi-prod**; promote to production.

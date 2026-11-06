@@ -9,7 +9,9 @@ import { join } from 'node:path'
 const ROOT = join(__dirname, '..', '..')
 const ALLOWED = ['/api/cron/agents', '/api/cron/weekly-summary', '/api/cron/library', '/api/cron/jobs', '/api/cron/office',
   // operations (lib/ops): alert evaluation every 10 minutes, the daily retention pass, the hourly health snapshot
-  '/api/cron/alerts', '/api/cron/retention', '/api/cron/health']
+  '/api/cron/alerts', '/api/cron/retention', '/api/cron/health',
+  // agent events: the 15-minute sweep (one sweep event per active organization) and the event jobs it runs
+  '/api/cron/sweep']
 const RETIRED = ['/api/cron/morning-pipeline', '/api/cron/morning-report', '/api/cron/workers']
 
 describe('vercel.json crons', () => {

@@ -35,6 +35,9 @@ export const PRIVACY_COVERAGE: Record<string, TableStep> = {
   library_chat_messages: { export: 'chat messages to library agents that name the customer', redact: 'the address and ids erased from the text' },
   cases: { export: 'Resolution Engine cases whose text, evidence or records name the customer', redact: 'the address and ids erased from the text, evidence and records' },
   case_events: { export: 'case history entries that name the customer', redact: 'the address and ids erased from the summary and detail (the only change ever allowed to case history)' },
+  agent_events: { export: 'events the agents received (Shopify order, customer, refund and return webhooks) that name the customer, their customer id or their orders', redact: 'deleted: an event is only a trigger, and its payload is the customer\'s own data' },
+  agent_loops: { export: 'agent actions whose description names the customer', redact: 'the address and ids erased from the description; a waiting action is withdrawn' },
+  undo_tokens: { export: 'undo links whose change names the customer', redact: 'the address and ids erased; an unused link stops working' },
   engine_audit: { export: 'the number of audit entries that name the customer (expected none: entries hold record ids)', redact: 'kept unchanged: the tamper-evident audit trail is retained for audit; it holds record ids, not addresses or content' },
 }
 
@@ -122,14 +125,22 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
   tables.library_chat_messages = await db.query(`select id, agent_key, role, text, created_at from library_chat_messages where org_id = $1 and ${names(`text || coalesce(outcome::text, '')`, 2)}`, [s.orgId, tokens])
   tables.cases = await db.query(`select id, ref, kind, title, problem, status, status_reason, evidence, records, outcome, opened_at, closed_at from cases where org_id = $1 and ${names(caseText, 2)}`, [s.orgId, tokens])
   tables.case_events = await db.query(`select e.id::text, c.ref as case_ref, e.at, e.type, e.summary, e.detail from case_events e join cases c on c.id = e.case_id where e.org_id = $1 and ${names(`e.summary || e.detail::text`, 2)} order by e.id`, [s.orgId, tokens])
+  tables.agent_events = await db.query(`select id, source, type, external_id, occurred_at, payload from agent_events where org_id = $1 and ${eventMatch} order by occurred_at`, eventParams(s, tokens))
+  tables.agent_loops = await db.query(`select id, agent_key, action_type, state, action, created_at from agent_loops where org_id = $1 and ${names('action::text', 2)}`, [s.orgId, tokens])
+  tables.undo_tokens = await db.query(`select id, kind, summary, payload, created_at, used_at from undo_tokens where org_id = $1 and ${names(`summary || payload::text`, 2)}`, [s.orgId, tokens])
   const audit = await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens])
   tables.engine_audit = audit?.n ? [{ entries_naming_the_customer: audit.n, note: 'audit entries are retained unchanged for audit' }] : []
   if (!email) notes.push('No email address was given: only records carrying the Shopify customer or order ids were searched.')
-  notes.push('Deploi does not read Shopify customers or orders; mail, agent drafts, cases and Office records are where a customer can appear.')
+  notes.push('Deploi keeps the order, customer, refund and return events its agents received (agent_events); mail, agent drafts, agent actions, cases and Office records are the other places a customer can appear.')
   const counts = Object.fromEntries(Object.entries(tables).map(([k, v]) => [k, k === 'engine_audit' ? (audit?.n ?? 0) : v.length]))
   return { format: 'deploi.customer_data.v1', generatedAt: new Date().toISOString(), shop, subject: { email, shopifyCustomerId: s.customerId, orderIds: s.orderIds },
     matching: 'email address (any case) and the Shopify customer and order ids, within this shop\'s organization only', tables, counts, notes }
 }
+
+/** SQL: an agent event that names the subject in its text, or carries their Shopify customer or order id as a number. $2 tokens, $3 customer id, $4 order ids. */
+const eventMatch = `(${names('payload::text', 2)} or ($3::text is not null and (payload->'customer'->>'id' = $3 or (type like 'customers/%' and payload->>'id' = $3)))
+  or payload->>'order_id' = any($4::text[]) or (type like 'orders/%' and payload->>'id' = any($4::text[])))`
+const eventParams = (s: Subject, tokens: string[]) => [s.orgId, tokens, s.customerId && /^\d{1,20}$/.test(s.customerId) ? s.customerId : null, s.orderIds.filter(o => /^\d{1,20}$/.test(o))]
 
 const caseText = `title || ' ' || problem || ' ' || coalesce(why_it_matters, '') || ' ' || coalesce(status_reason, '') || ' ' || coalesce(next_action, '') || evidence::text || records::text || coalesce(outcome::text, '')`
 
@@ -174,6 +185,12 @@ export async function redactCustomerData(db: Db, s: Subject): Promise<Record<str
   await db.query(`select set_config('deploi.privacy_redaction', 'on', true)`)
   out.case_events = (await db.query(`update case_events set summary = ${rx('summary')}, detail = ${rx('detail::text')}::jsonb where org_id = $1 and ${names('summary || detail::text', 2)} returning id`, [s.orgId, tokens, pat])).length
   await db.query(`select set_config('deploi.privacy_redaction', 'off', true)`)
+  out.agent_events = (await db.query(`delete from agent_events where org_id = $1 and ${eventMatch} returning id`, eventParams(s, tokens))).length
+  out.agent_loops = (await db.query(`update agent_loops set action = ${rx('action::text')}::jsonb,
+      state = case when state in ('awaiting_owner','approved','blocked') then 'cleared' else state end, last_error = case when state in ('awaiting_owner','approved','blocked') then 'customer data erased at the shop''s request' else last_error end
+    where org_id = $1 and ${names('action::text', 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.undo_tokens = (await db.query(`update undo_tokens set summary = ${rx('summary')}, payload = ${rx('payload::text')}::jsonb, expires_at = least(expires_at, now())
+    where org_id = $1 and ${names(`summary || payload::text`, 2)} returning id`, [s.orgId, tokens, pat])).length
   out.engine_audit_retained = (await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens]))?.n ?? 0
   return out
 }

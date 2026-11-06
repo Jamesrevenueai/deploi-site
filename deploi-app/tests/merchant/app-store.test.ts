@@ -13,6 +13,7 @@ import { GET as billingRoute } from '../../app/api/store/billing/route'
 import { signSessionToken } from '../../lib/connectors/shopify/auth'
 import { frameAncestors } from '../../middleware'
 import { appBridgeFirst } from '../../lib/shopify/head'
+import { REQUIRED_SCOPES, EVENT_SCOPES, SHOPIFY_EVENT_TOPICS } from '../../lib/connectors/shopify/config'
 import { NW, resetMerchant } from './helpers'
 
 const ready = await prepareDb()
@@ -87,7 +88,11 @@ describe('embedded app shell', () => {
     expect(toml).toMatch(/embedded = true/)
     expect(toml).toMatch(/compliance_topics = \["customers\/data_request", "customers\/redact", "shop\/redact"\]/)
     expect(toml).toMatch(/"app\/uninstalled"/)
-    expect(toml).not.toMatch(/orders|customers"?,? *"?read_customers|read_customers|write_customers|read_orders/)
+    // agent events add read-only order/customer/return/discount scopes (config.ts EVENT_SCOPES); never a write scope for them
+    expect(toml).not.toMatch(/write_customers|write_orders|write_returns|write_discounts|write_fulfillments|read_reports/)
+    const scopes = /^scopes = "([^"]+)"/m.exec(toml)![1].split(',')
+    expect([...scopes].sort()).toEqual([...REQUIRED_SCOPES, ...EVENT_SCOPES].sort())
+    for (const t of SHOPIFY_EVENT_TOPICS) expect(toml, t).toContain(`"${t}"`)
     expect(toml).toMatch(/api_version = "2026-10"/)
   })
 })

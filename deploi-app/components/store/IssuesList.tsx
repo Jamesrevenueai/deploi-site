@@ -43,7 +43,7 @@ export function IssuesScreen({ initialStatus, initialKind }: { initialStatus?: s
         <div role="tablist" aria-label="Issue status" className="flex gap-1 rounded-full border border-line p-1 self-start">
           {([['live', 'Live'], ['resolved', 'Resolved'], ['all', 'All']] as const).map(([v, l]) => (
             <button key={v} role="tab" type="button" aria-selected={status === v} onClick={() => { setStatus(v); sync(v, kind) }}
-              className={`rounded-full px-4 py-1.5 text-[14px] font-medium ${status === v ? 'bg-ink text-surface' : 'text-grey hover:text-ink'}`}>{l}</button>
+              className={`rounded-full px-4 py-1.5 text-[14px] font-medium ${status === v ? 'bg-[var(--c-btn-bg)] text-[var(--c-btn-ink)]' : 'text-grey hover:text-ink'}`}>{l}</button>
           ))}
         </div>
         <Chips label="Issue type" value={kind} onChange={k => { setKind(k); sync(status, k) }} options={[['', 'All types'], ['correctable', 'Correctable'], ['needs_person', 'Needs a person']]} />

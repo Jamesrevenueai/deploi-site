@@ -69,7 +69,7 @@
 
 /* The night sky: ground colour lit by the aurora glow */
 html { background: var(--au-ground); color-scheme: dark; }
-body { background-color: var(--au-ground); background-image: var(--au-glow); background-attachment: fixed; }
+body { min-height: 100vh; min-height: 100dvh; background-color: var(--au-ground); background-image: var(--au-glow); background-attachment: fixed; }
 
 /* White surfaces carry dark text (the v2 panel values) */
 .aurora-surface,
@@ -103,8 +103,8 @@ body { background-color: var(--au-ground); background-image: var(--au-glow); bac
   --c-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%233A4256' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
 }
 
-/* a ground inside a surface (the v2 dark 'metal' card) returns to the night-sky values */
-.aurora-surface .aurora-ground, .aurora-surface .metal, .panel .metal, .card .metal, .bg-surface .metal, .card.aurora-ground, .aurora-ground .metal {
+/* a ground inside a surface (the v2 dark 'metal' card) returns to the night-sky values; a .metal.tile stays a white surface wherever it sits */
+.aurora-surface .aurora-ground, .aurora-surface .metal:not(.tile), .panel .metal:not(.tile), .card .metal:not(.tile), .bg-surface .metal:not(.tile), .card.aurora-ground, .aurora-ground .metal:not(.tile) {
   color: var(--c-body);
   color-scheme: dark;
 

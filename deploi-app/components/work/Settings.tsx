@@ -15,11 +15,13 @@ import { probe } from '@/components/cx/probe'
 import { useState } from 'react'
 import { storeFetch, asApiError } from '@/components/store/api'
 import { MembersPanel } from './Members'
+import { AgentModesPanel } from './AgentModes'
 
 export const SETTINGS_APIS = {
   members: '/api/store/settings/members',
   retention: '/api/store/settings/retention',
   deletion: '/api/store/settings/deletion',
+  autonomy: '/api/store/autonomy',
 } as const
 
 type Probe = { available: boolean; json: Record<string, unknown> | null }
@@ -84,6 +86,11 @@ export function SettingsScreen() {
           <Row href="/store/setup" title="Setup" body="Business details, agreements, products, connections and the team discovery recommends." />
           <Row href="/store/legal" title="Agreements" body="The terms you accepted for Deploi Commerce and Deploi Office." />
         </ul>
+      </Section>
+      <Section id="autonomy" title="How your agents act" sub="For each kind of action: should your agents do it and tell you after, or ask you first? Every action is checked with a fresh read and recorded with its proof.">
+        <div data-settings="autonomy" data-available={data?.autonomy?.available ? 'true' : 'false'}>
+          {data?.autonomy?.available ? <AgentModesPanel /> : <ul className="flex flex-col gap-2"><Row href={null} title="Do it and tell me, or ask me first" body="Choose per action how your agents work." badge={pending} /></ul>}
+        </div>
       </Section>
       <Section id="people" title="People and roles" sub="Who can see and approve work for your business. Only owners and admins grant agents.">
         <div data-settings="members" data-available={members?.available ? 'true' : 'false'}>

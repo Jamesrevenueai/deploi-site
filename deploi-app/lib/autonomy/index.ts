@@ -4,6 +4,10 @@
  *   'ask_first': the agent prepares the exact action and waits for the owner's approval.
  * Money actions (refunds, discounts, payout disputes) are act_and_tell by default too, and can be switched to ask_first.
  * Hard limits (amount caps, daily caps, allowed recipients) still apply in both modes.
+ *
+ * Stored in org_action_modes (one row per organization and action type; no row = the default). Only owners and
+ * admins change it (assertCan 'settings'); every change is audited. Packs add their action types with
+ * registerActionTypes so the Settings page lists them.
  */
 import type { Db } from '../db'
 
@@ -12,7 +16,53 @@ export const DEFAULT_MODE: ActionMode = 'act_and_tell'
 /** action types that move money; listed separately in settings so an owner can switch them to ask_first */
 export const MONEY_ACTIONS = ['refund', 'discount', 'payout_dispute', 'invoice_send', 'credit_note'] as const
 
-/** The owner's mode for one action type in one organization (default act_and_tell). W1 replaces the body with the stored setting. */
-export async function modeFor(_db: Db, _orgId: string, _actionType: string): Promise<ActionMode> {
-  return DEFAULT_MODE
+export const isActionMode = (v: unknown): v is ActionMode => v === 'act_and_tell' || v === 'ask_first'
+export const ACTION_TYPE = /^[a-z][a-z0-9_.]{1,63}$/
+export const isMoneyAction = (t: string) => (MONEY_ACTIONS as readonly string[]).includes(t)
+
+/** The owner's mode for one action type in one organization (default act_and_tell). */
+export async function modeFor(db: Db, orgId: string, actionType: string): Promise<ActionMode> {
+  if (!ACTION_TYPE.test(actionType)) return DEFAULT_MODE
+  const r = await db.one<{ mode: string }>('select mode from org_action_modes where org_id = $1 and action_type = $2', [orgId, actionType])
+  return isActionMode(r?.mode) ? r.mode : DEFAULT_MODE
+}
+
+// ---------------------------------------------------------------- the action types an owner can set
+
+export type ActionTypeInfo = { key: string; label: string; money: boolean }
+
+const MONEY_LABELS: Record<(typeof MONEY_ACTIONS)[number], string> = {
+  refund: 'Refund a customer',
+  discount: 'Create or change a discount',
+  payout_dispute: 'Answer a payout dispute or chargeback',
+  invoice_send: 'Send an invoice',
+  credit_note: 'Issue a credit note',
+}
+const known = new Map<string, string>([
+  ['send_customer_email', 'Email a customer'],
+  ['update_listing', 'Fix a product listing'],
+  ['update_inventory_policy', 'Stop or allow selling when out of stock'],
+  ['tag_order', 'Tag or note an order'],
+  ['fulfillment_followup', 'Chase a late shipment with the carrier or warehouse'],
+  ['approve_return', 'Approve a return'],
+  ['notify_crew', 'Message a packer or crew member'],
+  ['schedule_appointment', 'Book or move an appointment'],
+  ['send_reminder', 'Send a reminder'],
+  ['reply_to_lead', 'Reply to a new lead'],
+  ['update_crm', 'Update the CRM'],
+  ...Object.entries(MONEY_LABELS),
+])
+
+/** Packs register the action types their agents take (label in plain words). */
+export function registerActionTypes(list: { key: string; label: string }[]) {
+  for (const a of list) if (ACTION_TYPE.test(a.key) && !known.has(a.key)) known.set(a.key, a.label.slice(0, 120))
+}
+
+/** Every known action type: the built-in list, those registered by packs and those named by pack agents. */
+export async function knownActionTypes(): Promise<ActionTypeInfo[]> {
+  const { PACK_AGENTS } = await import('../packs/registry')
+  const keys = new Map(known)
+  for (const a of PACK_AGENTS) for (const t of a.actions) if (ACTION_TYPE.test(t) && !keys.has(t)) keys.set(t, t.replace(/[_.]/g, ' ').replace(/^./, c => c.toUpperCase()))
+  return [...keys.entries()].map(([key, label]) => ({ key, label, money: isMoneyAction(key) }))
+    .sort((a, b) => Number(a.money) - Number(b.money) || a.label.localeCompare(b.label))
 }

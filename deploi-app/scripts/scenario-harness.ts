@@ -904,7 +904,8 @@ function report(results: Result[], meta: Record<string, unknown>): string {
     L.push(`Synthetic inputs: ${syn.map(cell).join('; ')}.`, '')
   }
   L.push('## Pack readiness ranking', '')
-  const ranked = (['A', 'B', 'C', 'D', 'E', 'F'] as PackId[]).map(p => { const rs = results.filter(r => r.pack === p); return { p, rs, rate: rs.length ? rs.filter(r => r.result === 'PASS').length / rs.length : 0 } }).sort((a, b) => b.rate - a.rate)
+  L.push('Ranked by pass rate, ties by scenario count. Read the reason with it: every pack that reads customer replies (B, C, D, E) has the same Outlook no-text gap (C09); D ranks first only because this run has no Outlook-reply scenario for it, not because it is free of the gap. Commerce is synthetic-only until the live store wires email and crew.', '')
+  const ranked = (['A', 'B', 'C', 'D', 'E', 'F'] as PackId[]).map(p => { const rs = results.filter(r => r.pack === p); return { p, rs, rate: rs.length ? rs.filter(r => r.result === 'PASS').length / rs.length : 0 } }).sort((a, b) => b.rate - a.rate || b.rs.length - a.rs.length)
   L.push('| Rank | Pack | Pass rate | Reason |', '|---|---|---|---|')
   ranked.forEach((x, i) => { const f = x.rs.filter(r => r.result === 'FAIL'); L.push(`| ${i + 1} | ${PACK_NAMES[x.p]} | ${x.rs.filter(r => r.result === 'PASS').length}/${x.rs.length} | ${cell(READINESS[x.p] ?? '')}${f.length ? ` Failing: ${f.map(r => r.id).join(', ')}.` : ''} |`) })
   L.push('')

@@ -85,3 +85,24 @@ test('outside the Shopify admin (no App Bridge) the embedded page explains how t
   await page.goto('/shopify')
   await expect(page.getByRole('heading', { name: 'Open this app from your Shopify admin' })).toBeVisible()
 })
+
+test('inside Shopify only ready features are reachable: the menu lists them and a hidden page is a 404', async ({ page }) => {
+  await stubAppBridge(page, SHOP)
+  const res = await page.goto(`/shopify?shop=${SHOP}`)
+  const html = await res!.text()
+  const menu = html.slice(html.indexOf('<ui-nav-menu'), html.indexOf('</ui-nav-menu>'))
+  const hrefs = [...menu.matchAll(/href="([^"]+)"/g)].map(m => m[1])
+  expect(hrefs).toContain('/shopify/agents')
+  expect(hrefs).toContain('/shopify/privacy')
+  // nothing is marked ready for Shopify in the library, billing and the legal gate are off in this environment
+  for (const hidden of ['/shopify/team', '/shopify/plan', '/shopify/legal']) expect(hrefs).not.toContain(hidden)
+  for (const hidden of ['/shopify/team', '/shopify/team/order_tracker', '/shopify/plan', '/shopify/legal']) {
+    expect((await page.goto(`${hidden}?shop=${SHOP}`))!.status(), hidden).toBe(404)
+  }
+  await page.goto(`/shopify/privacy?shop=${SHOP}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy requests' })).toBeVisible()
+  // the agent templates offered inside Shopify are the three that work on a live store
+  await page.goto(`/shopify/agents?shop=${SHOP}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Agents' })).toBeVisible()
+  await expect(page.getByText('Competitor & Trend Watcher')).toHaveCount(0)
+})

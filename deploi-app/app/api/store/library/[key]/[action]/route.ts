@@ -3,6 +3,7 @@ import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/re
 import { grantAutoRun, revokeAutoRun, setInstructions, setPermission, setSettings, setSwitch } from '@/lib/library/switches'
 import { runLibraryAgent } from '@/lib/library/actions'
 import { chat } from '@/lib/library/chat'
+import { assertEmbeddedLibraryAgent } from '@/lib/store/embedded-gate'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -21,6 +22,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ key: string; a
   try {
     const actor = await resolveActor(req, { mutating: true })
     const { key, action } = await ctx.params
+    assertEmbeddedLibraryAgent(actor, key)
     const body = await readJson(req).catch(() => ({} as Record<string, unknown>))
     if (actor.kind === 'staff') throw new HttpError(403, 'forbidden', 'Deploi staff can view but not change a merchant team')
     if (action === 'grant' || (action === 'switch' && body.enabled === true) || (action === 'permission' && body.level !== 'read')) await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)

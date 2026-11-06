@@ -1,5 +1,7 @@
 # Shopify App Store submission package
 
+> **2026-11-06:** for the current submission state, use `docs/app-store/SUBMISSION-CHECKLIST.md` (requirement audit and founder steps), `docs/app-store/LISTING.md` and `docs/app-store/PROTECTED-CUSTOMER-DATA.md`. This page is kept for history.
+
 Date: 2026-10-29. **Status: not submitted.** Shopify has not reviewed or approved Deploi. Nothing in this
 document is an acceptance or approval by Shopify. Requirements are from
 `docs/platform-research/shopify-app-store.md` (shopify.dev, read 2026-10-29); anything marked UNVERIFIED there is

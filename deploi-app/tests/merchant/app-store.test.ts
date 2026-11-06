@@ -68,7 +68,7 @@ describe('embedded app shell', () => {
     expect(head).toContain('<meta name="shopify-api-key"')
     expect(head).toContain('https://cdn.shopify.com/shopifycloud/app-bridge.js')
     expect(head).not.toMatch(/async|defer/)
-    expect(readFileSync('middleware.ts', 'utf8')).toContain("p.forward({ 'x-deploi-embedded': '1' })")
+    expect(readFileSync('middleware.ts', 'utf8')).toContain("p.forward({ 'x-deploi-embedded': '1', 'x-deploi-path': req.nextUrl.pathname })")
     expect(readFileSync('app/shopify/layout.tsx', 'utf8')).not.toContain('app-bridge.js"')
     expect(frameAncestors('/shopify/agents', 'demo.myshopify.com')).toBe('frame-ancestors https://demo.myshopify.com https://admin.shopify.com;')
     expect(frameAncestors('/store', null)).toBe("frame-ancestors 'none';")
@@ -119,6 +119,23 @@ describe.skipIf(!ready)('App Store behaviours against the database', () => {
     expect(await admin(db => syncSubscription(db, conn, { fetchImpl: f.fn, force: true }))).toEqual({ active: false, planHandle: null, checked: true })
     const row = await admin(db => db.one<{ status: string; plan_key: string }>(`select status, plan_key from app_subscriptions where provider = 'shopify_billing' and external_id = $1`, [`app_pricing:${NW.domain}`]))
     expect(row).toEqual({ status: 'cancelled', plan_key: 'standard' })
+  })
+
+  it('an App Pricing plan whose handle is one of our plan keys sets the organization plan and tier; an unknown handle changes nothing', async () => {
+    Object.assign(process.env, PARTNER_ENV)
+    await admin(db => db.query(`update store_connections set is_synthetic = false, shop_gid = 'gid://shopify/Shop/9001' where id = $1`, [NW.conn]))
+    const before = await admin(db => db.one<{ plan_key: string | null; plan_tier: string }>('select plan_key, plan_tier from agencies where id = $1', [NW.org]))
+    const conn = { id: NW.conn, org_id: NW.org, external_id: NW.domain, shop_gid: 'gid://shopify/Shop/9001', is_synthetic: false }
+    const sub = (handle: string) => fakeFetch(() => ({ status: 200, body: { data: { activeSubscription: { cancelAtEndOfCycle: false, trialEndsAt: null, currentBillingCycle: null, items: [{ handle }] } } } })).fn
+    try {
+      await admin(db => db.query(`update agencies set plan_key = null, plan_tier = 'starter' where id = $1`, [NW.org]))
+      await admin(db => syncSubscription(db, conn, { fetchImpl: sub('not-a-plan-key'), force: true }))
+      expect(await admin(db => db.one('select plan_key, plan_tier from agencies where id = $1', [NW.org]))).toEqual({ plan_key: null, plan_tier: 'starter' })
+      await admin(db => syncSubscription(db, conn, { fetchImpl: sub('growth'), force: true }))
+      expect(await admin(db => db.one('select plan_key, plan_tier from agencies where id = $1', [NW.org]))).toEqual({ plan_key: 'growth', plan_tier: 'growth' })
+    } finally {
+      await admin(db => db.query('update agencies set plan_key = $2, plan_tier = $3 where id = $1', [NW.org, before?.plan_key ?? null, before?.plan_tier ?? 'starter']))
+    }
   })
 
   it('the plan banner agrees with the change engine: an early-access grant counts as active; without it a plan is required', async () => {

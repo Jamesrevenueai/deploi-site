@@ -612,7 +612,7 @@ add({ id: 'D05', pack: 'D', title: 'CRM does not answer -> reply still sent, CRM
   run: async c => { await RE(c); await injectPortFault(c.m.org, 'crm', { op: 'upsertContact', mode: 'unreachable' }); c.seeded(); await c.conn(mailboxEvent('lead.email', buyer('re-5'), T)) },
   check: async (o, c) => [['reply sent', (await sentMail(c.m)).length === 1], ['crm step failed', o.activity.some(a => a.agent_key === 're_crm_update' && a.status === 'failed')], ['owner told', ownerFor(o, ['re_crm_update']).some(r => r.severity === 'warning')]] })
 
-add({ id: 'D06', pack: 'D', title: 'Lead opts out -> do-not-contact, no follow-ups', kind: 'edge', agents: ['re_followup'], expected: 'CRM stage "do not contact"; sweeps on days 3/6/12 send nothing more',
+add({ id: 'D06', pack: 'D', title: 'Lead opts out -> do-not-contact, no follow-ups', kind: 'edge', agents: ['re_crm_update', 're_followup'], expected: 'CRM stage "do not contact"; sweeps on days 3/6/12 send nothing more',
   rules: 'fully', rulesWhy: 'Opt-out phrase list.', synthetic: SYN_PORTS,
   run: async c => { await RE(c); await c.conn(mailboxEvent('lead.email', buyer('re-4'), T)); c.seeded(); await c.conn(mailboxEvent('mail.received', { from: 'morgan@buyer.example', subject: 'Re', text: 'unsubscribe', messageId: 'r-3' }, plus(T, 2)))
     for (const d of [3, 6, 12]) await c.sweep(plus(T, 24 * d)) },
@@ -665,7 +665,7 @@ add({ id: 'E06', pack: 'E', title: 'Rent late -> reminder from the property syst
       { tenantId: 't2', tenantName: 'Paid Up', tenantEmail: 'paid@renters.example', property: 'Maple Court', unit: '1A', amountDue: 0, dueDate: isoDay(T, -3), currency: 'USD' },
       { tenantId: 't3', tenantName: 'Not Yet', tenantEmail: 'notyet@renters.example', property: 'Maple Court', unit: '2B', amountDue: 1450, dueDate: isoDay(T, 3), currency: 'USD' },
       { tenantId: 't4', tenantName: 'No Email', tenantEmail: null, property: 'Maple Court', unit: '3C', amountDue: 900, dueDate: isoDay(T, -3), currency: 'USD' }] }); c.seeded(); await c.sweep(T); await c.sweep(plus(T, 1)) },
-  check: async o => { return [['one reminder to kai', true], ['activity done+blocked', o.activity.filter(a => a.agent_key === 'pm_rent_reminder').map(a => a.status).sort().join() === 'blocked,done', o.activity.map(a => `${a.agent_key}:${a.status}`)]] } })
+  check: async (o, c) => { const mail = (await sentMail(c.m)).filter(m => /^Rent reminder/.test(m.subject)); return [['one reminder to kai', mail.length === 1 && mail[0].to === 'kai@renters.example' && /USD\s1,450\.00/.test(mail[0].body), mail.map(m => m.to)], ['activity done+blocked', o.activity.filter(a => a.agent_key === 'pm_rent_reminder').map(a => a.status).sort().join() === 'blocked,done', o.activity.map(a => `${a.agent_key}:${a.status}`)]] } })
 
 add({ id: 'E07', pack: 'E', title: 'Tenant request through the real Outlook path (mail.received has no text)', kind: 'edge', agents: ['pm_maintenance_intake'], expected: 'a tenant email arriving as the Outlook mail.received event is logged as a maintenance request with its unit',
   rules: 'fully', rulesWhy: 'Keyword category; needs the text to read the unit.', synthetic: 'synthetic Outlook message through emitMailEvents',
@@ -689,12 +689,12 @@ add({ id: 'F02', pack: 'F', title: 'Sweep runs only due Office agents', kind: 'e
     await c.sweep(now); c.facts.first = (await q(`select 1 from pack_activity where org_id = $1 and agent_key = 'office_overdue_invoices'`, [c.m.org])).length; await c.sweep(plus(now, 6)) },
   check: async (o, c) => [['nothing before due', c.facts.first === 0, c.facts.first], ['ran once when due', o.activity.filter(a => a.agent_key === 'office_overdue_invoices').map(a => a.status).join() === 'done', o.activity.map(a => `${a.agent_key}:${a.status}:${a.error ?? ''}`)]] })
 
-add({ id: 'F03', pack: 'F', title: 'Quiet office quote -> follow-up on day 3', kind: 'normal', agents: ['office_quote_followup'], expected: 'one follow-up mentioning the quote ref',
+add({ id: 'F03', pack: 'F', title: 'Quiet office quote -> follow-up on day 3', kind: 'normal', agents: ['office_quote_followup', 'hs_quote_followup'], expected: 'one follow-up mentioning the quote ref',
   rules: 'fully', rulesWhy: 'Cadence.', synthetic: SYN_PORTS,
   run: async c => { await OF(c); const T2 = new Date(Date.UTC(2027, 0, 4, 8)); const wo = await admin(db => recordQuote(db, c.m.org, { pack: 'office', customerName: 'Lee Client', customerEmail: 'lee@client.example', description: 'Office move', amount: 1200, now: T2 })); c.facts.ref = wo.ref; c.seeded(); await c.sweep(plus(T2, 72)) },
   check: async (_o, c) => [['one follow-up', (await sentMail(c.m)).filter(m => m.subject.includes(String(c.facts.ref))).length === 1, (await sentMail(c.m)).map(m => m.subject)]] })
 
-add({ id: 'F04', pack: 'F', title: 'Office job scheduled -> crew member messaged; DONE -> invoiced', kind: 'normal', agents: ['office_crew_updates'], expected: 'crew message delivered (crew_messages row); crew.done invoices the job',
+add({ id: 'F04', pack: 'F', title: 'Office job scheduled -> crew member messaged; DONE -> invoiced', kind: 'normal', agents: ['office_crew_updates', 'hs_dispatch', 'hs_invoice'], expected: 'crew message delivered (crew_messages row); crew.done invoices the job',
   rules: 'fully', rulesWhy: 'Schedule + template + invoice lines.', synthetic: `${SYN_PORTS}; crew member in pack_crew_members`,
   run: async c => { await OF(c); const T2 = new Date(Date.UTC(2027, 0, 4, 8)); const cm = (await q1<{ id: string }>(`insert into pack_crew_members (org_id, name, email) values ($1,'Pat Packer','pat@crew.example') returning id`, [c.m.org]))!
     const wo = await admin(db => recordQuote(db, c.m.org, { pack: 'office', customerName: 'Lee Client', customerEmail: 'lee@client.example', description: 'Office move', amount: 1200, now: T2 })); await admin(db => scheduleJob(db, c.m.org, wo.id, { crewMemberId: cm.id, start: plus(T2, 24 * 4) })); c.facts.wo = wo.id; c.seeded()
@@ -724,7 +724,7 @@ add({ id: 'X03', pack: 'X', org: 'NW', title: 'Two agents on one job: Campaign a
   run: async c => { await resetCommerce(c.m, ['promoted_out_of_stock']); c.seeded(); await routeEvent({ ...shopify('inventory_levels/update', { inventory_item_id: 5003, available: 0 }), orgId: c.m.org }); await c.drain({ workers: 3 }) },
   check: async (o, c) => { const f = (await commerceOf(c.m)).collections.find(x => x.id === COMMERCE_IDS.featured)!; return [['one action', workOf(o, 'promoted_out_of_stock').length === 1, workOf(o, 'promoted_out_of_stock').map(w => w.agent_key)], ['removed', !f.productIds.includes(COMMERCE_IDS.lantern.product)], ['one owner update', new Set(ownerFor(o, ['campaign', 'promo_manager']).filter(r => /Brass Lantern is out of stock/.test(r.headline)).map(r => r.dedupe_key)).size === 1]] } })
 
-add({ id: 'X04', pack: 'X', title: 'Two agents on one invoice: home-services chaser + Office receivables -> no double customer email', kind: 'edge', agents: ['hs_payment_chase', 'office_overdue_invoices'], expected: 'with an Office receivables agent active, the home-services chaser sends no overdue reminder of its own',
+add({ id: 'X04', pack: 'X', title: 'Two agents on one invoice: home-services chaser + Office receivables -> no double customer email', kind: 'edge', agents: ['hs_payment_chase'], expectNoAction: true, expected: 'with an Office receivables agent active, the home-services chaser sends no overdue reminder of its own',
   rules: 'fully', rulesWhy: 'Ownership rule between agents.', synthetic: `${SYN_PORTS}; synthetic QuickBooks + mailbox`,
   run: async c => { await resetPacks(c.m, 'home_services', { trade: 'cleaning', office: true }); const now = new Date(); await officeReceivables(c.m, [])
     const wo = await admin(db => recordQuote(db, c.m.org, { customerName: 'Dana', customerEmail: 'dana@homeowner.example', description: 'Deep clean', amount: 300, now: plus(now, -24 * 40) }))
@@ -737,7 +737,7 @@ add({ id: 'X05', pack: 'X', org: 'NW', title: 'Ask-first owner never replies -> 
     const l = await q1<{ id: string; case_id: string }>(`select id, case_id from agent_loops where org_id = $1 and agent_key = 'listing_writer' and state = 'awaiting_owner'`, [c.m.org])
     c.facts.waiting = Boolean(l)
     if (l) for (const h of [25, 73]) {
-      await q(`update agent_loops set asked_at = now() - ($2 || ' hours')::interval, created_at = now() - ($2 || ' hours')::interval where id = $1`, [l.id, String(h)])
+      await q(`update agent_loops set asked_at = now() - ($2 || ' hours')::interval where id = $1`, [l.id, String(h)])
       await q(`update cases set next_check_at = now() - interval '1 minute' where id = $1`, [l.case_id])
       await enqueueDueCases(new Date()); await c.drain()
     }
@@ -817,7 +817,7 @@ async function runScenario(s: Scenario): Promise<Result> {
   }
   const obs = o ?? { loops: [], activity: [], work: [], owner: [], crew: [], crewCalls: [], undo: [], jobs, ownerCalls: [] }
   const mine = obs.loops.filter(l => s.agents.includes(l.agent_key))
-  const firstLoop = mine.map(l => new Date(l.created_at).getTime()).sort((a, b) => a - b)[0]
+  const firstLoop = mine.map(l => new Date(l.created_at).getTime()).filter(t => seededAt !== null && t >= seededAt - 5).sort((a, b) => a - b)[0]
   const work = [...obs.activity.filter(a => s.agents.includes(a.agent_key)).map(a => ({ agent: a.agent_key, status: a.status, err: a.error })), ...obs.work.filter(w => s.agents.includes(w.agent_key)).map(w => ({ agent: w.agent_key, status: w.status, err: w.status_reason }))]
   const detectedRow = mine.length > 0 || work.length > 0
   const detectionMs = firstLoop && seededAt ? Math.max(0, firstLoop - seededAt) : null

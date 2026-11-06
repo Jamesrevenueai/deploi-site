@@ -72,9 +72,30 @@ export function renterCriteria(text: string, today?: string): LeasingCriteria {
   }
 }
 
-/** The lead.email payload: { from, fromName?, replyTo?, subject, text, messageId, source? }. */
+/**
+ * The lead.email payload the Outlook inbox sync emits (lib/outlook/mail-events.ts): the message was already parsed by
+ * lib/leads/email-parsers into { source, name, email, phone, property, moveIn, message }, and the text is not carried.
+ * Only the labelled move-in date becomes a criterion (ISO dates only); the free-text message is never mined.
+ */
+function fromInboxSync(p: Record<string, unknown>): ParsedLead | null {
+  const l = p.lead as Record<string, unknown>
+  const externalId = str(p.providerMessageId, 300)
+  if (!externalId) return null
+  const portal = str(l.source, 40)
+  const source: LeadSourceKey = portal === 'zillow' || portal === 'apartments_com' || portal === 'zumper' ? portal : 'email'
+  const email = str(l.email, 254)
+  const moveIn = str(l.moveIn, 40)
+  const phone = str(l.phone, 40)
+  return {
+    source, externalId, name: str(l.name, 160), email: email && EMAIL.test(email) ? EMAIL.exec(email)![0].toLowerCase() : null, phone: phone ? phone.replace(/[^\d+()\- .]/g, '').slice(0, 40) || null : null,
+    subject: str(p.subject, 300), criteria: { budget: null, moveIn: moveIn && /^\d{4}-\d{2}-\d{2}$/.test(moveIn) ? moveIn : null, bedrooms: null, pets: null }, intent: 'inquiry',
+  }
+}
+
+/** The lead.email payload: { from, fromName?, replyTo?, subject, text, messageId, source? }, or the inbox sync's { providerMessageId, lead }. */
 export const emailLeadSource: LeadSource = {
   parse(p) {
+    if (p.lead && typeof p.lead === 'object' && p.messageId === undefined) return fromInboxSync(p)
     const from = str(p.from, 254)?.toLowerCase() ?? null
     const text = str(p.text, 20000) ?? ''
     const subject = str(p.subject, 300)
@@ -119,9 +140,20 @@ export async function intakeLead(db: Db, orgId: string, pack: string, l: ParsedL
   return { lead, kind: earlier ? 'duplicate' : 'new' }
 }
 
-/** A new lead created in the CRM: { externalId, email, name?, phone?, intent? ('buyer' | 'seller') }. */
+/**
+ * A new lead created in the CRM: { externalId, email, name?, phone?, intent? ('buyer' | 'seller') }, or the CRM poll's
+ * crm.lead.created (lib/connections/events.ts packEvents): { provider, contact: { id, kind, email, firstName, lastName, phone } }.
+ */
 export const crmLeadSource: LeadSource = {
   parse(p) {
+    if (p.contact && typeof p.contact === 'object' && p.externalId === undefined && p.id === undefined) {
+      const c = p.contact as Record<string, unknown>
+      const id = str(c.id, 200)
+      if (!id) return null
+      const email = str(c.email, 254)
+      const name = [str(c.firstName, 80), str(c.lastName, 80)].filter(Boolean).join(' ')
+      return { source: 'crm', externalId: `${str(p.provider, 40) ?? 'crm'}:${str(c.kind, 20) ?? 'contact'}:${id}`, name: name || null, email: email && EMAIL.test(email) ? EMAIL.exec(email)![0].toLowerCase() : null, phone: str(c.phone, 40), subject: null, criteria: {}, intent: 'inquiry' }
+    }
     const externalId = str(p.externalId, 300) ?? str(p.id, 300)
     const email = str(p.email, 254)
     if (!externalId) return null

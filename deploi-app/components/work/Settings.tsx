@@ -15,11 +15,13 @@ import { probe } from '@/components/cx/probe'
 import { useState } from 'react'
 import { storeFetch, asApiError } from '@/components/store/api'
 import { MembersPanel } from './Members'
+import { UpdatesPanel } from './Updates'
 
 export const SETTINGS_APIS = {
   members: '/api/store/settings/members',
   retention: '/api/store/settings/retention',
   deletion: '/api/store/settings/deletion',
+  updates: '/api/store/settings/notifications',
 } as const
 
 type Probe = { available: boolean; json: Record<string, unknown> | null }
@@ -89,6 +91,17 @@ export function SettingsScreen() {
         <div data-settings="members" data-available={members?.available ? 'true' : 'false'}>
           {members?.available ? <MembersPanel /> : <ul className="flex flex-col gap-2"><Row href={null} title="Members and roles" body="Owner, admin, member and viewer roles; only owners and admins grant agents." badge={pending} /></ul>}
         </div>
+      </Section>
+      <Section id="updates" title="Updates from your team" sub="Your agents act on their own and tell you after. Choose how you hear from them.">
+        <div data-settings="updates" data-available={data?.updates?.available ? 'true' : 'false'}>
+          {data?.updates?.available ? <UpdatesPanel /> : <ul className="flex flex-col gap-2"><Row href={null} title="How you get updates" body="Email after each action (on by default), text message and voice note, and a daily digest." badge={pending} /></ul>}
+        </div>
+      </Section>
+      <Section id="crew" title="Crew" sub="The people who pack, pick or go out on jobs. Agents send them their jobs; they tap Mark done when finished.">
+        <ul className="flex flex-col gap-2">
+          <Row href="/store/settings/crew" title="Crew members" body="Add, edit or deactivate packers, warehouse staff and field crew. Owners and admins only." />
+          <Row href="/store/crew" title="Today's crew jobs" body="Who has which job today, where, and whether it is done." />
+        </ul>
       </Section>
       <Section id="data" title="Data and deletion" sub="What Deploi keeps, for how long, and how to delete it.">
         <ul className="flex flex-col gap-2" data-settings="data" data-available={data?.retention?.available ? 'true' : 'false'}>

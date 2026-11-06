@@ -73,7 +73,7 @@ import { connectSyntheticOffice } from '../lib/office/connections'
 import { connectSyntheticMailbox } from '../lib/office/mailbox'
 import { createOfficeAgent, grantOfficePolicy } from '../lib/office/agents'
 import { officeTemplatePolicy } from '../lib/office/templates'
-import { mutateQboSynth, synthInvoice } from '../lib/office/quickbooks-synthetic'
+import { mutateQboSynth, synthInvoice, injectQboFault } from '../lib/office/quickbooks-synthetic'
 import type { QboInvoice } from '../lib/office/quickbooks'
 import type { Actor } from '../lib/engine/actor'
 import { NW, HB, merchantActor, resetMerchant } from '../tests/merchant/helpers'
@@ -708,6 +708,12 @@ add({ id: 'F05', pack: 'F', title: 'No active Office agents -> a QuickBooks chan
   rules: 'fully', rulesWhy: 'Nothing configured, nothing done.', synthetic: 'synthetic event only',
   run: async c => { await OF(c); c.seeded(); await c.conn({ source: 'quickbooks', type: 'invoice.changed', externalId: `invoice:1:${Date.now()}`, occurredAt: new Date().toISOString(), payload: { connectionId: null, entity: 'Invoice', id: '1', deleted: false } }) },
   check: async o => [['no activity', o.activity.length === 0, o.activity], ['no owner update', ownerFor(o, ['office_overdue_invoices']).length === 0]] })
+
+add({ id: 'F06', pack: 'F', title: 'QuickBooks rejects the token mid-run -> nothing claimed done, owner told', kind: 'failure', agents: ['office_overdue_invoices'], expected: 'the receivables run cannot read QuickBooks (401); the pack activity is not done and the owner gets a warning',
+  rules: 'fully', rulesWhy: 'Provider error handling.', synthetic: 'synthetic QuickBooks with an injected 401 on every call',
+  run: async c => { await OF(c); const now = new Date(); const s = await officeReceivables(c.m, [qbInv('1037', isoDay(now, -21), 1250)]); await injectQboFault(s.qbId, { op: '*', mode: 'auth', remaining: 50 }); c.seeded()
+    await c.conn({ source: 'quickbooks', type: 'invoice.changed', externalId: `invoice:1037:${now.toISOString()}`, occurredAt: now.toISOString(), payload: { connectionId: s.qbId, realmId: 'synthetic', entity: 'Invoice', id: '1037', deleted: false } }) },
+  check: async o => [['not done', o.activity.filter(a => a.agent_key === 'office_overdue_invoices').every(a => a.status !== 'done') && o.activity.some(a => a.agent_key === 'office_overdue_invoices'), o.activity.map(a => `${a.agent_key}:${a.status}:${a.error ?? ''}`)], ['owner told', ownerFor(o, ['office_overdue_invoices']).some(r => r.severity === 'warning'), ownerFor(o, ['office_overdue_invoices']).map(r => `${r.severity}:${r.headline}`)]] })
 
 // ===== X. Cross-cutting
 

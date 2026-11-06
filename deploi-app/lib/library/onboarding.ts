@@ -117,7 +117,7 @@ export type WizardView = {
   /** LEGAL_GATE mode and the agreements this person still has to accept (empty when the gate is off) */
   legal: { gate: 'off' | 'draft' | 'enforce'; missing: string[] }
   agreements: AgreementsStatus
-  discovery: { ran: boolean; running: boolean; recommended: number; activeAgents: number; skipped: boolean }
+  discovery: { ran: boolean; running: boolean; recommended: number; activeAgents: number; waitingAgents: number; skipped: boolean }
   agents: WizardAgent[]; agentsSkipped: boolean
   scan: WizardState['scan'] | null
   completedAt: string | null
@@ -192,7 +192,11 @@ export async function wizardView(actor: Actor): Promise<WizardView> {
     const active = await db.one<{ n: number }>(`select count(*)::int as n from discovery_agents d
       left join agents a on d.agent_kind = 'engine' and a.id = d.agent_id left join office_agents o on d.agent_kind = 'office' and o.id = d.agent_id
       where d.org_id = $1 and coalesce(a.status, o.status) = 'active'`, [orgId])
-    return { office: office.map(o => o.provider), mailboxes: mb?.n ?? 0, missing, running: run?.status === 'running', ran: Boolean(done), recommended: done?.n ?? 0, activeAgents: active?.n ?? 0 }
+    // agents the team setup created that still wait for the owner's grant (the step offers the grant until none waits)
+    const waiting = await db.one<{ n: number }>(`select count(*)::int as n from discovery_agents d
+      left join agents a on d.agent_kind = 'engine' and a.id = d.agent_id left join office_agents o on d.agent_kind = 'office' and o.id = d.agent_id
+      where d.org_id = $1 and coalesce(a.status, o.status) = 'draft'`, [orgId])
+    return { office: office.map(o => o.provider), mailboxes: mb?.n ?? 0, missing, running: run?.status === 'running', ran: Boolean(done), recommended: done?.n ?? 0, activeAgents: active?.n ?? 0, waitingAgents: waiting?.n ?? 0 }
   })
   const commerce = w.productsChosen ? products.includes('commerce') : false
   const officeOn = w.productsChosen ? products.includes('office') : false
@@ -202,7 +206,8 @@ export async function wizardView(actor: Actor): Promise<WizardView> {
     products: Boolean(w.productsChosen),
     // a connected store counts even before products are chosen; any Office tool or mailbox counts for Office
     connect: w.productsChosen ? (commerce && Boolean(conn)) || (officeOn && (extra.office.length > 0 || extra.mailboxes > 0)) : Boolean(conn),
-    discover: w.discoverSkipped ? 'skipped' : extra.ran && (extra.activeAgents > 0 || extra.recommended === 0),
+    // done once an agent works and none the setup created still waits for its grant (or there was nothing to set up)
+    discover: w.discoverSkipped ? 'skipped' : extra.ran && ((extra.activeAgents > 0 && extra.waitingAgents === 0) || extra.recommended === 0),
     done: Boolean(w.completedAt),
   }
   const current = WIZARD_STEPS.find(s => !done[s.key])?.key ?? 'done'
@@ -215,7 +220,7 @@ export async function wizardView(actor: Actor): Promise<WizardView> {
     office: { connected: extra.office, mailboxes: extra.mailboxes },
     legal: { gate, missing: extra.missing },
     agreements: gate === 'off' ? 'skipped' : extra.missing.length === 0 ? 'satisfied' : 'pending',
-    discovery: { ran: extra.ran, running: extra.running, recommended: extra.recommended, activeAgents: extra.activeAgents, skipped: Boolean(w.discoverSkipped) },
+    discovery: { ran: extra.ran, running: extra.running, recommended: extra.recommended, activeAgents: extra.activeAgents, waitingAgents: extra.waitingAgents, skipped: Boolean(w.discoverSkipped) },
     agents, agentsSkipped: Boolean(w.agentsSkipped),
     scan: w.scan ?? null, completedAt: w.completedAt ?? null,
     mailboxes: Boolean(emailConfig.agentMailDomain),

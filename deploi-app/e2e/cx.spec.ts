@@ -73,7 +73,8 @@ test('setup: from the first step to done, the discovered team at drafts only and
     } else if (w.current === 'products') {
       await page.getByLabel(/Deploi Commerce/).check()
       await page.getByLabel(/Deploi Office/).check()
-      await page.getByLabel('Shopify').check()
+      // the platform radio of this step (the business-type picker below the wizard also mentions Shopify)
+      await step.getByRole('group', { name: 'Your store platform' }).getByRole('radio', { name: 'Shopify', exact: true }).check()
       await step.getByRole('button', { name: 'Save and continue' }).click()
     } else if (w.current === 'discover') {
       const run = step.getByRole('button', { name: /Discover my business|Run discovery again/ })
@@ -127,7 +128,8 @@ test('the Command center: the team, what needs you and the connected store; Stop
   const cc = await api<{ workspace: string; team: { id: string; name: string }[]; needsYou: unknown[] }>(page, 'GET', '/api/app/command-center')
   expect(cc.status).toBe(200)
   await expect(page.getByTestId('team-row')).toHaveCount(cc.json.team.length)
-  for (const a of cc.json.team) await expect(page.getByRole('link', { name: `Open ${a.name}` })).toHaveAttribute('href', `/agents/${encodeURIComponent(a.id)}`)
+  // each row opens its own agent (two agents may share a name, e.g. a library agent and an engine agent the setup created)
+  for (const [i, a] of cc.json.team.entries()) await expect(page.getByTestId('team-row').nth(i).getByRole('link', { name: `Open ${a.name}`, exact: true })).toHaveAttribute('href', `/agents/${encodeURIComponent(a.id)}`)
   await expect(page.getByTestId('needs-you-card')).toHaveCount(cc.json.needsYou.length)
   await expect(page.getByTestId('workspace-name')).toContainText('Shopify')
   // the old Control Room URL still works: it redirects to the Command center

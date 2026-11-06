@@ -6,7 +6,9 @@ import '../merchant/env'
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
 import { admin } from '../../lib/db'
 import { prepareDb } from '../db/helpers'
-import { onEvent, type AgentEvent } from '../../lib/events'
+import { onEvent, EVENT_JOB, type AgentEvent } from '../../lib/events'
+import '../../lib/events/jobs'
+import { runDueJobs } from '../../lib/jobs'
 import { emitConnectionEvent } from '../../lib/connections/events'
 import { pollConnection, POLL_EVERY_MS } from '../../lib/connections/poll'
 import { readCursor } from '../../lib/connections/cursors'
@@ -30,9 +32,11 @@ let failing = false
 onEvent('crm.contact.changed', 'test:w3-failing', async db => { if (failing) { await db.query('select 1/0'); } })
 
 const ORGS = [NW.org, HB.org]
+/** The router queues one durable job per handler; run them (twice, so a retry of the failing handler is due too). */
+const drain = async () => { await runDueJobs({ kinds: [EVENT_JOB], limit: 100 }) }
 const clean = async () => {
   await resetOffice(NW); await resetOffice(HB)
-  await admin(async db => { for (const t of ['connection_events', 'connection_sync_cursors']) await db.query(`delete from ${t} where org_id = any($1::uuid[])`, [ORGS]) })
+  await admin(async db => { for (const t of ['connection_events', 'connection_sync_cursors', 'agent_events']) await db.query(`delete from ${t} where org_id = any($1::uuid[])`, [ORGS]) })
   await admin(db => db.query(`delete from email_accounts where org_id = any($1::uuid[]) and address like '%@events.example'`, [ORGS]))
 }
 
@@ -67,11 +71,12 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
       return [a, b]
     })
     expect(r).toEqual(['emitted', 'duplicate'])
+    await drain()
     expect(seen).toHaveLength(1)
     expect(await admin(db => db.one<{ n: string }>(`select count(*)::text as n from connection_sync_cursors where stream = 'test.after' and org_id = $1`, [NW.org]))).toEqual({ n: '1' })
     const row = await admin(db => db.one<Record<string, unknown>>('select * from connection_events where org_id = $1', [NW.org]))
     expect(JSON.stringify(row)).not.toContain('Ana Ruiz')
-    expect(row!.handlers).toBe(1) // the failing handler is not counted
+    expect(row!.handlers).toBe(2) // routed to both handlers; the failing one retries in the job queue
     // the same id in another organization is another event
     expect(await admin(db => emitConnectionEvent(db, { ...e, orgId: HB.org }))).toBe('emitted')
     await expect(admin(db => emitConnectionEvent(db, { ...e, source: 'shopify' }))).rejects.toThrow(/not a connection event source/)
@@ -89,7 +94,8 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
     const r1 = await pollConnection(c, { now, clients: { crm } })
     expect(r1).toEqual([{ stream: 'crm.contacts', status: 'polled', changes: 3, emitted: 3 }])
     expect(sinces[0]).toBe(new Date(now.getTime() - 24 * 3600e3).toISOString()) // first poll looks back a day
-    expect(seen.map(e => e.externalId)).toEqual(['salesforce:contact:a:2026-11-05T10:00:00.000Z', 'salesforce:contact:b:2026-11-05T11:00:00.000Z', 'salesforce:contact:c:2026-11-05T12:00:00.000Z'])
+    await drain()
+    expect(seen.map(e => e.externalId).sort()).toEqual(['salesforce:contact:a:2026-11-05T10:00:00.000Z', 'salesforce:contact:b:2026-11-05T11:00:00.000Z', 'salesforce:contact:c:2026-11-05T12:00:00.000Z'])
     expect(seen[0]).toMatchObject({ source: 'crm', orgId: NW.org, payload: { provider: 'salesforce', connectionId: c.id } })
     expect((await admin(db => readCursor(db, c.id, 'crm.contacts')))!.sync_position).toBe('2026-11-05T12:00:00.000Z')
     // not due again within the interval
@@ -99,6 +105,7 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
     const r3 = await pollConnection(c, { now: new Date(now.getTime() + POLL_EVERY_MS), clients: { crm } })
     expect(r3[0]).toMatchObject({ status: 'polled', changes: 1, emitted: 0 })
     expect(sinces.at(-1)).toBe('2026-11-05T12:00:00.000Z')
+    await drain()
     expect(seen).toHaveLength(3)
   })
 
@@ -141,6 +148,7 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
     expect(out[0]).toMatchObject({ stream: 'quickbooks.cdc', emitted: 1 })
     expect(calls[0].url.pathname).toBe('/v3/company/4620816365000000001/cdc')
     expect(calls[0].headers.get('authorization')).toBe('Bearer qb-at')
+    await drain()
     expect(seen[0]).toMatchObject({ type: 'invoice.changed', source: 'quickbooks', payload: { id: '130', deleted: false } })
   })
 
@@ -152,6 +160,7 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
     const r1 = await storeProviderMessage(acc, msg('AAMk-1'), 'test')
     expect(r1).not.toBe('duplicate')
     expect(await storeProviderMessage(acc, msg('AAMk-1'), 'test')).toBe('duplicate')
+    await drain()
     const types = seen.map(e => e.type)
     expect(types.filter(t => t === 'mail.received')).toHaveLength(1)
     const lead = seen.find(e => e.type === 'lead.email')!
@@ -159,12 +168,14 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
     // a newsletter from a known sender is mail, not a lead
     seen.length = 0
     await storeProviderMessage(acc, msg('AAMk-2', { subject: 'Weekly market report', text: 'Prices rose.' }), 'test')
+    await drain()
     expect(seen.map(e => e.type)).toEqual(['mail.received'])
   })
 
   it('Gmail mail emits nothing (deferred)', async () => {
     const acc = (await admin(db => db.one<EmailAccountRow>(`insert into email_accounts (org_id, provider, address, status, granted_scopes, can_send, can_read, is_synthetic, connected_by) values ($1,'gmail','g@events.example','active','{}',true,true,false,'test') returning *`, [NW.org])))!
     await storeProviderMessage(acc, { providerMessageId: 'g1', providerThreadId: 't', internetMessageId: '<g1@x>', from: 'leads@zumper.com', to: [], cc: [], subject: 'New lead for 9 Birch Ct', text: 'Email: a@b.example', inReplyTo: null, references: [], receivedAt: new Date().toISOString(), headers: {}, authentication: null, attachments: [], truncated: false }, 'test')
+    await drain()
     expect(seen).toEqual([])
   })
 
@@ -189,6 +200,8 @@ describe.skipIf(!ready)('change detection -> agent events (exactly once)', () =>
     expect(calls[0].headers.get('authorization')).toBe('Bearer ms-access-1')
     expect(calls[0].headers.get('prefer')).toContain('odata.maxpagesize=50')
     expect((await admin(db => readCursor(db, acc.id, CALENDAR_STREAM)))!.sync_position).toBe(DL)
+    await drain()
+    seen.sort((a, b) => (a.externalId.includes('tour') ? -1 : 1) - (b.externalId.includes('tour') ? -1 : 1)) // jobs queued in one transaction run in any order
     expect(seen.map(e => [e.type, e.externalId])).toEqual([['calendar.changed', 'outlook:AAMkEvent-tour-0001:ck1'], ['calendar.changed', 'outlook:AAMkEvent-gone-0001:removed']])
     expect(seen[0].payload).toMatchObject({ change: 'updated', event: { start: '2026-11-08T17:00:00.0000000Z'.replace('.0000000', ''), attendees: ['maya@example.com'] } })
     // next round continues from the stored delta link: a changed changeKey is a new change

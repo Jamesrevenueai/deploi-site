@@ -5,12 +5,11 @@
  * connection_events, so a change seen twice (a repeated poll, a delta replay, a push and a poll) reaches the agents
  * once. Only ids and times are recorded; the payload goes to the handlers and is not stored here.
  *
- * W1 owns the event router (routeEvent). Until it is in this branch, emitConnectionEvent dedupes here and hands the
- * event to every handler registered with onEvent (handlersFor). When routeEvent lands, this function forwards to it
- * after the dedupe; its signature stays the same for the callers in this workstream.
+ * After the dedupe the event goes to the router (routeEvent), which records it in agent_events and queues one durable
+ * agent job per handler; a failing agent retries in the job queue and never un-records the event.
  */
 import type { Db } from '../db'
-import { handlersFor, type AgentEvent } from '../events'
+import type { AgentEvent } from '../events'
 import { log } from '../log'
 
 export type ConnectionEvent = AgentEvent & { connectionId?: string | null }
@@ -26,16 +25,10 @@ export async function emitConnectionEvent(db: Db, e: ConnectionEvent): Promise<E
     on conflict (org_id, source, external_id) do nothing returning id`, [e.orgId, e.source, e.type, externalId, e.connectionId ?? null, e.occurredAt])
   if (!row) return 'duplicate'
   const event: AgentEvent = { source: e.source, type: e.type, orgId: e.orgId, externalId, occurredAt: e.occurredAt, payload: e.payload }
-  let ran = 0
-  for (const h of handlersFor(e.type)) {
-    // one handler failing never stops the others, and never un-records the event (the sweep catches up)
-    // a savepoint keeps a failed handler's writes (and an aborted statement) from undoing the caller's transaction
-    await db.query('savepoint connection_event_handler')
-    try { await h.fn(db, event); ran++; await db.query('release savepoint connection_event_handler') } catch (err) {
-      await db.query('rollback to savepoint connection_event_handler')
-      log.warn('connections.event_handler_failed', { type: e.type, agent: h.agentKey, error: (err as Error).message.slice(0, 160) })
-    }
-  }
-  if (ran) await db.query('update connection_events set handlers = $2 where id = $1', [row.id, ran])
+  // the router records the event in agent_events and queues one durable job per agent that handles it (lib/events)
+  const { routeEvent } = await import('../events')
+  const routed = await routeEvent(event, { db })
+  if (routed.handlers.length) await db.query('update connection_events set handlers = $2 where id = $1', [row.id, routed.handlers.length])
+  log.info('connections.event_routed', { type: e.type, status: routed.status, handlers: routed.handlers.length })
   return 'emitted'
 }

@@ -9,7 +9,11 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from
 import { prepareDb, SESSIONS } from '../db/helpers'
 import { admin, withUser } from '../../lib/db'
 import { notifyCrew } from '../../lib/notify'
-import { onEvent, type AgentEvent } from '../../lib/events'
+import { onEvent, EVENT_JOB, type AgentEvent } from '../../lib/events'
+import '../../lib/events/jobs'
+import { runDueJobs } from '../../lib/jobs'
+/** crew.done is routed as a durable job per handler; run the queued ones. */
+const drain = async () => { await runDueJobs({ kinds: [EVENT_JOB], limit: 100 }) }
 import {
   addCrewMember, updateCrewMember, setCrewActive, listCrew, upsertCrewJob, crewJobsFor, addJobAsOwner, cancelJobAsOwner, markDoneAsOwner,
   previewCrewLink, completeCrewLink, handleCrewReply, crewToken, sendTodayAsOwner, type CrewMember,
@@ -40,6 +44,8 @@ describe.skipIf(!ready)('crew', () => {
     viewerA = await person(NW, 'viewer', 'crew-viewer')
   })
   beforeEach(async () => {
+    await drain() // jobs an earlier test queued and did not run
+
     fakeResend(); process.env.RESEND_API_KEY = 're_test_key'; process.env.EMAIL_LIVE_SENDS = 'allowlist'; process.env.EMAIL_TEST_RECIPIENTS = '@notify-test.example'
     events.length = 0
     sam = await addCrewMember(ownerA, { name: 'Sam Rivera', role: 'field', email: TEST_MAILBOX, phone: '+1 555 555 0142', channels: ['email', 'text'] })
@@ -133,6 +139,7 @@ describe.skipIf(!ready)('crew', () => {
     expect(res.status).toBe(303)
     expect(res.headers.get('location')).toMatch(/\/crew\/done\/.+\?r=done$/)
     expect(await jobRow('J-300')).toMatchObject({ status: 'done', done_via: 'link' })
+    await drain()
     expect(events).toHaveLength(1)
     expect(events[0]).toMatchObject({ source: 'crew', type: 'crew.done', orgId: NW.org, payload: expect.objectContaining({ jobRef: 'J-300', via: 'link', crewMemberId: sam.id }) })
     expect(events[0].externalId).toMatch(/^crew\.done:/)
@@ -141,6 +148,7 @@ describe.skipIf(!ready)('crew', () => {
     expect((await donePost(form(t))).headers.get('location')).not.toMatch(/r=done/)
     expect((await handleCrewReply({ orgId: NW.org, from: '+15555550142', text: 'DONE J-300', channel: 'text', messageId: 'sms-1' })).ok).toBe(false)
     await expect(markDoneAsOwner(ownerA, (await jobRow('J-300'))!.id)).rejects.toThrow(/already done/)
+    await drain()
     expect(events).toHaveLength(1)
     expect(await previewCrewLink(t)).toMatchObject({ state: 'used' })
   })
@@ -150,6 +158,7 @@ describe.skipIf(!ready)('crew', () => {
     const t = tokenOf(doneLinks(sent[0].html)[0])
     const r = await Promise.all([completeCrewLink(t), completeCrewLink(t), completeCrewLink(t)])
     expect(r.filter(x => x.state === 'ready')).toHaveLength(1)
+    await drain()
     expect(events).toHaveLength(1)
   })
 
@@ -170,6 +179,7 @@ describe.skipIf(!ready)('crew', () => {
     await setCrewActive(ownerA, sam.id, false)
     expect((await completeCrewLink(t)).state).toBe('closed')
     expect((await jobRow('J-400'))!.status).toBe('sent')
+    await drain()
     expect(events).toHaveLength(0)
   })
 
@@ -189,12 +199,14 @@ describe.skipIf(!ready)('crew', () => {
     expect(r).toMatchObject({ ok: true, jobRef: 'J-500', event: true })
     expect(await handleCrewReply({ orgId: NW.org, from: '+15555550142', text: 'Done', channel: 'text', messageId: 'm2' })).toMatchObject({ ok: false, reason: /duplicate/ })
     expect(await jobRow('J-500')).toMatchObject({ status: 'done', done_via: 'reply' })
+    await drain()
     expect(events).toHaveLength(1)
     // with two open jobs a bare "done" asks which; "done J-502" by email picks it
     await admin(db => upsertCrewJob(db, { orgId: NW.org, jobRef: 'J-501', crewMemberId: sam.id }))
     await admin(db => upsertCrewJob(db, { orgId: NW.org, jobRef: 'J-502', crewMemberId: sam.id }))
     expect(await handleCrewReply({ orgId: NW.org, from: '+15555550142', text: 'done', channel: 'text', messageId: 'm3' })).toMatchObject({ ok: false, reason: /more than one open job/ })
     expect(await handleCrewReply({ orgId: NW.org, from: TEST_MAILBOX.toUpperCase(), text: 'done J-502\n\n> earlier message', channel: 'email', messageId: 'm4' })).toMatchObject({ ok: true, jobRef: 'J-502' })
+    await drain()
     expect(events.map(e => e.payload.jobRef)).toEqual(['J-500', 'J-502'])
   })
 
@@ -210,6 +222,7 @@ describe.skipIf(!ready)('crew', () => {
     expect((await sendTodayAsOwner(ownerA, sam.id)).status).toBe('sent')
     expect(doneLinks(sent[0].html)).toHaveLength(2)
     await markDoneAsOwner(ownerA, j.id)
+    await drain()
     expect(events).toHaveLength(1)
     const other = (await crewJobsFor(ownerA)).jobs.find(x => x.jobRef === 'J-601')!
     await cancelJobAsOwner(ownerA, other.id)

@@ -4,3 +4,4 @@
  * Shopify embedded gating (lib/shopify/embedded.ts) import this file, so both see the same packs.
  */
 import '../commerce/pack'
+import './index'

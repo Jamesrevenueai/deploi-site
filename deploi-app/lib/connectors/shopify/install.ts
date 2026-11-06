@@ -141,6 +141,8 @@ export async function redactShop(db: Db, shop: string): Promise<{ deleted: boole
   }
   if (agentIds.length) await db.query('delete from ai_usage where org_id = $1 and agent_ref = any($2::text[])', [c.org_id, agentIds])
   await db.query('delete from purchase_orders where org_id = $1 and connection_id = $2', [c.org_id, c.id])
+  // the agents' events from this shop (order, customer, refund and return webhooks): lib/events
+  await db.query(`delete from agent_events where org_id = $1 and source = 'shopify' and payload->'_deploi'->>'connectionId' = $2`, [c.org_id, c.id])
   await db.query('delete from business_profiles where org_id = $1', [c.org_id])
   await db.query('delete from discovery_runs where org_id = $1', [c.org_id])
   await db.query('delete from privacy_exports where org_id = $1 and connection_id = $2', [c.org_id, c.id])

@@ -6,6 +6,9 @@
  * Record changes (products/*, inventory_levels/update, inventory_items/update) are debounced into one
  * targeted rescan per record (rescans.ts). app_subscriptions/update only triggers a re-read of the
  * subscription from Shopify: the payload is never trusted on its own.
+ * Agent topics (orders, fulfillments, inventory, products, customers, refunds, returns, discounts; config.ts
+ * SHOPIFY_EVENT_TOPICS) also become one AgentEvent each for the event router (lib/events), after the same HMAC
+ * check and receipt dedupe; the router dedupes again by Shopify's event id.
  */
 import { NextResponse } from 'next/server'
 import { admin } from '../../db'
@@ -17,6 +20,8 @@ import { markUninstalled } from './install'
 import { handleCompliance, type ComplianceTopic } from './compliance'
 import { enqueueRescan, flushRescans, rescanConfig } from './rescans'
 import { syncSubscription } from './billing'
+import { routeEvent, EVENT_JOB } from '../../events'
+import { SHOPIFY_EVENT_TOPICS } from './config'
 import '../index'
 
 const COMPLIANCE = new Set(['customers/data_request', 'customers/redact', 'shop/redact'])
@@ -84,18 +89,35 @@ export async function handleShopifyWebhook(req: Request, defer: (fn: () => Promi
       await done('processed', 'issues for the deleted product closed')
     } else {
       const ids = targetIds(topic, payload)
+      const notes: string[] = []
       if (conn?.status === 'active' && ids.length) {
         // Debounced: the ids wait in the rescan queue and are re-read once the burst is over. The re-read also settles
         // proposals whose records changed (stale) and closes issues fixed outside Deploi. Deploi's own writes come back
         // here too; re-reading them is harmless.
         const fresh = await admin(db => enqueueRescan(db, conn.id, ids, topic))
-        await done('processed', `queued a targeted rescan of ${ids.length} record(s)${fresh < ids.length ? ' (already waiting)' : ''}`)
+        notes.push(`queued a targeted rescan of ${ids.length} record(s)${fresh < ids.length ? ' (already waiting)' : ''}`)
         defer(async () => {
           if (rescanConfig.debounceMs > 0) await new Promise(r => setTimeout(r, rescanConfig.debounceMs + 250))
           try { await flushRescans({ connectionId: conn.id, actor: `shopify:${shop}:webhook:${topic}` }) }
           catch (e) { log.warn('shopify.rescan.flush_failed', { error: (e as Error).message }) }
         })
-      } else await done('ignored', conn ? (conn.status === 'active' ? 'no records to re-read' : `the connection is ${conn.status}`) : 'shop not connected')
+      }
+      if (conn?.status === 'active' && SHOPIFY_EVENT_TOPICS.has(topic)) {
+        // the agents' event router (lib/events): deduplicated by Shopify's event id (the same event delivered twice
+        // carries the same id), one durable job per agent that listens to the topic, run right after the response
+        const r = await routeEvent({
+          source: 'shopify', type: topic, orgId: conn.org_id, externalId: req.headers.get('x-shopify-event-id') || webhookId,
+          occurredAt: req.headers.get('x-shopify-triggered-at') ?? new Date().toISOString(),
+          payload: { ...payload, _deploi: { shop, connectionId: conn.id, webhookId, topic } },
+        })
+        notes.push(r.status === 'routed' ? `routed to ${r.handlers.length} agent(s)` : r.status === 'duplicate' ? 'event already routed' : r.status === 'refused' ? 'agents are stopped; event recorded' : 'event recorded; no agent listens to it')
+        if (r.jobs.length) defer(async () => {
+          try { const { runDueJobs } = await import('../../jobs'); await runDueJobs({ kinds: [EVENT_JOB], limit: 20, deadlineMs: 25_000 }) }
+          catch (e) { log.warn('shopify.events.run_failed', { error: (e as Error).message }) }
+        })
+      }
+      if (notes.length) await done('processed', notes.join('; '))
+      else await done('ignored', conn ? (conn.status === 'active' ? 'no records to re-read' : `the connection is ${conn.status}`) : 'shop not connected')
     }
     return NextResponse.json({ ok: true })
   } catch (e) {

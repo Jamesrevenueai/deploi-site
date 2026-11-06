@@ -27,6 +27,8 @@ import { enqueue, registerJobHandler, type EnqueueResult } from './queue'
 import '../discovery/jobs'
 // connection.health (lib/integrations/health.ts registers the handler)
 import { enqueueHealthWork } from '../integrations/health'
+// event.handle and loop.resume (lib/events/jobs.ts registers the handlers)
+import '../events/jobs'
 
 registerJobHandler('agent.run', async (payload, ctx) => {
   const agentId = String(payload.agentId ?? '')

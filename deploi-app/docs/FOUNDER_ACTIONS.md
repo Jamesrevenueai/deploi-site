@@ -8,6 +8,20 @@ Variables), with **Sensitive** on, scoped to **Preview** first, and to **Product
 - `https://deploi-app-git-claude-deploi-operating-system-james-ai.vercel.app` (PR #16 preview)
 - `https://app.getdeploi.com` (production)
 
+## What you still owe before the Shopify submission (as of 2026-11-06)
+In order. Nothing else blocks the submission; items 6–14 below are optional connectors.
+
+| # | What | Where | Status |
+|---|------|-------|--------|
+| A | Run `docs/preview/APPLY-064-ON-DEPLOI-PREVIEW.sql` in the Supabase SQL editor of **deploi-preview** (ref `bhddgjcefwasdyrrfptc`), never deploi-prod (`makqaqzlylhckijdbjzi`) | Supabase dashboard | **open**: blocks the preview check, after-screenshots and click-through |
+| B | Website live: DNS for getdeploi.com (item 1) | Squarespace | open |
+| C | `support@getdeploi.com` mailbox + MX/SPF/DKIM/DMARC (item 2) | mail provider, Squarespace | open |
+| D | Shopify Partner: $19 registration, emergency contact, public distribution, protected-data opt-out, pricing (item 3) | Partner / Dev Dashboard | open |
+| E | Create the development store and install the app (item 4); I then repeat the click-through there and take the 1600×900 listing screenshots on the new design | Partner Dashboard | open |
+| F | Legal sign-off on `/privacy` and `/terms` (item 5) | counsel | open |
+| G | F-02 sign-up hotfix: PR #17 is still an open, unmerged draft; production still runs main `e7d2b6c` | GitHub | open: decide with the release |
+| H | Written OK for the one planned release (item 15), only after the dev-store run passes | you | open |
+
 Order matters for items 1–4: they are the long pole for the Shopify submission.
 
 ## 1. Website live (blocks Shopify: the reviewer opens the privacy policy)  ~10 min + DNS propagation
@@ -102,5 +116,6 @@ Rent Manager, ResMan, Rently: apply through each vendor's partner program (`docs
 allow-lists caller IPs, so Deploi needs fixed outbound IPs (Vercel Secure Compute or a proxy) first.
 
 ## 15. Your written OK (nothing below happens without it)
-- Apply release set 2026-11-07 (migrations 058–062) to **deploi-preview** for a browser run of the new packs.
-- Merge PR #16 and this branch's PR; apply migrations to **deploi-prod**; promote to production.
+- Done on **deploi-preview** with your OK: release set 2026-11-07 migrations 058–063. Migration 064 (redesign) is item A above.
+- One planned release, after the dev-store run passes, with the runbook: merge PR #16, PR #17 and PR #18; apply
+  058–064 to **deploi-prod**; promote to production. Not before your written OK.

@@ -39,8 +39,8 @@ describe('integration status on the page', () => {
 })
 
 describe('navigation and words', () => {
-  it('Home (the Control Room) is the store home and highlights on its own path; Integrations covers the old connection pages', () => {
-    expect(MERCHANT_NAV[0]).toMatchObject({ href: '/store', label: 'Home' })
+  it('the Command center is the store home and highlights on its own path; Connections covers the old connection pages', () => {
+    expect(MERCHANT_NAV[0]).toMatchObject({ href: '/store', label: 'Command center' })
     expect(navActive(MERCHANT_NAV[0], '/store')).toBe(true)
     expect(navActive(MERCHANT_NAV[0], '/store/control-room')).toBe(true)
     expect(navActive(MERCHANT_NAV[0], '/store/agents')).toBe(false)

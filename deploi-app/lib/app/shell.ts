@@ -9,6 +9,7 @@ import { requireRole } from '../auth'
 import type { Actor } from '../engine/actor'
 import type { Session } from '../session'
 import { commandCenter, getWorkspace } from './contract'
+import { orgStopReason } from '../engine/kill-switch'
 import type { Allowance, CommandCenter, Workspace } from './contract'
 
 export type ShellData = {
@@ -60,4 +61,15 @@ export async function loadShell(actor: Extract<Actor, { kind: 'profile' }>): Pro
   const workspace = await loadWorkspace(actor)
   const [cc, ws] = await Promise.all([loadCommandCenter(actor, workspace), workspaceSources(actor.orgId, workspace)])
   return { workspace, workspaceName: ws.name, sources: ws.sources, needsYouCount: cc.needsYou.length, agentCount: cc.team.length, allowance: cc.allowance }
+}
+
+/** The organization's own time zone (agencies.timezone), for the greeting and dates. */
+export async function orgTimeZone(orgId: string): Promise<string> {
+  const r = await admin(db => db.one<{ timezone: string | null }>('select timezone from agencies where id = $1', [orgId]))
+  return r?.timezone || 'UTC'
+}
+
+/** The organization stop (lib/engine/kill-switch.ts), or null while agents may run. */
+export function orgStopped(orgId: string): Promise<string | null> {
+  return admin(db => orgStopReason(db, orgId))
 }

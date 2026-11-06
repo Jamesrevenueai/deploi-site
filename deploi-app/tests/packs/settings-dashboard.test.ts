@@ -1,3 +1,4 @@
+import '../merchant/env'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { prepareDb } from '../db/helpers'
 import { admin, withUser } from '../../lib/db'
@@ -7,6 +8,7 @@ import { PACK_AGENTS, PACKS } from '../../lib/packs/registry'
 import { staffActor } from '../merchant/helpers'
 import { NW, HB, merchantActor, resetPacks, fire, monday, leadEmail, PACK_TABLES } from './helpers'
 import { SESSIONS } from '../db/helpers'
+import { collectCustomerData, redactCustomerData } from '../../lib/privacy/customer-data'
 
 const ready = await prepareDb()
 const T = monday(2)
@@ -106,5 +108,28 @@ describe.skipIf(!ready)('business type, settings and the pack pages', () => {
     }
     await expect(withUser(SESSIONS.harbor, db => db.query(`select * from pack_synthetic_state`))).rejects.toThrow(/permission denied/)
     expect(Object.keys(PACKS)).toContain('property_management')
+  })
+
+  it('a person\'s data in the pack tables is exported and erased on request (leads, messages, jobs, move-ins, maintenance, activity)', async () => {
+    const who = 'erase.me@renters.example'
+    await resetPacks(NW, 'property_manager')
+    await fire(NW, 'lead.email', leadEmail({ id: 'priv-1', name: 'Erase Me', email: who, fields: { Bedrooms: '2' } }), T)
+    await admin(async db => {
+      const p = (await db.one<{ id: string }>(`insert into leasing_properties (org_id, name) values ($1,'P') returning id`, [NW.org]))!
+      await db.query(`insert into leasing_placements (org_id, property_id, tenant_name, tenant_email, unit, monthly_rent) values ($1,$2,'Erase Me',$3,'1',1000)`, [NW.org, p.id, who])
+      await db.query(`insert into pack_work_orders (org_id, ref, customer_name, customer_email, address) values ($1,'J-9','Erase Me',$2,'1 Main St')`, [NW.org, who])
+      await db.query(`insert into pm_maintenance_requests (org_id, external_id, tenant_name, tenant_email) values ($1,'m-9','Erase Me',$2)`, [NW.org, who])
+      await db.query(`insert into pack_activity (org_id, pack, agent_key, problem_key, status, title) values ($1,'leasing','re_crm_update','p-9','done',$2)`, [NW.org, `CRM updated for ${who}`])
+    })
+    const subject = { orgId: NW.org, email: who, customerId: null, orderIds: [] }
+    const data = await admin(db => collectCustomerData(db, subject, 'test'))
+    for (const t of ['pack_leads', 'pack_messages', 'pack_work_orders', 'leasing_placements', 'pm_maintenance_requests', 'pack_activity']) expect(data.counts[t], t).toBeGreaterThan(0)
+    await admin(db => redactCustomerData(db, subject))
+    for (const t of ['pack_leads', 'pack_messages', 'pack_work_orders', 'leasing_placements', 'pm_maintenance_requests', 'pack_activity']) {
+      const n = await admin(db => db.one<{ n: number }>(`select count(*)::int as n from ${t} x where x.org_id = $1 and position($2 in lower(x::text)) > 0`, [NW.org, who]))
+      expect(n!.n, t).toBe(0)
+    }
+    const again = await admin(db => collectCustomerData(db, subject, 'test'))
+    expect(again.counts.pack_leads).toBe(0)
   })
 })

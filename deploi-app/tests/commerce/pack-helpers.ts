@@ -17,6 +17,8 @@ setNotifyImpl({
 /** A quiet synthetic commerce store for the merchant with the given scenarios seeded; work log and captured updates cleared. */
 export async function resetCommerce(m: typeof NW, scenarios: CommerceScenario[] = [], now = new Date()) {
   await resetLibrary(m)
+  // the shared loop's state (lib/events/loop) for this store: a loop another test left open would answer for this one
+  await admin(db => db.query(`delete from agent_loops where org_id = $1`, [m.org]))
   await admin(db => db.query(`update store_connections set status = 'active', status_reason = null where id = $1`, [m.conn]))
   const s = commerceQuietState(now)
   for (const sc of scenarios) seedCommerceScenario(s, sc, now)

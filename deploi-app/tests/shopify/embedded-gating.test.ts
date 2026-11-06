@@ -41,6 +41,8 @@ const concrete = (route: string) => route.replace(/\[[^\]]+\]/g, 'x1')
 const before = [...PACK_AGENTS]
 afterEach(() => { PACK_AGENTS.splice(0, PACK_AGENTS.length, ...before); delete process.env.LEGAL_GATE; delete process.env.BILLING_REQUIRED })
 
+/** Put these entries in the registry in place of the real ones with the same key (the commerce pack registers its own). */
+const useAgents = (list: PackAgent[]) => { PACK_AGENTS.splice(0, PACK_AGENTS.length, ...before.filter(a => !list.some(x => x.key === a.key))); registerPackAgents(list) }
 const libAgent = (key: string, over: Partial<PackAgent> = {}): PackAgent => ({ key, name: key, pack: 'commerce', job: 'test', triggers: [], actions: [], status: 'working', shopifyReady: true, ...over })
 
 async function isNotFound(fn: () => unknown): Promise<boolean> {
@@ -75,13 +77,13 @@ describe('embedded app: declared features and the menu', () => {
   })
 
   it('no menu entry points at a feature that is not ready, whatever the registry says', () => {
-    registerPackAgents([libAgent('inventory_watcher'), libAgent('order_tracker', { status: 'synthetic_only' }), libAgent('returns', { shopifyReady: false }), libAgent('campaign', { pack: 'leasing' })])
+    useAgents([libAgent('inventory_watcher'), libAgent('order_tracker', { status: 'synthetic_only' }), libAgent('returns', { shopifyReady: false }), libAgent('campaign', { pack: 'leasing' })])
     for (const n of embeddedNav()) expect(embeddedPathAllowed(n.href), n.href).toBe(true)
     expect(embeddedNav().map(n => n.href)).not.toContain('/shopify/plan')
   })
 
   it('a library agent marked working + shopifyReady shows the Team page and only that agent', () => {
-    registerPackAgents([libAgent('inventory_watcher'), libAgent('order_tracker', { status: 'synthetic_only' }), libAgent('returns', { shopifyReady: false }), libAgent('not_in_library')])
+    useAgents([libAgent('inventory_watcher'), libAgent('order_tracker', { status: 'synthetic_only' }), libAgent('returns', { shopifyReady: false }), libAgent('not_in_library')])
     expect(shopifyLibraryAgentKeys()).toEqual(['inventory_watcher'])
     expect(embeddedNav().map(n => n.href)).toContain('/shopify/team')
     expect(embeddedPathAllowed('/shopify/team/inventory_watcher')).toBe(true)
@@ -124,7 +126,7 @@ describe('embedded app: rendering every page', () => {
   })
 
   it('a hidden library agent page is a 404 even when the Team page is shown', async () => {
-    registerPackAgents([libAgent('inventory_watcher')])
+    useAgents([libAgent('inventory_watcher')])
     const mod = await import(path.join(APP, 'team/[key]/page.tsx')) as { default: (p: unknown) => Promise<unknown> }
     expect(await isNotFound(() => mod.default({ params: Promise.resolve({ key: 'order_tracker' }) }))).toBe(true)
     expect(await isNotFound(() => mod.default({ params: Promise.resolve({ key: 'inventory_watcher' }) }))).toBe(false)
@@ -169,7 +171,7 @@ describe.skipIf(!ready)('embedded app: the store API refuses hidden features to 
 
   it('a ready library agent is served inside Shopify, and the team lists only ready agents', async () => {
     await resetMerchant(NW)
-    registerPackAgents([libAgent('inventory_watcher')])
+    useAgents([libAgent('inventory_watcher')])
     const team = await libraryGet(shopify())
     expect(team.status).toBe(200)
     const json = await team.json() as { agents: { key: string }[]; buildYourOwn: { allowed: boolean } }

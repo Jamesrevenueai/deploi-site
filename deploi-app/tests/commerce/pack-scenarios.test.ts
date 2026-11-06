@@ -461,7 +461,15 @@ describe.skipIf(!ready)('commerce pack: failures', () => {
     expect(rows[0]).toMatchObject({ status: 'failed' })
     expect(rows[0].status_reason).toMatch(/refused/)
     expect((await commerce(NW)).info[COMMERCE_IDS.candle.product].descriptionHtml).toBe('<p>Nice candle.</p>')
-    expect(owner.filter(u => u.agentKey === 'listing_writer')).toHaveLength(0)
+    // the shared loop tells the owner once that the agent could not finish (never a "done" update), and retries later
+    const told = owner.filter(u => u.agentKey === 'listing_writer')
+    expect(told).toHaveLength(1)
+    expect(told[0].headline).not.toMatch(/done/i)
+    // before the retry time a sweep does not hammer Shopify
+    await sweep()
+    expect((await work(NW, 'weak_description')).map(r => r.status)).toEqual(['failed'])
+    // once the retry is due, the next event runs it again and it goes through
+    await admin(db => db.query(`update agent_loops set next_retry_at = now() - interval '1 minute' where org_id = $1 and state = 'blocked'`, [NW.org]))
     await sweep()
     rows = await work(NW, 'weak_description')
     expect(rows.map(r => r.status)).toEqual(['failed', 'done'])

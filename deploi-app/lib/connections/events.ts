@@ -37,8 +37,8 @@ export async function emitConnectionEvent(db: Db, e: ConnectionEvent): Promise<E
 /**
  * The agent packs (lib/packs) listen for business events, the connections report provider changes. This maps one to
  * the other, deduped like any event: a new person in a CRM -> crm.lead.created (once per person), a QuickBooks
- * invoice or payment change -> quickbooks.invoice / quickbooks.payment, a Buildium resident request or work order seen
- * for the first time -> buildium.maintenance.created (once per request).
+ * invoice or payment change -> quickbooks.invoice / quickbooks.payment, a Buildium resident request seen for the first
+ * time -> buildium.maintenance.created (once per request).
  * Limit: a payment change carries the QuickBooks payment id only (no invoice number or amount), so the leasing
  * payment recorder ignores it until a QuickBooks payment read fills those in; the Office receivables agent rereads
  * QuickBooks itself and is not affected.
@@ -53,10 +53,12 @@ export function packEvents(e: ConnectionEvent): ConnectionEvent[] {
   }
   if (e.type === 'invoice.changed') return [{ ...base, type: 'quickbooks.invoice', externalId: `pack:${e.externalId}`, payload: { invoiceId: p.id, deleted: p.deleted, connectionId: e.connectionId } }]
   if (e.type === 'payment.changed') return p.deleted ? [] : [{ ...base, type: 'quickbooks.payment', externalId: `pack:${e.externalId}`, payload: { paymentId: p.id, connectionId: e.connectionId } }]
-  if (e.type === 'buildium.request.changed' || e.type === 'buildium.workorder.changed') {
+  // a resident request is the tenant's maintenance request; a work order is a job the manager (or the vendor
+  // dispatcher) already created from one, so it is not a new request
+  if (e.type === 'buildium.request.changed') {
     const r = p.record as { id?: string | number } | undefined
     if (r?.id == null) return []
-    return [{ ...base, type: 'buildium.maintenance.created', externalId: `maintenance:${e.type === 'buildium.request.changed' ? 'request' : 'workorder'}:${r.id}`, payload: { requestId: String(r.id), connectionId: e.connectionId } }]
+    return [{ ...base, type: 'buildium.maintenance.created', externalId: `maintenance:request:${r.id}`, payload: { requestId: String(r.id), connectionId: e.connectionId } }]
   }
   return []
 }

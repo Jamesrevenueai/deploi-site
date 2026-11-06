@@ -7,7 +7,8 @@
  */
 import { admin, type Db } from '../../db'
 import type { AgentEvent } from '../../events'
-import { runAgentLoop, type LoopOutcome } from '../../events/loop'
+import { runAgentLoop, rejectLoop, type LoopOutcome } from '../../events/loop'
+import { transitionCase, resolveCase } from '../../cases'
 import { notifyOwner, type ProofItem } from '../../notify'
 import { undoKind } from '../../undo'
 import { orgStopReason } from '../../engine/kill-switch'
@@ -132,12 +133,15 @@ async function handleProblem(ctx: Ctx, agentName: string, p: Problem, e: AgentEv
       detailsPath: '/store/work',
     })
     if (outcome.status === 'nothing_to_do') return { key: p.key, kind: p.kind, status: outcome.status, actionId: null, latencyMs: null }
+    // the shared loop is blocked and its retry is not due yet: nothing was tried, so nothing new is recorded
+    // (the earlier failure stands, and the retry counts as the second attempt)
+    if (outcome.status === 'failed' && error === undefined && outcome.retryAt) return { key: p.key, kind: p.kind, status: outcome.status, actionId: null, latencyMs: null, error: `waiting to retry at ${outcome.retryAt}` }
     const latencyMs = detectedAt === null ? null : Math.max(0, detectedAt - new Date(e.occurredAt).getTime())
     const proof: ProofItem[] = outcome.status === 'done' || outcome.status === 'not_verified' ? outcome.proof : []
     const decisionOpen = outcome.status === 'done' && p.ownerDecision
     const status = outcome.status === 'done' ? (decisionOpen ? 'draft' : 'done') : outcome.status === 'waiting_for_owner' ? 'draft' : 'failed'
     const mode = outcome.status === 'waiting_for_owner' ? 'draft' : 'auto'
-    const reason = outcome.status === 'failed' ? outcome.error.slice(0, 300) : outcome.status === 'not_verified' ? 'the fresh read did not confirm the change' : outcome.status === 'waiting_for_owner' ? 'ask first: waiting for the owner' : decisionOpen ? 'waiting for the owner to decide' : null
+    const reason = outcome.status === 'failed' ? (error ?? outcome.error).slice(0, 300) : outcome.status === 'not_verified' ? 'the fresh read did not confirm the change' : outcome.status === 'waiting_for_owner' ? 'ask first: waiting for the owner' : decisionOpen ? 'waiting for the owner to decide' : null
     const actDone = done as ActResult | null
     const row = await db.one<{ id: string }>(
       `insert into library_actions (org_id, agent_key, action_type, title, summary, evidence, payload, mode, status, status_reason, proof, permission_basis, executed_at)
@@ -167,6 +171,7 @@ export async function decideCommerceWork(orgId: string, actionId: string, option
   const finish = async (status: string, reason: string, proof: ProofItem[], ok: boolean) => {
     await admin(db => db.query(`update library_actions set status = $3, status_reason = $4, proof = $5, decided_by = $6, decided_at = now(), executed_at = case when $3 = 'done' then now() else executed_at end, updated_at = now() where id = $1 and org_id = $2`,
       [actionId, orgId, status, reason, JSON.stringify({ items: proof, verified: ok }), actor]))
+    await closeDecidedLoop(orgId, key, status, reason, proof, actor)
     return { ok, status, proof }
   }
   if (option === 'decline' && row.mode === 'draft') return finish('declined', `declined by ${actor}`, [], true)
@@ -188,6 +193,30 @@ export async function decideCommerceWork(orgId: string, actionId: string, option
   }
   await notifyOwner({ orgId, agentKey: row.agent_key, agentName: agent!.name, headline: `${p.title}: ${option === 'approve' ? 'done' : option} as you asked`, whatHappened: p.whatHappened, whatIDid: [`You chose: ${option}.`], proof: result.proof, detailsPath: '/store/work', severity: result.ok ? 'info' : 'warning', dedupeKey: `${row.agent_key}:${key}:decided:${option}` })
   return finish(result.ok ? 'done' : 'failed', result.ok ? `${option} by ${actor}` : 'the fresh read did not confirm the change', result.proof, result.ok)
+}
+
+/**
+ * The commerce decision path acts on its own (decideCommerceWork), so the shared loop that asked the owner is closed
+ * here: otherwise it stays awaiting_owner and every later detection of the same problem answers "waiting for the owner".
+ * done -> the case resolved with the fresh-read proof; declined -> rejected (case cancelled); expired -> cleared
+ * (case cancelled); failed -> failed (case failed), the next detection opens a fresh loop.
+ */
+async function closeDecidedLoop(orgId: string, problemKey: string, status: string, reason: string, proof: ProofItem[], actor: string) {
+  await admin(async db => {
+    const l = await db.one<{ id: string; case_id: string | null }>(`select id, case_id from agent_loops where org_id = $1 and problem_key = $2 and state = 'awaiting_owner' for update`, [orgId, problemKey])
+    if (!l) return
+    if (status === 'declined') { await rejectLoop(db, l.id, orgId, actor); return }
+    const state = status === 'done' ? 'done' : status === 'expired' ? 'cleared' : 'failed'
+    await db.query(`update agent_loops set state = $3, decided_by = $4, decided_at = now(), last_error = $5, updated_at = now() where id = $1 and org_id = $2`, [l.id, orgId, state, actor.slice(0, 160), state === 'failed' ? reason.slice(0, 1000) : null])
+    if (!l.case_id) return
+    const at = new Date().toISOString()
+    if (state === 'done' && proof.length) {
+      await transitionCase(db, l.case_id, { to: 'executing', actor, reason: `Approved by ${actor}; done`, approvalRequired: false, nextCheckAt: null }).catch(() => null)
+      await resolveCase(db, l.case_id, { actor, verifiedBy: 'fresh read', summary: reason, evidence: proof.slice(0, 10).map(p => ({ label: p.label, source: 'shopify', observedAt: at })) }).catch(() => null)
+    } else {
+      await transitionCase(db, l.case_id, { to: state === 'failed' ? 'failed' : 'cancelled', actor, reason: state === 'cleared' ? 'The problem was no longer there when the owner decided; nothing was done' : reason, approvalRequired: false, nextCheckAt: null }).catch(() => null)
+    }
+  })
 }
 
 /** Reverse a done action through its registered undo (lib/undo). */

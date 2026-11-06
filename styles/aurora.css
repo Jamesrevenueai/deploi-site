@@ -11,7 +11,7 @@
      - a surface (.aurora-surface and the card classes below): white, dark text.
    A surface re-declares the same --c-* names, so anything inside it flips at once.
    ========================================================================== */
-:root {
+:root, .aurora-ground, .metal {
   color-scheme: dark;
 
   /* Ground */
@@ -73,7 +73,7 @@ body { background-color: var(--au-ground); background-image: var(--au-glow); bac
 
 /* White surfaces carry dark text (the v2 panel values) */
 .aurora-surface,
-.panel, .au-panel, .au-tile, .au-plan, .au-log-row, .au-surface, .metal, .bg-surface,
+.panel, .au-panel, .au-tile, .au-plan, .au-log-row, .au-surface, .bg-surface, .metal.tile,
 .card, .plan, .faq-item, .agent-card, .step, .chip, .int-table, .pricing-note {
   color-scheme: light;
   color: var(--c-body);
@@ -101,4 +101,56 @@ body { background-color: var(--au-ground); background-image: var(--au-glow); bac
   --c-focus: #2347D1;
   --focus-ring: 0 0 0 3px rgba(35, 71, 209, 0.28);
   --c-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%233A4256' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+/* a ground inside a surface (the v2 dark 'metal' card) returns to the night-sky values */
+.aurora-surface .aurora-ground, .aurora-surface .metal, .panel .metal, .card .metal, .bg-surface .metal, .card.aurora-ground, .aurora-ground .metal {
+  color: var(--c-body);
+  color-scheme: dark;
+
+  /* Ground */
+  --c-page: var(--au-ground);
+  --c-alt: rgba(255, 255, 255, 0.03);
+  --c-surface: var(--dg-glass-bg);          /* glass on the night sky */
+  --c-sunken: rgba(255, 255, 255, 0.05);
+  --c-scrim: rgba(5, 6, 13, 0.72);
+
+  /* Text on the ground */
+  --c-ink: var(--dg-white);
+  --c-body: var(--dg-grey-nav);
+  --c-muted: var(--dg-grey-body);
+
+  /* Lines */
+  --c-line: rgba(255, 255, 255, 0.12);
+  --c-line-strong: var(--dg-glass-border);
+
+  /* Accent */
+  --c-accent: #8FA8FF;
+  --c-accent-hover: #B3C4FF;
+  --c-accent-soft: var(--dg-accent-soft);
+  --c-accent-line: var(--dg-accent-border);
+  --c-on-accent: #05060D;
+
+  /* Status on the ground */
+  --c-ok: #9BE2B8;     --c-ok-soft: rgba(16, 185, 129, 0.12);  --c-ok-line: rgba(155, 226, 184, 0.35);
+  --c-warn: #F2C879;   --c-warn-soft: rgba(245, 158, 11, 0.12); --c-warn-line: rgba(242, 200, 121, 0.35);
+  --c-danger: #FF8A8A; --c-danger-soft: rgba(255, 138, 138, 0.10); --c-danger-line: rgba(255, 138, 138, 0.35);
+  --c-info: #8FA8FF;   --c-info-soft: var(--dg-accent-soft);  --c-info-line: var(--dg-accent-border);
+  --c-planned: var(--dg-grey-body); --c-planned-soft: rgba(255, 255, 255, 0.05);
+
+  /* Primary button: white on the night sky, as in v2 */
+  --c-btn-bg: #FFFFFF;
+  --c-btn-ink: #000000;
+  --c-btn-hover: var(--dg-btn-hover);
+
+  /* Focus */
+  --c-focus: #FFFFFF;
+  --focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.28);
+
+  /* Select arrow in the current text colour */
+  --c-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23CCCCCC' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+
+  --shadow-card: var(--au-shadow);
+  --shadow-raised: 0 2px 4px rgba(5, 6, 13, 0.2), 0 24px 56px -18px rgba(5, 6, 13, 0.65);
+
 }

@@ -83,10 +83,28 @@ button { font: inherit; }
 .btn.danger { background: var(--c-surface); color: var(--c-danger); border: 1px solid var(--c-danger-line); }
 .btn.danger:hover { background: var(--c-danger-soft); }
 
-/* "metal" is the old image-card ground; on the light theme it is a plain raised card */
-.metal { position: relative; overflow: hidden; border-radius: var(--r-card); background: var(--c-surface); border: 1px solid var(--c-line); box-shadow: var(--shadow-card); isolation: isolate; }
+/* "metal": the Aurora v2 dark brushed card (sign-in, image cards); a ground context in styles/aurora.css */
+.metal {
+  position: relative; overflow: hidden; border-radius: var(--dg-card-radius); background: #0E0E0E; border: 1px solid var(--dg-glass-border);
+  box-shadow: var(--au-shadow); isolation: isolate;
+}
+.metal::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background:
+    repeating-linear-gradient(180deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 90% at 20% 0%, rgba(255,255,255,0.09), transparent 55%),
+    radial-gradient(90% 70% at 100% 100%, rgba(255,255,255,0.05), transparent 60%),
+    #0C0C0C;
+}
+.metal::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%);
+}
 
 .card { display: block; transition: box-shadow var(--dg-fade-ms) ease, border-color var(--dg-fade-ms) ease; }
+/* stat tiles are white surfaces in v2 (au-tile), not metal */
+.metal.tile { background: var(--au-panel); border-color: var(--au-panel-border); }
+.metal.tile::before, .metal.tile::after { display: none; }
 .card:hover .metal { box-shadow: var(--shadow-raised); border-color: var(--c-line-strong); }
 .card .card-title { color: var(--c-ink); font-weight: 600; letter-spacing: var(--dg-headline-tracking); font-size: clamp(1.3rem, 2vw, 1.75rem); line-height: 1.15; }
 

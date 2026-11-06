@@ -27,6 +27,6 @@ describe('Aurora v2 tokens shared by app and site', () => {
       expect(css).toMatch(/@import ['"]\.\.\/styles\/aurora\.css['"]/)
       expect(css).not.toMatch(/color-scheme: light/)
     }
-    expect(read('styles/aurora.css')).toMatch(/:root \{\n  color-scheme: dark;/)
+    expect(read('styles/aurora.css')).toMatch(/:root, \.aurora-ground, \.metal \{\n  color-scheme: dark;/)
   })
 })

@@ -143,7 +143,7 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
   const audit = await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens])
   tables.engine_audit = audit?.n ? [{ entries_naming_the_customer: audit.n, note: 'audit entries are retained unchanged for audit' }] : []
   if (!email) notes.push('No email address was given: only records carrying the Shopify customer or order ids were searched.')
-  notes.push('Deploi keeps the order, customer, refund and return events its agents received (agent_events); mail, agent drafts, agent actions, cases and Office records are the other places a customer can appear.')
+  notes.push('Deploi does not keep its own copy of Shopify customers or orders: the commerce agents read them live from Shopify. It keeps the order, customer, refund and return events its agents received (agent_events) and what their work log (library_actions) records; mail, agent drafts, agent actions, cases and Office records are the other places a customer can appear.')
   const counts = Object.fromEntries(Object.entries(tables).map(([k, v]) => [k, k === 'engine_audit' ? (audit?.n ?? 0) : v.length]))
   return { format: 'deploi.customer_data.v1', generatedAt: new Date().toISOString(), shop, subject: { email, shopifyCustomerId: s.customerId, orderIds: s.orderIds },
     matching: 'email address (any case) and the Shopify customer and order ids, within this shop\'s organization only', tables, counts, notes }

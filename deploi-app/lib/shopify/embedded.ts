@@ -21,6 +21,7 @@
  */
 import { notFound } from 'next/navigation'
 import { agentsFor } from '../packs/registry'
+import '../packs/all'
 import { agentByKey } from '../library/config'
 import type { TemplateKey } from '../agents/templates'
 

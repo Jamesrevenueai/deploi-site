@@ -79,6 +79,8 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/staff/plans/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on edits', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
 }
 
+/** The redesigned app's API (lib/app/contract.ts): merchant routes like app/api/store, held to the same guards. */
+const isAppApi = (f: string) => f.startsWith('app/api/app/')
 /** Deploi Office API: every handler resolves the session through officeActor (session, CSRF, staff refused, product enabled). */
 const isOfficeApi = (f: string) => f.startsWith('app/api/office/') && !f.startsWith('app/api/office/oauth/') && !f.startsWith('app/api/office/webhooks/')
 
@@ -86,7 +88,7 @@ describe('API route sweep', () => {
   const all = routes(API)
 
   it('every route is a merchant route, a webhook, or a classified exception', () => {
-    const unclassified = all.filter(f => !f.startsWith('app/api/store/') && !f.startsWith('app/api/billing/') && !isOfficeApi(f) && !WEBHOOKS[f] && !OTHER[f])
+    const unclassified = all.filter(f => !f.startsWith('app/api/store/') && !isAppApi(f) && !f.startsWith('app/api/billing/') && !isOfficeApi(f) && !WEBHOOKS[f] && !OTHER[f])
     expect(unclassified).toEqual([])
     for (const k of [...Object.keys(WEBHOOKS), ...Object.keys(OTHER)]) expect(all, `stale entry ${k}`).toContain(k)
   })
@@ -102,7 +104,8 @@ describe('API route sweep', () => {
 
   it('every merchant and billing handler resolves the organization from the session', () => {
     const bad: string[] = []
-    for (const f of all.filter(f => (f.startsWith('app/api/store/') || f.startsWith('app/api/billing/')) && !WEBHOOKS[f])) {
+    expect(all.filter(isAppApi).length).toBeGreaterThanOrEqual(9)
+    for (const f of all.filter(f => (f.startsWith('app/api/store/') || isAppApi(f) || f.startsWith('app/api/billing/')) && !WEBHOOKS[f])) {
       const text = src(f)
       const hs = handlers(text)
       if (!hs.length) bad.push(`${f}: no handler found`)
@@ -115,7 +118,7 @@ describe('API route sweep', () => {
 
   it('no merchant route takes an organization id from the query or the body', () => {
     const bad: string[] = []
-    for (const f of all.filter(f => f.startsWith('app/api/store/') || f.startsWith('app/api/billing/'))) {
+    for (const f of all.filter(f => f.startsWith('app/api/store/') || isAppApi(f) || f.startsWith('app/api/billing/'))) {
       const t = src(f)
       if (/searchParams\.get\(['"](org|orgId|org_id|agencyId|agency_id)['"]\)|body\.(orgId|org_id|agencyId|agency_id)\b/.test(t)) bad.push(f)
     }
@@ -124,7 +127,7 @@ describe('API route sweep', () => {
 
   it('state-changing merchant handlers pass mutating (CSRF origin check)', () => {
     const bad: string[] = []
-    for (const f of all.filter(f => f.startsWith('app/api/store/') || (f.startsWith('app/api/billing/') && !WEBHOOKS[f]))) {
+    for (const f of all.filter(f => f.startsWith('app/api/store/') || isAppApi(f) || (f.startsWith('app/api/billing/') && !WEBHOOKS[f]))) {
       for (const h of handlers(src(f))) if (h.method !== 'GET' && !/resolveActor\(req, \{ mutating: true \}\)/.test(h.body)) bad.push(`${f} ${h.method}`)
     }
     // reviewed: passes mutating=true through its visibleConnection(req, id, true) helper

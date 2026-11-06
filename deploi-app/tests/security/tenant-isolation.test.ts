@@ -74,6 +74,11 @@ const VALUE_OVERRIDES: Record<string, string> = {
   'billing_payment_failures.invoice_external_id': `'in_' || substr(md5(random()::text), 1, 12)`,
   // an E.164 phone number (checked by the table); a reserved fictional number
   'notify_outbox.to_phone': `'+15555550100'`,
+  // an agent ref of the redesigned app (store:|office:|pack:<key>) and a palette colour (checked by the tables)
+  'agent_profiles.agent_ref': `'pack:' || substr(md5(random()::text), 1, 12)`,
+  'agent_profiles.color': `'#4F6BFF'`,
+  'agent_instructions.agent_ref': `'pack:' || substr(md5(random()::text), 1, 12)`,
+  'agent_chat_messages.agent_ref': `'pack:' || substr(md5(random()::text), 1, 12)`,
 }
 
 describe.skipIf(!ready)('cross-tenant isolation of every org-scoped table', () => {

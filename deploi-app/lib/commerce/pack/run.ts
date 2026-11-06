@@ -183,6 +183,8 @@ export async function decideCommerceWork(orgId: string, actionId: string, option
       const v = await p.verify(c.ctx, done)
       result = { ok: v.ok, proof: [...done.proof, ...v.proof] }
       if (done.undo) await admin(db => db.query(`update library_actions set payload = payload || jsonb_build_object('undo', $2::jsonb) where id = $1`, [actionId, JSON.stringify(done.undo)]))
+      // what the act produced (e.g. a dispute packet) is kept with the work, as on an act-and-tell run
+      if (done.facts) await admin(db => db.query(`update library_actions set payload = payload || jsonb_build_object('facts', $2::jsonb) where id = $1`, [actionId, JSON.stringify(done.facts)]))
     } else {
       const o = p.ownerDecision?.options[option]
       if (!o) return { ok: false, status: 'unknown_option', proof: [] }

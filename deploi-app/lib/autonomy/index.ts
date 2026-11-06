@@ -2,8 +2,8 @@
  * Autonomy model (owner setting per action type). SHARED INTERFACE — owned by workstream W1.
  *   'act_and_tell' (default): the agent acts on its own, verifies, logs proof and tells the owner after.
  *   'ask_first': the agent prepares the exact action and waits for the owner's approval.
- * MONEY GUARD: an action that moves money (MONEY_ACTIONS: refunds, discounts, payout disputes, invoices, credit notes,
- * payments, purchase orders and reorders) ALWAYS waits for the owner's approval, whatever the organization's mode
+ * MONEY GUARD: an action that moves money out of the business (MONEY_ACTIONS: refunds, discounts, payout disputes,
+ * credit notes, payments (a bill or a vendor's invoice paid), purchase orders and reorders) ALWAYS waits for the owner's approval, whatever the organization's mode
  * and whatever autonomy level the owner gave the agent (lib/app). The agent loop enforces it (lib/events/loop.ts:
  * effectiveMode), so no caller can act on money by itself; setMode refuses act_and_tell for a money action.
  * Hard limits (amount caps, daily caps, allowed recipients) still apply in both modes.
@@ -17,7 +17,7 @@ import type { Db } from '../db'
 export type ActionMode = 'act_and_tell' | 'ask_first'
 export const DEFAULT_MODE: ActionMode = 'act_and_tell'
 /** action types that move money: they always wait for the owner's approval (the money guard); listed separately in settings */
-export const MONEY_ACTIONS = ['refund', 'discount', 'payout_dispute', 'invoice_send', 'credit_note', 'payment', 'purchase_order', 'reorder'] as const
+export const MONEY_ACTIONS = ['refund', 'discount', 'payout_dispute', 'credit_note', 'payment', 'purchase_order', 'reorder'] as const
 
 export const isActionMode = (v: unknown): v is ActionMode => v === 'act_and_tell' || v === 'ask_first'
 export const ACTION_TYPE = /^[a-z][a-z0-9_.]{1,63}$/
@@ -39,7 +39,6 @@ const MONEY_LABELS: Record<(typeof MONEY_ACTIONS)[number], string> = {
   refund: 'Refund a customer',
   discount: 'Create or change a discount',
   payout_dispute: 'Answer a payout dispute or chargeback',
-  invoice_send: 'Send an invoice',
   credit_note: 'Issue a credit note',
   payment: 'Pay a bill, a vendor or a supplier',
   purchase_order: 'Place a purchase order',
@@ -57,6 +56,8 @@ const known = new Map<string, string>([
   ['send_reminder', 'Send a reminder'],
   ['reply_to_lead', 'Reply to a new lead'],
   ['update_crm', 'Update the CRM'],
+  // billing a customer brings money in: an ordinary action (paying an invoice is 'payment', a money action)
+  ['invoice_send', 'Send an invoice to a customer'],
   ...Object.entries(MONEY_LABELS),
 ])
 

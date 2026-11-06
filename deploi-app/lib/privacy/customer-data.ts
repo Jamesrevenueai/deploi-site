@@ -49,6 +49,8 @@ export const PRIVACY_COVERAGE: Record<string, TableStep> = {
   leasing_placements: { export: 'move-ins with that tenant address (unit, move-in date, rent, commission)', redact: 'anonymized: tenant name and address removed; unit, dates and amounts kept for the commission accounts' },
   pm_maintenance_requests: { export: 'maintenance requests from that tenant address', redact: 'anonymized: tenant name, address and phone removed; the work history is kept' },
   pack_activity: { export: 'agent-pack activity entries that name the customer', redact: 'the address and ids erased from the text and proof' },
+  agent_chat_messages: { export: 'chat messages with the agents (owner and agent) that name the customer', redact: 'the address and ids erased from the text' },
+  agent_instructions: { export: 'standing instructions to an agent that name the customer', redact: 'the address and ids erased from the instruction' },
   engine_audit: { export: 'the number of audit entries that name the customer (expected none: entries hold record ids)', redact: 'kept unchanged: the tamper-evident audit trail is retained for audit; it holds record ids, not addresses or content' },
 }
 
@@ -157,6 +159,8 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
   tables.leasing_placements = email ? await db.query(`select id, tenant_name, tenant_email, unit, move_in_date, monthly_rent, commission_amount, status, created_at from leasing_placements where org_id = $1 and lower(tenant_email) = $2`, [s.orgId, email]) : []
   tables.pm_maintenance_requests = email ? await db.query(`select id, source, property, unit, tenant_name, tenant_email, tenant_phone, category, description, status, created_at from pm_maintenance_requests where org_id = $1 and lower(tenant_email) = $2`, [s.orgId, email]) : []
   tables.pack_activity = await db.query(`select id, pack, agent_key, status, title, what_happened, what_i_did, proof, error, created_at from pack_activity where org_id = $1 and ${names(`title || ' ' || what_happened || ' ' || what_i_did::text || proof::text || coalesce(error, '')`, 2)}`, [s.orgId, tokens])
+  tables.agent_chat_messages = await db.query(`select id, agent_ref, role, text, intent, created_at from agent_chat_messages where org_id = $1 and ${names(`text || actions::text`, 2)} order by created_at`, [s.orgId, tokens])
+  tables.agent_instructions = await db.query(`select id, agent_ref, text, created_at, updated_at from agent_instructions where org_id = $1 and ${names('text', 2)} order by created_at`, [s.orgId, tokens])
   const audit = await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens])
   tables.engine_audit = audit?.n ? [{ entries_naming_the_customer: audit.n, note: 'audit entries are retained unchanged for audit' }] : []
   if (!email) notes.push('No email address was given: only records carrying the Shopify customer or order ids were searched.')
@@ -235,6 +239,8 @@ export async function redactCustomerData(db: Db, s: Subject): Promise<Record<str
     where org_id = $1 and ${names('action::text', 2)} returning id`, [s.orgId, tokens, pat])).length
   out.undo_tokens = (await db.query(`update undo_tokens set summary = ${rx('summary')}, payload = ${rx('payload::text')}::jsonb, expires_at = least(expires_at, now())
     where org_id = $1 and ${names(`summary || payload::text`, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.agent_chat_messages = (await db.query(`update agent_chat_messages set text = ${rx('text')}, actions = ${rx('actions::text')}::jsonb where org_id = $1 and ${names(`text || actions::text`, 2)} returning id`, [s.orgId, tokens, pat])).length
+  out.agent_instructions = (await db.query(`update agent_instructions set text = ${rx('text')}, updated_at = now() where org_id = $1 and ${names('text', 2)} returning id`, [s.orgId, tokens, pat])).length
   out.engine_audit_retained = (await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens]))?.n ?? 0
   return out
 }

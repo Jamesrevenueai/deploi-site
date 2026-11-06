@@ -52,19 +52,26 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     expect(await work(NW)).toHaveLength(2)
   })
 
-  it('low stock on a best seller: Inventory Watcher sees it on the stock webhook and Supplier Chaser asks the supplier to restock', async () => {
+  it('low stock on a best seller: Inventory Watcher sees it on the stock webhook; the reorder spends money, so it waits for the owner; once approved Supplier Chaser asks the supplier to restock', async () => {
     await resetCommerce(NW, ['best_seller_low_stock'])
     await deliver(event(NW, 'inventory_levels/update', { inventory_item_id: 5001, available: 3 }))
-    const rows = await work(NW, 'best_seller_low_stock')
-    expect(done(rows)).toHaveLength(1)
-    expect(rows[0].agent_key).toBe('inventory_watcher')
+    let rows = await work(NW, 'best_seller_low_stock')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ agent_key: 'inventory_watcher', status: 'draft', mode: 'draft' })
+    expect(rows[0].payload.actionType).toBe('reorder')
     expect(rows[0].evidence).toMatchObject({ available: 3, rank: 1, supplier: 'orders@highland-mills.example' })
+    // the money guard: nothing is sent until the owner approves, even though the organization's mode is act_and_tell
+    expect((await commerce(NW)).outbox).toHaveLength(0)
+    expect(owner.find(x => x.agentKey === 'inventory_watcher')!.severity).toBe('action')
+    expect(await decideCommerceWork(NW.org, rows[0].id, 'approve', 'owner@test')).toMatchObject({ ok: true })
+    rows = await work(NW, 'best_seller_low_stock')
+    expect(done(rows)).toHaveLength(1)
     const mail = (await commerce(NW)).outbox
     expect(mail).toHaveLength(1)
     expect(mail[0]).toMatchObject({ to: 'orders@highland-mills.example', agentKey: 'supplier_chaser' })
     expect(mail[0].text).toMatch(/Wool Throw Blanket, SKU FH-BLA-4001: \d+ units/)
     expect(mail[0].text).toMatch(/We have 3 left/)
-    const u = owner.find(x => x.agentKey === 'inventory_watcher')!
+    const u = owner.find(x => x.agentKey === 'inventory_watcher' && x.severity === 'info')!
     expect(u.headline).toMatch(/Wool Throw Blanket is running low; Supplier Chaser asked Highland Mills for \d+ more/)
     expect(u.severity).toBe('info')
     expect(u.proof.map(p => p.label)).toContain('Fresh read of sent mail')
@@ -159,12 +166,16 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     recordLatency('tracking_stalled', [row])
   })
 
-  it('a return inside the policy: Returns approves it on the webhook, emails the customer, no refund until it is back', async () => {
+  it('a return inside the policy: Returns prepares it on the webhook; it leads to a refund, so it waits for the owner; approved, it emails the customer, no refund until it is back', async () => {
     await resetCommerce(NW, ['return_in_policy'])
     await deliver(event(NW, 'returns/request', { admin_graphql_api_id: 'gid://shopify/Return/8201' }))
+    const [waiting] = await work(NW, 'return_in_policy')
+    expect(waiting).toMatchObject({ status: 'draft', mode: 'draft' })
+    expect(waiting.payload.actionType).toBe('refund')
+    expect((await commerce(NW)).outbox).toHaveLength(0)
+    expect(await decideCommerceWork(NW.org, waiting.id, 'approve', 'owner@test')).toMatchObject({ ok: true })
     const [row] = await work(NW, 'return_in_policy')
-    expect(row).toMatchObject({ status: 'done', mode: 'auto' })
-    expect(row.payload.actionType).toBe('refund')
+    expect(row.status).toBe('done')
     const c = await commerce(NW)
     expect(c.returns[0].status).toBe('OPEN')
     expect(c.refunds).toHaveLength(0)
@@ -173,15 +184,19 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     recordLatency('return_in_policy', [row])
   })
 
-  it('a damaged item: Returns approves and refunds at once (a money action), verified against the order refunds', async () => {
+  it('a damaged item: the refund (a money action) waits for the owner even in act-and-tell; approved, it is refunded and verified against the order refunds', async () => {
     await resetCommerce(NW, ['return_damaged'])
     await deliver(event(NW, 'returns/request', { admin_graphql_api_id: 'gid://shopify/Return/8202' }))
+    const [waiting] = await work(NW, 'return_damaged')
+    expect(waiting.status).toBe('draft')
+    expect((await commerce(NW)).refunds).toHaveLength(0)
+    expect(await decideCommerceWork(NW.org, waiting.id, 'approve', 'owner@test')).toMatchObject({ ok: true })
     const [row] = await work(NW, 'return_damaged')
     expect(row.status).toBe('done')
     const c = await commerce(NW)
     expect(c.refunds).toHaveLength(1)
     expect(c.refunds[0]).toMatchObject({ orderId: 'gid://shopify/Order/7204', amount: '24.00' })
-    expect(owner.find(x => x.agentKey === 'returns')!.headline).toBe('Return on #1204 approved and $24.00 refunded')
+    expect(owner.find(x => x.agentKey === 'returns' && x.severity === 'info')!.headline).toBe('Return on #1204 approved and $24.00 refunded: done as you asked')
     recordLatency('return_damaged', [row])
   })
 
@@ -260,9 +275,13 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     expect(await work(NW, 'promoted_out_of_stock')).toHaveLength(1)
   })
 
-  it('an expired discount still advertised: Promo Manager switches it off and clears the banner; undo restores both', async () => {
+  it('an expired discount still advertised: the discount change (a money action) waits for the owner; approved, Promo Manager switches it off and clears the banner; undo restores both', async () => {
     await resetCommerce(NW, ['expired_discount_advertised'])
     await sweep()
+    const [waiting] = await work(NW, 'expired_discount_advertised')
+    expect(waiting.status).toBe('draft')
+    expect((await commerce(NW)).discounts.find(d => d.code === 'SUMMER20')!.status).toBe('ACTIVE')
+    expect(await decideCommerceWork(NW.org, waiting.id, 'approve', 'owner@test')).toMatchObject({ ok: true })
     const [row] = await work(NW, 'expired_discount_advertised')
     expect(row).toMatchObject({ agent_key: 'promo_manager', status: 'done' })
     expect(row.payload.actionType).toBe('discount')
@@ -270,8 +289,8 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     expect(c.discounts.find(d => d.code === 'SUMMER20')!.status).toBe('EXPIRED')
     expect(c.discounts.find(d => d.code === 'WELCOME10')!.status).toBe('ACTIVE')
     expect(c.announcement).toBeNull()
-    const u = owner.find(x => x.agentKey === 'promo_manager')!
-    expect(u.headline).toMatch(/^SUMMER20 ended \d{4}-\d{2}-\d{2} but was still on your banner; I switched it off$/)
+    const u = owner.find(x => x.agentKey === 'promo_manager' && x.severity === 'info')!
+    expect(u.headline).toMatch(/^SUMMER20 ended \d{4}-\d{2}-\d{2} but was still on your banner; I switched it off: done as you asked$/)
     expect(u.proof.map(p => `${p.label}: ${p.value}`)).toEqual(expect.arrayContaining(['Fresh read: SUMMER20: expired', 'Fresh read: banner: (none)']))
     recordLatency('expired_discount_advertised', [row])
     expect(await undoCommerceWork(NW.org, row.id, 'test')).toMatchObject({ ok: true })
@@ -313,9 +332,12 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     expect((await commerce(NW)).outbox).toHaveLength(0)
   })
 
-  it('a payout with fees above the rate: Payout and Fees Checker flags it and prepares the dispute with the figures', async () => {
+  it('a payout with fees above the rate: Payout and Fees Checker flags it; the dispute (money) waits for the owner, and approved it is prepared with the figures', async () => {
     await resetCommerce(NW, ['payout_mismatch'])
     await sweep()
+    const [waiting] = await work(NW, 'payout_mismatch')
+    expect(waiting.status).toBe('draft')
+    expect(await decideCommerceWork(NW.org, waiting.id, 'approve', 'owner@test')).toMatchObject({ ok: true })
     const [row] = await work(NW, 'payout_mismatch')
     expect(row).toMatchObject({ agent_key: 'payout_fees_checker', status: 'done' })
     expect(row.payload.actionType).toBe('payout_dispute')

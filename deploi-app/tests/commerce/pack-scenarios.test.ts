@@ -486,6 +486,23 @@ describe.skipIf(!ready)('commerce pack: failures', () => {
     expect(u.severity).toBe('warning')
   })
 
+  it('a packer message that fails: the stuck order is retried without emailing the customer a second time', async () => {
+    // found by scripts/scenario-harness.ts (A05): the retry re-ran the whole act and sent the delay email again
+    await resetCommerce(NW, ['stuck_order'])
+    const { setNotifyImpl } = await import('../../lib/notify')
+    setNotifyImpl({ crew: async m => { crew.push(m); return { status: 'failed', id: null, reason: 'no channel for this crew member' } } })
+    try {
+      await sweep()
+      expect((await work(NW, 'stuck_order')).map(r => r.status)).toEqual(['failed'])
+      await admin(db => db.query(`update agent_loops set next_retry_at = now() - interval '1 minute' where org_id = $1 and state = 'blocked'`, [NW.org]))
+      await sweep()
+      expect((await work(NW, 'stuck_order')).map(r => r.status)).toEqual(['failed', 'failed'])
+      expect((await commerce(NW)).outbox.filter(m => m.to === 'kit@shopper.example')).toHaveLength(1)
+    } finally {
+      setNotifyImpl({ crew: async m => { crew.push(m); return { status: 'sent', id: `crew-${crew.length}` } } })
+    }
+  })
+
   it('a throttled store: the call is waited out and the work still completes', async () => {
     await resetCommerce(NW, ['selling_past_zero'])
     await injectFault(NW.conn, { op: 'commerce.setInventoryPolicy', mode: 'throttle_once' })

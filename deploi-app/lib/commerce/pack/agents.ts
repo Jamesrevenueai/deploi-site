@@ -208,7 +208,10 @@ const orderTracker: CommerceAgent = {
           evidence: { orderId: o.id, orderName: o.name, createdAt: o.createdAt, ageDays: late, fulfillmentStatus: o.fulfillmentStatus, promisedDispatchDays: c.settings.promisedDispatchDays },
           stillThere: async cc => { const f = await orderOf(cc, o.id); return Boolean(f && !f.cancelled && f.fulfillmentStatus !== 'fulfilled') },
           act: async cc => {
-            const m = await cc.store.sendEmail({ to: o.email, subject: `Your order ${o.name}: an update`, text: body, inReplyTo: null, agentKey: 'order_tracker' })
+            // a retry (e.g. after a packer message failed) must not email the customer a second time: reuse the delay email already sent
+            const subject = `Your order ${o.name}: an update`
+            const m = (await cc.store.sent()).find(x => x.agentKey === 'order_tracker' && x.to === o.email && x.subject === subject)
+              ?? await cc.store.sendEmail({ to: o.email, subject, text: body, inReplyTo: null, agentKey: 'order_tracker' })
             const proof = [p('Delay email sent', `${m.id} to ${o.email}`)]
             const crew: string[] = []
             for (const k of packers) {

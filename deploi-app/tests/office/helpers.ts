@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import { admin } from '../../lib/db'
 import { enableProduct } from '../../lib/products'
 import type { Actor } from '../../lib/engine/actor'
-import { NW, HB, merchantActor } from '../merchant/helpers'
+import { NW, HB, merchantActor, clearFirstDay } from '../merchant/helpers'
 import { connectSyntheticOffice } from '../../lib/office/connections'
 import { connectSyntheticMailbox } from '../../lib/office/mailbox'
 import { createOfficeAgent, grantOfficePolicy, editOfficeAgent } from '../../lib/office/agents'
@@ -49,6 +49,7 @@ export async function resetOffice(m: typeof NW, opts: { enable?: boolean } = {})
     if (opts.enable !== false) await enableProduct(db, m.org, 'office', 'test')
     else await db.query(`update org_products set status = 'disabled' where org_id = $1 and product = 'office'`, [m.org])
   })
+  await clearFirstDay(m.org)
 }
 
 /** 14:00 UTC today (outside the default quiet hours), so tests are independent of the wall clock. */

@@ -25,6 +25,7 @@ import { demoInvoices, mutateQboSynth } from './quickbooks-synthetic'
 import { assertOfficeConnectionSlot } from '../plans/entitlements'
 import { assertCan } from '../platform/rbac'
 import { restoredIfBroken } from '../integrations/events'
+import { onConnected } from '../autonomy/on-connect'
 
 export type OfficeConnectionRow = {
   id: string; org_id: string; provider: OfficeProvider; status: 'active' | 'needs_reauth' | 'disconnected'; status_reason: string | null; is_synthetic: boolean
@@ -136,7 +137,14 @@ export async function completeOfficeConnect(actor: Actor, input: { provider: Off
   if (st.provider === 'hubspot' && !HUBSPOT_SCOPES.every(s => got.tokens.scopes.includes(s))) throw new EngineError('invalid_input', 'HubSpot did not grant every permission Deploi Office needs (contacts and deals, read and write); connect again and approve all of them')
   if (st.provider === 'google_calendar' && !calendarScopesOk(got.tokens.scopes)) throw new EngineError('invalid_input', 'Google did not grant calendar access (events and availability); connect again and tick both boxes')
   if ((st.provider === 'salesforce' || st.provider === 'pipedrive' || st.provider === 'zoho_crm') && !got.apiBase) throw new EngineError('invalid_input', `${PROVIDER_LABEL[st.provider]} did not say which server the account is on; connect again`)
-  return admin(db => saveConnection(db, { orgId: st.org_id, provider: st.provider, actor: actor.label, synthetic: false, externalId: got.externalId, displayName: got.displayName, tokens: got.tokens, apiBase: got.apiBase ?? null }))
+  const row = await admin(db => saveConnection(db, { orgId: st.org_id, provider: st.provider, actor: actor.label, synthetic: false, externalId: got.externalId, displayName: got.displayName, tokens: got.tokens, apiBase: got.apiBase ?? null }))
+  await connected(row)
+  return row
+}
+
+/** A connection became active: the agents start on it at once (lib/autonomy/on-connect.ts; never throws). */
+async function connected(row: OfficeConnectionRow) {
+  await onConnected({ orgId: row.org_id, kind: row.provider === 'buildium' ? 'buildium' : 'office', connectionId: row.id, provider: row.provider })
 }
 
 /**
@@ -156,8 +164,10 @@ export async function connectBuildium(actor: Actor, input: Partial<BuildiumKey>)
     const code = (e as { code?: string }).code
     throw new EngineError('invalid_input', code === 'auth' || code === 'forbidden' ? 'Buildium did not accept this API key (check that it is active and has read and write access)' : 'Buildium did not answer; try again in a minute')
   }
-  return admin(db => saveConnection(db, { orgId: actor.orgId, provider: 'buildium', actor: actor.label, synthetic: false, externalId: account.id, displayName: account.name ?? `Buildium account ${account.id}`,
+  const row = await admin(db => saveConnection(db, { orgId: actor.orgId, provider: 'buildium', actor: actor.label, synthetic: false, externalId: account.id, displayName: account.name ?? `Buildium account ${account.id}`,
     tokens: { accessToken: encodeBuildiumKey(key), refreshToken: null, expiresIn: null, scopes: ['api_key'] }, apiBase: new URL(base).origin }))
+  await connected(row)
+  return row
 }
 
 async function saveConnection(db: Db, i: { orgId: string; provider: OfficeProvider; actor: string; synthetic: boolean; externalId: string; displayName: string | null; tokens: OAuthTokens; timezone?: string; apiBase?: string | null }) {
@@ -185,6 +195,7 @@ export async function connectSyntheticOffice(actor: Actor, provider: SyntheticOf
     displayName: provider === 'hubspot' ? 'Synthetic HubSpot (test only)' : provider === 'quickbooks' ? 'Synthetic QuickBooks (test only)' : 'Synthetic calendar (test only)', tokens: syntheticToken(provider), timezone: opts.timezone ?? 'America/New_York' }))
   if (provider === 'quickbooks') await mutateQboSynth(row.id, s => { if (opts.demoData !== false && !s.invoices.length) s.invoices.push(...demoInvoices()) })
   else await mutateOfficeSynth(row.id, s => { if (opts.demoData !== false && provider === 'hubspot' && !s.contacts.length) s.contacts.push(...demoContacts()) })
+  await connected(row)
   return row
 }
 

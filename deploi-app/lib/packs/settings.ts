@@ -42,20 +42,45 @@ export type PackConfig = {
   /** the day the weekly commission summary goes out (ISO weekday, 1 = Monday) */
   weeklyReportDay: number
   currency: string
+  /** first 24 hours after a connection: customer-facing messages allowed out per rolling hour (the rest wait) */
+  firstRunHourlyCap: number
 }
 export const DEFAULT_CONFIG: Omit<PackConfig, 'senderName' | 'timezone'> = {
   days: [1, 2, 3, 4, 5], dayStart: '09:00', dayEnd: '17:00', visitMinutes: 60, tourMinutes: 30, showingMinutes: 45,
   leadFollowUpDays: [2, 5, 10], quoteFollowUpDays: [3, 7, 14], paymentTermsDays: 14, paymentReminderDays: [3, 10, 20],
-  confirmReminderHours: 2, confirmEscalateHours: 4, reviewUrl: null, applicationUrl: null, weeklyReportDay: 1, currency: 'USD',
+  confirmReminderHours: 2, confirmEscalateHours: 4, reviewUrl: null, applicationUrl: null, weeklyReportDay: 1, currency: 'USD', firstRunHourlyCap: 20,
 }
 
-export type OrgPacks = { orgId: string; businessType: BusinessType | null; packs: PackKey[]; trade: Trade; config: PackConfig }
+/** 'owner': the owner chose the business type; 'inferred': set from what was connected (lib/autonomy/on-connect.ts) */
+export type PackSource = 'owner' | 'inferred'
+export type OrgPacks = { orgId: string; businessType: BusinessType | null; packs: PackKey[]; trade: Trade; config: PackConfig; source: PackSource | null }
 
 export async function orgPacks(db: Db, orgId: string): Promise<OrgPacks> {
   const org = await db.one<{ name: string; timezone: string | null }>('select name, timezone from agencies where id = $1', [orgId])
-  const r = await db.one<{ business_type: BusinessType; packs: PackKey[]; trade: Trade | null; settings: Partial<PackConfig> }>('select business_type, packs, trade, settings from pack_settings where org_id = $1', [orgId])
+  const r = await db.one<{ business_type: BusinessType; packs: PackKey[]; trade: Trade | null; settings: Partial<PackConfig>; source: PackSource }>('select business_type, packs, trade, settings, source from pack_settings where org_id = $1', [orgId])
   const config: PackConfig = { ...DEFAULT_CONFIG, senderName: org?.name ?? 'Our team', timezone: org?.timezone || 'UTC', ...(r?.settings ?? {}) }
-  return { orgId, businessType: r?.business_type ?? null, packs: r?.packs ?? [], trade: r?.trade ?? 'general', config }
+  return { orgId, businessType: r?.business_type ?? null, packs: r?.packs ?? [], trade: r?.trade ?? 'general', config, source: r?.source ?? null }
+}
+
+/** How specific an inferred business type is: a later, more specific connection may refine an inferred 'office'. */
+const SPECIFIC: Partial<Record<BusinessType, number>> = { office: 0, store: 1, property_manager: 1 }
+
+/**
+ * Turn the packs of a business type on because of what was connected, when the owner never chose. Never changes an
+ * owner's choice (source 'owner'); an earlier inference of the generic 'office' is refined by a more specific one
+ * (a store, a property system). Runs in the caller's transaction. Returns what is in force afterwards.
+ */
+export async function inferBusinessType(db: Db, orgId: string, businessType: BusinessType, from: string, by: string): Promise<{ changed: boolean; businessType: BusinessType; source: PackSource; packs: PackKey[] }> {
+  const packs = packsForBusiness(businessType)
+  const ins = await db.one<{ business_type: BusinessType; packs: PackKey[] }>(`insert into pack_settings (org_id, business_type, packs, updated_by, source, inferred_from) values ($1,$2,$3,$4,'inferred',$5)
+    on conflict (org_id) do nothing returning business_type, packs`, [orgId, businessType, packs, by.slice(0, 160), from.slice(0, 80)])
+  if (ins) return { changed: true, businessType, source: 'inferred', packs }
+  const cur = (await db.one<{ business_type: BusinessType; packs: PackKey[]; source: PackSource }>('select business_type, packs, source from pack_settings where org_id = $1 for update', [orgId]))!
+  if (cur.source === 'inferred' && cur.business_type !== businessType && (SPECIFIC[cur.business_type] ?? 1) < (SPECIFIC[businessType] ?? 1)) {
+    await db.query(`update pack_settings set business_type = $2, packs = $3, updated_by = $4, inferred_from = $5, updated_at = now() where org_id = $1 and source = 'inferred'`, [orgId, businessType, packs, by.slice(0, 160), from.slice(0, 80)])
+    return { changed: true, businessType, source: 'inferred', packs }
+  }
+  return { changed: false, businessType: cur.business_type, source: cur.source, packs: cur.packs }
 }
 export async function packOn(db: Db, orgId: string, pack: PackKey) { return (await orgPacks(db, orgId)).packs.includes(pack) }
 
@@ -72,8 +97,9 @@ export async function chooseBusinessType(actor: Actor, input: { businessType: un
   const trade = input.trade === undefined || input.trade === null ? null : String(input.trade)
   if (trade && !(TRADES as readonly string[]).includes(trade)) throw new EngineError('invalid_input', 'choose a trade from the list')
   const packs = packsForBusiness(input.businessType)
-  await admin(db => db.query(`insert into pack_settings (org_id, business_type, packs, trade, updated_by) values ($1,$2,$3,$4,$5)
-    on conflict (org_id) do update set business_type = excluded.business_type, packs = excluded.packs, trade = coalesce(excluded.trade, pack_settings.trade), updated_by = excluded.updated_by`,
+  await admin(db => db.query(`insert into pack_settings (org_id, business_type, packs, trade, updated_by, source) values ($1,$2,$3,$4,$5,'owner')
+    on conflict (org_id) do update set business_type = excluded.business_type, packs = excluded.packs, trade = coalesce(excluded.trade, pack_settings.trade), updated_by = excluded.updated_by,
+      source = 'owner', inferred_from = null`,
     [orgId, input.businessType, packs, trade, actor.label]))
   return { businessType: input.businessType, packs }
 }
@@ -96,6 +122,7 @@ export async function updatePackConfig(actor: Actor, patch: Record<string, unkno
       case 'weeklyReportDay': if (!Number.isInteger(v) || (v as number) < 1 || (v as number) > 7) bad(); out.weeklyReportDay = v as number; break
       case 'leadFollowUpDays': case 'quoteFollowUpDays': case 'paymentReminderDays': { const d = days(v, 60); if (!d) bad(); out[k] = d!; break }
       case 'reviewUrl': case 'applicationUrl': if (v !== null && (typeof v !== 'string' || !/^https:\/\/[^\s<>"]{4,400}$/.test(v))) bad(); out[k] = v as string | null; break
+      case 'firstRunHourlyCap': if (!Number.isInteger(v) || (v as number) < 1 || (v as number) > 500) bad(); out.firstRunHourlyCap = v as number; break
       case 'currency': if (typeof v !== 'string' || !/^[A-Z]{3}$/.test(v)) bad(); out.currency = v as string; break
       default: throw new EngineError('invalid_input', `${k} is not a pack setting`)
     }

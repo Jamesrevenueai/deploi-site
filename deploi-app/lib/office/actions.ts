@@ -19,6 +19,7 @@ import { EngineError } from '../engine/errors'
 import { encryptSecret } from '../connectors/credentials'
 import { orgStopReason } from '../engine/kill-switch'
 import { allowanceBlock } from '../plans/allowance'
+import { takeOutboundSlot } from '../autonomy/pacing'
 import { needsFirstReplyApproval } from '../email/sender-policy'
 import { registerOfficeSendGate, sendMessage, type EmailMessageRow, type EmailStatus } from '../email/engine'
 import { contentHash } from '../email/content'
@@ -257,6 +258,12 @@ async function claim(actionId: string, now: Date, actorOverride?: string): Promi
         const next = nextLocalMidnight(ctx.policy.timezone, now)
         await db.query('update office_actions set next_attempt_at = $2, status_reason = $3 where id = $1', [a.id, next.toISOString(), `daily limit of ${ctx.policy.email.perDay} emails reached: waits until tomorrow`])
         return { kind: 'skip', status: 'queued', reason: 'daily limit' }
+      }
+      // first-day pacing (lib/autonomy/pacing.ts): in the 24 hours after a connect, at most the hourly cap of customer emails
+      const pace = await takeOutboundSlot(db, a.org_id, `office_action:${a.id}`, { agentKey: `office:${ctx.agent.id}`, actionType: 'send_email' }, now)
+      if (!pace.ok) {
+        await db.query('update office_actions set next_attempt_at = $2, status_reason = $3 where id = $1', [a.id, pace.releaseAt.toISOString(), pace.reason])
+        return { kind: 'skip', status: 'queued', reason: 'first-day pace' }
       }
     }
     let conn: OfficeConnectionRow | null = null

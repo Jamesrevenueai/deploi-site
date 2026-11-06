@@ -7,14 +7,16 @@ export const shopifyConfig = {
   /** Admin GraphQL API version; pin and upgrade deliberately */
   get apiVersion() { return e('SHOPIFY_API_VERSION') || '2026-10' },
   /**
-   * Scopes every install gets: read only. They are enough for the three starter templates at "drafts only".
+   * Scopes every install gets: the reads, plus the non-protected write the ready store agents use to fix things
+   * (write_products: Inventory Watcher's "stop selling when out of stock", price and SKU corrections), so a merchant
+   * approves it once at install and the agents can fix at connect. No protected customer data scope.
    * Must match [access_scopes].scopes in shopify.app.toml.
    */
   get scopes() { return list(e('SHOPIFY_SCOPES') || REQUIRED_SCOPES.join(',')) },
   /**
-   * Scopes asked for at runtime (App Bridge `shopify.scopes.request`) only when a merchant widens an agent past
-   * drafts only. Must match [access_scopes].optional_scopes in shopify.app.toml. Shopify refuses a runtime
-   * request for anything not declared there.
+   * Scopes asked for at runtime (App Bridge `shopify.scopes.request`) only when a merchant turns on a correction no
+   * ready agent uses (sales channel publication). Must match [access_scopes].optional_scopes in shopify.app.toml.
+   * Shopify refuses a runtime request for anything not declared there.
    */
   get optionalScopes() { return list(e('SHOPIFY_OPTIONAL_SCOPES') || OPTIONAL_SCOPES.join(',')) },
   get appUrl() { return e('SHOPIFY_APP_URL') || e('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000' },
@@ -23,10 +25,18 @@ export const shopifyConfig = {
 
 const list = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
 
-/** Installed with the app. */
-export const REQUIRED_SCOPES = ['read_products', 'read_inventory', 'read_locations']
-/** Granted later, one widening at a time. `write_products` implies `read_products`; `read_publications` is only read when granted. */
-export const OPTIONAL_SCOPES = ['write_products', 'read_publications', 'write_publications']
+/**
+ * Installed with the app. `write_products` is the only write the ready store agents need (lib/agents/templates.ts:
+ * Inventory Watcher's oversell_policy correction; price and SKU corrections); the app never writes inventory
+ * quantities (no write_inventory) and no ready agent writes discounts (write_discounts stays out). An agent the owner
+ * keeps at "drafts only" or "ask first" still changes nothing without approval: the scope only lets an approved or
+ * "do it and tell me" change go through without a second consent screen.
+ */
+export const REQUIRED_SCOPES = ['read_products', 'write_products', 'read_inventory', 'read_locations']
+/** Granted later, one widening at a time: publication correction only. `read_publications` is only read when granted. */
+export const OPTIONAL_SCOPES = ['read_publications', 'write_publications']
+/** Write scopes requested at install (each is explained in the App Store listing, docs/app-store/LISTING.md). */
+export const INSTALL_WRITE_SCOPES = REQUIRED_SCOPES.filter(s => s.startsWith('write_'))
 /** Reads the scan needs. Publications are read only when `read_publications` has been granted (see queries.ts#docFor). */
 export const READ_SCOPES = ['read_products', 'read_inventory', 'read_locations']
 export const PUBLICATIONS_READ_SCOPE = 'read_publications'

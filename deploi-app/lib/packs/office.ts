@@ -51,6 +51,8 @@ export async function runOfficeKind(db: Db, e: AgentEvent, packAgent: string, op
   for (const a of agents) {
     out.push(await runPackLoop(db, PACK, {
       orgId: e.orgId, agentKey: packAgent, agentName: name, actionType: packAgent === 'office_scheduling' ? 'book_appointment' : 'send_customer_email', problemKey: `office:${a.id}:${e.type}:${e.externalId}`, detailsPath: PATH,
+      // the run's own emails are paced one by one when they are sent (lib/office/actions.ts)
+      outbound: false,
       detect: async () => a,
       describe: () => ({ title: `${a.name} ran (${e.type === 'sweep' ? 'scheduled check' : e.type})`, whatHappened: e.type === 'sweep' ? `${a.name} was due.` : `Something changed (${e.type}).`, whatIDid: [`Ran ${a.name} under the authorization you granted it.`] }),
       act: async (_d, p) => {

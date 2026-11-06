@@ -82,16 +82,19 @@ describe('embedded app shell', () => {
     expect(appBridgeFirst(plain)).toBe(plain)
   })
 
-  it('shopify.app.toml.example: managed install, minimal scopes, all compliance topics, no sales channel', () => {
+  it('shopify.app.toml.example: managed install, the scopes the agents use (no protected data), all compliance topics, no sales channel', () => {
     const toml = readFileSync('shopify.app.toml.example', 'utf8')
     expect(toml).not.toMatch(/^\s*use_legacy_install_flow/m)
     expect(toml).toMatch(/embedded = true/)
     expect(toml).toMatch(/compliance_topics = \["customers\/data_request", "customers\/redact", "shop\/redact"\]/)
     expect(toml).toMatch(/"app\/uninstalled"/)
-    // agent events add read-only, non-protected scopes (config.ts EVENT_SCOPES); never a write scope for them
+    // agent events add read-only, non-protected scopes (config.ts EVENT_SCOPES); the only install write is write_products
+    // (the ready agents' fixes, config.ts INSTALL_WRITE_SCOPES); no customer, order, return, discount or fulfillment write
     expect(toml).not.toMatch(/write_customers|write_orders|write_returns|write_discounts|write_fulfillments|read_reports/)
     const scopes = /^scopes = "([^"]+)"/m.exec(toml)![1].split(',')
     expect([...scopes].sort()).toEqual([...REQUIRED_SCOPES, ...EVENT_SCOPES].sort())
+    expect(scopes.filter(s => s.startsWith('write_'))).toEqual(['write_products'])
+    expect(/^optional_scopes = (.*)$/m.exec(toml)![1]).not.toContain('write_products')
     for (const t of SUBSCRIBED_EVENT_TOPICS) expect(toml, t).toContain(`"${t}"`)
     // first submission: no protected customer data topic or scope (phase 2, after Shopify approves the request)
     for (const t of PHASE2_EVENT_TOPICS) expect(toml, t).not.toContain(`"${t}"`)

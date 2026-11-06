@@ -34,6 +34,8 @@ import { createUndo } from '../undo'
 import { PACK_AGENTS } from '../packs/registry'
 import { notifyOwner, type ProofItem, type OwnerUpdate } from '../notify'
 import { log } from '../log'
+import { isOutboundAction, takeOutboundSlot } from '../autonomy/pacing'
+import { currentEvent, EVENT_JOB } from './index'
 
 export type LoopSpec<P> = {
   orgId: string
@@ -54,11 +56,17 @@ export type LoopSpec<P> = {
   detailsPath?: string
   /** which suite the case belongs to (default: the agent's pack; commerce when unknown) */
   suite?: 'commerce' | 'office'
+  /**
+   * this loop sends something to a customer, tenant, renter, vendor or supplier: paced in the first 24 hours after a
+   * connect (lib/autonomy/pacing.ts). Default: the action type says so. A loop that only wraps a run whose own sends
+   * are paced one by one (the Office pack's runs) passes false.
+   */
+  outbound?: boolean
   /** injected clock (tests) */
   now?: () => Date
 }
 export type LoopOutcome =
-  | { status: 'nothing_to_do'; reason?: 'owned_by_other_agent' | 'in_progress' | 'cleared'; ownerAgent?: string; caseRef?: string | null }
+  | { status: 'nothing_to_do'; reason?: 'owned_by_other_agent' | 'in_progress' | 'cleared' | 'queued'; ownerAgent?: string; caseRef?: string | null; releaseAt?: string }
   | { status: 'done'; verified: true; proof: ProofItem[]; mode: ActionMode; caseRef?: string | null; undoToken?: string | null }
   | { status: 'not_verified'; proof: ProofItem[]; caseRef?: string | null; retryAt?: string | null }
   | { status: 'waiting_for_owner'; approvalId: string | null; caseRef?: string | null }
@@ -178,6 +186,11 @@ export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutco
   } else {
     const mode = await modeFor(db, s.orgId, s.actionType)
     const at = now()
+    // first-day pacing: an outbound action that goes ahead on its own waits for a later hour when the cap is reached
+    if (mode === 'act_and_tell' && (s.outbound ?? isOutboundAction(s.actionType))) {
+      const held = await holdIfPaced(s, at)
+      if (held) return held
+    }
     const created = await createLoop(s, d, mode, at)
     if (!created) {
       // another runner opened it a moment ago: it owns the problem (never act twice, even if it already finished)
@@ -192,6 +205,18 @@ export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutco
     if (mode === 'ask_first') return askOwner(s, loop, d, at)
   }
   return actVerifyTell(db, s, p, d, loop, now)
+}
+
+/** Take a first-day pacing slot; when there is none, the handler that found this runs again when the hold ends. */
+async function holdIfPaced<P>(s: LoopSpec<P>, at: Date): Promise<LoopOutcome | null> {
+  const ev = currentEvent.getStore()
+  const slot = await adm(db => takeOutboundSlot(db, s.orgId, `loop:${s.problemKey}`, { agentKey: s.agentKey, actionType: s.actionType, eventId: ev?.eventId ?? null }, at))
+  if (slot.ok) return null
+  if (ev) {
+    await enqueue({ kind: EVENT_JOB, orgId: s.orgId, payload: { eventId: ev.eventId, agentKey: ev.agentKey }, idempotencyKey: `${ev.eventId}:${ev.agentKey}:paced:${slot.releaseAt.toISOString()}`.slice(0, 200), runAfter: slot.releaseAt })
+      .catch(e => log.warn('loop.pace_requeue_failed', { error: (e as Error).message.slice(0, 200) }))
+  }
+  return { status: 'nothing_to_do', reason: 'queued', releaseAt: slot.releaseAt.toISOString() }
 }
 
 async function noteOnce(l: LoopRow, s: { agentKey: string }, note: string) {

@@ -21,16 +21,38 @@ import { homeInsights, homeMetrics, type CaseItem } from './caseView'
 
 const safe = <T,>(p: Promise<T>): Promise<T | null> => p.catch(() => null)
 
+type Found = { since: string | null; found: number; fixed: number; inProgress: number; needsYou: number; queued: number; sent: number }
+
+/** What the agents found on their own since the latest connection (lib/autonomy/on-connect.ts foundSummary). */
+export function FoundPanel({ s }: { s: Found }) {
+  const items = [
+    { k: 'found', label: 'Found', v: s.found, href: '/store/work' },
+    { k: 'fixed', label: 'Fixed and checked', v: s.fixed, href: '/store/completed' },
+    { k: 'needs', label: 'Needs you', v: s.needsYou, href: '/store/approvals' },
+    ...(s.queued ? [{ k: 'queued', label: 'Queued for later hours', v: s.queued, href: '/store/work' }] : []),
+  ]
+  return (
+    <div className="panel mb-4 p-4 md:p-5" data-testid="agents-found">
+      <div className="font-semibold text-ink">Here&apos;s what your agents found</div>
+      <p className="text-[14px] text-grey">They started as soon as you connected{s.since ? ` (${fmtAgo(s.since)})` : ''}. {s.needsYou ? 'A few things need you.' : 'Nothing needs you right now.'}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.map(i => <Link key={i.k} href={i.href} className="panel px-3 py-2 text-[14px]" data-found={i.k}><span className="font-semibold tabular-nums text-ink">{i.v}</span> <span className="text-grey">{i.label}</span></Link>)}
+      </div>
+    </div>
+  )
+}
+
 export function WorkOverview() {
   const { data } = useLoad(async () => {
-    const [all, completed, approvals, cr, integrations] = await Promise.all([
+    const [all, completed, approvals, cr, integrations, found] = await Promise.all([
       safe(loadCases(['all'], 50)), safe(loadCases(['completed'], 3)), safe(loadApprovals()),
       safe(storeFetch<ControlRoomResponse>('/api/store/control-room')), safe(storeFetch<IntegrationsResponse>('/api/store/control-room/integrations')),
+      safe(storeFetch<{ summary: Found | null }>('/api/store/autonomy/summary').then(r => r.summary)),
     ])
-    return { all, completed, approvals, cr, integrations }
+    return { all, completed, approvals, cr, integrations, found }
   }, 'home-overview')
   if (!data) return <div className="stat-grid mt-2" aria-busy="true">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-[112px] animate-pulse rounded-[16px] border border-line bg-surface" />)}</div>
-  const { all, completed, approvals, cr, integrations } = data
+  const { all, completed, approvals, cr, integrations, found } = data
   const connectedApps = integrations ? integrations.integrations.filter(i => i.status === 'connected').length : null
   const metrics = homeMetrics({
     counts: all?.counts ?? null,
@@ -41,9 +63,12 @@ export function WorkOverview() {
   })
   const insights = homeInsights({ counts: all?.counts ?? null, approvals: metrics.find(m => m.key === 'approvals')?.value ?? null, cases: all?.cases ?? [], connectedApps })
   const outcomes: CaseItem[] = completed?.cases.filter(c => c.outcome) ?? []
-  const firstRun = all && all.counts.total === 0
+  // agents already found work on their own: show it instead of a "set up" prompt
+  const agentsFound = found && found.found > 0 ? found : null
+  const firstRun = !agentsFound && all && all.counts.total === 0
   return (
     <>
+      {agentsFound && <FoundPanel s={agentsFound} />}
       {firstRun && (
         <div className="panel mb-4 flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between md:p-5" data-testid="first-run-cta">
           <div><div className="font-semibold text-ink">See what your AI team can handle</div><p className="text-[14px] text-grey">Deploi reads your connected tools and lists the work it found, with the team it recommends.</p></div>

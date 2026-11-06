@@ -76,6 +76,7 @@ import { connectSyntheticMailbox } from '../lib/office/mailbox'
 import { createOfficeAgent, grantOfficePolicy } from '../lib/office/agents'
 import { officeTemplatePolicy } from '../lib/office/templates'
 import { mutateQboSynth, synthInvoice, injectQboFault } from '../lib/office/quickbooks-synthetic'
+import { getSynthMail } from '../lib/email/adapters/synthetic'
 import type { QboInvoice } from '../lib/office/quickbooks'
 import type { Actor } from '../lib/engine/actor'
 import { NW, HB, merchantActor, resetMerchant } from '../tests/merchant/helpers'
@@ -167,7 +168,8 @@ async function clearQueue() {
 
 async function clearAgentState(m: M) {
   await admin(async db => {
-    for (const t of ['undo_tokens', 'agent_loops', 'org_action_modes', 'org_controls', 'owner_updates', 'notify_outbox', 'crew_job_links', 'crew_messages', 'crew_jobs', 'crew_members', 'morning_reports', 'notify_preferences'])
+    // the first-day pacing (lib/autonomy/pacing.ts) belongs to the connect that started it: each scenario starts outside it
+    for (const t of ['undo_tokens', 'agent_loops', 'org_action_modes', 'org_controls', 'owner_updates', 'notify_outbox', 'crew_job_links', 'crew_messages', 'crew_jobs', 'crew_members', 'morning_reports', 'notify_preferences', 'autonomy_backlog', 'autonomy_outbound', 'autonomy_connects'])
       await db.query(`delete from ${t} where org_id = $1`, [m.org])
     await db.query(`delete from cases where org_id = $1`, [m.org])
     await db.query(`delete from system_emails where org_id = $1 and template in ('agent_update', 'agent_action_needed', 'crew_jobs', 'morning_report')`, [m.org])
@@ -326,6 +328,8 @@ const qbInv = (id: string, due: string, total: number) => synthInvoice(id, { doc
 // shorthand for shopify webhooks and mailbox events
 const shopify = (type: string, payload: Record<string, unknown>, id = uid('shopify-ev')): Omit<AgentEvent, 'orgId'> =>
   ({ source: 'shopify', type, externalId: id, occurredAt: new Date().toISOString(), payload: { ...payload, _deploi: { topic: type, webhookId: id } } })
+
+const getSynthMailSent = async (accountId: string) => (await getSynthMail(accountId)).sent.map(m => [m.to].flat()[0] as string)
 
 // ------------------------------------------------------------------ scenarios
 
@@ -822,6 +826,57 @@ add({ id: 'X10', pack: 'X', title: 'Unverified first-contact sender through Outl
   rules: 'fully', rulesWhy: 'Sender policy by rules.', synthetic: 'synthetic Outlook message without passing authentication, stored by the real inbox sync',
   run: async c => { await LS(c); c.seeded(); c.facts.inbox = [await storeProviderMessage(await outlookAccount(c.m), { ...outlookMessage({ id: uid('ol'), from: 'rentalclientservices@zillowrentals.com', subject: 'New Zillow Rentals lead for 1420 NW Lovejoy St #4B', text: ZILLOW_TEXT('Spoof Renter', 'spoof@renter.example', isoDay(T, 20)), at: T }), authentication: { spf: 'fail', dkim: 'none', dmarc: 'fail' } }, 'scenario-harness')]; await c.drain() },
   check: async (o, c) => [['quarantined', (c.facts.inbox as string[])[0] === 'quarantined', c.facts.inbox], ['no reply', (await sentMail(c.m)).length === 0], ['no lead', (await q(`select 1 from pack_leads where org_id = $1`, [c.m.org])).length === 0], ['no activity', o.activity.length === 0]] })
+
+// ===== X11. Connect only (lib/autonomy/on-connect.ts)
+
+/** A time zone where it is early afternoon now, so the templates' quiet hours (19:00-08:00) never hold a send. */
+function afternoonZone(): string {
+  let off = 13 - new Date().getUTCHours()
+  if (off > 12) off -= 24
+  if (off < -12) off += 24
+  return off === 0 ? 'UTC' : `Etc/GMT${off > 0 ? '-' : '+'}${Math.abs(off)}`
+}
+
+add({ id: 'X11', pack: 'X', title: 'Connect only, no clicks -> findings and fixes (QuickBooks + mailbox connected, nothing else)', kind: 'normal', agents: ['office_overdue_invoices'],
+  expected: 'the two connections alone: packs inferred (office), Deploi Office on, Accounts Receivable created and granted by autonomy:on-connect at the default "do it and tell me", the connect sweep runs it in the same job run, every overdue invoice gets one reminder, one "Here\'s what I found" owner update per connection; no sweep, webhook or click',
+  rules: 'fully', rulesWhy: 'Inference by connection kind; grants from the owner\'s autonomy modes; due date, balance and template.', synthetic: 'synthetic QuickBooks + synthetic mailbox connected through the real connect functions (connectSyntheticOffice, connectSyntheticMailbox)',
+  run: async c => {
+    // a business that never chose anything: no business type, no Office agents, Office not switched on, no store running
+    await admin(async db => { for (const t of PACK_TABLES) await db.query(`delete from ${t} where org_id = $1`, [c.m.org]) })
+    await clearAgentState(c.m)
+    await resetOfficeFor(c.m, false)
+    await admin(async db => {
+      for (const t of ['autonomy_backlog', 'autonomy_outbound', 'autonomy_connects', 'discovery_agents', 'discovery_runs', 'business_profiles']) await db.query(`delete from ${t} where org_id = $1`, [c.m.org])
+      await db.query(`delete from org_products where org_id = $1 and product = 'office'`, [c.m.org])
+      await db.query(`update store_connections set status = 'uninstalled', status_reason = 'scenario harness: connect-only runs without a store' where id = $1`, [c.m.conn])
+      await db.query(`update agencies set timezone = $2 where id = $1`, [c.m.org, afternoonZone()])
+    })
+    const actor = await merchantActor(c.m)
+    const now = new Date()
+    const qb = await connectSyntheticOffice(actor, 'quickbooks', { demoData: false })
+    await mutateQboSynth(qb.id, s => { s.invoices = [1, 2, 3].map(i => synthInvoice(`9${i}`, { docNumber: `9${i}`, totalAmt: 400 * i, dueDate: isoDay(now, -20 - i), txnDate: isoDay(now, -20 - i), customerId: `5${i}`, customerName: `Client ${i}`, billEmail: `ap@client-${i}.example` })) })
+    const mb = await connectSyntheticMailbox(actor, 'ar@harbor-office.example')
+    c.facts.qb = qb.id; c.facts.mb = mb.id
+    c.seeded()
+    await c.drain()
+  },
+  check: async (o, c) => {
+    const ps = await q1<{ business_type: string; source: string }>(`select business_type, source from pack_settings where org_id = $1`, [c.m.org])
+    const agents = await q<{ kind: string; status: string; created_by: string; granted_by: string | null; tier: string | null }>(`select a.kind, a.status, a.created_by, p.granted_by, p.policy->'email'->>'tier' as tier from office_agents a left join office_agent_policies p on p.id = a.active_policy_id where a.org_id = $1`, [c.m.org])
+    const events = await q<{ source: string; external_id: string }>(`select source, external_id from agent_events where org_id = $1 order by received_at`, [c.m.org])
+    const mail = await q<{ to_addresses: string[]; status: string }>(`select to_addresses, status from email_messages where org_id = $1 and office_agent_id is not null`, [c.m.org])
+    const found = o.owner.filter(r => r.agent_key === 'autonomy' && r.channel === 'email')
+    const sent = await getSynthMailSent(String(c.facts.mb))
+    c.facts.summary = found.map(r => `${r.headline} (${r.email_status ?? r.status})`)
+    return [
+      ['packs inferred', ps?.business_type === 'office' && ps.source === 'inferred', ps],
+      ['AR created + granted by autonomy, act-and-tell', agents.length === 1 && agents[0].kind === 'accounts_receivable' && agents[0].status === 'active' && agents[0].created_by === 'autonomy:on-connect' && agents[0].granted_by === 'autonomy:on-connect' && agents[0].tier === 'send_autonomous', agents],
+      ['only the connect sweeps triggered work', events.length > 0 && events.every(e => e.source === 'sweep' && e.external_id.startsWith('connect:')), events],
+      ['a loop row for the receivables agent', o.loops.some(l => l.agent_key === 'office_overdue_invoices'), o.loops.map(l => `${l.agent_key}:${l.state}`)],
+      ['one reminder per overdue invoice', sent.length === 3 && new Set(sent).size === 3, { sent, messages: mail.length }],
+      ['one "Here\'s what I found" per connection, rendered', found.length === 2 && new Set(found.map(r => r.dedupe_key)).size === 2 && found.every(r => /^Here's what I found/.test(r.headline) && (r.email_html ?? 0) > 200), c.facts.summary],
+    ]
+  } })
 
 // ------------------------------------------------------------------ runner
 

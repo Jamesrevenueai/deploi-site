@@ -67,19 +67,27 @@ export async function checkResources(db: Db, orgId: string, p: OfficePolicy) {
 export async function createOfficeAgent(actor: Actor, input: { kind: OfficeKind; name: string; policy: unknown }) {
   merchant(actor)
   assertMerchant(actor, actor.orgId)
+  return createOfficeAgentFor(actor.orgId, actor.label, input)
+}
+
+/**
+ * Create a draft agent for an organization as `by` (a merchant's label, or the autonomy setting at connect,
+ * lib/autonomy/on-connect.ts). The caller has established who is acting; the first version waits for a grant.
+ */
+export async function createOfficeAgentFor(orgId: string, by: string, input: { kind: OfficeKind; name: string; policy: unknown }) {
   const policy = validate(input.policy)
   if (policy.kind !== input.kind) throw new EngineError('invalid_input', 'the policy is for a different kind of agent')
   const name = input.name.trim()
   if (!name || name.length > 80) throw new EngineError('invalid_input', 'name must be 1 to 80 characters')
   return admin(async db => {
-    await assertProduct(db, actor.orgId, 'office')
-    await assertOfficeSeat(db, actor.orgId) // the plan's Office seats (only while billing is on)
-    const ctx = await checkResources(db, actor.orgId, policy)
-    const agent = (await db.one<{ id: string }>(`insert into office_agents (org_id, kind, name, status, created_by) values ($1,$2,$3,'draft',$4) returning id`, [actor.orgId, input.kind, name, actor.label]))!
+    await assertProduct(db, orgId, 'office')
+    await assertOfficeSeat(db, orgId) // the plan's Office seats (only while billing is on)
+    const ctx = await checkResources(db, orgId, policy)
+    const agent = (await db.one<{ id: string }>(`insert into office_agents (org_id, kind, name, status, created_by) values ($1,$2,$3,'draft',$4) returning id`, [orgId, input.kind, name, by]))!
     const summary = summarizeOfficePolicy(policy, ctx)
     const pr = (await db.one<{ id: string }>(`insert into office_agent_policies (org_id, agent_id, version, policy, policy_hash, summary, status, requires_grant, expansion, created_by) values ($1,$2,1,$3,$4,$5,'pending_grant',true,'["first authorization"]',$6) returning id`,
-      [actor.orgId, agent.id, JSON.stringify(policy), officePolicyHash(policy), JSON.stringify(summary), actor.label]))!
-    await officeAudit(db, { orgId: actor.orgId, entityType: 'office_agent', entityId: agent.id, event: 'agent.created', actor: actor.label, detail: { kind: input.kind, name, policy_version: 1, policy_id: pr.id } })
+      [orgId, agent.id, JSON.stringify(policy), officePolicyHash(policy), JSON.stringify(summary), by]))!
+    await officeAudit(db, { orgId, entityType: 'office_agent', entityId: agent.id, event: 'agent.created', actor: by, detail: { kind: input.kind, name, policy_version: 1, policy_id: pr.id } })
     return { agentId: agent.id, policyId: pr.id, policyHash: officePolicyHash(policy), summary }
   })
 }
@@ -116,23 +124,36 @@ export async function grantOfficePolicy(actor: Actor, agentId: string, policyId:
   merchant(actor)
   const a0 = await visibleAgent(actor, agentId)
   await assertCan(actor, a0.org_id, 'agent.grant') // F-08: owners and admins only
+  return grantIn(a0.org_id, agentId, policyId, shownHash, actor.label, { now: opts.now, firstRunAt: new Date((opts.now ?? new Date()).getTime() + 60e3) })
+}
+
+/**
+ * The grant made by the owner's autonomy setting when a system is connected (lib/autonomy/on-connect.ts): the same
+ * checks and records as an owner's grant (hash-bound version, resources, seats, the organization stop), granted by
+ * `by` (e.g. 'autonomy:on-connect') with the autonomy policy version and the modes it followed in the audit entry.
+ * The agent is due at once, so the first check right after the connect runs it.
+ */
+export async function grantOfficePolicyAsAutonomy(orgId: string, agentId: string, policyId: string, shownHash: string, by: string, basis: Record<string, unknown>, opts: { now?: Date } = {}) {
+  return grantIn(orgId, agentId, policyId, shownHash, by, { now: opts.now, firstRunAt: opts.now ?? new Date(), basis })
+}
+
+async function grantIn(orgId: string, agentId: string, policyId: string, shownHash: string, by: string, o: { now?: Date; firstRunAt: Date; basis?: Record<string, unknown> }) {
   return admin(async db => {
-    await assertProduct(db, a0.org_id, 'office')
-    const agent = (await db.one<AgentRow>('select * from office_agents where id = $1 for update', [agentId]))!
-    if (agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
-    const stopped = await orgStopReason(db, a0.org_id)
+    await assertProduct(db, orgId, 'office')
+    const agent = await db.one<AgentRow>('select * from office_agents where id = $1 and org_id = $2 for update', [agentId, orgId])
+    if (!agent || agent.status === 'deleted') throw new EngineError('not_found', 'agent not found')
+    const stopped = await orgStopReason(db, orgId)
     if (stopped) throw new EngineError('agent_inactive', `${stopped}; turn the stop off before granting an agent`)
     const pr = await db.one<PolicyRow>('select * from office_agent_policies where id = $1 and agent_id = $2 for update', [policyId, agentId])
     if (!pr || pr.status !== 'pending_grant') throw new EngineError('not_pending', 'this version is not waiting for a grant')
     if (pr.policy_hash !== shownHash) throw new EngineError('hash_mismatch', 'the authorization you reviewed is not the current version; review it again')
-    if (agent.status !== 'active') await assertOfficeSeat(db, a0.org_id, agentId)
+    if (agent.status !== 'active') await assertOfficeSeat(db, orgId, agentId)
     const policy = parseOfficePolicy(pr.policy)
-    await checkResources(db, a0.org_id, policy)
+    await checkResources(db, orgId, policy)
     if (agent.active_policy_id) await db.query(`update office_agent_policies set status = 'superseded' where id = $1 and status = 'active'`, [agent.active_policy_id])
-    await db.query(`update office_agent_policies set status = 'active', granted_by = $2, granted_at = now() where id = $1`, [pr.id, actor.label])
-    const next = new Date((opts.now ?? new Date()).getTime() + 60e3)
-    await db.query(`update office_agents set status = 'active', active_policy_id = $2, next_run_at = $3 where id = $1`, [agentId, pr.id, next.toISOString()])
-    await officeAudit(db, { orgId: a0.org_id, entityType: 'office_policy', entityId: pr.id, event: 'policy.granted', actor: actor.label, detail: { agent_id: agentId, version: pr.version, policy_hash: pr.policy_hash, tiers: { email: policy.email?.tier ?? null, calendar: policy.calendar?.tier ?? null, crm: policy.crm?.tier ?? null } } })
+    await db.query(`update office_agent_policies set status = 'active', granted_by = $2, granted_at = now() where id = $1`, [pr.id, by])
+    await db.query(`update office_agents set status = 'active', active_policy_id = $2, next_run_at = $3 where id = $1`, [agentId, pr.id, o.firstRunAt.toISOString()])
+    await officeAudit(db, { orgId, entityType: 'office_policy', entityId: pr.id, event: 'policy.granted', actor: by, detail: { agent_id: agentId, version: pr.version, policy_hash: pr.policy_hash, tiers: { email: policy.email?.tier ?? null, calendar: policy.calendar?.tier ?? null, crm: policy.crm?.tier ?? null }, ...(o.basis ? { basis: o.basis } : {}) } })
     return { version: pr.version }
   })
 }

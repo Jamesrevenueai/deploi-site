@@ -36,7 +36,7 @@ const PREREQ = '20261020000016_service_role_auth_users.sql'
 export const RELEASE_2026_11_04 = ['20261104000036_org_products.sql', '20261104000037_shopify_ops.sql', '20261104000038_woocommerce.sql', '20261104000039_durable_execution.sql', '20261104000040_office.sql', '20261104000041_customer_experience.sql', '20261104000042_legal_billing.sql', '20261104000043_integration_hardening.sql', '20261104000044_rate_limits.sql']
 export const RELEASE_2026_11_05 = ['20261105000045_resolution_engine.sql', '20261105000046_purchase_orders.sql', '20261105000047_office_resolution.sql', '20261105000048_quickbooks_receivables.sql', '20261105000049_discovery.sql', '20261105000051_platform.sql']
 export const RELEASE_2026_11_06 = ['20261106000052_cases_everywhere.sql', '20261106000053_members_support.sql', '20261106000054_inbox_reading.sql', '20261106000055_connection_health.sql', '20261106000056_billing_lifecycle.sql', '20261106000057_operations.sql']
-export const RELEASE_2026_11_07 = ['20261107000058_autonomy_events.sql', '20261107000059_owner_crew_updates.sql', '20261107000060_connections_crm_buildium.sql', '20261107000061_agent_packs.sql', '20261107000062_pack_crew_roster.sql']
+export const RELEASE_2026_11_07 = ['20261107000058_autonomy_events.sql', '20261107000059_owner_crew_updates.sql', '20261107000060_connections_crm_buildium.sql', '20261107000061_agent_packs.sql', '20261107000062_pack_crew_roster.sql', '20261107000063_autonomy_on_connect.sql']
 export const SETS: Record<string, { files: string[]; prereq: string }> = {
   '2026-10-28': { files: LAUNCH, prereq: PREREQ },
   '2026-11-04': { files: RELEASE_2026_11_04, prereq: LAUNCH[LAUNCH.length - 1] },

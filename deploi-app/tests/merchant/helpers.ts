@@ -25,6 +25,14 @@ export async function staffActor(): Promise<Actor> {
   return { kind: 'staff', session: { uid, email: 'hello@getdeploi.com', role: 'staff', agencyId: null }, label: 'staff:hello@getdeploi.com' }
 }
 
+/**
+ * Forget the organization's connects for the first-day pacing (lib/autonomy/pacing.ts). Test fixtures connect
+ * synthetic accounts as setup; the tests that use them are about the agents on an ordinary day, not the first one.
+ */
+export async function clearFirstDay(org: string) {
+  await admin(async db => { for (const t of ['autonomy_backlog', 'autonomy_outbound', 'autonomy_connects']) await db.query(`delete from ${t} where org_id = $1`, [org]) })
+}
+
 /** Reset a merchant's engine state and synthetic store to the seeded starting point. */
 export async function resetMerchant(m: typeof NW, opts: { ruleOn?: boolean; state?: SynthState } = {}) {
   await admin(async db => {
@@ -47,6 +55,7 @@ export async function resetMerchant(m: typeof NW, opts: { ruleOn?: boolean; stat
       [m.org, m.conn, opts.ruleOn ?? true, JSON.stringify({ exemptTags: DEFAULT_EXEMPT_TAGS, exemptProductIds: [], flagInStockVariants: true })])
   })
   await setSyntheticState(m.conn, opts.state ?? (m === NW ? northwindState() : harborState()))
+  await clearFirstDay(m.org)
 }
 
 export const store = (m: typeof NW) => getSyntheticState(m.conn)

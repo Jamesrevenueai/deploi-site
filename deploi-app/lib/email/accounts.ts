@@ -110,6 +110,8 @@ export async function completeConnect(actor: Actor, input: { state: string; code
       detail: { provider: acc.provider, address: acc.address, scopes: tokens.scopes, can_send: canSend, can_read: canRead } })
     return acc
   })
+  // a mailbox that can send is a connection the agents start on at once (lib/autonomy/on-connect.ts; never throws)
+  if (result.status === 'active') await (await import('../autonomy/on-connect')).onConnected({ orgId: result.org_id, kind: 'email', connectionId: result.id, provider: result.provider })
   return { account: result, returnTo: st.return_to }
 }
 

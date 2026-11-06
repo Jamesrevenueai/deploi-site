@@ -47,6 +47,21 @@ pricing section, including images and the icon. No Shopify trademarks in graphic
 4. Every change re-read from your store and kept in a work log
 5. Optional supplier restock emails drafted for you to review before sending
 
+**Permissions (what the install screen asks for, and why; paste where the form asks how the app uses its access):**
+
+> Deploi asks for these permissions when you install it:
+>
+> - **View products, inventory and locations** (`read_products`, `read_inventory`, `read_locations`): to find
+>   products that keep selling when out of stock, and to re-read each one after a change to confirm it.
+> - **Edit products** (`write_products`): so an agent can fix what it finds right after you install, without a
+>   second permission screen. It changes one setting at a time, "Continue selling when out of stock" (and a price
+>   or SKU correction when you turn that on), and only the way you set each action: "do it and tell me" or "ask
+>   me first". Agents at drafts only change nothing. Deploi never changes stock quantities.
+> - **View discounts** (`read_discounts`): to notice discount changes.
+>
+> Deploi does not ask for customer, order, fulfillment or return data. Showing a product on a sales channel
+> (`read_publications`, `write_publications`) is asked for separately, only if you turn that correction on.
+
 **Search terms (max 5, whole words, one idea each):** inventory, overselling, out of stock, store automation, restock
 
 ## 3. Pricing (pricing section only)
@@ -157,7 +172,7 @@ review screencast can be all screen recording. Record two cuts if you want a pro
 >    authorization**, then **Grant**. Click **Run now**. At "drafts only" the change is shown and nothing is
 >    changed in your store.
 > 3. **Make a change:** on the agent, click **Edit**, choose **After my approval**, save, and **Grant** the new
->    version. When asked, approve the extra product permission (Shopify shows its own prompt). Click **Run now**,
+>    version. The product permission was approved at install (Edit products), so there is no second prompt. Click **Run now**,
 >    open **Approvals**, and **Approve**. The change shows **Verified**, and the product in your admin no longer
 >    sells when out of stock. The pre-order product is left alone.
 > 4. **Work log:** on the agent page, every run and change is listed with the permission that allowed it.

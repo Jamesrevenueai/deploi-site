@@ -4,7 +4,7 @@
  * whether they were verified, connection health, issues by severity, the weekly estimate, and an
  * organization-wide Stop all agents control behind a confirmation.
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Banner } from '@/components/ui/Banner'
@@ -60,6 +60,8 @@ export function ControlRoomScreen({ title = 'Control Room', sub, top, tiles = tr
   const [stop, setStop] = useState<Stop>({ kind: 'idle' })
   const [clearing, setClearing] = useState(false)
   const [scan, setScan] = useState<Scan>({ kind: 'idle' })
+  // the "Pause everything" link in the owner's first-run update (/store?pause=all) opens the stop confirmation
+  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('pause') === 'all') setConfirm(true) } catch { /* no window */ } }, [])
 
   const header = (actions?: React.ReactNode) => <PageHeader eyebrow={data?.cr.org.name ?? 'Your organization'} title={title} sub={sub ?? 'Every agent, what waits for you, and what was verified. Agents act only within what you granted; you can stop them all at once.'} actions={actions} />
   if (loading && !data) return <>{header()}<Loading label="Loading the Control Room" rows={4} /></>

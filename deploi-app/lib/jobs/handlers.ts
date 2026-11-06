@@ -32,6 +32,8 @@ import { enqueueHealthWork } from '../integrations/health'
 import '../notify/morning'
 // event.handle and loop.resume (lib/events/jobs.ts registers the handlers)
 import '../events/jobs'
+// autonomy.connect and autonomy.connect_summary: the first run after a connection (lib/autonomy/on-connect.ts)
+import '../autonomy/on-connect'
 
 registerJobHandler('agent.run', async (payload, ctx) => {
   const agentId = String(payload.agentId ?? '')

@@ -26,9 +26,14 @@ describe('App Store requirements checked in code', () => {
     expect(missing.map(f => path.relative(ROOT, f))).toEqual([])
   })
 
-  it('3.2 scopes: installed read-only, write scopes optional, no protected customer data scope anywhere', () => {
-    expect(REQUIRED_SCOPES.every(s => s.startsWith('read_'))).toBe(true)
+  it('3.2 scopes: no protected customer data scope anywhere; the writes the agents use are requested at install and explained in the listing', () => {
     for (const s of [...REQUIRED_SCOPES, ...OPTIONAL_SCOPES]) expect(PROTECTED, s).not.toContain(s)
+    // every write requested at install is one a ready agent uses, and the listing explains it to the merchant
+    const writes = REQUIRED_SCOPES.filter(s => s.startsWith('write_'))
+    expect(writes).toEqual(['write_products'])
+    const listing = readFileSync(path.join(ROOT, 'docs/app-store/LISTING.md'), 'utf8')
+    for (const s of writes) expect(listing, `LISTING.md explains ${s}`).toContain(s)
+    expect(REQUIRED_SCOPES.filter(s => !s.startsWith('read_') && !s.startsWith('write_'))).toEqual([])
     for (const toml of ['shopify.app.toml.example', 'shopify.app.deploi-dev.toml.example']) {
       const t = readFileSync(path.join(ROOT, toml), 'utf8')
       const scopeLines = t.split('\n').filter(l => /^\s*(scopes|optional_scopes)\s*=/.test(l)).join('\n')

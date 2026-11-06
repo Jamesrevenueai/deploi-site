@@ -2,7 +2,7 @@
 import { admin } from '../../lib/db'
 import { handlersFor, type AgentEvent } from '../../lib/events'
 import { setNotifyImpl, type OwnerUpdate } from '../../lib/notify'
-import { NW, HB, merchantActor } from '../merchant/helpers'
+import { NW, HB, merchantActor, clearFirstDay } from '../merchant/helpers'
 import { getSynth, mutateSynth, resetSynth } from '../../lib/packs/synthetic'
 import { chooseBusinessType } from '../../lib/packs/settings'
 import type { BusinessType } from '../../lib/packs/registry'
@@ -36,6 +36,7 @@ export const crewJob = (m: typeof NW, ref: string) => admin(db => db.one<{ crew_
 export async function resetPacks(m: typeof NW, businessType: BusinessType | null, opts: { trade?: string; settings?: Record<string, unknown> } = {}) {
   await admin(async db => { for (const t of [...PACK_TABLES, ...CREW_TABLES]) await db.query(`delete from ${t} where org_id = $1`, [m.org]) })
   await resetSynth(m.org)
+  await clearFirstDay(m.org)
   owner.length = 0
   if (businessType) await chooseBusinessType(await merchantActor(m), { businessType, trade: opts.trade ?? null })
   if (opts.settings) await admin(db => db.query(`update pack_settings set settings = settings || $2::jsonb where org_id = $1`, [m.org, JSON.stringify(opts.settings)]))

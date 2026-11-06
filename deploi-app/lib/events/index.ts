@@ -17,7 +17,11 @@
  * Handlers are registered by each pack's module on import (onEvent). The worker must import those modules: add
  * them to lib/events/agents.ts, which the job handler loads before it looks a handler up.
  */
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { Db } from '../db'
+
+/** The stored event and handler a running `event.handle` job is serving (the first-run pacing re-runs it later). */
+export const currentEvent = new AsyncLocalStorage<{ eventId: string; agentKey: string }>()
 
 export type EventSource = 'shopify' | 'outlook' | 'calendar' | 'crm' | 'quickbooks' | 'buildium' | 'mailbox' | 'sweep' | 'crew' | 'manual'
 export type AgentEvent = {
@@ -144,7 +148,7 @@ export async function handleStoredEvent(eventId: string, agentKey: string, jobOr
   const e: AgentEvent = { source: row.source, type: row.type, orgId: row.org_id, externalId: row.external_id, occurredAt: new Date(row.occurred_at).toISOString(), payload: row.payload ?? {} }
   await recordOutcome(eventId, agentKey, { status: 'running', attempts: attempt })
   try {
-    await admin(db => h.fn(db, e))
+    await currentEvent.run({ eventId, agentKey }, () => admin(db => h.fn(db, e)))
   } catch (err) {
     await recordOutcome(eventId, agentKey, { status: 'failed', attempts: attempt, error: (err as Error).message.slice(0, 300) })
     throw err

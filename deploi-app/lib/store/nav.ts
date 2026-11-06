@@ -1,28 +1,30 @@
 /**
- * Navigation for the customer app (/store and /office share it). The embedded Shopify app uses App Bridge's own menu.
+ * Navigation of the logged-in app (the sidebar of components/app/AppShell.tsx; /store, /office and /agents share it).
+ * The embedded Shopify app uses App Bridge's own menu.
  *
- * The labels are the customer's words for the work, not Deploi's internals:
- *  Home (the Control Room), My AI Team (every agent: store, Office and library), Work in Progress (cases being
- *  handled or needing attention), Needs My Approval (every decision waiting, from every source), Completed Work
- *  (verified outcomes), Inbox (customer mail), Business Insights, Integrations, Billing, Settings.
+ * The labels are the owner's words for the work (approved redesign 2026-11-06): Command center, Needs you, My agents,
+ * Agent library, Proof log, Connections, Plan & actions. Pages that are not in the list (work in progress, inbox,
+ * insights, settings) stay reachable from the pages that link to them and from the sidebar's footer (Settings).
  */
 import type { NavItem } from '../nav'
 import type { CaseView } from '../cases'
 
-export const MERCHANT_NAV: NavItem[] = [
-  { href: '/store', label: 'Home', icon: 'home', exact: true, also: ['/store/control-room'], mobile: true },
-  { href: '/store/my-team', label: 'My AI Team', short: 'Team', icon: 'users', also: ['/store/agents', '/store/team', '/office', '/store/packs'] },
-  { href: '/store/work', label: 'Work in Progress', short: 'Work', icon: 'pipeline', also: ['/store/issues', '/store/purchase-orders'], mobile: true },
-  { href: '/store/approvals', label: 'Needs My Approval', short: 'Approvals', icon: 'check', mobile: true },
-  { href: '/store/completed', label: 'Completed Work', short: 'Done', icon: 'badge', also: ['/store/activity', '/store/weekly'] },
-  { href: '/store/inbox/mail', label: 'Inbox', icon: 'inbox', mobile: true },
-  { href: '/store/insights', label: 'Business Insights', short: 'Insights', icon: 'spark', also: ['/store/discover'] },
-  { href: '/store/integrations', label: 'Integrations', short: 'Connect', icon: 'plug', also: ['/store/connections', '/store/connect'] },
-  { href: '/store/billing', label: 'Billing', icon: 'dollar', also: ['/store/plan'] },
-  { href: '/store/settings', label: 'Settings', icon: 'shield', also: ['/store/rules', '/store/legal', '/store/setup', '/store/onboarding', '/store/welcome', '/store/support', '/store/privacy'] },
+export type AppNavItem = NavItem & { /** a live count shown next to the label */ count?: 'needsYou' | 'agents' }
+
+export const MERCHANT_NAV: AppNavItem[] = [
+  { href: '/store', label: 'Command center', icon: 'home', exact: true, also: ['/store/control-room'] },
+  { href: '/store/approvals', label: 'Needs you', icon: 'check', count: 'needsYou', also: ['/office/approvals'] },
+  { href: '/store/my-team', label: 'My agents', icon: 'users', count: 'agents', also: ['/agents', '/store/agents', '/office/agents', '/store/packs'] },
+  { href: '/store/team', label: 'Agent library', icon: 'spark' },
+  { href: '/store/completed', label: 'Proof log', icon: 'badge', also: ['/store/activity', '/store/weekly', '/office/log'] },
+  { href: '/store/integrations', label: 'Connections', icon: 'plug', also: ['/store/connections', '/store/connect', '/office/connections'] },
+  { href: '/store/plan', label: 'Plan & actions', icon: 'dollar', also: ['/store/billing'] },
 ]
 
-/** The exact labels, in order (the brief's navigation). */
+/** Where the sidebar's footer links (not one of the main entries). */
+export const SETTINGS_HREF = '/store/settings'
+
+/** The exact labels, in order. */
 export const NAV_LABELS = MERCHANT_NAV.map(n => n.label)
 
 /**

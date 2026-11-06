@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
-import { Inter } from 'next/font/google'
+import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
+import '../styles/app-tokens.css'
+import '../styles/app.css'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter', display: 'swap' })
+const grotesk = Space_Grotesk({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-grotesk', display: 'swap' })
 
 export const metadata: Metadata = {
   title: { default: 'Deploi AI', template: '%s · Deploi AI' },
@@ -22,7 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const embedded = Boolean(apiKey) && h.get('x-deploi-embedded') === '1'
   const nonce = h.get('x-nonce') ?? undefined
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${grotesk.variable}`}>
       <head>
         {embedded && <meta name="shopify-api-key" content={apiKey} />}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}

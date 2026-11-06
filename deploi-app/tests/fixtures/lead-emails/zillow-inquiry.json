@@ -1,0 +1,18 @@
+{
+  "from": "rentalclientservices@zillowrentals.com",
+  "subject": "New Zillow Rentals lead for 1420 NW Lovejoy St #4B",
+  "text": "You have a new lead!\n\nA renter is interested in your listing at 1420 NW Lovejoy St #4B, Portland, OR 97209.\n\nName: Maya Thompson\nEmail: maya.thompson@gmail.com\nPhone: (503) 555-0147\nMove-in date: 12/01/2026\nMessage: Hi! I'd love to schedule a tour this weekend. Is parking included?\n\nReply to this lead in Zillow Rental Manager.\n\nZillow, Inc. 1301 Second Avenue, Floor 31, Seattle, WA 98101",
+  "expect": {
+    "source": "zillow",
+    "name": "Maya Thompson",
+    "firstName": "Maya",
+    "lastName": "Thompson",
+    "email": "maya.thompson@gmail.com",
+    "replyVia": null,
+    "phone": "+15035550147",
+    "property": "1420 NW Lovejoy St #4B",
+    "moveIn": "2026-12-01",
+    "message": "Hi! I'd love to schedule a tour this weekend. Is parking included?",
+    "confidence": "high"
+  }
+}

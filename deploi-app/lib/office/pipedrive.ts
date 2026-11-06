@@ -32,7 +32,7 @@ const basic = () => `Basic ${Buffer.from(`${officeConfig.pipedriveClientId}:${of
 export function pipedriveDomain(v: unknown): string {
   const o = httpsOrigin(v)
   if (!o) throw new OfficeHttpError(400, 'invalid', 'Pipedrive did not return the company domain', 'pipedrive')
-  assertApprovedHost(`${o}/`, 'pipedrive')
+  try { assertApprovedHost(`${o}/`, 'pipedrive') } catch { throw new OfficeHttpError(400, 'invalid', 'Pipedrive named a server that is not a Pipedrive host', 'pipedrive') }
   return o
 }
 

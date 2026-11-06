@@ -8,6 +8,7 @@ import { loadOfficeTokens, officeAccessToken, setOfficeRefresher, OfficeAuthErro
 import { HUBSPOT_SCOPES } from '../../lib/office/hubspot'
 import { CAL_EVENTS, CAL_FREEBUSY } from '../../lib/office/calendar'
 import { staffActor } from '../merchant/helpers'
+import { setOfficeFetch } from '../../lib/office/http'
 import { NW, HB, merchantActor, resetOffice } from './helpers'
 
 const ready = await prepareDb()
@@ -111,8 +112,12 @@ describe.skipIf(!ready)('office connections: OAuth state, PKCE, encrypted tokens
     const a = await startOfficeConnect(nw, 'hubspot')
     const conn = await completeOfficeConnect(nw, { provider: 'hubspot', state: a.state, code: 'c', error: null })
     await expect(disconnectOffice(await merchantActor(HB), conn.id)).rejects.toMatchObject({ code: 'not_found' })
-    const r = await disconnectOffice(nw, conn.id)
-    expect(r.credentialDeleted).toBe(true)
+    // HubSpot is asked to revoke the refresh token (fake HTTP: no real call is made)
+    const calls: { url: string; method: string }[] = []
+    setOfficeFetch(async (url, init) => { calls.push({ url, method: String(init.method) }); return new Response(null, { status: 204 }) })
+    const r = await disconnectOffice(nw, conn.id).finally(() => setOfficeFetch(null))
+    expect(calls).toEqual([{ url: 'https://api.hubapi.com/oauth/v1/refresh-tokens/hs-refresh-PLAINTEXT', method: 'DELETE' }])
+    expect(r).toMatchObject({ credentialDeleted: true, revokedAtProvider: true })
     expect(await admin(db => db.one('select 1 from office_credentials where connection_id = $1', [conn.id]))).toBeNull()
     await expect(officeAccessToken(conn.id)).rejects.toBeInstanceOf(OfficeAuthError)
   })

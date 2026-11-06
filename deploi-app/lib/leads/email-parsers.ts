@@ -125,7 +125,7 @@ const SPECS: Spec[] = [
     subjectFields: s => {
       const a = /(?:lead|inquiry)(?: from apartments\.com)?:\s*(.+?)\s+(?:for|at|about)\s+(.+)$/i.exec(s)
       if (a) return { name: a[1], property: a[2] }
-      const b = /^(.+?) is interested in (.+)$/i.exec(s)
+      const b = /(?:^|:\s*)([^:]+?) is interested in (.+)$/i.exec(s)
       if (b) return { name: b[1], property: b[2] }
       const c = /(?:for|at|about)\s+(.+)$/i.exec(s)
       return { property: c?.[1] ?? null }

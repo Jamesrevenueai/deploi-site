@@ -36,7 +36,7 @@ export function salesforceAuthorizeUrl(state: string, codeChallenge: string): st
 export function salesforceInstance(v: unknown): string {
   const o = httpsOrigin(v)
   if (!o) throw new OfficeHttpError(400, 'invalid', 'Salesforce did not return an instance URL', 'salesforce')
-  assertApprovedHost(`${o}/`, 'salesforce')
+  try { assertApprovedHost(`${o}/`, 'salesforce') } catch { throw new OfficeHttpError(400, 'invalid', 'Salesforce named a server that is not a Salesforce host', 'salesforce') }
   return o
 }
 /** "https://login.salesforce.com/id/00D.../005..." -> the org and user ids */

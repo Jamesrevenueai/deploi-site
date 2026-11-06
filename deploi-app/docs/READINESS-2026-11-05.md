@@ -323,3 +323,71 @@ The goal was a working PR #16 preview with demo data. **Production was not touch
   - In the next release, lower `max` for serverless (2–3) and set a short `idleTimeoutMillis`, so idle function instances don't hold connections.
 
 **Production after this pass:** `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (commit e7d2b6c), with the same 9 production-scoped variable names.
+
+### 8.8 Aurora v2 restored on PR #16 (2026-11-05 23:30 – 2026-11-06 00:45 UTC)
+
+**Reference.** Aurora v2 as shipped on `main` at commit `396a159`. The Oct 29 mockup zip never reached the session, so it couldn't be used. The `claude/aurora-agent-library` branch was **not** merged, and no Aurora v1 value was brought back.
+
+**What changed** (commits `b727b9d`, `a21c41b`, `dc5fa61`):
+- `deploi-app/styles/tokens.css` is again byte-identical to the shared `styles/tokens.css`, which is unchanged from `main`'s v2 file.
+- **New shared layer, `styles/aurora.css`**, with a verbatim copy in `deploi-app/styles/`. It maps the `--c-*` names every PR #16 screen uses onto Aurora v2 in two contexts:
+  - **the ground:** the night sky (`--au-ground` lit by `--au-glow`), the black navigation, light text;
+  - **surfaces:** white panels and cards with dark text, using the v2 panel values (`#0B1020`, `#3A4256`, `#5B6476`, `#F5F6FA`, …).
+- **Website.** `src/styles.css` drops its light `:root` block and imports the same two files, so the app and the site use one set of Aurora v2 tokens.
+- **App.**
+  - Primary buttons are white on the ground and dark inside white cards, with pill-shaped corners (v2).
+  - The rail is black; the top and bottom bars are dark glass.
+  - `.metal` is the dark v2 brushed card again (sign-in); stat tiles (`metal tile`) stay white.
+- **Pre-existing bug fixed.** The base `a { color: inherit }` rule sat outside Tailwind's cascade layers, so it beat every colour utility on a link. The light theme hid this; on the dark ground it turned agent names on the Home cards light grey. The rule now sits in `@layer base`.
+- **Unchanged:** navigation, Home, cases, approvals, first run, F-02, the discovery code and every API.
+- **New test** `tests/cx/aurora-tokens.test.ts` (3 tests): the copies must be identical, the v2 values present, and neither the app nor the site may declare a light page or the v1 ground colour.
+
+**Tests.**
+- **Before** (`c846168`, fresh run): 956/956 passing, 134 files.
+- **After** (`dc5fa61`, fresh test database): 959/959 passing, 135 files.
+- One run after the session restart showed 6 failures in `tests/plans/enforcement.test.ts`. The untouched baseline code failed identically on that same database (`6 failed | 8 passed`), so the cause was leftover local test-database state, not this change. After recreating the test database, the suite passes in full.
+- The billing-notice test now clears pending notices it doesn't own (it was order-dependent).
+- Typecheck clean; lint 0 errors; app and website production builds succeed; forbidden-name scan clean.
+
+**Previews.**
+- App: `dpl_CShvRjfzaUY5FVVZicqYKh4nBbDN`, commit `dc5fa61`, READY.
+- Website: `dpl_DYmQCrkfbgYvBELVCxinUmKHLXzJ`, commit `dc5fa61`, READY.
+
+**Side-by-side screenshots** in `proof/aurora-v2-pr16/` (left: v2 on `main`; right: the PR #16 preview; 1440 and 390 px):
+
+| Pair | Files |
+|---|---|
+| Website home | `01-site-home-*` |
+| Website agents | `02-site-agents-*` |
+| Website pricing | `03-site-pricing-*` |
+| App sign-in | `04-app-landing-*` |
+| App Home | `05-roster-*` |
+| My AI Team | `05b-my-team-*` |
+| Agent page | `06-agent-dashboard-*` |
+| Needs My Approval | `07-approvals-*` |
+
+**Where the build doesn't match v2:**
+- **Layout and copy that PR #16 changed on purpose, kept as instructed.** Home shows stat tiles and agent status cards instead of the v2 bot roster with switches. The agent page shows authorization, tasks, mailbox and work log instead of v2's chat, approvals and activity tabs. The website's navigation and copy are new, and its headlines are left-aligned and white, not v2's centred grey/white two-tone.
+- **Wordmark.** The app sidebar reads "deploi." (the PR #16 rename); v2 reads "deploi ai". Sign-in still shows "deploi ai".
+- **Inputs on the dark sign-in card** are dark glass with a faint border; v2 used black with a white border.
+- **Ground text colours.** On the dark ground, body text uses `--dg-grey-nav` (#CCCCCC) and secondary text `--dg-grey-body` (#A3A3A3); v2 used #A3A3A3 and #8A8A8A. The lighter steps keep contrast at 4.5:1 or better over the glow.
+- **Accent on the ground** is #8FA8FF instead of `--dg-accent` (#4D7CFF), for contrast on the glow. This is the only colour not taken from a v2 token.
+- **Screenshot artefacts, on both sides:** the glow is fixed to the viewport, so full-page captures show it only at the top; at 390 px the fixed bars appear mid-page.
+
+**The 9 browser checks** (`dpl_CShvRjfzaUY5FVVZicqYKh4nBbDN`; screenshots in `proof/preview-pr16/`): **7 pass, 2 fail.**
+
+| Check | Result |
+|---|---|
+| 1 Demo sign-in | PASS |
+| 3 Demo data | PASS |
+| 3b Harbor sees only its own organization | PASS |
+| 4 Control Room | PASS |
+| 5 AI Team | FAIL: `getByTestId('team')` doesn't contain "Accounts Receivable" |
+| 6 Approve → Completed Work, verified | PASS |
+| 7 Inbox | PASS |
+| 8 Integrations | PASS |
+| 9 Agent workflow | FAIL: "an Accounts Receivable agent set up by the AI Team check", Received `undefined` |
+
+Both failures are the discovery defect recorded in 8.7 (an existing Office agent drops out of the recommended team when discovery runs again). They are unrelated to the theme and occur exactly as before the theme change.
+
+**Production (read-only, after):** deployment `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (e7d2b6c), with the same 9 production-scoped variable names. Nothing in production was changed.

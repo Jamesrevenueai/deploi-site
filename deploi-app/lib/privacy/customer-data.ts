@@ -77,6 +77,7 @@ export const PRIVACY_EXEMPT: Record<string, string> = {
   engagements: 'the retired consulting product\'s agency contacts (no Shopify shop)',
   notify_preferences: 'how the business\'s own owners and admins get updates (their own phone number), never a shopper',
   crew_members: 'the business\'s own crew (employees and contractors: name, work email and phone), managed by the owner; personal data of staff, never a shopper; deleted with the organization',
+  // DEPRECATED (20261107000062): the crew roster is crew_members; kept here until the table is dropped
   pack_crew_members: 'the business\'s own field crew (its staff), never a shopper',
   leasing_companies: 'property-management companies a leasing agent bills (business contacts, never shoppers)',
   leasing_properties: 'rental properties and their billing address (business records, never shoppers)',

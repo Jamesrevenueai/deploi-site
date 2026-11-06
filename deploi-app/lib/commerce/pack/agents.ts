@@ -191,7 +191,11 @@ const orderTracker: CommerceAgent = {
   triggers: ['orders/create', 'orders/updated', 'orders/fulfilled', 'fulfillments/create', 'fulfillments/update', 'crew.done', 'sweep'], actions: ['send_customer_email', 'crew_message'],
   async find(c) {
     const out: Problem[] = []
-    const packers = [...c.settings.packers, ...(await c.store.crew()).filter(x => x.role === 'packer')]
+    // packers come from the one crew roster (crew_members); a packer named in the agent's settings counts only when it
+    // is on that roster (matched by id, address or name), so every message goes to someone notifyCrew can reach
+    const roster = await c.store.crew()
+    const named = c.settings.packers.map(k => roster.find(r => r.id === k?.id || (Boolean(k?.address) && r.address.toLowerCase() === String(k.address).toLowerCase()) || (Boolean(k?.name) && r.name.toLowerCase() === String(k.name).toLowerCase()))).filter((x): x is CrewMember => Boolean(x))
+    const packers = [...new Map([...named, ...roster.filter(x => x.role === 'packer')].map(x => [x.id, x])).values()]
     for (const o of (await c.store.orders()).filter(x => !x.cancelled)) {
       const age = days(o.createdAt, c.now)
       if (o.fulfillmentStatus !== 'fulfilled' && age > c.settings.promisedDispatchDays) {
@@ -204,7 +208,7 @@ const orderTracker: CommerceAgent = {
         out.push({
           key: `order:${o.id}:stuck`, kind: 'stuck_order', actionType: 'send_customer_email', recordIds: [o.id],
           title: `${o.name} is ${late} days old and not shipped; I told ${o.customerFirstName} and the packer`, whatHappened: `${o.name} (${money(o.total)}) was placed ${late} days ago and is still ${o.fulfillmentStatus}; you promise dispatch within ${c.settings.promisedDispatchDays} days.`,
-          whatIDid: [`Emailed ${o.customerFirstName} (${o.email}) an apology and what happens next.`, packers.length ? `Asked ${packers.map(x => x.name).join(', ')} to pack it today.` : 'No packer is on file, so nobody was messaged: add one in Order Tracker settings.'],
+          whatIDid: [`Emailed ${o.customerFirstName} (${o.email}) an apology and what happens next.`, packers.length ? `Asked ${packers.map(x => x.name).join(', ')} to pack it today.` : 'No packer is on file, so nobody was messaged: add one in Settings, Crew (role Packer).'],
           evidence: { orderId: o.id, orderName: o.name, createdAt: o.createdAt, ageDays: late, fulfillmentStatus: o.fulfillmentStatus, promisedDispatchDays: c.settings.promisedDispatchDays },
           stillThere: async cc => { const f = await orderOf(cc, o.id); return Boolean(f && !f.cancelled && f.fulfillmentStatus !== 'fulfilled') },
           act: async cc => {
@@ -215,7 +219,7 @@ const orderTracker: CommerceAgent = {
             const proof = [p('Delay email sent', `${m.id} to ${o.email}`)]
             const crew: string[] = []
             for (const k of packers) {
-              const r = await notifyCrew({ orgId: cc.orgId, crewMemberId: k.id, jobRef: o.name, subject: `Please pack ${o.name} today`, body: `${o.name} for ${o.customerFirstName} is ${late} days old and not shipped.\n\n${lines}\n\nReply "done" when it is packed.`, address: k.address, dedupeKey: `order_tracker:${o.id}:pack:${k.id}` })
+              const r = await notifyCrew({ orgId: cc.orgId, crewMemberId: k.id, jobRef: o.name, subject: `Please pack ${o.name} today`, body: `${o.name} for ${o.customerFirstName} is ${late} days old and not shipped.\n\n${lines}\n\nReply "done" when it is packed.`, dedupeKey: `order_tracker:${o.id}:pack:${k.id}` })
               proof.push(p(`Packer message to ${k.name}`, r.status)); crew.push(r.status)
             }
             return { proof, facts: { messageId: m.id, crew } }

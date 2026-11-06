@@ -4,6 +4,15 @@ Deploi's agents act on their own and tell the owner after. Every update and ever
 `lib/notify` (`notifyOwner`, `notifyCrew`). This page says what each channel does today and exactly what is
 needed before text messages and voice notes reach real phones.
 
+## One crew roster
+
+The crew is `crew_members` (**Settings → Crew**). Everything that messages a crew member uses it: notifyCrew, the
+crew jobs and their "Mark done" links, the home-services and office dispatcher, and the commerce Order Tracker (its
+packers are crew members with the role Packer). "Add a crew member" on a pack page writes the same roster.
+`pack_crew_members` is **deprecated** (migration `20261107000062_pack_crew_roster.sql` copied its rows into
+`crew_members` and repointed jobs); nothing reads or writes it, and it keeps its privacy export/erase entry until a
+later release drops it.
+
 ## What runs today
 
 | Channel | Today | What decides it |

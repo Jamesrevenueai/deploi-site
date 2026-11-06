@@ -28,6 +28,12 @@ How it fits together:
   and Buildium, and the Outlook calendar delta. Each change becomes one agent event (`lib/connections/events.ts`),
   recorded once per (organization, source, record id + version) in `connection_events`. New Outlook mail emits
   `mail.received`, and lead notification emails emit `lead.email` (`lib/leads/email-parsers.ts`).
+- Message text and privacy: `mail.received` carries ids, the sender and the subject, never the text. The inbox sync
+  stores the subject and text encrypted in `email_inbound` (AAD `email-inbound:<row id>`). An agent that needs the
+  words (a renter's answers, a picked time, a vendor's "decline", an opt-out) reads them with
+  `lib/email/message-text.ts` (`readInboundText` / `withInboundText`) at the moment it handles the event: decrypted
+  in-process for that handler only, never written to `agent_events` or `connection_events`, never logged. A
+  quarantined message is never handed to an agent; a missing or purged one reads as no text.
 - Integration hub (`/store/integrations`, `/office/connections`): status, a read-only "Test" probe, Reconnect and
   Disconnect for every provider. "Sandbox only" is shown when QuickBooks, Buildium or Salesforce point at a sandbox.
 

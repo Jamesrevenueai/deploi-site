@@ -7,7 +7,7 @@
  * remote database). For each scenario it:
  *   1. seeds the state only (synthetic Shopify store, synthetic pack ports, rows in the pack tables);
  *   2. fires only the normal triggers: the 15-minute sweep (emitSweep), a Shopify webhook event as the webhook route
- *      routes it (routeEvent), or the change a connection would emit (emitConnectionEvent / emitMailEvents), then
+ *      routes it (routeEvent), or the change a connection would emit (emitConnectionEvent / the Outlook inbox sync storeProviderMessage), then
  *      drains the durable job queue (runDueJobs), exactly as the cron and the webhook route do;
  *   3. measures: detection time (seed done -> agent_loops row created), the action (agent_loops, pack_activity,
  *      library_actions), the verification, the owner update (owner_updates + the rendered system email), crew
@@ -51,7 +51,9 @@ for (const k of ['log', 'warn', 'error'] as const) {
 import { admin } from '../lib/db'
 import { emitSweep, routeEvent, type AgentEvent } from '../lib/events'
 import { emitConnectionEvent, type ConnectionEvent } from '../lib/connections/events'
-import { emitMailEvents } from '../lib/outlook/mail-events'
+import { storeProviderMessage } from '../lib/email/inbox-sync'
+import type { EmailAccountRow } from '../lib/email/accounts'
+import { seedCommerceCrew } from '../lib/connectors/shopify/synthetic'
 import { runDueJobs, type JobOutcome } from '../lib/jobs'
 import { enqueueDueCases } from '../lib/cases/jobs'
 import '../lib/events/agents'
@@ -200,6 +202,8 @@ async function resetCommerce(m: M, scenarios: CommerceScenario[] = []) {
   const s = commerceQuietState(now)
   for (const sc of scenarios) seedCommerceScenario(s, sc, now)
   await setSyntheticState(m.conn, s)
+  // the store's packer is on the organization's one crew roster (crew_members), like any crew member
+  await seedCommerceCrew(m.org)
 }
 
 /** Packs B-F: a clean organization with a business type (mirrors tests/packs/helpers resetPacks). Its Shopify store is
@@ -257,10 +261,24 @@ const lead = (o: { id: string; from?: string; name?: string; email?: string; tex
   const lines = [o.name ? `Name: ${o.name}` : '', o.email ? `Email: ${o.email}` : '', ...Object.entries(o.fields ?? {}).map(([k, v]) => `${k}: ${v}`), '', o.text ?? ''].filter((l, i) => l || i > 0)
   return { from: o.from ?? 'leads@zillow.com', subject: o.subject ?? 'New rental lead', text: lines.join('\n'), messageId: o.id }
 }
+/** The organization's Outlook mailbox (a Microsoft 365 email account row; nothing is fetched from Microsoft). */
+async function outlookAccount(m: M): Promise<EmailAccountRow> {
+  const had = await q1<EmailAccountRow>(`select * from email_accounts where org_id = $1 and provider = 'microsoft' and address like '%@scenarios.example' limit 1`, [m.org])
+  if (had) return had
+  return (await q1<EmailAccountRow>(`insert into email_accounts (org_id, provider, address, status, granted_scopes, can_send, can_read, is_synthetic, connected_by) values ($1,'microsoft',$2,'active',$3,true,true,false,'scenario-harness') returning *`,
+    [m.org, `office-${m.org.slice(0, 8)}@scenarios.example`, ['Mail.Send', 'Mail.ReadWrite']]))!
+}
+/** A message arriving through the real Outlook inbox sync: stored encrypted in email_inbound, then mail.received (and
+ * lead.email for a portal lead) through emitMailEvents, then the job worker. */
+async function viaOutlook(c: Ctx, o: { id: string; from: string; subject: string; text: string; at: Date }) {
+  const r = await storeProviderMessage(await outlookAccount(c.m), outlookMessage(o), 'scenario-harness')
+  c.facts.inbox = [...((c.facts.inbox as string[]) ?? []), r]
+  await c.drain()
+}
 /** A provider message as the Outlook inbox sync hands it to emitMailEvents (lib/outlook/mail-events.ts). */
 function outlookMessage(o: { id: string; from: string; subject: string; text: string; at: Date }) {
   return { providerMessageId: o.id, providerThreadId: `thr-${o.id}`, internetMessageId: `<${o.id}@outlook.example>`, from: o.from, to: ['office@harbor.example'], cc: [], subject: o.subject, text: o.text,
-    inReplyTo: null, references: [], receivedAt: o.at.toISOString(), headers: {}, authentication: { dkim: 'pass', dmarc: 'pass' }, attachments: [], truncated: false }
+    inReplyTo: null, references: [], receivedAt: o.at.toISOString(), headers: {}, authentication: { spf: 'pass', dkim: 'pass', dmarc: 'pass' }, attachments: [], truncated: false }
 }
 const ZILLOW_TEXT = (name: string, email: string, moveIn: string) => `You have a new lead!\n\nA renter is interested in your listing at 1420 NW Lovejoy St #4B, Portland, OR 97209.\n\nName: ${name}\nEmail: ${email}\nPhone: (503) 555-0147\nMove-in date: ${moveIn}\nMessage: Hi! I'd love to schedule a tour this weekend.\n\nReply to this lead in Zillow Rental Manager.`
 
@@ -287,7 +305,7 @@ async function pmVendors(m: M) {
     handy: (await db.one<{ id: string }>(`insert into pm_vendors (org_id, name, email, trades) values ($1,'Handy Co','work@handy.example','{general}') returning id`, [m.org]))!.id,
   }))
 }
-const packCrew = (m: M) => q1<{ id: string }>(`insert into pack_crew_members (org_id, name, email, phone, trade) values ($1,'Sam Ortiz','sam@crew.example','+1 555 0100','roofing') returning id`, [m.org]).then(r => r!)
+const packCrew = (m: M) => q1<{ id: string }>(`insert into crew_members (org_id, name, role, email, phone, channels) values ($1,'Sam Ortiz','field','sam@crew.example','+15550100',array['email']::text[]) returning id`, [m.org]).then(r => r!)
 
 /** Office receivables (mirrors tests/office/receivables-helpers setupReceivables + arAgent). */
 async function officeReceivables(m: M, invoices: QboInvoice[], tier: 'draft' | 'send_approved' | 'send_autonomous' = 'draft') {
@@ -470,13 +488,13 @@ add({ id: 'B01', pack: 'B', title: 'New website lead -> reply with trade templat
   run: async c => { await HS(c); c.seeded(); await c.conn(mailboxEvent('lead.email', hsLead('m-1'), T)) },
   check: async (o, c) => { const mail = await sentMail(c.m); return [['one reply', mail.length === 1 && mail[0].to === 'dana@homeowner.example', mail.map(x => x.to)], ['3 times', (mail[0]?.body.match(/^\d\. /gm) ?? []).length === 3], ['verified', o.activity.some(a => a.agent_key === 'hs_lead_reply' && a.status === 'done')], ['owner email', renderedEmails(o, ['hs_lead_reply']).length >= 1]] } })
 
-add({ id: 'B02', pack: 'B', title: 'Zillow-format lead through the real Outlook path (emitMailEvents)', kind: 'normal', agents: ['hs_lead_reply'], expected: 'the lead.email event exactly as the Outlook inbox sync emits it gets the same reply as B01',
-  rules: 'fully', rulesWhy: 'Portal lead parsed by rules (lib/leads/email-parsers).', synthetic: 'synthetic Outlook message passed to emitMailEvents (the real inbox-sync emitter); synthetic mail port',
-  run: async c => { await HS(c); c.seeded(); await admin(db => emitMailEvents(db, { orgId: c.m.org, accountId: '00000000-0000-4000-8000-0000000000a1', inboundId: uid('in'), status: 'stored', message: outlookMessage({ id: uid('ol'), from: 'rentalclientservices@zillowrentals.com', subject: 'New Zillow Rentals lead for 12 Elm St', text: ZILLOW_TEXT('Maya Thompson', 'maya.thompson@example.com', '12/01/2026'), at: T }) })); await c.drain() },
+add({ id: 'B02', pack: 'B', title: 'Zillow-format lead through the real Outlook inbox sync', kind: 'normal', agents: ['hs_lead_reply'], expected: 'the lead.email event exactly as the Outlook inbox sync emits it gets the same reply as B01',
+  rules: 'fully', rulesWhy: 'Portal lead parsed by rules (lib/leads/email-parsers).', synthetic: 'synthetic Outlook message stored by the real inbox sync (storeProviderMessage -> emitMailEvents); synthetic mail port',
+  run: async c => { await HS(c); c.seeded(); await viaOutlook(c, { id: uid('ol'), from: 'rentalclientservices@zillowrentals.com', subject: 'New Zillow Rentals lead for 12 Elm St', text: ZILLOW_TEXT('Maya Thompson', 'maya.thompson@example.com', '12/01/2026'), at: T }) },
   check: async (o, c) => { const mail = await sentMail(c.m); return [['reply sent to the renter', mail.some(x => x.to === 'maya.thompson@example.com'), { sent: mail.map(x => x.to), activity: o.activity.map(a => `${a.agent_key}:${a.status}:${a.error ?? ''}`), leads: (await q(`select count(*)::int as n from pack_leads where org_id = $1`, [c.m.org]))[0] }]] } })
 
 add({ id: 'B03', pack: 'B', title: 'Scheduled crew job -> dispatched to the crew member', kind: 'normal', agents: ['hs_dispatch'], expected: 'one crew message with address/customer/work through the real crew pipeline (crew_messages row), work order dispatched',
-  rules: 'fully', rulesWhy: 'Schedule + crew assignment + template.', synthetic: `${SYN_PORTS}; crew member in pack_crew_members`,
+  rules: 'fully', rulesWhy: 'Schedule + crew assignment + template.', synthetic: `${SYN_PORTS}; crew member on the crew roster (crew_members)`,
   run: async c => { await HS(c); const cm = await packCrew(c.m); const wo = await admin(db => recordQuote(db, c.m.org, { customerName: 'Dana Reyes', customerEmail: 'dana@homeowner.example', customerPhone: '+1 555 0123', address: '12 Elm St', description: 'Replace flashing', amount: 650, now: T })); await admin(db => scheduleJob(db, c.m.org, wo.id, { crewMemberId: cm.id, start: plus(T, 30) })); c.facts.wo = wo.id; c.seeded(); await c.sweep(T) },
   check: async (o, c) => [['crew message delivered', o.crew.length >= 1, o.crewCalls.map(x => `${x.r.status}: ${x.r.reason ?? ''}`)], ['work order dispatched', (await q1<{ status: string }>(`select status from pack_work_orders where id = $1`, [c.facts.wo]))?.status === 'dispatched', (await q1<{ status: string }>(`select status from pack_work_orders where id = $1`, [c.facts.wo]))?.status], ['loop outcome', o.activity.some(a => a.agent_key === 'hs_dispatch' && a.status === 'done'), o.activity.map(a => `${a.agent_key}:${a.status}`)]] })
 
@@ -539,8 +557,8 @@ add({ id: 'C01', pack: 'C', title: 'Complete renter lead -> matching listings, 3
   check: async (o, c) => { const [m] = await sentMail(c.m); return [['lists 2A and 4B only', /unit 2A/.test(m?.body ?? '') && /unit 4B/.test(m?.body ?? '') && !/301|105|402/.test(m?.body ?? '')], ['3 times', (m?.body.match(/^\d\. /gm) ?? []).length === 3], ['policy ok', (await q1<{ policy: { ok: boolean; fairHousing: boolean } }>(`select policy from pack_messages where org_id = $1`, [c.m.org]))?.policy.fairHousing === true], ['owner email', renderedEmails(o, ['ls_lead_reply']).length >= 1]] } })
 
 add({ id: 'C02', pack: 'C', title: 'Unanswered Zillow lead through the real Outlook path -> reply', kind: 'normal', agents: ['ls_lead_reply'], expected: 'a Zillow lead email as emitMailEvents emits it is answered (the standard questions not answered in the lead are asked)',
-  rules: 'fully', rulesWhy: 'Portal parser by rules, standard questions.', synthetic: 'synthetic Outlook message through emitMailEvents; synthetic mail port',
-  run: async c => { await LS(c); c.seeded(); await admin(db => emitMailEvents(db, { orgId: c.m.org, accountId: '00000000-0000-4000-8000-0000000000a1', inboundId: uid('in'), status: 'stored', message: outlookMessage({ id: uid('ol'), from: 'rentalclientservices@zillowrentals.com', subject: 'New Zillow Rentals lead for 1420 NW Lovejoy St #4B', text: ZILLOW_TEXT('Maya Thompson', 'maya.thompson@example.com', isoDay(T, 20)), at: T }) })); await c.drain() },
+  rules: 'fully', rulesWhy: 'Portal parser by rules, standard questions.', synthetic: 'synthetic Outlook message stored by the real inbox sync (storeProviderMessage -> emitMailEvents); synthetic mail port',
+  run: async c => { await LS(c); c.seeded(); await viaOutlook(c, { id: uid('ol'), from: 'rentalclientservices@zillowrentals.com', subject: 'New Zillow Rentals lead for 1420 NW Lovejoy St #4B', text: ZILLOW_TEXT('Maya Thompson', 'maya.thompson@example.com', isoDay(T, 20)), at: T }) },
   check: async (o, c) => { const mail = await sentMail(c.m); return [['renter answered', mail.some(x => x.to === 'maya.thompson@example.com'), { sent: mail.map(x => x.subject), activity: o.activity.map(a => `${a.agent_key}:${a.status}:${a.error ?? ''}`), leads: (await q(`select source, status from pack_leads where org_id = $1`, [c.m.org])) }]] } })
 
 add({ id: 'C03', pack: 'C', title: 'Incomplete lead, then the renter answers -> listings sent', kind: 'edge', agents: ['ls_lead_reply', 'ls_qualify'], expected: 'first reply asks only the 3 missing questions; the answers bring units 2A and 4B',
@@ -589,10 +607,10 @@ add({ id: 'C08', pack: 'C', title: 'Steering language in the business name -> re
   run: async c => { await LS(c, { senderName: 'Safe Area Rentals' }); c.seeded(); await c.conn(mailboxEvent('lead.email', lead({ id: 'z-9', name: 'Jordan Miles', email: 'jordan@renter.example', fields: FIELDS }), T)) },
   check: async (o, c) => [['nothing sent', (await sentMail(c.m)).length === 0], ['blocked by fair-housing', o.activity.some(a => a.status === 'blocked' && /fair-housing check \(safe area\)/.test(a.error ?? ''))], ['owner warned', ownerFor(o, ['ls_lead_reply']).some(r => r.severity === 'warning')]] })
 
-add({ id: 'C09', pack: 'C', title: 'Renter answers through the real Outlook path (mail.received has no text)', kind: 'edge', agents: ['ls_qualify'], expected: 'the renter\'s answers, arriving as the Outlook mail.received event, bring the listings',
-  rules: 'partly', rulesWhy: 'Numbered answers by rules, once the agent can read the text.', synthetic: 'pack-shape lead, then a synthetic Outlook reply through emitMailEvents',
+add({ id: 'C09', pack: 'C', title: 'Renter answers through the real Outlook inbox sync (text read from the stored message)', kind: 'edge', agents: ['ls_qualify'], expected: 'the renter\'s answers, arriving as the Outlook mail.received event, bring the listings',
+  rules: 'partly', rulesWhy: 'Numbered answers by rules; the text is read from email_inbound at handling time.', synthetic: 'pack-shape lead, then a synthetic Outlook reply stored by the real inbox sync',
   run: async c => { await LS(c); await c.conn(mailboxEvent('lead.email', lead({ id: 'z-2', from: 'leads@apartments.com', name: 'Sam Park', email: 'sam@renter.example', fields: { Bedrooms: '2' } }), T)); c.seeded()
-    await admin(db => emitMailEvents(db, { orgId: c.m.org, accountId: '00000000-0000-4000-8000-0000000000a1', inboundId: uid('in'), status: 'stored', message: outlookMessage({ id: uid('ol'), from: 'sam@renter.example', subject: 'Re: Your rental inquiry', text: `1. $2,000\n2. ${isoDay(T, 20)}\n3. no`, at: plus(T, 2) }) })); await c.drain() },
+    await viaOutlook(c, { id: uid('ol'), from: 'sam@renter.example', subject: 'Re: Your rental inquiry', text: `1. $2,000\n2. ${isoDay(T, 20)}\n3. no`, at: plus(T, 2) }) },
   check: async (o, c) => { const mail = await sentMail(c.m); return [['listings sent after the answers', mail.length === 2 && /unit 2A/.test(mail[1]?.body ?? ''), { sent: mail.length, activity: o.activity.map(a => `${a.agent_key}:${a.status}:${a.error ?? ''}`) }]] } })
 
 // ===== D. Real estate
@@ -635,6 +653,13 @@ add({ id: 'D07', pack: 'D', title: 'Quiet buyer -> 3 follow-ups then marked quie
   rules: 'fully', rulesWhy: 'Cadence.', synthetic: SYN_PORTS,
   run: async c => { await RE(c); await c.conn(mailboxEvent('lead.email', buyer('re-6'), T)); c.seeded(); for (const d of [2, 5, 10, 17]) await c.sweep(plus(T, 24 * d)) },
   check: async (_o, c) => [['3 follow-ups', (await sentMail(c.m)).filter(m => /^Following up/.test(m.subject)).length === 3], ['quiet', (await q1<{ status: string }>(`select status from pack_leads where org_id = $1`, [c.m.org]))?.status === 'quiet']] })
+
+add({ id: 'D08', pack: 'D', title: 'Buyer picks a time through the real Outlook inbox sync -> showing booked', kind: 'normal', agents: ['re_showing'], expected: 'the buyer\'s "the third one works", arriving as the Outlook mail.received event (no text in the payload), books the showing and moves the CRM stage',
+  rules: 'partly', rulesWhy: 'Ordinal picks by rules from the stored text; free-form times need AI.', synthetic: 'pack-shape lead, then a synthetic Outlook reply stored by the real inbox sync',
+  run: async c => { await RE(c); await c.conn(mailboxEvent('lead.email', buyer('re-ol'), T)); c.seeded()
+    await viaOutlook(c, { id: uid('ol'), from: 'morgan@buyer.example', subject: 'Re: Inquiry about 12 Oak St', text: 'The third one works', at: plus(T, 1) }) },
+  check: async (_o, c) => [['showing booked', (await q1<{ kind: string }>(`select kind from pack_appointments where org_id = $1`, [c.m.org]))?.kind === 'showing', { inbox: c.facts.inbox }], ['crm stage', (await getSynth(c.m.org, 'crm')).contacts[0]?.stage === 'showing booked'],
+    ['no text stored on the event', !(await q(`select 1 from agent_events where org_id = $1 and type = 'mail.received' and payload ? 'text'`, [c.m.org])).length]] })
 
 // ===== E. Property management
 
@@ -680,9 +705,9 @@ add({ id: 'E06', pack: 'E', title: 'Rent late -> reminder from the property syst
       { tenantId: 't4', tenantName: 'No Email', tenantEmail: null, property: 'Maple Court', unit: '3C', amountDue: 900, dueDate: isoDay(T, -3), currency: 'USD' }] }); c.seeded(); await c.sweep(T); await c.sweep(plus(T, 1)) },
   check: async (o, c) => { const mail = (await sentMail(c.m)).filter(m => /^Rent reminder/.test(m.subject)); return [['one reminder to kai', mail.length === 1 && mail[0].to === 'kai@renters.example' && /USD\s1,450\.00/.test(mail[0].body), mail.map(m => m.to)], ['activity done+blocked', o.activity.filter(a => a.agent_key === 'pm_rent_reminder').map(a => a.status).sort().join() === 'blocked,done', o.activity.map(a => `${a.agent_key}:${a.status}`)]] } })
 
-add({ id: 'E07', pack: 'E', title: 'Tenant request through the real Outlook path (mail.received has no text)', kind: 'edge', agents: ['pm_maintenance_intake'], expected: 'a tenant email arriving as the Outlook mail.received event is logged as a maintenance request with its unit',
-  rules: 'fully', rulesWhy: 'Keyword category; needs the text to read the unit.', synthetic: 'synthetic Outlook message through emitMailEvents',
-  run: async c => { await PM(c); await pmVendors(c.m); c.seeded(); await admin(db => emitMailEvents(db, { orgId: c.m.org, accountId: '00000000-0000-4000-8000-0000000000a1', inboundId: uid('in'), status: 'stored', message: outlookMessage({ id: uid('ol'), from: 'tenant4b@renters.example', subject: 'Problem in my apartment', text: 'Hi, the kitchen sink in unit 4B is leaking under the cabinet.', at: T }) })); await c.drain() },
+add({ id: 'E07', pack: 'E', title: 'Tenant request through the real Outlook inbox sync (text read from the stored message)', kind: 'edge', agents: ['pm_maintenance_intake'], expected: 'a tenant email arriving as the Outlook mail.received event is logged as a maintenance request with its unit',
+  rules: 'fully', rulesWhy: 'Keyword category and unit from the stored text.', synthetic: 'synthetic Outlook message stored by the real inbox sync (storeProviderMessage -> emitMailEvents)',
+  run: async c => { await PM(c); await pmVendors(c.m); c.seeded(); await viaOutlook(c, { id: uid('ol'), from: 'tenant4b@renters.example', subject: 'Problem in my apartment', text: 'Hi, the kitchen sink in unit 4B is leaking under the cabinet.', at: T }) },
   check: async (o, c) => { const r = await q1<{ category: string; unit: string | null }>(`select category, unit from pm_maintenance_requests where org_id = $1`, [c.m.org]); return [['logged with unit 4B', r?.category === 'plumbing' && r.unit === '4B', { request: r, activity: o.activity.map(a => `${a.agent_key}:${a.status}`) }]] } })
 
 // ===== F. Office
@@ -708,8 +733,8 @@ add({ id: 'F03', pack: 'F', title: 'Quiet office quote -> follow-up on day 3', k
   check: async (_o, c) => [['one follow-up', (await sentMail(c.m)).filter(m => m.subject.includes(String(c.facts.ref))).length === 1, (await sentMail(c.m)).map(m => m.subject)]] })
 
 add({ id: 'F04', pack: 'F', title: 'Office job scheduled -> crew member messaged; DONE -> invoiced', kind: 'normal', agents: ['office_crew_updates', 'hs_dispatch', 'hs_invoice'], expected: 'crew message delivered (crew_messages row); crew.done invoices the job',
-  rules: 'fully', rulesWhy: 'Schedule + template + invoice lines.', synthetic: `${SYN_PORTS}; crew member in pack_crew_members`,
-  run: async c => { await OF(c); const T2 = new Date(Date.UTC(2027, 0, 4, 8)); const cm = (await q1<{ id: string }>(`insert into pack_crew_members (org_id, name, email) values ($1,'Pat Packer','pat@crew.example') returning id`, [c.m.org]))!
+  rules: 'fully', rulesWhy: 'Schedule + template + invoice lines.', synthetic: `${SYN_PORTS}; crew member on the crew roster (crew_members)`,
+  run: async c => { await OF(c); const T2 = new Date(Date.UTC(2027, 0, 4, 8)); const cm = (await q1<{ id: string }>(`insert into crew_members (org_id, name, role, email, channels) values ($1,'Pat Packer','field','pat@crew.example',array['email']::text[]) returning id`, [c.m.org]))!
     const wo = await admin(db => recordQuote(db, c.m.org, { pack: 'office', customerName: 'Lee Client', customerEmail: 'lee@client.example', description: 'Office move', amount: 1200, now: T2 })); await admin(db => scheduleJob(db, c.m.org, wo.id, { crewMemberId: cm.id, start: plus(T2, 24 * 4) })); c.facts.wo = wo.id; c.seeded()
     await c.sweep(plus(T2, 24 * 3 + 1)); await c.route({ source: 'crew', type: 'crew.done', externalId: `crew.done:${wo.id}`, occurredAt: plus(T2, 24 * 4 + 5).toISOString(), payload: { jobRef: wo.ref } }) },
   check: async (o, c) => [['crew message delivered', o.crew.length >= 1, o.crewCalls.map(x => `${x.r.status}: ${x.r.reason ?? ''}`)], ['invoiced', (await q1<{ status: string }>(`select status from pack_work_orders where id = $1`, [c.facts.wo]))?.status === 'invoiced']] })
@@ -792,6 +817,11 @@ add({ id: 'X09', pack: 'X', org: 'NW', title: '"Stop all agents" -> the sweep is
   rules: 'fully', rulesWhy: 'Kill switch.', synthetic: SYN_SHOP,
   run: async c => { await resetCommerce(c.m, ['weak_description']); await q(`insert into org_controls (org_id, agents_stopped, stop_reason) values ($1, true, 'scenario') on conflict (org_id) do update set agents_stopped = true, stop_reason = 'scenario'`, [c.m.org]); await commerceSweep(c); await q(`update org_controls set agents_stopped = false where org_id = $1`, [c.m.org]) },
   check: async (o, c) => [['no work', o.work.length === 0, o.work.length], ['no owner update', o.owner.length === 0], ['description untouched', (await commerceOf(c.m)).info[COMMERCE_IDS.candle.product].descriptionHtml === '<p>Nice candle.</p>']] })
+
+add({ id: 'X10', pack: 'X', title: 'Unverified first-contact sender through Outlook -> quarantined, no agent acts', kind: 'edge', agents: ['ls_lead_reply', 'ls_qualify'], expectNoAction: true, expected: 'a Zillow-looking lead without SPF/DKIM/DMARC passing is quarantined by the inbox sync; no lead.email, no reply, no lead row',
+  rules: 'fully', rulesWhy: 'Sender policy by rules.', synthetic: 'synthetic Outlook message without passing authentication, stored by the real inbox sync',
+  run: async c => { await LS(c); c.seeded(); c.facts.inbox = [await storeProviderMessage(await outlookAccount(c.m), { ...outlookMessage({ id: uid('ol'), from: 'rentalclientservices@zillowrentals.com', subject: 'New Zillow Rentals lead for 1420 NW Lovejoy St #4B', text: ZILLOW_TEXT('Spoof Renter', 'spoof@renter.example', isoDay(T, 20)), at: T }), authentication: { spf: 'fail', dkim: 'none', dmarc: 'fail' } }, 'scenario-harness')]; await c.drain() },
+  check: async (o, c) => [['quarantined', (c.facts.inbox as string[])[0] === 'quarantined', c.facts.inbox], ['no reply', (await sentMail(c.m)).length === 0], ['no lead', (await q(`select 1 from pack_leads where org_id = $1`, [c.m.org])).length === 0], ['no activity', o.activity.length === 0]] })
 
 // ------------------------------------------------------------------ runner
 
@@ -904,8 +934,8 @@ function report(results: Result[], meta: Record<string, unknown>): string {
     L.push(`Synthetic inputs: ${syn.map(cell).join('; ')}.`, '')
   }
   L.push('## Pack readiness ranking', '')
-  L.push('Ranked by pass rate, ties by scenario count. Read the reason with it: every pack that reads customer replies (B, C, D, E) has the same Outlook no-text gap (C09); D ranks first only because this run has no Outlook-reply scenario for it, not because it is free of the gap. Commerce is synthetic-only until the live store wires email and crew.', '')
-  const ranked = (['A', 'B', 'C', 'D', 'E', 'F'] as PackId[]).map(p => { const rs = results.filter(r => r.pack === p); return { p, rs, rate: rs.length ? rs.filter(r => r.result === 'PASS').length / rs.length : 0 } }).sort((a, b) => b.rate - a.rate || b.rs.length - a.rs.length)
+  L.push('Ranked by pass rate; equal pass rates are ordered by how much of the evidence ran through the real connection emitters (a judgement, given in the reason). Every pack that reads customer replies (B, C, D, E) now has a scenario through the real Outlook inbox sync (B02, C02, C09, D08, E07). Commerce ranks on synthetic evidence only: its customer-email agents cannot run on a real store until the live store wires email.', '')
+  const ranked = (['A', 'B', 'C', 'D', 'E', 'F'] as PackId[]).map(p => { const rs = results.filter(r => r.pack === p); return { p, rs, rate: rs.length ? rs.filter(r => r.result === 'PASS').length / rs.length : 0 } }).sort((a, b) => b.rate - a.rate || TIE_ORDER.indexOf(a.p) - TIE_ORDER.indexOf(b.p))
   L.push('| Rank | Pack | Pass rate | Reason |', '|---|---|---|---|')
   ranked.forEach((x, i) => { const f = x.rs.filter(r => r.result === 'FAIL'); L.push(`| ${i + 1} | ${PACK_NAMES[x.p]} | ${x.rs.filter(r => r.result === 'PASS').length}/${x.rs.length} | ${cell(READINESS[x.p] ?? '')}${f.length ? ` Failing: ${f.map(r => r.id).join(', ')}.` : ''} |`) })
   L.push('')
@@ -914,52 +944,53 @@ function report(results: Result[], meta: Record<string, unknown>): string {
 }
 
 /** Hand-written notes on failures and readiness (kept next to the code that produces the numbers). */
-const NOTES: Record<string, string[]> = {
-  A05: [
-    'Real product gap (NOT fixed): the commerce crew roster (CommerceStore.crew()) is not the Settings -> Crew roster (crew_members). The synthetic store hands notifyCrew the id `crew-packer-1`, which the real crew pipeline rejects with "an organization and a crew member are required"; the live store returns no crew at all (lib/commerce/pack/live-store.ts), so on a real store no packer is ever messaged. The failed packer message fails the verify, so the case is blocked and retried. One roster has to be chosen; that is a design decision, not a small fix.',
-    'FIXED by this run: before the fix the retry re-ran the whole act and emailed the customer a second time (observed: 2 delay emails to kit@shopper.example). Order Tracker now reuses the delay email it already sent (lib/commerce/pack/agents.ts; test "a packer message that fails ..." in tests/commerce/pack-scenarios.test.ts). The check "customer emailed once, even after a retry" now passes.',
-  ],
-  B03: ['Real product gap (NOT fixed): hs_dispatch sends to a pack_crew_members id (the crew list on the pack settings page) but the real notifyCrew looks the id up in crew_members (Settings -> Crew) and answers "skipped: no such crew member in this organization". The work order stays `scheduled`, the loop is not_verified and the owner is warned, but no crew member is ever messaged. tests/packs/home-services.test.ts passes only because tests/packs/helpers.ts fakes notifyCrew. Needs one crew roster for packs and notify.'],
-  F04: ['Same gap as B03: office_crew_updates reuses the home-services dispatcher (agent key hs_dispatch) and its pack_crew_members ids. The DONE -> invoice half works (the crew.done event is routed with the payload markJobDone emits).'],
-  C09: ['Real product gap (NOT fixed): the Outlook mail.received event carries ids, sender and subject but not the text (it stays encrypted in email_inbound, by design: lib/outlook/mail-events.ts). Every pack reply reader (renter answers, quote and showing picks, vendor and tenant replies, opt-outs) reads e.payload.text, so through the real Outlook path the renter\'s answers are invisible and nothing happens. The fix is a text read at handling time (lib/office/case-sync.ts inboundContent) in each pack\'s mail.received handler, with its own privacy review: not small. B10, C03, D04, D06, E01 and E03 pass only with the pack contract shape (text in the payload), which no real connection emits today.'],
-  E07: ['Same gap as C09: the tenant\'s mail arrives without its text, so the classifier sees only the subject ("Problem in my apartment") and no maintenance request is logged. A subject that carries a keyword would be logged, but without the unit.'],
-}
+const NOTES: Record<string, string[]> = {}
+/** Equal pass rates are ordered by how much of the evidence ran through the real connection emitters (hand-judged,
+ * reasons in READINESS): commerce last, because its customer-email agents cannot run on a real store yet. */
+const TIE_ORDER: PackId[] = ['C', 'E', 'D', 'B', 'F', 'A']
 const READINESS: Partial<Record<PackId, string>> = {
-  A: 'Every seeded problem was found unprompted by the sweep or the webhook it belongs to, verified by a fresh read, with working undo links and one action per problem across agents. Synthetic only: the live store does not wire sendEmail, inbox, sent or crew yet (lib/commerce/pack/live-store.ts), so the customer-email and packer agents cannot run on a real store.',
-  B: 'Leads (also through the real Outlook path after the lead-source fix), quote follow-ups, invoicing on DONE and payment chasing work on rules. Crew dispatch never reaches a crew member through the real crew pipeline (two crew rosters), and customer replies through Outlook are unreadable (no text).',
-  C: 'Strongest regulated-flow evidence: commission invoices exact to the cent and sent once, payment notices deduped, fair-housing content check refuses steering, 12 renters with different backgrounds get byte-identical replies apart from name and times. Renter answers through the real Outlook path are unreadable (no text).',
-  D: 'Buyer, seller and CRM leads (the CRM poll shape after the lead-source fix) are answered and logged in the CRM; a CRM outage is reported, not hidden. Showing picks and opt-outs work only with text in the payload (see C09). A seller lead that arrives through Outlook is treated as a buyer: the inbox-sync payload carries no subject or lead type.',
-  E: 'The Buildium path works end to end with the real poll shape (request read fresh, vendor dispatched, status written back, repeat poll deduped). Tenant and vendor emails through Outlook are unreadable (no text).',
-  F: 'QuickBooks changes in the real poll shape reach the receivables agent, due-only sweeps hold, a 401 is reported. Office quote follow-up and crew updates run the home-services code under hs_* agent keys (the dashboard shows them as home-services agents), and crew updates share the crew-roster gap.',
+  A: 'Every seeded problem was found unprompted by the sweep or the webhook it belongs to, verified by a fresh read, with working undo links and one action per problem across agents; the packer is a real crew_members row reached through the real crew pipeline. Synthetic only: the live store does not wire sendEmail, inbox or sent yet (lib/commerce/pack/live-store.ts), so the customer-email agents cannot run on a real store.',
+  B: 'Leads through the Outlook inbox sync, quote follow-ups, crew dispatch through the real crew pipeline (crew_members), invoicing on DONE and payment chasing all work on rules. Free-form replies ("Tuesday afternoon") are safely left alone and would need AI.',
+  C: 'Commission invoices exact to the cent and sent once, payment notices deduped, the fair-housing check refuses steering, 12 renters with different backgrounds get identical replies apart from name and times, and renter answers through the Outlook inbox sync are read from the stored message.',
+  D: 'Buyer, seller and CRM leads (the CRM poll shape) are answered and logged in the CRM, a CRM outage is reported, and a showing pick through the Outlook inbox sync is booked (D08). A seller lead that arrives through Outlook is treated as a buyer: the inbox-sync lead payload carries no subject or lead type.',
+  E: 'The Buildium path works end to end with the real poll shape, and tenant mail through the Outlook inbox sync is logged with category and unit from the stored text.',
+  F: 'QuickBooks changes in the real poll shape reach the receivables agent, due-only sweeps hold, a 401 is reported, crew updates reach the crew roster. Office quote follow-up and crew updates run the home-services code under hs_* agent keys (the dashboard attributes them to home-services agents).',
 }
 const EXTRA_SECTIONS: string[] = [
-  `## Code fixes made by this run
+  `## Code fixes made by this harness (two rounds)
 
-1. **Pack lead sources read the payloads real connections emit** (lib/packs/leads.ts, test tests/packs/lead-sources.test.ts). Before: B02, C02 and D03 FAILED. A Zillow lead through the Outlook inbox sync (\`emitMailEvents\`) carries \`{ providerMessageId, lead: { source, name, email, phone, moveIn, ... } }\`, and a new CRM person (\`crm.contact.changed\` -> \`crm.lead.created\`) carries \`{ provider, contact: { id, kind, email, firstName, lastName } }\`. \`emailLeadSource.parse\` and \`crmLeadSource.parse\` read only the pack's own contract shape (\`messageId\` / \`externalId\` at the top level), returned null, and the handlers returned without a word: the job was marked succeeded, no lead row, no reply, no owner update (observed: \`{"sent":[],"activity":[],"leads":[]}\`). Both now map the real shapes; only labelled fields are read (an ISO move-in date; the free-text message is never mined).
-2. **Order Tracker never emails a customer twice on a retry** (lib/commerce/pack/agents.ts, new test in tests/commerce/pack-scenarios.test.ts). Before: when the packer message failed, the stuck-order case was retried and the delay email went out again (observed 2). Now the retry reuses the email it already sent.
+Round 1 (found by the first run, 65/70):
+1. **Pack lead sources read the payloads real connections emit** (lib/packs/leads.ts, tests/packs/lead-sources.test.ts). Before: B02, C02, D03 failed; a Zillow lead from the Outlook inbox sync (\`{ providerMessageId, lead }\`) and a new CRM person (\`{ provider, contact }\`) parsed to null and were dropped silently while the job reported succeeded.
+2. **Order Tracker never emails a customer twice on a retry** (lib/commerce/pack/agents.ts). Before: a failed packer message made the stuck-order case retry and the delay email went out again (observed 2).
 
-Both fixes were checked with tests/commerce/pack-scenarios.test.ts and tests/packs/*.test.ts (120 tests) run against the harness database, not deploi_test.`,
-  `## Real product bugs left failing
+Round 2 (the lead's decisions on the three gaps the first run left failing):
+3. **One crew roster: crew_members (Settings -> Crew).** Before: B03/F04 \`skipped: no such crew member in this organization\` (packs used pack_crew_members ids) and A05 \`failed: an organization and a crew member are required (crewMemberId=crew-packer-1)\` (the commerce store had its own fake crew; the live store had none).
+   - Home services / office: scheduleJob and the dispatcher read active crew_members of the organization (lib/packs/home-services.ts). The pack page "Add a crew member" writes crew_members through addCrewMember (owner/admin, reachable), with a role instead of a trade (lib/packs/dashboard.ts, components/packs/Packs.tsx).
+   - Commerce: CommerceStore.crew() returns the organization's active crew_members with role packer or warehouse, for both the synthetic and the live store (lib/commerce/pack/store.ts rosterCrew, live-store.ts); a packer named in the agent's settings counts only when it is on the roster. The synthetic fixture no longer carries \`crew-packer-1\`; seedCommerceCrew seeds a real crew_members row (lib/connectors/shopify/synthetic.ts, scripts/seed-commerce-scenarios.ts).
+   - Migration 20261107000062_pack_crew_roster.sql (+ rollback): copies pack_crew_members into crew_members (role field), repoints pack_work_orders.crew_member_id to crew_members, marks pack_crew_members DEPRECATED (kept, not read or written; privacy entries kept). Added to RELEASE_2026_11_07.
+   - Tests no longer fake the crew sender: tests/packs/helpers.ts and tests/commerce/pack-helpers.ts capture owner updates only; crew messages go through notifyCrew (crew_jobs, crew_messages, the held email).
+   - notifyCrew: a repeat of a crew message whose first attempt only failed used to answer "held" (counted as delivered); it now answers failed (or skipped) and says it is not resent (lib/notify/crew.ts).
+4. **Message text for reply handlers** (lib/email/message-text.ts, tests/packs/mail-text.test.ts). Before: C09/E07: the Outlook mail.received event carries no text, every pack reply reader saw an empty text and did nothing. Now readInboundText decrypts the stored email_inbound row for the organization (same key and AAD as the inbox reader; null when quarantined, missing, pending or purged; nothing logged) and withInboundText fills it in at handling time for the home-services, leasing, real-estate, property-management and commerce mail.received handlers. The text never lands in agent_events (D08 checks it). Quarantined mail is never handed to an agent (X10).`,
+  `## Remaining gaps (not failures in this run)
 
-| Scenario(s) | Bug | Exact error / observation | Why not fixed here |
-|---|---|---|---|
-| A05 | Commerce crew roster is not crew_members; live store returns no crew | notifyCrew: \`failed: an organization and a crew member are required (crewMemberId=crew-packer-1)\`; work row \`failed: the fresh read did not confirm the change\` | needs a decision on one crew roster |
-| B03, F04 | Pack crew (pack_crew_members) is not the notify crew (crew_members) | notifyCrew: \`skipped: no such crew member in this organization\`; work order stays \`scheduled\`, loop \`not_verified\` | same roster decision |
-| C09, E07 (and every reply flow through Outlook) | Outlook mail.received has no text; packs read payload.text | no lead/request change, no activity row, job \`succeeded\` | needs a decrypting text read in each pack handler plus a privacy review |`,
-  `## Observations (not failures)
-
-- Office quote follow-up and crew updates write their activity under \`hs_quote_followup\` / \`hs_dispatch\` / \`hs_invoice\` (lib/packs/home-services.ts is reused with pack = office), so the Office pack dashboard attributes them to home-services agent keys.
-- The ask-first flow has no expiry: an owner who never answers gets a reminder at 24 h and an escalation at 72 h, and the action stays decidable. X05 checks that nothing is done or sent; "expires" is not a product behaviour.
+- Commerce live store: sendEmail, inbox and sent are not wired, so customer-email agents are synthetic-only.
+- An Outlook seller lead is treated as a buyer (no subject or lead type in the inbox-sync lead payload).
 - The QuickBooks payment change carries only the payment id, so the leasing payment matcher needs the pack-shaped notice (C06 uses it; the limit is documented in lib/connections/events.ts).
-- Detection times are wall-clock milliseconds from the end of seeding to the first agent_loops row, measured on this machine with the job worker running in-process right after the trigger. In production the sweep runs every 15 minutes and webhooks are handled right after the response, so real detection time is dominated by that schedule, not by these numbers.`,
+- Office quote follow-up and crew updates write activity under hs_* agent keys.
+- Order Tracker treats a skipped packer message (a crew member with no way to be reached) as accepted; only a failed one blocks the case.`,
+  `## Observations
+
+- The ask-first flow has no expiry: an owner who never answers gets a reminder at 24 h and an escalation at 72 h, and the action stays decidable. X05 checks that nothing is done or sent; "expires" is not a product behaviour.
+- A first-contact sender without SPF, DKIM and DMARC all passing is quarantined by the inbox sync (lib/email/sender-policy.ts), and no lead or reply handler acts on it (X10). The first harness draft sent synthetic mail without SPF and every Outlook scenario was quarantined; the synthetic messages now carry passing SPF, DKIM and DMARC like the connection tests.
+- Detection times are wall-clock milliseconds from the end of seeding to the first agent_loops row, measured on this machine with the job worker running in-process right after the trigger. In production the sweep runs every 15 minutes and webhooks are handled right after the response, so real detection time is dominated by that schedule.`,
   `## How the harness stays honest
 
 - Own database \`${DB_NAME}\`, created, migrated (scripts/migrate.ts) and seeded (scripts/seed.ts) by the harness; it refuses a non-local URL. deploi_test is never touched.
-- No agent is called directly; the only entry points are emitSweep, routeEvent (Shopify webhook and crew events, shaped as lib/connectors/shopify/webhooks.ts and lib/notify/crew.ts emit them), emitConnectionEvent (mailbox, CRM, QuickBooks, Buildium) and emitMailEvents (Outlook), then runDueJobs. X03 runs three job workers in parallel.
-- "Pack contract shape" events (lead.email / mail.received with text from a \`mailbox\` source, quickbooks.payment with an invoice number) are synthetic: they are what the pack tests feed, not what a real connection emits today. Scenarios that use the real emitters say so in their title.
-- Time: packs read the event's own time, so sweeps are emitted at simulated times. X05 simulates the passing of 25 h and 73 h by moving the loop's asked_at and the case's next_check_at back, then runs the real case.check jobs. X06 moves next_retry_at back to make a retry due.
-- For packs B-F the Harbor organization's Shopify connection is marked uninstalled so the commerce agents stay out of the measurement; packs B-F do not need a store.
-- Owner emails: "rendered" means an owner_updates email row whose system_emails row has a rendered HTML body (> 200 characters); every one is held (no RESEND_API_KEY). Undo: tokens are counted in undo_tokens; A03 and A10 redeem the token from the owner update through runUndo, the same code as the /undo link.`,
+- No agent is called directly; the only entry points are emitSweep, routeEvent (Shopify webhook and crew events, shaped as lib/connectors/shopify/webhooks.ts and lib/notify/crew.ts emit them), emitConnectionEvent (mailbox, CRM, QuickBooks, Buildium) and the Outlook inbox sync storeProviderMessage (which stores the message encrypted and calls emitMailEvents), then runDueJobs. X03 runs three job workers in parallel.
+- "Pack contract shape" events (lead.email / mail.received with text from a \`mailbox\` source, quickbooks.payment with an invoice number) are synthetic: they are what the pack tests feed. Scenarios that use the real emitters say so in their title.
+- Time: packs read the event's own time, so sweeps are emitted at simulated times. X05 simulates 25 h and 73 h passing by moving the loop's asked_at and the case's next_check_at back, then runs the real case.check jobs. X06 and A05 move next_retry_at back to make a retry due.
+- For packs B-F the Harbor organization's Shopify connection is marked uninstalled so the commerce agents stay out of the measurement.
+- Owner emails: "rendered" means an owner_updates email row whose system_emails row has a rendered HTML body (> 200 characters); every one is held (no RESEND_API_KEY). Crew messages are crew_messages rows from the real pipeline (held emails). Undo: A03 and A10 redeem the token from the owner update through runUndo, the same code as the /undo link.`,
   `## Rerun
 
 \`\`\`

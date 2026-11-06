@@ -11,7 +11,7 @@
  */
 import { shopifyGraphql, ShopifyApiError, type GqlBody } from '../../connectors/shopify/client'
 import type { ConnectionRow } from '../../engine/types'
-import { CommerceError, plainText, type CommerceStore, type CDiscount, type CPayout, type CReturn, type Change } from './store'
+import { CommerceError, plainText, rosterCrew, type CommerceStore, type CDiscount, type CPayout, type CReturn, type Change } from './store'
 
 export type Gql = <T>(body: GqlBody, opts?: { mutation?: boolean }) => Promise<T>
 type Money = { shopMoney: { amount: string } }
@@ -323,5 +323,6 @@ export function liveCommerceStore(gql: Gql, opts: { promotedHandles?: string[]; 
 
 /** The live store for one Shopify connection (expiring tokens, throttling and the outbound boundary are handled by the client). */
 export function liveCommerceStoreFor(conn: ConnectionRow, opts: { promotedHandles?: string[] } = {}): CommerceStore {
-  return liveCommerceStore(<T>(b: GqlBody, o?: { mutation?: boolean }) => shopifyGraphql<T>(conn, b, { mutation: o?.mutation }), opts)
+  // Shopify has no crew: the store's packers are the organization's crew roster (crew_members)
+  return { ...liveCommerceStore(<T>(b: GqlBody, o?: { mutation?: boolean }) => shopifyGraphql<T>(conn, b, { mutation: o?.mutation }), opts), crew: () => rosterCrew(conn.org_id) }
 }

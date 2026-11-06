@@ -189,8 +189,9 @@ function Records({ pack, r, reload }: { pack: string; r: View['records']; reload
           {crew.length > 0 && <QuickForm title="Schedule a job" op="schedule" onDone={reload} fields={[{ name: 'workOrderId', label: 'Job', options: list('jobs').filter(j => ['quoted', 'accepted', 'quiet', 'scheduled'].includes(String(j.status))).map(j => [String(j.id), `${j.ref} ${j.customer_name ?? ''}`]) }, { name: 'crewMemberId', label: 'Crew member', options: crew.map(c => [String(c.id), String(c.name)]) }, { name: 'start', label: 'Start', type: 'datetime' }]} />}
         </Panel></Section>
         <Section id="crew" title="Crew"><Panel>
-          <Table rows={crew} empty="No crew members yet." cols={[['Name', x => String(x.name)], ['Email', x => String(x.email ?? '')], ['Phone', x => String(x.phone ?? '')], ['Trade', x => String(x.trade ?? '')]]} />
-          <QuickForm title="Add a crew member" op="crew" onDone={reload} fields={[{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email' }, { name: 'phone', label: 'Phone' }, { name: 'trade', label: 'Trade' }]} />
+          <Table rows={crew} empty="No crew members yet." cols={[['Name', x => String(x.name)], ['Email', x => String(x.email ?? '')], ['Phone', x => String(x.phone ?? '')], ['Role', x => String(x.role ?? '')]]} />
+          <QuickForm title="Add a crew member" op="crew" onDone={reload} fields={[{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email' }, { name: 'phone', label: 'Phone (e.g. +15551234567)' }, { name: 'role', label: 'Role', options: [['field', 'Field crew'], ['packer', 'Packer'], ['warehouse', 'Warehouse'], ['other', 'Other']] }]} />
+          <p className="mt-2 text-[13px] text-grey-h">This is the same crew as Settings, Crew: one list for job messages and Mark done links.</p>
         </Panel></Section>
       </>
     )

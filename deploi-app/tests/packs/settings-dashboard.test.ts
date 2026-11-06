@@ -84,6 +84,20 @@ describe.skipIf(!ready)('business type, settings and the pack pages', () => {
     await expect(packWrite(nw, 'explode', {})).rejects.toThrow(/unknown operation/)
   })
 
+  it('"Add a crew member" on the pack page writes the one crew roster (crew_members), not the deprecated pack_crew_members', async () => {
+    const nw = await merchantActor(NW)
+    await chooseBusinessType(nw, { businessType: 'home_services', trade: 'roofing' })
+    await admin(db => db.query(`delete from crew_members where org_id = $1 and email = 'dash.crew@crew.example'`, [NW.org]))
+    const before = (await admin(db => db.one<{ n: number }>(`select count(*)::int as n from pack_crew_members where org_id = $1`, [NW.org])))!.n
+    const r = await packWrite(nw, 'crew', { name: 'Dash Crew', email: 'dash.crew@crew.example', phone: '+15550111', role: 'field' }) as { id: string }
+    expect(await admin(db => db.one(`select name, role, email, phone, active from crew_members where id = $1 and org_id = $2`, [r.id, NW.org]))).toEqual({ name: 'Dash Crew', role: 'field', email: 'dash.crew@crew.example', phone: '+15550111', active: true })
+    expect((await admin(db => db.one<{ n: number }>(`select count(*)::int as n from pack_crew_members where org_id = $1`, [NW.org])))!.n).toBe(before)
+    const v = await packView(nw, 'home_services')
+    expect((v.records.crew as { id: string; role: string }[]).find(c => c.id === r.id)).toMatchObject({ role: 'field' })
+    await expect(packWrite(nw, 'crew', { name: 'No Way', email: '', phone: '' })).rejects.toThrow()
+    await admin(db => db.query(`delete from crew_members where id = $1`, [r.id]))
+  })
+
   it('every pack table: one organization never reads another\'s rows, and writes from the app roles are refused', async () => {
     await resetPacks(HB, 'leasing_agent')
     await admin(async db => {

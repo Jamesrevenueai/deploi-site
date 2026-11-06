@@ -11,7 +11,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { admin } from '../lib/db'
-import { setSyntheticState, commerceQuietState, seedCommerceScenario, COMMERCE_SCENARIOS, COMMERCE_DOMAIN, type CommerceScenario } from '../lib/connectors/shopify/synthetic'
+import { setSyntheticState, commerceQuietState, seedCommerceScenario, seedCommerceCrew, COMMERCE_SCENARIOS, COMMERCE_DOMAIN, type CommerceScenario } from '../lib/connectors/shopify/synthetic'
 import { COMMERCE_AGENTS } from '../lib/commerce/pack/agents'
 
 const url = process.env.DATABASE_URL ?? ''
@@ -56,6 +56,9 @@ async function main() {
   const state = commerceQuietState(now)
   for (const s of scenarios) seedCommerceScenario(state, s, now)
   await setSyntheticState(conn.id, state)
+  // the store's packer is a real member of the organization's crew roster (crew_members), not a synthetic-only id
+  const packer = await seedCommerceCrew(org)
+  console.log(`packer on the crew roster: ${packer}`)
   console.log(`seeded ${scenarios.length} scenarios into synthetic connection ${conn.id}: ${scenarios.join(', ')}`)
 
   if (flag('sweep')) {

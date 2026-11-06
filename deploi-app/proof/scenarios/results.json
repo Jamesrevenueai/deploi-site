@@ -1,6 +1,6 @@
 {
   "meta": {
-    "ranAt": "2026-11-06T02:23:49.764Z",
+    "ranAt": "2026-11-06T02:38:49.718Z",
     "database": "deploi_scenarios",
     "aiProvider": "off",
     "synthetic": true,
@@ -9,31 +9,31 @@
   "totals": {
     "A": {
       "scenarios": 21,
-      "pass": 20
+      "pass": 21
     },
     "B": {
       "scenarios": 11,
-      "pass": 10
+      "pass": 11
     },
     "C": {
       "scenarios": 9,
-      "pass": 8
+      "pass": 9
     },
     "D": {
-      "scenarios": 7,
-      "pass": 7
+      "scenarios": 8,
+      "pass": 8
     },
     "E": {
       "scenarios": 7,
-      "pass": 6
+      "pass": 7
     },
     "F": {
       "scenarios": 6,
-      "pass": 5
+      "pass": 6
     },
     "X": {
-      "scenarios": 9,
-      "pass": 9
+      "scenarios": 10,
+      "pass": 10
     }
   },
   "results": [
@@ -47,7 +47,7 @@
       "rules": "fully",
       "rulesWhy": "Counting and thresholds over store data; no judgement needed.",
       "detected": "yes",
-      "detectionMs": 335,
+      "detectionMs": 375,
       "action": "weekly_insights:done, store_health_checker:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -62,7 +62,7 @@
       "facts": {
         "after1": 2
       },
-      "durationMs": 1247
+      "durationMs": 1434
     },
     {
       "id": "A02",
@@ -74,7 +74,7 @@
       "rules": "fully",
       "rulesWhy": "Rank + threshold + supplier on file + email template.",
       "detected": "yes",
-      "detectionMs": 31,
+      "detectionMs": 37,
       "action": "inventory_watcher:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -87,7 +87,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 248
+      "durationMs": 278
     },
     {
       "id": "A03",
@@ -99,7 +99,7 @@
       "rules": "fully",
       "rulesWhy": "Negative stock + CONTINUE policy is a fact check; the fix is a single field.",
       "detected": "yes",
-      "detectionMs": 107,
+      "detectionMs": 114,
       "action": "inventory_watcher:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -116,11 +116,11 @@
         "undo": {
           "ok": true,
           "detail": "inventory policy back to CONTINUE",
-          "caseRef": "DC-000829"
+          "caseRef": "DC-001806"
         },
         "policyAfterUndo": "CONTINUE"
       },
-      "durationMs": 644
+      "durationMs": 706
     },
     {
       "id": "A04",
@@ -132,7 +132,7 @@
       "rules": "fully",
       "rulesWhy": "Elapsed time since sent mail with no reply in thread.",
       "detected": "yes",
-      "detectionMs": 130,
+      "detectionMs": 135,
       "action": "supplier_chaser:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -145,7 +145,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1033
+      "durationMs": 1271
     },
     {
       "id": "A05",
@@ -157,23 +157,20 @@
       "rules": "fully",
       "rulesWhy": "Order age vs dispatch promise; templates for customer and packer.",
       "detected": "yes",
-      "detectionMs": 41,
-      "action": "order_tracker:failed",
-      "verified": "no (reported)",
+      "detectionMs": 60,
+      "action": "order_tracker:done",
+      "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
-      "crewMsg": "failed/failed (no row)",
+      "crewMsg": "held (1 row)",
       "undo": "none",
-      "finalStatus": "order_tracker:blocked",
-      "result": "FAIL",
-      "failures": [
-        "work done (observed: [\"failed:the fresh read did not confirm the change\",\"failed:the fresh read did not confirm the change\"])",
-        "packer message delivered (real crew pipeline) (observed: [\"failed: an organization and a crew member are required (crewMemberId=crew-packer-1)\",\"failed: an organization and a crew member are required (crewMemberId=crew-packer-1)\"])"
-      ],
+      "finalStatus": "order_tracker:done",
+      "result": "PASS",
+      "failures": [],
       "error": null,
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1075
+      "durationMs": 1288
     },
     {
       "id": "A06",
@@ -185,7 +182,7 @@
       "rules": "fully",
       "rulesWhy": "Days since last carrier scan.",
       "detected": "yes",
-      "detectionMs": 24,
+      "detectionMs": 31,
       "action": "order_tracker:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -198,7 +195,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 78
+      "durationMs": 90
     },
     {
       "id": "A07",
@@ -210,7 +207,7 @@
       "rules": "fully",
       "rulesWhy": "Days since delivery vs the written window; reason code.",
       "detected": "yes",
-      "detectionMs": 21,
+      "detectionMs": 28,
       "action": "returns:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -223,7 +220,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 79
+      "durationMs": 101
     },
     {
       "id": "A08",
@@ -235,7 +232,7 @@
       "rules": "fully",
       "rulesWhy": "Reason code DEFECTIVE/damaged inside cap; amount from the order line.",
       "detected": "yes",
-      "detectionMs": 20,
+      "detectionMs": 31,
       "action": "returns:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -248,7 +245,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 93
+      "durationMs": 119
     },
     {
       "id": "A09",
@@ -260,7 +257,7 @@
       "rules": "partly",
       "rulesWhy": "Rules spot \"outside window\"; whether to make an exception is the owner's judgement.",
       "detected": "yes",
-      "detectionMs": 56,
+      "detectionMs": 67,
       "action": "returns:draft",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -273,7 +270,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 536
+      "durationMs": 684
     },
     {
       "id": "A10",
@@ -285,7 +282,7 @@
       "rules": "partly",
       "rulesWhy": "Template assembly from facts works, but copy quality is template-grade; better prose would need AI.",
       "detected": "yes",
-      "detectionMs": 22,
+      "detectionMs": 27,
       "action": "listing_writer:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -302,11 +299,11 @@
         "undo": {
           "ok": true,
           "detail": "description restored",
-          "caseRef": "DC-000844"
+          "caseRef": "DC-001821"
         },
         "htmlAfterUndo": "<p>Nice candle.</p>"
       },
-      "durationMs": 180
+      "durationMs": 222
     },
     {
       "id": "A11",
@@ -318,7 +315,7 @@
       "rules": "fully",
       "rulesWhy": "End date in the past + code text on the banner.",
       "detected": "yes",
-      "detectionMs": 181,
+      "detectionMs": 224,
       "action": "promo_manager:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -331,7 +328,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 545
+      "durationMs": 687
     },
     {
       "id": "A12",
@@ -343,7 +340,7 @@
       "rules": "partly",
       "rulesWhy": "Keyword rules catch plain WISMO mail; mixed or unusual wording would need AI to classify.",
       "detected": "yes",
-      "detectionMs": 71,
+      "detectionMs": 85,
       "action": "customer_care:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -356,7 +353,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 155
+      "durationMs": 191
     },
     {
       "id": "A13",
@@ -368,7 +365,7 @@
       "rules": "fully",
       "rulesWhy": "No order match -> fixed template.",
       "detected": "yes",
-      "detectionMs": 160,
+      "detectionMs": 220,
       "action": "customer_care:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -381,7 +378,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 585
+      "durationMs": 727
     },
     {
       "id": "A14",
@@ -393,7 +390,7 @@
       "rules": "fully",
       "rulesWhy": "Arithmetic against the contracted rate.",
       "detected": "yes",
-      "detectionMs": 235,
+      "detectionMs": 290,
       "action": "payout_fees_checker:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -406,7 +403,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 522
+      "durationMs": 616
     },
     {
       "id": "A15",
@@ -418,7 +415,7 @@
       "rules": "fully",
       "rulesWhy": "Payout status field.",
       "detected": "yes",
-      "detectionMs": 252,
+      "detectionMs": 272,
       "action": "payout_fees_checker:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -431,7 +428,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 596
+      "durationMs": 643
     },
     {
       "id": "A16",
@@ -443,7 +440,7 @@
       "rules": "partly",
       "rulesWhy": "Truncating the description works; a good summary would need AI.",
       "detected": "yes",
-      "detectionMs": 123,
+      "detectionMs": 133,
       "action": "ai_visibility:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -456,7 +453,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 189
+      "durationMs": 193
     },
     {
       "id": "A17",
@@ -468,7 +465,7 @@
       "rules": "fully",
       "rulesWhy": "Missing data is detected by rule and handed to the owner.",
       "detected": "yes",
-      "detectionMs": 87,
+      "detectionMs": 108,
       "action": "inventory_watcher:draft",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -481,7 +478,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 524
+      "durationMs": 672
     },
     {
       "id": "A18",
@@ -493,7 +490,7 @@
       "rules": "fully",
       "rulesWhy": "Amount vs owner-set cap.",
       "detected": "yes",
-      "detectionMs": 64,
+      "detectionMs": 80,
       "action": "returns:draft",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -506,7 +503,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 623
+      "durationMs": 683
     },
     {
       "id": "A19",
@@ -518,7 +515,7 @@
       "rules": "fully",
       "rulesWhy": "Verification is a fresh read, not trust in the write.",
       "detected": "yes",
-      "detectionMs": 163,
+      "detectionMs": 251,
       "action": "campaign:failed",
       "verified": "no (reported)",
       "ownerEmail": "1/1 rendered (held)",
@@ -531,7 +528,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 565
+      "durationMs": 777
     },
     {
       "id": "A20",
@@ -556,7 +553,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 448
+      "durationMs": 628
     },
     {
       "id": "A21",
@@ -568,7 +565,7 @@
       "rules": "needs AI",
       "rulesWhy": "Rules can only recognise it is not a WISMO mail; answering \"is it machine washable?\" needs AI (or the owner).",
       "detected": "yes",
-      "detectionMs": 133,
+      "detectionMs": 188,
       "action": "customer_care:draft",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -581,7 +578,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 524
+      "durationMs": 687
     },
     {
       "id": "B01",
@@ -593,7 +590,7 @@
       "rules": "fully",
       "rulesWhy": "Labelled-field parse + trade template + free calendar slots.",
       "detected": "yes",
-      "detectionMs": 25,
+      "detectionMs": 30,
       "action": "hs_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -606,19 +603,19 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 82
+      "durationMs": 108
     },
     {
       "id": "B02",
       "pack": "B",
-      "title": "Zillow-format lead through the real Outlook path (emitMailEvents)",
+      "title": "Zillow-format lead through the real Outlook inbox sync",
       "kind": "normal",
       "expected": "the lead.email event exactly as the Outlook inbox sync emits it gets the same reply as B01",
-      "synthetic": "synthetic Outlook message passed to emitMailEvents (the real inbox-sync emitter); synthetic mail port",
+      "synthetic": "synthetic Outlook message stored by the real inbox sync (storeProviderMessage -> emitMailEvents); synthetic mail port",
       "rules": "fully",
       "rulesWhy": "Portal lead parsed by rules (lib/leads/email-parsers).",
       "detected": "yes",
-      "detectionMs": 69,
+      "detectionMs": 125,
       "action": "hs_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -630,8 +627,12 @@
       "error": null,
       "notes": [],
       "jobErrors": [],
-      "facts": {},
-      "durationMs": 121
+      "facts": {
+        "inbox": [
+          "accepted"
+        ]
+      },
+      "durationMs": 204
     },
     {
       "id": "B03",
@@ -639,30 +640,26 @@
       "title": "Scheduled crew job -> dispatched to the crew member",
       "kind": "normal",
       "expected": "one crew message with address/customer/work through the real crew pipeline (crew_messages row), work order dispatched",
-      "synthetic": "synthetic pack ports (mail, calendar, CRM, invoicing, property system) in pack_synthetic_state; crew member in pack_crew_members",
+      "synthetic": "synthetic pack ports (mail, calendar, CRM, invoicing, property system) in pack_synthetic_state; crew member on the crew roster (crew_members)",
       "rules": "fully",
       "rulesWhy": "Schedule + crew assignment + template.",
       "detected": "yes",
-      "detectionMs": 444,
-      "action": "hs_dispatch:not_verified",
-      "verified": "no (reported)",
+      "detectionMs": 550,
+      "action": "hs_dispatch:done",
+      "verified": "yes (1)",
       "ownerEmail": "none",
-      "crewMsg": "skipped (no row)",
+      "crewMsg": "held (1 row)",
       "undo": "none",
-      "finalStatus": "hs_dispatch:blocked",
-      "result": "FAIL",
-      "failures": [
-        "crew message delivered (observed: [\"skipped: no such crew member in this organization\"])",
-        "work order dispatched (observed: \"scheduled\")",
-        "loop outcome (observed: [\"hs_dispatch:not_verified\"])"
-      ],
+      "finalStatus": "hs_dispatch:done",
+      "result": "PASS",
+      "failures": [],
       "error": null,
       "notes": [],
       "jobErrors": [],
       "facts": {
-        "wo": "c06162f1-f2e2-43bf-9e81-7983a81a68cd"
+        "wo": "5d5b0990-4195-40e2-a148-abe0bc89b9c4"
       },
-      "durationMs": 512
+      "durationMs": 654
     },
     {
       "id": "B04",
@@ -674,7 +671,7 @@
       "rules": "fully",
       "rulesWhy": "Quote amount -> invoice lines.",
       "detected": "yes",
-      "detectionMs": 19,
+      "detectionMs": 27,
       "action": "hs_invoice:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -687,7 +684,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 80
+      "durationMs": 117
     },
     {
       "id": "B05",
@@ -699,7 +696,7 @@
       "rules": "fully",
       "rulesWhy": "Due date + cadence + balance from a fresh invoice read.",
       "detected": "yes",
-      "detectionMs": 898,
+      "detectionMs": 1072,
       "action": "hs_payment_chase:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -714,7 +711,7 @@
       "facts": {
         "after1": 0
       },
-      "durationMs": 1022
+      "durationMs": 1217
     },
     {
       "id": "B06",
@@ -726,7 +723,7 @@
       "rules": "fully",
       "rulesWhy": "Cadence by days since the quote.",
       "detected": "yes",
-      "detectionMs": 879,
+      "detectionMs": 1030,
       "action": "hs_quote_followup:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -739,7 +736,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1358
+      "durationMs": 1651
     },
     {
       "id": "B07",
@@ -751,7 +748,7 @@
       "rules": "fully",
       "rulesWhy": "Missing field check.",
       "detected": "yes",
-      "detectionMs": 15,
+      "detectionMs": 16,
       "action": "hs_lead_reply:blocked",
       "verified": "no (reported)",
       "ownerEmail": "2/2 rendered (held)",
@@ -764,7 +761,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 67
+      "durationMs": 72
     },
     {
       "id": "B08",
@@ -776,7 +773,7 @@
       "rules": "fully",
       "rulesWhy": "Provider error -> rollback + report.",
       "detected": "yes",
-      "detectionMs": 14,
+      "detectionMs": 20,
       "action": "hs_lead_reply:blocked",
       "verified": "no (reported)",
       "ownerEmail": "2/2 rendered (held)",
@@ -789,7 +786,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 66
+      "durationMs": 91
     },
     {
       "id": "B09",
@@ -801,7 +798,7 @@
       "rules": "fully",
       "rulesWhy": "Missing amount check.",
       "detected": "yes",
-      "detectionMs": 14,
+      "detectionMs": 23,
       "action": "hs_invoice:blocked",
       "verified": "no (reported)",
       "ownerEmail": "2/2 rendered (held)",
@@ -814,7 +811,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 53
+      "durationMs": 70
     },
     {
       "id": "B10",
@@ -826,7 +823,7 @@
       "rules": "partly",
       "rulesWhy": "Rules read \"2\" / \"option 2\"; free-form replies (\"Tuesday afternoon\") need AI.",
       "detected": "yes",
-      "detectionMs": 34,
+      "detectionMs": 32,
       "action": "hs_quote_booking:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -839,7 +836,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 178
+      "durationMs": 180
     },
     {
       "id": "B11",
@@ -864,7 +861,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 138
+      "durationMs": 144
     },
     {
       "id": "C01",
@@ -876,7 +873,7 @@
       "rules": "fully",
       "rulesWhy": "Labelled criteria matched against listing columns; no inference about the person.",
       "detected": "yes",
-      "detectionMs": 23,
+      "detectionMs": 34,
       "action": "ls_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -889,7 +886,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 81
+      "durationMs": 110
     },
     {
       "id": "C02",
@@ -897,11 +894,11 @@
       "title": "Unanswered Zillow lead through the real Outlook path -> reply",
       "kind": "normal",
       "expected": "a Zillow lead email as emitMailEvents emits it is answered (the standard questions not answered in the lead are asked)",
-      "synthetic": "synthetic Outlook message through emitMailEvents; synthetic mail port",
+      "synthetic": "synthetic Outlook message stored by the real inbox sync (storeProviderMessage -> emitMailEvents); synthetic mail port",
       "rules": "fully",
       "rulesWhy": "Portal parser by rules, standard questions.",
       "detected": "yes",
-      "detectionMs": 75,
+      "detectionMs": 112,
       "action": "ls_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -913,8 +910,12 @@
       "error": null,
       "notes": [],
       "jobErrors": [],
-      "facts": {},
-      "durationMs": 139
+      "facts": {
+        "inbox": [
+          "accepted"
+        ]
+      },
+      "durationMs": 180
     },
     {
       "id": "C03",
@@ -926,7 +927,7 @@
       "rules": "partly",
       "rulesWhy": "Numbered answers are read by rules; prose answers would need AI.",
       "detected": "yes",
-      "detectionMs": 16,
+      "detectionMs": 22,
       "action": "ls_lead_reply:done, ls_qualify:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -939,7 +940,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 206
+      "durationMs": 198
     },
     {
       "id": "C04",
@@ -951,7 +952,7 @@
       "rules": "fully",
       "rulesWhy": "Commission math in integer cents + billing address lookup.",
       "detected": "yes",
-      "detectionMs": 462,
+      "detectionMs": 596,
       "action": "ls_commission_invoice:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -964,7 +965,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1040
+      "durationMs": 1288
     },
     {
       "id": "C05",
@@ -976,7 +977,7 @@
       "rules": "fully",
       "rulesWhy": "Missing field check.",
       "detected": "yes",
-      "detectionMs": 427,
+      "detectionMs": 568,
       "action": "ls_commission_invoice:blocked",
       "verified": "no (reported)",
       "ownerEmail": "2/2 rendered (held)",
@@ -989,7 +990,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 495
+      "durationMs": 648
     },
     {
       "id": "C06",
@@ -1001,7 +1002,7 @@
       "rules": "fully",
       "rulesWhy": "Cadence + payment matching by invoice number.",
       "detected": "yes",
-      "detectionMs": 466,
+      "detectionMs": 528,
       "action": "ls_commission_chase:done, ls_payment_match:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1014,7 +1015,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1093
+      "durationMs": 1359
     },
     {
       "id": "C07",
@@ -1026,7 +1027,7 @@
       "rules": "fully",
       "rulesWhy": "Consistency is guaranteed precisely because only rules and templates run (no model to vary).",
       "detected": "yes",
-      "detectionMs": 23,
+      "detectionMs": 30,
       "action": "ls_lead_reply:done",
       "verified": "yes (12)",
       "ownerEmail": "12/12 rendered (held)",
@@ -1041,7 +1042,7 @@
       "facts": {
         "distinctBodies": 1
       },
-      "durationMs": 675
+      "durationMs": 852
     },
     {
       "id": "C08",
@@ -1053,7 +1054,7 @@
       "rules": "fully",
       "rulesWhy": "Phrase list check before every send.",
       "detected": "yes",
-      "detectionMs": 21,
+      "detectionMs": 25,
       "action": "ls_lead_reply:blocked",
       "verified": "no (reported)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1066,34 +1067,36 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 75
+      "durationMs": 90
     },
     {
       "id": "C09",
       "pack": "C",
-      "title": "Renter answers through the real Outlook path (mail.received has no text)",
+      "title": "Renter answers through the real Outlook inbox sync (text read from the stored message)",
       "kind": "edge",
       "expected": "the renter's answers, arriving as the Outlook mail.received event, bring the listings",
-      "synthetic": "pack-shape lead, then a synthetic Outlook reply through emitMailEvents",
+      "synthetic": "pack-shape lead, then a synthetic Outlook reply stored by the real inbox sync",
       "rules": "partly",
-      "rulesWhy": "Numbered answers by rules, once the agent can read the text.",
-      "detected": "no",
-      "detectionMs": null,
-      "action": "none",
-      "verified": "n/a",
-      "ownerEmail": "none",
+      "rulesWhy": "Numbered answers by rules; the text is read from email_inbound at handling time.",
+      "detected": "yes",
+      "detectionMs": 56,
+      "action": "ls_qualify:done",
+      "verified": "yes (1)",
+      "ownerEmail": "1/1 rendered (held)",
       "crewMsg": "n/a",
       "undo": "none",
-      "finalStatus": "no loop",
-      "result": "FAIL",
-      "failures": [
-        "listings sent after the answers (observed: {\"sent\":1,\"activity\":[\"ls_lead_reply:done:\"]})"
-      ],
+      "finalStatus": "ls_qualify:done",
+      "result": "PASS",
+      "failures": [],
       "error": null,
       "notes": [],
       "jobErrors": [],
-      "facts": {},
-      "durationMs": 121
+      "facts": {
+        "inbox": [
+          "accepted"
+        ]
+      },
+      "durationMs": 223
     },
     {
       "id": "D01",
@@ -1105,7 +1108,7 @@
       "rules": "fully",
       "rulesWhy": "Lead type field + template + calendar.",
       "detected": "yes",
-      "detectionMs": 26,
+      "detectionMs": 43,
       "action": "re_lead_reply:done, re_crm_update:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1118,7 +1121,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 92
+      "durationMs": 134
     },
     {
       "id": "D02",
@@ -1130,7 +1133,7 @@
       "rules": "fully",
       "rulesWhy": "Subject/lead-type keywords.",
       "detected": "yes",
-      "detectionMs": 25,
+      "detectionMs": 33,
       "action": "re_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1143,7 +1146,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 78
+      "durationMs": 124
     },
     {
       "id": "D03",
@@ -1155,7 +1158,7 @@
       "rules": "fully",
       "rulesWhy": "Same template as an email lead.",
       "detected": "yes",
-      "detectionMs": 12,
+      "detectionMs": 20,
       "action": "re_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1168,7 +1171,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 73
+      "durationMs": 124
     },
     {
       "id": "D04",
@@ -1180,7 +1183,7 @@
       "rules": "partly",
       "rulesWhy": "Ordinal picks by rules; free-form times need AI.",
       "detected": "yes",
-      "detectionMs": 41,
+      "detectionMs": 46,
       "action": "re_showing:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1193,7 +1196,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 187
+      "durationMs": 240
     },
     {
       "id": "D05",
@@ -1205,7 +1208,7 @@
       "rules": "fully",
       "rulesWhy": "Provider error handling.",
       "detected": "yes",
-      "detectionMs": 27,
+      "detectionMs": 48,
       "action": "re_lead_reply:done, re_crm_update:failed",
       "verified": "yes (1)",
       "ownerEmail": "3/3 rendered (held)",
@@ -1218,7 +1221,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 77
+      "durationMs": 125
     },
     {
       "id": "D06",
@@ -1230,7 +1233,7 @@
       "rules": "fully",
       "rulesWhy": "Opt-out phrase list.",
       "detected": "yes",
-      "detectionMs": 41,
+      "detectionMs": 53,
       "action": "re_crm_update:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1243,7 +1246,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1603
+      "durationMs": 1975
     },
     {
       "id": "D07",
@@ -1255,7 +1258,7 @@
       "rules": "fully",
       "rulesWhy": "Cadence.",
       "detected": "yes",
-      "detectionMs": 459,
+      "detectionMs": 551,
       "action": "re_followup:done",
       "verified": "yes (4)",
       "ownerEmail": "4/4 rendered (held)",
@@ -1268,7 +1271,36 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1972
+      "durationMs": 2445
+    },
+    {
+      "id": "D08",
+      "pack": "D",
+      "title": "Buyer picks a time through the real Outlook inbox sync -> showing booked",
+      "kind": "normal",
+      "expected": "the buyer's \"the third one works\", arriving as the Outlook mail.received event (no text in the payload), books the showing and moves the CRM stage",
+      "synthetic": "pack-shape lead, then a synthetic Outlook reply stored by the real inbox sync",
+      "rules": "partly",
+      "rulesWhy": "Ordinal picks by rules from the stored text; free-form times need AI.",
+      "detected": "yes",
+      "detectionMs": 62,
+      "action": "re_showing:done",
+      "verified": "yes (1)",
+      "ownerEmail": "1/1 rendered (held)",
+      "crewMsg": "n/a",
+      "undo": "none",
+      "finalStatus": "re_showing:done",
+      "result": "PASS",
+      "failures": [],
+      "error": null,
+      "notes": [],
+      "jobErrors": [],
+      "facts": {
+        "inbox": [
+          "accepted"
+        ]
+      },
+      "durationMs": 263
     },
     {
       "id": "E01",
@@ -1280,7 +1312,7 @@
       "rules": "fully",
       "rulesWhy": "Keyword category + vendor trade match.",
       "detected": "yes",
-      "detectionMs": 49,
+      "detectionMs": 94,
       "action": "pm_maintenance_intake:done, pm_vendor_dispatch:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1294,12 +1326,12 @@
       "jobErrors": [],
       "facts": {
         "v": {
-          "plumber": "7bdb4af8-8e7b-40cb-b284-d175e315f63b",
-          "plumber2": "c9afb46c-a644-403d-a4b4-710107cbb81f",
-          "handy": "d7e994cf-09dc-46a7-995a-26cea381800d"
+          "plumber": "3ffda50c-2690-4317-896b-b90fb01b70b5",
+          "plumber2": "94a5d182-9c02-48f1-83ee-85963b80ec6f",
+          "handy": "390b6673-2983-4750-a736-23533b78b76a"
         }
       },
-      "durationMs": 115
+      "durationMs": 197
     },
     {
       "id": "E02",
@@ -1311,7 +1343,7 @@
       "rules": "fully",
       "rulesWhy": "Category from the property system + vendor trade.",
       "detected": "yes",
-      "detectionMs": 15,
+      "detectionMs": 16,
       "action": "pm_maintenance_intake:done, pm_vendor_dispatch:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1324,7 +1356,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 97
+      "durationMs": 102
     },
     {
       "id": "E03",
@@ -1336,7 +1368,7 @@
       "rules": "partly",
       "rulesWhy": "\"decline\" keyword by rules; nuanced vendor replies need AI.",
       "detected": "yes",
-      "detectionMs": 45,
+      "detectionMs": 57,
       "action": "pm_vendor_dispatch:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1350,12 +1382,12 @@
       "jobErrors": [],
       "facts": {
         "v": {
-          "plumber": "59a3a74c-b9d0-4d07-8ed1-ec9e012952ed",
-          "plumber2": "649f8737-b5ed-44a4-a1da-2e3bd54c8304",
-          "handy": "72f51688-7acd-45eb-9119-b340ff751e3e"
+          "plumber": "c76bfb4a-ae03-4237-baae-fe4474a2df85",
+          "plumber2": "6f687f90-95f5-453a-938e-7401c6a815c8",
+          "handy": "b3883c63-b838-4ade-ae60-a69d6ab7d9fa"
         }
       },
-      "durationMs": 196
+      "durationMs": 246
     },
     {
       "id": "E04",
@@ -1367,7 +1399,7 @@
       "rules": "fully",
       "rulesWhy": "Emergency keywords + timer.",
       "detected": "yes",
-      "detectionMs": 73,
+      "detectionMs": 82,
       "action": "pm_vendor_dispatch:done",
       "verified": "yes (2)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1381,12 +1413,12 @@
       "jobErrors": [],
       "facts": {
         "v": {
-          "plumber": "80528281-ef9e-47a6-9618-311640bbfb93",
-          "plumber2": "125faaca-a414-479f-b1f1-b9c4194b5269",
-          "handy": "b745de9f-0b00-40a2-97ca-c936516c551f"
+          "plumber": "c16bb7ab-86c5-499b-b738-ed076d3f53a1",
+          "plumber2": "f43d8a99-0cb1-411f-beb5-ea307a94bb10",
+          "handy": "7ae00475-2ccf-430a-81c2-d2cb9129a7ca"
         }
       },
-      "durationMs": 1091
+      "durationMs": 1321
     },
     {
       "id": "E05",
@@ -1398,7 +1430,7 @@
       "rules": "fully",
       "rulesWhy": "Missing email check.",
       "detected": "yes",
-      "detectionMs": 12,
+      "detectionMs": 13,
       "action": "pm_maintenance_intake:blocked",
       "verified": "no (reported)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1411,7 +1443,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 75
+      "durationMs": 81
     },
     {
       "id": "E06",
@@ -1423,7 +1455,7 @@
       "rules": "fully",
       "rulesWhy": "Balance + due date.",
       "detected": "yes",
-      "detectionMs": 504,
+      "detectionMs": 572,
       "action": "pm_rent_reminder:done, pm_rent_reminder:blocked",
       "verified": "yes (1)",
       "ownerEmail": "3/3 rendered (held)",
@@ -1436,34 +1468,36 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 1024
+      "durationMs": 1312
     },
     {
       "id": "E07",
       "pack": "E",
-      "title": "Tenant request through the real Outlook path (mail.received has no text)",
+      "title": "Tenant request through the real Outlook inbox sync (text read from the stored message)",
       "kind": "edge",
       "expected": "a tenant email arriving as the Outlook mail.received event is logged as a maintenance request with its unit",
-      "synthetic": "synthetic Outlook message through emitMailEvents",
+      "synthetic": "synthetic Outlook message stored by the real inbox sync (storeProviderMessage -> emitMailEvents)",
       "rules": "fully",
-      "rulesWhy": "Keyword category; needs the text to read the unit.",
-      "detected": "no",
-      "detectionMs": null,
-      "action": "none",
-      "verified": "n/a",
-      "ownerEmail": "none",
+      "rulesWhy": "Keyword category and unit from the stored text.",
+      "detected": "yes",
+      "detectionMs": 72,
+      "action": "pm_maintenance_intake:done",
+      "verified": "yes (1)",
+      "ownerEmail": "1/1 rendered (held)",
       "crewMsg": "n/a",
       "undo": "none",
-      "finalStatus": "no loop",
-      "result": "FAIL",
-      "failures": [
-        "logged with unit 4B (observed: {\"request\":null,\"activity\":[]})"
-      ],
+      "finalStatus": "pm_maintenance_intake:done",
+      "result": "PASS",
+      "failures": [],
       "error": null,
       "notes": [],
       "jobErrors": [],
-      "facts": {},
-      "durationMs": 70
+      "facts": {
+        "inbox": [
+          "accepted"
+        ]
+      },
+      "durationMs": 167
     },
     {
       "id": "F01",
@@ -1475,7 +1509,7 @@
       "rules": "fully",
       "rulesWhy": "Due date, balance and template; draft tier waits for the owner to send.",
       "detected": "yes",
-      "detectionMs": 9,
+      "detectionMs": 15,
       "action": "office_overdue_invoices:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1488,9 +1522,9 @@
       "notes": [],
       "jobErrors": [],
       "facts": {
-        "agent": "8971b428-8ba1-48f3-b37a-b61b04ff4f1f"
+        "agent": "9f54ac56-a5f9-480f-8549-b213a0ec4c81"
       },
-      "durationMs": 107
+      "durationMs": 145
     },
     {
       "id": "F02",
@@ -1502,7 +1536,7 @@
       "rules": "fully",
       "rulesWhy": "Schedule check.",
       "detected": "yes",
-      "detectionMs": 875,
+      "detectionMs": 1040,
       "action": "office_overdue_invoices:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1517,7 +1551,7 @@
       "facts": {
         "first": 0
       },
-      "durationMs": 961
+      "durationMs": 1187
     },
     {
       "id": "F03",
@@ -1529,7 +1563,7 @@
       "rules": "fully",
       "rulesWhy": "Cadence.",
       "detected": "yes",
-      "detectionMs": 410,
+      "detectionMs": 490,
       "action": "hs_quote_followup:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1542,9 +1576,9 @@
       "notes": [],
       "jobErrors": [],
       "facts": {
-        "ref": "Q-572C53"
+        "ref": "Q-9CA744"
       },
-      "durationMs": 456
+      "durationMs": 543
     },
     {
       "id": "F04",
@@ -1552,28 +1586,26 @@
       "title": "Office job scheduled -> crew member messaged; DONE -> invoiced",
       "kind": "normal",
       "expected": "crew message delivered (crew_messages row); crew.done invoices the job",
-      "synthetic": "synthetic pack ports (mail, calendar, CRM, invoicing, property system) in pack_synthetic_state; crew member in pack_crew_members",
+      "synthetic": "synthetic pack ports (mail, calendar, CRM, invoicing, property system) in pack_synthetic_state; crew member on the crew roster (crew_members)",
       "rules": "fully",
       "rulesWhy": "Schedule + template + invoice lines.",
       "detected": "yes",
-      "detectionMs": 413,
-      "action": "hs_dispatch:not_verified, hs_invoice:done",
-      "verified": "yes (1)",
+      "detectionMs": 501,
+      "action": "hs_dispatch:done, hs_invoice:done",
+      "verified": "yes (2)",
       "ownerEmail": "1/1 rendered (held)",
-      "crewMsg": "skipped (no row)",
+      "crewMsg": "held (1 row)",
       "undo": "none",
-      "finalStatus": "hs_dispatch:blocked, hs_invoice:done",
-      "result": "FAIL",
-      "failures": [
-        "crew message delivered (observed: [\"skipped: no such crew member in this organization\"])"
-      ],
+      "finalStatus": "hs_dispatch:done, hs_invoice:done",
+      "result": "PASS",
+      "failures": [],
       "error": null,
       "notes": [],
       "jobErrors": [],
       "facts": {
-        "wo": "b7ee2cdc-fbf3-42c9-976e-494c5afa5ee8"
+        "wo": "e197c32e-b553-4e0c-a63d-2df733dba15e"
       },
-      "durationMs": 488
+      "durationMs": 596
     },
     {
       "id": "F05",
@@ -1598,7 +1630,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 25
+      "durationMs": 30
     },
     {
       "id": "F06",
@@ -1610,7 +1642,7 @@
       "rules": "fully",
       "rulesWhy": "Provider error handling.",
       "detected": "yes",
-      "detectionMs": 8,
+      "detectionMs": 9,
       "action": "office_overdue_invoices:not_verified",
       "verified": "no (reported)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1623,7 +1655,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 67
+      "durationMs": 91
     },
     {
       "id": "X01",
@@ -1635,7 +1667,7 @@
       "rules": "fully",
       "rulesWhy": "Dedupe on provider id; no judgement.",
       "detected": "yes",
-      "detectionMs": 53,
+      "detectionMs": 77,
       "action": "customer_care:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1651,7 +1683,7 @@
         "first": "routed",
         "second": "duplicate"
       },
-      "durationMs": 137
+      "durationMs": 182
     },
     {
       "id": "X02",
@@ -1663,7 +1695,7 @@
       "rules": "fully",
       "rulesWhy": "Dedupe on provider message id + 30-day same-person rule.",
       "detected": "yes",
-      "detectionMs": 13,
+      "detectionMs": 18,
       "action": "hs_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1679,7 +1711,7 @@
         "first": "emitted",
         "second": "duplicate"
       },
-      "durationMs": 97
+      "durationMs": 120
     },
     {
       "id": "X03",
@@ -1691,7 +1723,7 @@
       "rules": "fully",
       "rulesWhy": "Shared problem key + loop claim; no judgement.",
       "detected": "yes",
-      "detectionMs": 28,
+      "detectionMs": 31,
       "action": "campaign:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1704,7 +1736,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 79
+      "durationMs": 93
     },
     {
       "id": "X04",
@@ -1729,7 +1761,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 549
+      "durationMs": 720
     },
     {
       "id": "X05",
@@ -1741,7 +1773,7 @@
       "rules": "fully",
       "rulesWhy": "Timers on the case.",
       "detected": "yes",
-      "detectionMs": 65,
+      "detectionMs": 78,
       "action": "listing_writer:draft",
       "verified": "n/a",
       "ownerEmail": "3/3 rendered (held)",
@@ -1756,7 +1788,7 @@
       "facts": {
         "waiting": true
       },
-      "durationMs": 587
+      "durationMs": 749
     },
     {
       "id": "X06",
@@ -1768,7 +1800,7 @@
       "rules": "fully",
       "rulesWhy": "Error handling + backoff.",
       "detected": "yes",
-      "detectionMs": 59,
+      "detectionMs": 77,
       "action": "listing_writer:failed, listing_writer:done",
       "verified": "yes (1)",
       "ownerEmail": "2/2 rendered (held)",
@@ -1786,7 +1818,7 @@
         ],
         "loopState": "blocked"
       },
-      "durationMs": 980
+      "durationMs": 1313
     },
     {
       "id": "X07",
@@ -1798,7 +1830,7 @@
       "rules": "fully",
       "rulesWhy": "Connection status check between actions.",
       "detected": "yes",
-      "detectionMs": 330,
+      "detectionMs": 87,
       "action": "listing_writer:failed",
       "verified": "no (reported)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1812,10 +1844,10 @@
       "jobErrors": [],
       "facts": {
         "conn": "uninstalled",
-        "rows": 3,
-        "rowsAfter": 3
+        "rows": 1,
+        "rowsAfter": 1
       },
-      "durationMs": 884
+      "durationMs": 890
     },
     {
       "id": "X08",
@@ -1827,7 +1859,7 @@
       "rules": "fully",
       "rulesWhy": "Provider error handling.",
       "detected": "yes",
-      "detectionMs": 14,
+      "detectionMs": 18,
       "action": "hs_lead_reply:done",
       "verified": "yes (1)",
       "ownerEmail": "1/1 rendered (held)",
@@ -1840,7 +1872,7 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 86
+      "durationMs": 95
     },
     {
       "id": "X09",
@@ -1865,7 +1897,36 @@
       "notes": [],
       "jobErrors": [],
       "facts": {},
-      "durationMs": 197
+      "durationMs": 233
+    },
+    {
+      "id": "X10",
+      "pack": "X",
+      "title": "Unverified first-contact sender through Outlook -> quarantined, no agent acts",
+      "kind": "edge",
+      "expected": "a Zillow-looking lead without SPF/DKIM/DMARC passing is quarantined by the inbox sync; no lead.email, no reply, no lead row",
+      "synthetic": "synthetic Outlook message without passing authentication, stored by the real inbox sync",
+      "rules": "fully",
+      "rulesWhy": "Sender policy by rules.",
+      "detected": "n/a",
+      "detectionMs": null,
+      "action": "none",
+      "verified": "n/a",
+      "ownerEmail": "none",
+      "crewMsg": "n/a",
+      "undo": "none",
+      "finalStatus": "no loop",
+      "result": "PASS",
+      "failures": [],
+      "error": null,
+      "notes": [],
+      "jobErrors": [],
+      "facts": {
+        "inbox": [
+          "quarantined"
+        ]
+      },
+      "durationMs": 96
     }
   ]
 }

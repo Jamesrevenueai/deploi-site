@@ -4,13 +4,12 @@ import { admin } from '../../lib/db'
 import { recordQuote, scheduleJob } from '../../lib/packs/home-services'
 import { injectPortFault, synthPay } from '../../lib/packs/synthetic'
 import { PACK_AGENTS } from '../../lib/packs/registry'
-import { NW, HB, resetPacks, fire, sweep, monday, plus, sentMail, one, rows, activity, owner, crew, setCrewMode, leadEmail, mutateSynth, getSynth } from './helpers'
+import { NW, HB, resetPacks, fire, sweep, monday, plus, sentMail, one, rows, activity, owner, crewMember, crewSent, crewJob, leadEmail, mutateSynth, getSynth } from './helpers'
 
 const ready = await prepareDb()
 const T = monday(2)
 const newLead = (id: string, extra: Partial<Parameters<typeof leadEmail>[0]> = {}) => leadEmail({ id, from: 'forms@acme-roofing.example', name: 'Dana Reyes', email: 'dana@homeowner.example', text: 'My roof is leaking near the chimney.', subject: 'Roof repair request', ...extra })
 const reply = (text: string, from = 'dana@homeowner.example') => ({ from, subject: 'Re: Your quote request', text, messageId: `r-${Math.random()}` })
-async function crewMember(m = NW) { return (await admin(db => db.one<{ id: string }>(`insert into pack_crew_members (org_id, name, email, phone, trade) values ($1,'Sam Ortiz','sam@crew.example','+1 555 0100','roofing') returning id`, [m.org])))! }
 
 describe.skipIf(!ready)('home services pack', () => {
   beforeEach(async () => { await resetPacks(NW, 'home_services', { trade: 'roofing', settings: { reviewUrl: 'https://reviews.example/acme' } }); await resetPacks(HB, null) })
@@ -147,30 +146,34 @@ describe.skipIf(!ready)('home services pack', () => {
   })
 
   it('dispatches a scheduled job to its crew member with the details, and records the confirmation', async () => {
-    const c = await crewMember()
+    const c = await crewMember(NW)
     const wo = await admin(db => recordQuote(db, NW.org, { customerName: 'Dana Reyes', customerEmail: 'dana@homeowner.example', customerPhone: '+1 555 0123', address: '12 Elm St', description: 'Replace flashing', amount: 650, now: T }))
     await admin(db => scheduleJob(db, NW.org, wo.id, { crewMemberId: c.id, start: plus(T, 30) }))
     await sweep(NW, T)
-    expect(crew).toHaveLength(1)
-    expect(crew[0]).toMatchObject({ crewMemberId: c.id, jobRef: wo.ref, address: '12 Elm St' })
-    expect(crew[0].body).toMatch(/Where: 12 Elm St[\s\S]*Customer: Dana Reyes \(\+1 555 0123\)[\s\S]*Work: Replace flashing/)
+    // through the real crew pipeline: one held email to the crew member, the job recorded with its details
+    const sent = await crewSent(NW)
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ crew_member_id: c.id, job_refs: [wo.ref], status: 'held' })
+    const job = await crewJob(NW, wo.ref)
+    expect(job).toMatchObject({ crew_member_id: c.id, address: '12 Elm St' })
+    expect(job!.details).toMatch(/Where: 12 Elm St[\s\S]*Customer: Dana Reyes \(\+1 555 0123\)[\s\S]*Work: Replace flashing/)
     expect((await one(`select status from pack_work_orders where id = $1`, [wo.id]))!.status).toBe('dispatched')
     await sweep(NW, plus(T, 0.5))
-    expect(crew).toHaveLength(1) // dispatched once
+    expect(await crewSent(NW)).toHaveLength(1) // dispatched once
     await fire(NW, 'crew.confirmed', { jobRef: wo.ref }, plus(T, 1))
     expect((await one(`select status from pack_work_orders where id = $1`, [wo.id]))!.status).toBe('confirmed')
     await sweep(NW, plus(T, 6))
-    expect(crew).toHaveLength(1) // no reminder after a confirmation
+    expect(await crewSent(NW)).toHaveLength(1) // no reminder after a confirmation
   })
 
   it('a crew member who never confirms gets one reminder, then the owner is told', async () => {
-    const c = await crewMember()
+    const c = await crewMember(NW)
     const wo = await admin(db => recordQuote(db, NW.org, { customerName: 'Dana', customerEmail: 'dana@homeowner.example', address: '12 Elm St', description: 'Fix', amount: 300, now: T }))
     await admin(db => scheduleJob(db, NW.org, wo.id, { crewMemberId: c.id, start: plus(T, 30) }))
     await sweep(NW, T)
     await sweep(NW, plus(T, 2.5))
     await sweep(NW, plus(T, 3))
-    expect(crew.map(m => m.subject)).toEqual([expect.stringMatching(/^Job /), expect.stringMatching(/^Reminder: please confirm/)])
+    expect((await crewSent(NW)).map(m => m.dedupe_key)).toEqual([expect.stringMatching(/:dispatch:/), expect.stringMatching(/:remind:/)])
     await sweep(NW, plus(T, 4.5))
     await sweep(NW, plus(T, 5))
     expect(owner.filter(u => /has not confirmed job/.test(u.headline))).toHaveLength(1)
@@ -178,13 +181,23 @@ describe.skipIf(!ready)('home services pack', () => {
   })
 
   it('a crew message that cannot be delivered is not counted as dispatched', async () => {
-    const c = await crewMember()
-    setCrewMode('skipped')
+    // on the roster, but with no way to reach them: the real pipeline answers skipped
+    const c = await crewMember(NW, { email: null, phone: null })
     const wo = await admin(db => recordQuote(db, NW.org, { customerName: 'Dana', customerEmail: 'dana@homeowner.example', description: 'Fix', amount: 300, now: T }))
     await admin(db => scheduleJob(db, NW.org, wo.id, { crewMemberId: c.id, start: plus(T, 30) }))
     await sweep(NW, T)
     expect((await one(`select status from pack_work_orders where id = $1`, [wo.id]))!.status).toBe('scheduled')
     expect((await activity(NW, 'hs_dispatch'))[0].status).toBe('not_verified')
+    expect((await crewSent(NW)).map(m => m.status)).toEqual(['skipped'])
+  })
+
+  it('only the crew roster (crew_members) can be scheduled: a deprecated pack_crew_members id or a deactivated member is refused', async () => {
+    const wo = await admin(db => recordQuote(db, NW.org, { customerName: 'Dana', customerEmail: 'dana@homeowner.example', description: 'Fix', amount: 300, now: T }))
+    const old = (await admin(db => db.one<{ id: string }>(`insert into pack_crew_members (org_id, name, email) values ($1,'Old List','old@crew.example') returning id`, [NW.org])))!
+    await expect(admin(db => scheduleJob(db, NW.org, wo.id, { crewMemberId: old.id, start: plus(T, 30) }))).rejects.toThrow(/not active in this organization/)
+    const c = await crewMember(NW)
+    await admin(db => db.query('update crew_members set active = false where id = $1', [c.id]))
+    await expect(admin(db => scheduleJob(db, NW.org, wo.id, { crewMemberId: c.id, start: plus(T, 30) }))).rejects.toThrow(/not active in this organization/)
   })
 
   it('DONE from the crew creates and sends the invoice once; a second DONE bills nothing', async () => {

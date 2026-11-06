@@ -4,7 +4,7 @@ import { prepareDb } from '../db/helpers'
 const modes = vi.hoisted(() => new Map<string, 'act_and_tell' | 'ask_first'>())
 vi.mock('../../lib/autonomy', async orig => ({ ...(await orig<typeof import('../../lib/autonomy')>()), modeFor: async (_db: unknown, _org: string, t: string) => modes.get(t) ?? 'act_and_tell' }))
 
-import { NW, HB, resetCommerce, commerce, productOf, event, deliver, work, owner, crew, injectFault, latencies, recordLatency } from './pack-helpers'
+import { NW, HB, resetCommerce, commerce, productOf, event, deliver, work, owner, crewSent, crewJob, packerId, injectFault, latencies, recordLatency } from './pack-helpers'
 import { admin } from '../../lib/db'
 import { COMMERCE_IDS } from '../../lib/connectors/shopify/synthetic'
 import { runCommerceAgent, decideCommerceWork, undoCommerceWork, COMMERCE_AGENTS } from '../../lib/commerce/pack'
@@ -135,15 +135,17 @@ describe.skipIf(!ready)('commerce pack: every scenario is found and handled with
     expect(mail.subject).toBe('Your order #1201: an update')
     expect(mail.text).toMatch(/^Hi Kit,/)
     expect(mail.text).toMatch(/dispatch within 2 days/)
-    expect(crew).toHaveLength(1)
-    expect(crew[0]).toMatchObject({ crewMemberId: 'crew-packer-1', jobRef: '#1201', address: 'sam.packing@fernhill.example' })
-    expect(crew[0].body).toMatch(/1 x Brass Lantern/)
+    // the packer is on the crew roster (crew_members) and is reached through the real crew pipeline
+    const sent = await crewSent(NW)
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({ crew_member_id: packerId, job_refs: ['#1201'], status: 'held' })
+    expect((await crewJob(NW, '#1201'))!.details).toMatch(/1 x Brass Lantern/)
     const u = owner.find(x => x.agentKey === 'order_tracker')!
     expect(u.headline).toMatch(/#1201 is 5 days old and not shipped; I told Kit and the packer/)
     expect(u.whatIDid.join(' ')).toMatch(/Asked Sam \(packing\) to pack it today/)
     recordLatency('stuck_order', [row])
     await sweep()
-    expect(crew).toHaveLength(1)
+    expect(await crewSent(NW)).toHaveLength(1)
   })
 
   it('tracking that stopped moving: Order Tracker sends the customer the tracking and a promise to check', async () => {
@@ -487,19 +489,25 @@ describe.skipIf(!ready)('commerce pack: failures', () => {
   })
 
   it('a packer message that fails: the stuck order is retried without emailing the customer a second time', async () => {
-    // found by scripts/scenario-harness.ts (A05): the retry re-ran the whole act and sent the delay email again
+    // found by scripts/scenario-harness.ts (A05): the retry re-ran the whole act and sent the delay email again.
+    // The failure is real: the crew email goes live and the mail provider refuses it (a fake HTTP transport).
     await resetCommerce(NW, ['stuck_order'])
-    const { setNotifyImpl } = await import('../../lib/notify')
-    setNotifyImpl({ crew: async m => { crew.push(m); return { status: 'failed', id: null, reason: 'no channel for this crew member' } } })
+    const { setEmailFetch } = await import('../../lib/email/adapters/http')
+    const saved = { key: process.env.RESEND_API_KEY, live: process.env.EMAIL_LIVE_SENDS }
+    process.env.RESEND_API_KEY = 're_test_key'; process.env.EMAIL_LIVE_SENDS = 'all'
+    setEmailFetch(async () => new Response(JSON.stringify({ message: 'bad request' }), { status: 422 }))
     try {
       await sweep()
       expect((await work(NW, 'stuck_order')).map(r => r.status)).toEqual(['failed'])
+      expect((await crewSent(NW)).map(m => m.status)).toEqual(['failed'])
       await admin(db => db.query(`update agent_loops set next_retry_at = now() - interval '1 minute' where org_id = $1 and state = 'blocked'`, [NW.org]))
       await sweep()
       expect((await work(NW, 'stuck_order')).map(r => r.status)).toEqual(['failed', 'failed'])
       expect((await commerce(NW)).outbox.filter(m => m.to === 'kit@shopper.example')).toHaveLength(1)
     } finally {
-      setNotifyImpl({ crew: async m => { crew.push(m); return { status: 'sent', id: `crew-${crew.length}` } } })
+      setEmailFetch(null)
+      if (saved.key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = saved.key
+      if (saved.live === undefined) delete process.env.EMAIL_LIVE_SENDS; else process.env.EMAIL_LIVE_SENDS = saved.live
     }
   })
 

@@ -13,6 +13,7 @@ import { BUSINESS_TYPES, TRADES, orgPacks, type PackConfig } from './settings'
 import { recordPlacement, recordPayment, weeklyTotals } from './commission'
 import { recordQuote, scheduleJob } from './home-services'
 import { PackBlocked } from './loop'
+import { addCrewMember, CREW_ROLES } from '../notify/crew'
 import './index'
 
 const orgOf = (actor: Actor) => { if (actor.kind === 'staff') throw new EngineError('forbidden', 'packs belong to a merchant'); return actor.orgId }
@@ -37,7 +38,8 @@ async function packRecords(db: Db, orgId: string, pack: PackKey, today: string) 
   if (pack === 'commerce') return {}
   if (pack === 'home_services' || pack === 'office') return {
     jobs: await db.query(`select id, ref, customer_name, status, amount, currency, scheduled_start, invoice_number, invoice_balance, quote_follow_ups, payment_reminders, updated_at from pack_work_orders where org_id = $1 and pack = $2 order by updated_at desc limit 50`, [orgId, pack]),
-    crew: await db.query(`select id, name, email, phone, trade, active from pack_crew_members where org_id = $1 order by name`, [orgId]),
+    // the one crew roster (Settings -> Crew); pack_crew_members is deprecated and no longer read
+    crew: await db.query(`select id, name, email, phone, role, active from crew_members where org_id = $1 and active order by name, id`, [orgId]),
   }
   if (pack === 'leasing') {
     const from = new Date(Date.parse(`${today}T00:00:00Z`) - 7 * 864e5).toISOString().slice(0, 10)
@@ -89,10 +91,15 @@ const uuid = (v: unknown) => { if (typeof v !== 'string' || !/^[0-9a-f-]{36}$/i.
 export async function packWrite(actor: Actor, op: unknown, b: Record<string, unknown>) {
   const orgId = orgOf(actor)
   assertMerchant(actor, orgId)
+  // a crew member joins the one roster (Settings -> Crew) through its own checks (owner or admin, a way to reach them)
+  if (op === 'crew') {
+    const role = typeof b.role === 'string' && (CREW_ROLES as readonly string[]).includes(b.role) ? b.role : 'field'
+    const m = await addCrewMember(actor, { name: b.name, email: b.email, phone: b.phone, role, channels: typeof b.phone === 'string' && b.phone.trim() ? ['email', 'text'] : ['email'] })
+    return { id: m.id }
+  }
   try {
     return await admin(async db => {
       switch (op) {
-        case 'crew': return db.one(`insert into pack_crew_members (org_id, name, email, phone, trade) values ($1,$2,$3,$4,$5) returning id`, [orgId, s(b.name, 120, true), email(b.email), s(b.phone, 40), s(b.trade, 60)])
         case 'vendor': {
           const trades = Array.isArray(b.trades) ? b.trades.filter(t => typeof t === 'string' && ['plumbing', 'electrical', 'hvac', 'appliance', 'pest', 'locks', 'general'].includes(t)) : []
           if (!trades.length) throw new EngineError('invalid_input', 'choose at least one trade for the vendor')

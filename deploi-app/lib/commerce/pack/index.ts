@@ -12,6 +12,7 @@ import { registerPackAgents } from '../../packs/registry'
 import { registerUndo } from '../../undo'
 import { COMMERCE_AGENTS } from './agents'
 import { commerceStoreFor, runCommerceAgent, type CommerceRunResult } from './run'
+import { withInboundText } from '../../email/message-text'
 
 export { COMMERCE_AGENTS, commerceAgent } from './agents'
 export { runCommerceAgent, decideCommerceWork, undoCommerceWork, setCommerceStoreOverride } from './run'
@@ -27,7 +28,7 @@ let registered = false
 export function registerCommercePack() {
   if (registered) return
   registered = true
-  for (const a of COMMERCE_AGENTS) for (const t of a.triggers) onEvent(t, a.key, async (_db, e) => { await runCommerceAgent(a.key, e) })
+  for (const a of COMMERCE_AGENTS) for (const t of a.triggers) onEvent(t, a.key, async (db, e) => { const x = await withInboundText(db, e); if (x) await runCommerceAgent(a.key, x) })
   registerPackAgents(COMMERCE_AGENTS.map(a => ({
     key: a.key, name: a.name, pack: 'commerce' as const, job: a.job, triggers: a.triggers, actions: a.actions,
     // works end to end on the synthetic store; the live Admin GraphQL path is built and fake-tested but not verified

@@ -26,6 +26,7 @@ import { bookSlot, openSlots, slotChoice, verifyEvent, HORIZON_DAYS } from './sc
 import { bookingConfirmation, crewDispatch, homeLeadReply, paymentThanksReview, quoteFollowUp, slotsAgain, tradeJob } from './templates'
 import { sweepLeadFollowUps } from './lead-followup'
 import { addressOf, days, eventNow, hours, isoDay, leadFrom, optedOut, replyText, rowProof, saysNo, saysYes, str } from './kit'
+import { withInboundText } from '../email/message-text'
 
 const PACK = 'home_services' as const
 const PATH = '/store/packs/home_services'
@@ -71,7 +72,8 @@ export async function recordQuote(db: Db, orgId: string, q: { leadId?: string | 
 
 /** The owner schedules an accepted job with a crew member; the dispatcher sends it. */
 export async function scheduleJob(db: Db, orgId: string, workOrderId: string, s: { crewMemberId: string; start: Date }) {
-  const crew = await db.one<{ id: string }>('select id from pack_crew_members where id = $1 and org_id = $2 and active', [s.crewMemberId, orgId])
+  // the one crew roster: crew_members (Settings -> Crew), what notifyCrew and the /crew/done links use
+  const crew = /^[0-9a-f-]{36}$/i.test(s.crewMemberId) ? await db.one<{ id: string }>('select id from crew_members where id = $1 and org_id = $2 and active', [s.crewMemberId, orgId]) : null
   if (!crew) throw new PackBlocked('that crew member is not active in this organization')
   const r = await db.one<WorkOrder>(`update pack_work_orders set status = 'scheduled', crew_member_id = $3, scheduled_start = $4, dispatched_at = null, dispatch_reminders = 0, crew_confirmed_at = null, crew_escalated_at = null
     where id = $1 and org_id = $2 and status in ('quoted','accepted','scheduled','dispatched','confirmed','quiet') returning *`, [workOrderId, orgId, s.crewMemberId, s.start.toISOString()])
@@ -235,7 +237,8 @@ export async function sweepQuotes(db: Db, e: AgentEvent, org: OrgPacks, pack: 'h
 // ---------------------------------------------------------------- hs_dispatch
 
 type Crew = { id: string; name: string; email: string | null; phone: string | null }
-const crewOf = (db: Db, wo: WorkOrder) => (wo.crew_member_id ? db.one<Crew>('select id, name, email, phone from pack_crew_members where id = $1 and org_id = $2', [wo.crew_member_id, wo.org_id]) : Promise.resolve(null))
+/** The job's crew member from the one roster (crew_members); a deactivated member is no crew member. */
+const crewOf = (db: Db, wo: WorkOrder) => (wo.crew_member_id ? db.one<Crew>('select id, name, email, phone from crew_members where id = $1 and org_id = $2 and active', [wo.crew_member_id, wo.org_id]) : Promise.resolve(null))
 const crewOk = (s: string) => s === 'sent' || s === 'queued' || s === 'held'
 
 export async function sweepDispatch(db: Db, e: AgentEvent, org: OrgPacks, pack: 'home_services' | 'office' = PACK) {
@@ -449,7 +452,7 @@ export async function undoWorkOrderStatus(db: Db, payload: Record<string, unknow
 
 export function registerHomeServices() {
   onEvent('lead.email', 'hs_lead_reply', async (db, e) => { await onHomeLead(db, e) })
-  onEvent('mail.received', 'hs_quote_booking', async (db, e) => { await onHomeReply(db, e) })
+  onEvent('mail.received', 'hs_quote_booking', async (db, e) => { const m = await withInboundText(db, e); if (m) await onHomeReply(db, m) })
   onEvent('crew.done', 'hs_invoice', async (db, e) => { await onCrewDone(db, e) })
   onEvent('crew.confirmed', 'hs_dispatch', async (db, e) => { await onCrewConfirmed(db, e) })
   onEvent('sweep', 'hs_sweep', async (db, e) => { await homeSweep(db, e) })

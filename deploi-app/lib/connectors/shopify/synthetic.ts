@@ -62,7 +62,6 @@ export type SynthCommerce = {
   /** everything an agent sent from the synthetic store (never leaves Deploi) */
   outbox: SynthSent[]
   suppliers: { vendor: string; name: string; email: string; leadTimeDays: number }[]
-  crew: { id: string; name: string; role: 'packer' | 'warehouse'; address: string }[]
   policy: { returnWindowDays: number; promisedDispatchDays: number; feeRatePct: number; feeFixed: number }
 }
 
@@ -371,7 +370,6 @@ export function commerceQuietState(now = new Date()): SynthState {
         { vendor: 'Clay & Kiln', name: 'Clay & Kiln', email: 'trade@clayandkiln.example', leadTimeDays: 14 },
         { vendor: 'Lumen Works', name: 'Lumen Works', email: 'wholesale@lumenworks.example', leadTimeDays: 7 },
       ],
-      crew: [{ id: 'crew-packer-1', name: 'Sam (packing)', role: 'packer', address: 'sam.packing@fernhill.example' }],
       policy: { returnWindowDays: 30, promisedDispatchDays: 2, feeRatePct: 2.9, feeFixed: 0.3 },
     },
   }
@@ -445,4 +443,15 @@ export function seedCommerceScenario(s: SynthState, scenario: CommerceScenario, 
     case 'ai_visibility_gap': Object.assign(c.info[COMMERCE_IDS.apron.product], { seoDescription: null, images: [{ alt: null }, { alt: null }] }); break
   }
   return s
+}
+
+/** The synthetic store's packer. The crew is the organization's one roster (crew_members, Settings -> Crew), so a
+ * synthetic scenario seeds a real crew_members row rather than an id that only the synthetic store knows. */
+export const COMMERCE_PACKER = { name: 'Sam (packing)', role: 'packer' as const, email: 'sam.packing@fernhill.example' }
+export async function seedCommerceCrew(orgId: string): Promise<string> {
+  return admin(async db => {
+    const had = await db.one<{ id: string }>(`select id from crew_members where org_id = $1 and lower(email) = $2 order by created_at limit 1`, [orgId, COMMERCE_PACKER.email])
+    if (had) { await db.query(`update crew_members set active = true, role = $2, name = $3, channels = array['email']::text[] where id = $1`, [had.id, COMMERCE_PACKER.role, COMMERCE_PACKER.name]); return had.id }
+    return (await db.one<{ id: string }>(`insert into crew_members (org_id, name, role, email, channels) values ($1,$2,$3,$4,array['email']::text[]) returning id`, [orgId, COMMERCE_PACKER.name, COMMERCE_PACKER.role, COMMERCE_PACKER.email]))!.id
+  })
 }

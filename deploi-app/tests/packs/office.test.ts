@@ -5,7 +5,7 @@ import { admin } from '../../lib/db'
 import { recordQuote, scheduleJob } from '../../lib/packs/home-services'
 import { agentsFor, PACK_AGENTS } from '../../lib/packs/registry'
 import { setupReceivables, resetReceivables, arAgent, inv, day, invoices } from '../office/receivables-helpers'
-import { NW, resetPacks, fire, sweep, plus, sentMail, one, activity, crew } from './helpers'
+import { NW, resetPacks, fire, sweep, plus, sentMail, one, activity, crewMember, crewSent } from './helpers'
 
 const ready = await prepareDb()
 afterAll(async () => { if (ready) { await resetReceivables(NW, { enable: false }); await resetPacks(NW, null) } })
@@ -60,13 +60,13 @@ describe.skipIf(!ready)('general office pack', () => {
 
   it('quote follow-ups, crew updates, invoicing and review requests work on office jobs', async () => {
     const T = new Date(Date.UTC(2027, 0, 4, 8))
-    const c = (await admin(db => db.one<{ id: string }>(`insert into pack_crew_members (org_id, name, email) values ($1,'Pat Packer','pat@crew.example') returning id`, [NW.org])))!
+    const c = await crewMember(NW, { name: 'Pat Packer', email: 'pat@crew.example', role: 'packer' })
     const wo = await admin(db => recordQuote(db, NW.org, { pack: 'office', customerName: 'Lee Client', customerEmail: 'lee@client.example', description: 'Office move', amount: 1200, now: T }))
     await sweep(NW, plus(T, 24 * 3))
     expect((await sentMail(NW)).map(m => m.subject)).toEqual([expect.stringContaining(wo.ref)])
     await admin(db => scheduleJob(db, NW.org, wo.id, { crewMemberId: c.id, start: plus(T, 24 * 4) }))
     await sweep(NW, plus(T, 24 * 3 + 1))
-    expect(crew.map(m => m.jobRef)).toEqual([wo.ref])
+    expect((await crewSent(NW)).map(m => [m.crew_member_id, m.job_refs, m.status])).toEqual([[c.id, [wo.ref], 'held']])
     await fire(NW, 'crew.done', { jobRef: wo.ref }, plus(T, 24 * 4 + 5))
     expect((await one(`select status from pack_work_orders where id = $1`, [wo.id]))!.status).toBe('invoiced')
     expect((await activity(NW)).filter(a => a.status !== 'done')).toEqual([])

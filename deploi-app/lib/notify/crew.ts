@@ -403,7 +403,12 @@ export async function notifyCrewImpl(m: CrewMessage, opts: { now?: Date } = {}):
     const data: CrewData = { crewName: who.name, orgName: org?.name ?? 'your team', dateLabel: dateLabel(d), intro: m.subject && m.subject !== m.body ? m.subject : '', jobs: views }
     return { kind: 'ready' as const, who: member(who), data, links, jobRefs: rows.map(r => r.job_ref) }
   })
-  if (prep.kind === 'duplicate') return { status: prep.prior.some(p => p.status === 'sent') ? 'sent' : 'held', id: prep.prior[0].id, reason: 'duplicate: this message was already handled' }
+  // a repeat reports what the first attempt did: an attempt that only failed is not turned into "held" (it was never
+  // delivered, and the repeat does not resend it), so the caller does not count the crew member as told
+  if (prep.kind === 'duplicate') {
+    const st: NotifyResult['status'] = prep.prior.some(p => p.status === 'sent') ? 'sent' : prep.prior.some(p => p.status === 'held' || p.status === 'simulated') ? 'held' : prep.prior.every(p => p.status === 'skipped') ? 'skipped' : 'failed'
+    return { status: st, id: prep.prior[0].id, reason: st === 'failed' || st === 'skipped' ? `duplicate: the first attempt was ${st} (${prep.prior[0].status_reason ?? 'no reason given'}) and is not resent` : 'duplicate: this message was already handled' }
+  }
   if (prep.kind === 'missing') return { status: 'skipped', id: null, reason: prep.reason }
 
   const { who, data, links, jobRefs } = prep

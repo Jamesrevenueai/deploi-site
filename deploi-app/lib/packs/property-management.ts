@@ -16,6 +16,7 @@ import { PortError, portsFor } from './ports'
 import { orgPacks, type OrgPacks } from './settings'
 import { fixConfirmRequest, maintenanceAck, rentReminder, tenantUpdate, vendorDispatch } from './templates'
 import { addressOf, days, eventNow, hours, isoDay, replyText, rowProof, saysNo, saysYes, str } from './kit'
+import { withInboundText } from '../email/message-text'
 
 const PACK = 'property_management' as const
 const PATH = '/store/packs/property_management'
@@ -283,6 +284,6 @@ export async function pmSweep(db: Db, e: AgentEvent) {
 
 export function registerPropertyManagement() {
   onEvent('buildium.maintenance.created', 'pm_maintenance_intake', async (db, e) => { await onBuildiumMaintenance(db, e) })
-  onEvent('mail.received', 'pm_maintenance_intake', async (db, e) => { await onPmMail(db, e) })
+  onEvent('mail.received', 'pm_maintenance_intake', async (db, e) => { const m = await withInboundText(db, e); if (m) await onPmMail(db, m) })
   onEvent('sweep', 'pm_sweep', async (db, e) => { await pmSweep(db, e) })
 }

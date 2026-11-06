@@ -26,6 +26,7 @@ import { bookingConfirmation, commissionInvoice, leasingReply, missingCriteria, 
 import { sweepLeadFollowUps } from './lead-followup'
 import { invoiceDraftFor, nextInvoiceNumber, recordPayment, weeklyTotals, type InvoiceRow, type PropertyRow } from './commission'
 import { addressOf, days, eventNow, hours, isoDay, leadFrom, optedOut, replyText, rowProof, str } from './kit'
+import { withInboundText } from '../email/message-text'
 
 const PACK = 'leasing' as const
 const PATH = '/store/packs/leasing'
@@ -365,7 +366,7 @@ export async function leasingSweep(db: Db, e: AgentEvent) {
 
 export function registerLeasing() {
   onEvent('lead.email', 'ls_lead_reply', async (db, e) => { await onLeasingLead(db, e) })
-  onEvent('mail.received', 'ls_qualify', async (db, e) => { await onLeasingReply(db, e) })
+  onEvent('mail.received', 'ls_qualify', async (db, e) => { const m = await withInboundText(db, e); if (m) await onLeasingReply(db, m) })
   onEvent('quickbooks.payment', 'ls_payment_match', async (db, e) => { await onCommissionPayment(db, e) })
   onEvent('sweep', 'ls_sweep', async (db, e) => { await leasingSweep(db, e) })
 }

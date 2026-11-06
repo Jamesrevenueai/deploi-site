@@ -76,6 +76,16 @@ export type CommerceStore = {
   sendEmail(m: { to: string; subject: string; text: string; inReplyTo: string | null; agentKey: string }): Promise<{ id: string }>
 }
 
+/**
+ * The store's packers and warehouse staff: the organization's one crew roster (crew_members, Settings -> Crew), the
+ * same people notifyCrew messages and the /crew/done links belong to. Both the synthetic and the live store read it.
+ */
+export async function rosterCrew(orgId: string): Promise<CrewMember[]> {
+  const rows = await admin(db => db.query<{ id: string; name: string; role: 'packer' | 'warehouse'; email: string | null; phone: string | null }>(
+    `select id, name, role, email, phone from crew_members where org_id = $1 and active and role in ('packer', 'warehouse') order by name, id`, [orgId]))
+  return rows.map(r => ({ id: r.id, name: r.name, role: r.role, address: r.email ?? r.phone ?? '' }))
+}
+
 export const plainText = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
 export const wordCount = (t: string) => t.split(/\s+/).filter(Boolean).length
 
@@ -171,7 +181,11 @@ export function syntheticCommerceStore(connectionId: string, now = () => new Dat
     inbox: read('inbox', s => s.commerce.mailbox.map(m => ({ id: m.id, receivedAt: m.receivedAt, from: m.from, subject: m.subject, text: m.text, inReplyTo: m.inReplyTo }))),
     sent: read('sent', s => s.commerce.outbox.map(m => ({ ...m }))),
     suppliers: read('suppliers', s => s.commerce.suppliers),
-    crew: read('crew', s => s.commerce.crew),
+    crew: async () => {
+      await guard('crew')
+      const c = await admin(db => db.one<{ org_id: string }>('select org_id from store_connections where id = $1', [connectionId]))
+      return c ? rosterCrew(c.org_id) : []
+    },
 
     async setDescription(productId, html) {
       const before = (await state()).commerce.info[productId]?.descriptionHtml ?? ''

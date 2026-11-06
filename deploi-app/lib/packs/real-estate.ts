@@ -19,6 +19,7 @@ import { bookingConfirmation, buyerReply, sellerReply } from './templates'
 import { sweepLeadFollowUps } from './lead-followup'
 import { sweepTourReminders } from './leasing'
 import { addressOf, eventNow, days, leadFrom, optedOut, replyText, rowProof } from './kit'
+import { withInboundText } from '../email/message-text'
 
 const PACK = 'real_estate' as const
 const PATH = '/store/packs/real_estate'
@@ -136,6 +137,6 @@ export async function realEstateSweep(db: Db, e: AgentEvent) {
 export function registerRealEstate() {
   onEvent('lead.email', 're_lead_reply', async (db, e) => { await onRealEstateLead(db, e) })
   onEvent('crm.lead.created', 're_lead_reply', async (db, e) => { await onRealEstateLead(db, e) })
-  onEvent('mail.received', 're_showing', async (db, e) => { await onRealEstateReply(db, e) })
+  onEvent('mail.received', 're_showing', async (db, e) => { const m = await withInboundText(db, e); if (m) await onRealEstateReply(db, m) })
   onEvent('sweep', 're_sweep', async (db, e) => { await realEstateSweep(db, e) })
 }

@@ -1,7 +1,7 @@
 /** Test helpers for the agent packs: a clean organization with a business type, synthetic ports, captured owner and crew updates. */
 import { admin } from '../../lib/db'
 import { handlersFor, type AgentEvent } from '../../lib/events'
-import { setNotifyImpl, type CrewMessage, type OwnerUpdate } from '../../lib/notify'
+import { setNotifyImpl, type OwnerUpdate } from '../../lib/notify'
 import { NW, HB, merchantActor } from '../merchant/helpers'
 import { getSynth, mutateSynth, resetSynth } from '../../lib/packs/synthetic'
 import { chooseBusinessType } from '../../lib/packs/settings'
@@ -10,21 +10,33 @@ import '../../lib/packs'
 
 export { NW, HB, merchantActor, getSynth, mutateSynth }
 export const owner: OwnerUpdate[] = []
-export const crew: CrewMessage[] = []
-let crewMode: 'sent' | 'skipped' | 'failed' = 'sent'
-export const setCrewMode = (m: typeof crewMode) => { crewMode = m }
+// owner updates are captured; crew messages go through the real crew pipeline (lib/notify/crew.ts: crew_jobs,
+// crew_messages, the held system email), so a pack can only reach someone on the one crew roster (crew_members)
 setNotifyImpl({
   owner: async u => { if (!owner.some(x => x.dedupeKey === u.dedupeKey)) owner.push(u); return { status: 'sent', id: u.dedupeKey } },
-  crew: async m => { crew.push(m); return crewMode === 'sent' ? { status: 'sent', id: `crew-${crew.length}` } : { status: crewMode, id: null, reason: 'no channel for this crew member' } },
 })
 
 export const PACK_TABLES = ['pack_activity', 'pack_messages', 'pack_appointments', 'pm_maintenance_requests', 'pm_vendors', 'leasing_payments', 'leasing_placements', 'leasing_invoices', 'leasing_listings', 'leasing_properties', 'leasing_companies',
   'pack_work_orders', 'pack_crew_members', 'pack_leads', 'pack_settings']
 
+const CREW_TABLES = ['crew_job_links', 'crew_messages', 'crew_jobs', 'crew_members']
+
+/** A crew member on the one roster (crew_members, Settings -> Crew). `email: null` makes one nobody can reach. */
+export async function crewMember(m: typeof NW, o: { name?: string; email?: string | null; phone?: string | null; role?: string } = {}) {
+  return (await admin(db => db.one<{ id: string }>(`insert into crew_members (org_id, name, role, email, phone, channels) values ($1,$2,$3,$4,$5,array['email']::text[]) returning id`,
+    [m.org, o.name ?? 'Sam Ortiz', o.role ?? 'field', o.email === undefined ? 'sam@crew.example' : o.email, o.phone === undefined ? '+15550100' : o.phone])))!
+}
+/** What the real crew pipeline sent (one row per message and channel), oldest first. */
+export const crewSent = (m: typeof NW) => admin(db => db.query<{ crew_member_id: string; dedupe_key: string; job_refs: string[]; status: string; status_reason: string | null; body: string }>(
+  `select crew_member_id, dedupe_key, job_refs, status, status_reason, body from crew_messages where org_id = $1 and direction = 'out' order by created_at, id`, [m.org]))
+/** The crew job the pipeline recorded for a job reference. */
+export const crewJob = (m: typeof NW, ref: string) => admin(db => db.one<{ crew_member_id: string; address: string | null; details: string | null; status: string }>(
+  `select crew_member_id, address, details, status from crew_jobs where org_id = $1 and job_ref = $2`, [m.org, ref]))
+
 export async function resetPacks(m: typeof NW, businessType: BusinessType | null, opts: { trade?: string; settings?: Record<string, unknown> } = {}) {
-  await admin(async db => { for (const t of PACK_TABLES) await db.query(`delete from ${t} where org_id = $1`, [m.org]) })
+  await admin(async db => { for (const t of [...PACK_TABLES, ...CREW_TABLES]) await db.query(`delete from ${t} where org_id = $1`, [m.org]) })
   await resetSynth(m.org)
-  owner.length = 0; crew.length = 0; crewMode = 'sent'
+  owner.length = 0
   if (businessType) await chooseBusinessType(await merchantActor(m), { businessType, trade: opts.trade ?? null })
   if (opts.settings) await admin(db => db.query(`update pack_settings set settings = settings || $2::jsonb where org_id = $1`, [m.org, JSON.stringify(opts.settings)]))
   await admin(db => db.query(`update agencies set timezone = 'UTC' where id = $1`, [m.org]))

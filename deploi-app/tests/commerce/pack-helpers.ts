@@ -1,18 +1,23 @@
 import { NW, HB, resetLibrary } from '../library/helpers'
 import { admin } from '../../lib/db'
-import { setSyntheticState, getSyntheticState, commerceQuietState, seedCommerceScenario, injectFault, type CommerceScenario, type SynthCommerce } from '../../lib/connectors/shopify/synthetic'
-import { setNotifyImpl, type OwnerUpdate, type CrewMessage } from '../../lib/notify'
+import { setSyntheticState, getSyntheticState, commerceQuietState, seedCommerceScenario, seedCommerceCrew, injectFault, type CommerceScenario, type SynthCommerce } from '../../lib/connectors/shopify/synthetic'
+import { setNotifyImpl, type OwnerUpdate } from '../../lib/notify'
 import { handlersFor, type AgentEvent } from '../../lib/events'
 import '../../lib/commerce/pack'
 
 export { NW, HB, injectFault }
 
 export const owner: OwnerUpdate[] = []
-export const crew: CrewMessage[] = []
+// owner updates are captured; crew messages go through the real crew pipeline (lib/notify/crew.ts)
 setNotifyImpl({
   owner: async u => { owner.push(u); return { status: 'sent', id: `owner-${owner.length}` } },
-  crew: async m => { crew.push(m); return { status: 'sent', id: `crew-${crew.length}` } },
 })
+/** What the real crew pipeline sent for the organization, oldest first. */
+export const crewSent = (m: typeof NW) => admin(db => db.query<{ crew_member_id: string; job_refs: string[]; status: string; dedupe_key: string }>(
+  `select crew_member_id, job_refs, status, dedupe_key from crew_messages where org_id = $1 and direction = 'out' order by created_at, id`, [m.org]))
+export const crewJob = (m: typeof NW, ref: string) => admin(db => db.one<{ crew_member_id: string; details: string | null }>(`select crew_member_id, details from crew_jobs where org_id = $1 and job_ref = $2`, [m.org, ref]))
+/** The synthetic store's packer, on the organization's crew roster (crew_members). */
+export let packerId = ''
 
 /** A quiet synthetic commerce store for the merchant with the given scenarios seeded; work log and captured updates cleared. */
 export async function resetCommerce(m: typeof NW, scenarios: CommerceScenario[] = [], now = new Date()) {
@@ -23,8 +28,9 @@ export async function resetCommerce(m: typeof NW, scenarios: CommerceScenario[] 
   const s = commerceQuietState(now)
   for (const sc of scenarios) seedCommerceScenario(s, sc, now)
   await setSyntheticState(m.conn, s)
+  await admin(async db => { for (const t of ['crew_job_links', 'crew_messages', 'crew_jobs', 'crew_members']) await db.query(`delete from ${t} where org_id = $1`, [m.org]) })
+  packerId = await seedCommerceCrew(m.org)
   owner.length = 0
-  crew.length = 0
 }
 
 export const commerce = async (m: typeof NW) => (await getSyntheticState(m.conn))!.commerce as SynthCommerce

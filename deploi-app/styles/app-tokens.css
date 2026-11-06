@@ -4,6 +4,9 @@
    The component and shell classes that use them are in styles/app.css.
    ========================================================================== */
 :root {
+  /* the self-hosted faces (@fontsource, imported in app/layout.tsx); the names the rest of the CSS uses */
+  --font-inter: 'Inter';
+  --font-grotesk: 'Space Grotesk';
   --app-font-body: var(--font-inter), 'Inter', system-ui, sans-serif;
   --app-font-heading: var(--font-grotesk), 'Space Grotesk', var(--app-font-body);
 

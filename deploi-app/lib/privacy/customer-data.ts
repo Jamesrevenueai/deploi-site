@@ -35,6 +35,12 @@ export const PRIVACY_COVERAGE: Record<string, TableStep> = {
   library_chat_messages: { export: 'chat messages to library agents that name the customer', redact: 'the address and ids erased from the text' },
   cases: { export: 'Resolution Engine cases whose text, evidence or records name the customer', redact: 'the address and ids erased from the text, evidence and records' },
   case_events: { export: 'case history entries that name the customer', redact: 'the address and ids erased from the summary and detail (the only change ever allowed to case history)' },
+  pack_leads: { export: 'agent-pack leads (renters, buyers, sellers, service requests) with that address: name, phone, stated criteria, status', redact: 'anonymized: address replaced by a hash, name, phone and criteria removed, follow-ups stopped' },
+  pack_messages: { export: 'agent-pack messages sent to that address, with their text and content-policy check', redact: 'deleted' },
+  pack_work_orders: { export: 'home-services jobs and quotes for that address (work, amounts, dates)', redact: 'anonymized: customer name, address, phone and job address removed; amounts and dates kept for the accounts' },
+  leasing_placements: { export: 'move-ins with that tenant address (unit, move-in date, rent, commission)', redact: 'anonymized: tenant name and address removed; unit, dates and amounts kept for the commission accounts' },
+  pm_maintenance_requests: { export: 'maintenance requests from that tenant address', redact: 'anonymized: tenant name, address and phone removed; the work history is kept' },
+  pack_activity: { export: 'agent-pack activity entries that name the customer', redact: 'the address and ids erased from the text and proof' },
   engine_audit: { export: 'the number of audit entries that name the customer (expected none: entries hold record ids)', redact: 'kept unchanged: the tamper-evident audit trail is retained for audit; it holds record ids, not addresses or content' },
 }
 
@@ -61,6 +67,10 @@ export const PRIVACY_EXEMPT: Record<string, string> = {
   applicants: 'the retired home-care agency product (no Shopify shop)',
   clients: 'the retired home-care agency product (no Shopify shop)',
   engagements: 'the retired consulting product\'s agency contacts (no Shopify shop)',
+  pack_crew_members: 'the business\'s own field crew (its staff), never a shopper',
+  leasing_companies: 'property-management companies a leasing agent bills (business contacts, never shoppers)',
+  leasing_properties: 'rental properties and their billing address (business records, never shoppers)',
+  pm_vendors: 'a property manager\'s maintenance vendors (business contacts, never shoppers)',
 }
 
 /** Column names that look like personal data (the coverage test reads the catalog with this). */
@@ -122,6 +132,12 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
   tables.library_chat_messages = await db.query(`select id, agent_key, role, text, created_at from library_chat_messages where org_id = $1 and ${names(`text || coalesce(outcome::text, '')`, 2)}`, [s.orgId, tokens])
   tables.cases = await db.query(`select id, ref, kind, title, problem, status, status_reason, evidence, records, outcome, opened_at, closed_at from cases where org_id = $1 and ${names(caseText, 2)}`, [s.orgId, tokens])
   tables.case_events = await db.query(`select e.id::text, c.ref as case_ref, e.at, e.type, e.summary, e.detail from case_events e join cases c on c.id = e.case_id where e.org_id = $1 and ${names(`e.summary || e.detail::text`, 2)} order by e.id`, [s.orgId, tokens])
+  tables.pack_leads = email ? await db.query(`select id, pack, source, name, email, phone, intent, criteria, status, replied_at, follow_ups, created_at from pack_leads where org_id = $1 and lower(email) = $2`, [s.orgId, email]) : []
+  tables.pack_messages = email ? await db.query(`select id, agent_key, to_address, subject, body, status, policy, created_at from pack_messages where org_id = $1 and lower(to_address) = $2 order by created_at`, [s.orgId, email]) : []
+  tables.pack_work_orders = email ? await db.query(`select id, ref, customer_name, customer_email, customer_phone, address, description, amount, currency, status, invoice_number, paid_at, created_at from pack_work_orders where org_id = $1 and lower(customer_email) = $2`, [s.orgId, email]) : []
+  tables.leasing_placements = email ? await db.query(`select id, tenant_name, tenant_email, unit, move_in_date, monthly_rent, commission_amount, status, created_at from leasing_placements where org_id = $1 and lower(tenant_email) = $2`, [s.orgId, email]) : []
+  tables.pm_maintenance_requests = email ? await db.query(`select id, source, property, unit, tenant_name, tenant_email, tenant_phone, category, description, status, created_at from pm_maintenance_requests where org_id = $1 and lower(tenant_email) = $2`, [s.orgId, email]) : []
+  tables.pack_activity = await db.query(`select id, pack, agent_key, status, title, what_happened, what_i_did, proof, error, created_at from pack_activity where org_id = $1 and ${names(`title || ' ' || what_happened || ' ' || what_i_did::text || proof::text || coalesce(error, '')`, 2)}`, [s.orgId, tokens])
   const audit = await db.one<{ n: number }>(`select count(*)::int as n from engine_audit where org_id = $1 and ${names('detail::text', 2)}`, [s.orgId, tokens])
   tables.engine_audit = audit?.n ? [{ entries_naming_the_customer: audit.n, note: 'audit entries are retained unchanged for audit' }] : []
   if (!email) notes.push('No email address was given: only records carrying the Shopify customer or order ids were searched.')
@@ -156,7 +172,15 @@ export async function redactCustomerData(db: Db, s: Subject): Promise<Record<str
       stop_reason = 'customer data erased at the shop''s request', next_touch_at = null where org_id = $1 and lower(email) = $2 returning id`, [s.orgId, email, token])).length
     out.office_meetings = (await db.query(`update office_meetings set contact_email = $3 where org_id = $1 and lower(contact_email) = $2 returning id`, [s.orgId, email, token])).length
     out.office_invoices = (await db.query(`update office_invoices set bill_email = null, customer_name = null where org_id = $1 and lower(bill_email) = $2 returning id`, [s.orgId, email])).length
+    out.pack_messages = (await db.query(`delete from pack_messages where org_id = $1 and lower(to_address) = $2 returning id`, [s.orgId, email])).length
+    out.pack_leads = (await db.query(`update pack_leads set email = $3, name = null, phone = null, criteria = '{}'::jsonb, subject = null, status = case when status in ('new','replied','qualifying','slots_offered') then 'stopped' else status end,
+      next_follow_up_at = null where org_id = $1 and lower(email) = $2 returning id`, [s.orgId, email, token])).length
+    out.pack_work_orders = (await db.query(`update pack_work_orders set customer_email = null, customer_name = null, customer_phone = null, address = null, next_quote_follow_up_at = null where org_id = $1 and lower(customer_email) = $2 returning id`, [s.orgId, email])).length
+    out.leasing_placements = (await db.query(`update leasing_placements set tenant_email = null, tenant_name = '${ERASED}' where org_id = $1 and lower(tenant_email) = $2 returning id`, [s.orgId, email])).length
+    out.pm_maintenance_requests = (await db.query(`update pm_maintenance_requests set tenant_email = null, tenant_name = null, tenant_phone = null where org_id = $1 and lower(tenant_email) = $2 returning id`, [s.orgId, email])).length
   }
+  out.pack_activity = (await db.query(`update pack_activity set title = ${rx('title')}, what_happened = ${rx('what_happened')}, what_i_did = ${rx('what_i_did::text')}::jsonb, proof = ${rx('proof::text')}::jsonb, error = ${rx('error')}
+    where org_id = $1 and ${names(`title || ' ' || what_happened || ' ' || what_i_did::text || proof::text || coalesce(error, '')`, 2)} returning id`, [s.orgId, tokens, pat])).length
   out.office_actions = (await db.query(`update office_actions set payload = ${rx('payload::text')}::jsonb, result = case when result is null then null else ${rx('result::text')}::jsonb end,
       status = case when status in ('draft','awaiting_approval','queued') then 'cancelled' else status end,
       status_reason = case when status in ('draft','awaiting_approval','queued') then 'customer data erased at the shop''s request' else status_reason end

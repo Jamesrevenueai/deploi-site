@@ -68,6 +68,9 @@ const VALUE_OVERRIDES: Record<string, string> = {
   // an address or @domain (checked by the table)
   'email_sender_rules.pattern': `'@isolation-test.example'`,
   // a Stripe invoice id (in_...): the generic short key does not match the pattern
+  // an appointment ends after it starts (checked by the table)
+  'pack_appointments.starts_at': `now()`,
+  'pack_appointments.ends_at': `now() + interval '1 hour'`,
   'billing_payment_failures.invoice_external_id': `'in_' || substr(md5(random()::text), 1, 12)`,
 }
 

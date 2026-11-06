@@ -25,6 +25,7 @@ const DENY_ALL: Record<string, string> = {
   office_org_locks: 'per-organization scheduler lock; server only',
   office_synthetic_state: 'the fake HubSpot / Calendar providers used in demos and tests; server only',
   engine_audit_chain: 'head of each organization\'s audit hash chain; written by a definer trigger, verified by server code',
+  pack_synthetic_state: 'the fake mail, calendar, CRM, invoicing and property-system providers the agent packs use in demos and tests; server only (migration 61)',
   rate_limits: 'request counters per bucket, key and window (IP or organization id); server only (migration 44, finding F-12)',
 }
 /** Tables readable by every signed-in user on purpose. */

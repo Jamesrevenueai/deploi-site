@@ -38,3 +38,34 @@ export const ACTION_SCOPES: Record<string, string[]> = {
   'shopify.variant.set_compare_at_price': ['write_products'],
   'shopify.variant.set_sku': ['write_products'],
 }
+
+/**
+ * Webhook topics the agents react to (routed into lib/events as AgentEvents), with the access scope Shopify needs
+ * for each subscription. Orders, fulfillments, customers, refunds and returns carry protected customer data:
+ * Shopify delivers them only after the app's Protected customer data access request is approved in the Partner
+ * Dashboard (level 1 for order data; level 2 for customer name, email, phone and address fields).
+ */
+export const EVENT_TOPIC_SCOPES: Record<string, { scope: string; protectedData: boolean }> = {
+  'orders/create': { scope: 'read_orders', protectedData: true },
+  'orders/updated': { scope: 'read_orders', protectedData: true },
+  'orders/fulfilled': { scope: 'read_orders', protectedData: true },
+  'orders/cancelled': { scope: 'read_orders', protectedData: true },
+  'fulfillments/create': { scope: 'read_fulfillments', protectedData: true },
+  'fulfillments/update': { scope: 'read_fulfillments', protectedData: true },
+  'inventory_levels/update': { scope: 'read_inventory', protectedData: false },
+  'products/update': { scope: 'read_products', protectedData: false },
+  'customers/create': { scope: 'read_customers', protectedData: true },
+  'customers/update': { scope: 'read_customers', protectedData: true },
+  'refunds/create': { scope: 'read_orders', protectedData: true },
+  'returns/request': { scope: 'read_returns', protectedData: true },
+  'returns/approve': { scope: 'read_returns', protectedData: true },
+  'returns/decline': { scope: 'read_returns', protectedData: true },
+  'returns/cancel': { scope: 'read_returns', protectedData: true },
+  'returns/close': { scope: 'read_returns', protectedData: true },
+  'returns/reopen': { scope: 'read_returns', protectedData: true },
+  'discounts/create': { scope: 'read_discounts', protectedData: false },
+  'discounts/update': { scope: 'read_discounts', protectedData: false },
+}
+export const SHOPIFY_EVENT_TOPICS = new Set(Object.keys(EVENT_TOPIC_SCOPES))
+/** Read scopes the agent topics add to the install (declared in shopify.app.toml [access_scopes]). */
+export const EVENT_SCOPES = [...new Set(Object.values(EVENT_TOPIC_SCOPES).map(t => t.scope))].filter(s => !REQUIRED_SCOPES.includes(s)).sort()

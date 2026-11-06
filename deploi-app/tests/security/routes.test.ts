@@ -56,6 +56,7 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/cron/health/route.ts': { why: 'Vercel cron (health snapshot, counts only)', evidence: /cronAuthorized\(req\)/ },
   'app/api/crew/done/route.ts': { why: 'crew "mark done" button: signed, single-use, expiring token; no sign-in', evidence: /completeCrewLink\(t\)/ },
   'app/api/cron/daily-report/route.ts': { why: 'Vercel cron (morning report per organization, lib/notify)', evidence: /cronAuthorized\(req\)/ },
+  'app/api/cron/sweep/route.ts': { why: 'Vercel cron (15-minute agent sweep and event jobs)', evidence: /cronAuthorized\(req\)/ },
   'app/api/webhooks/agent-mail/unsubscribe/route.ts': { why: 'one-click unsubscribe: signed token per message and recipient', evidence: /verifyUnsubscribeToken\(/ },
   'app/api/woocommerce/callback/route.ts': { why: 'WooCommerce key callback: signed, one-time, expiring state bound to the organization', evidence: /receiveCallback\(body\)/ },
   'app/api/woocommerce/return/route.ts': { why: 'browser return from WooCommerce: signed state must belong to the signed-in session\'s organization', evidence: /session\.agencyId !== state\.org_id/ },

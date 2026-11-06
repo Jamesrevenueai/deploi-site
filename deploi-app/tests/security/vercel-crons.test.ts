@@ -11,7 +11,9 @@ const ALLOWED = ['/api/cron/agents', '/api/cron/weekly-summary', '/api/cron/libr
   // operations (lib/ops): alert evaluation every 10 minutes, the daily retention pass, the hourly health snapshot
   '/api/cron/alerts', '/api/cron/retention', '/api/cron/health',
   // owner updates (lib/notify): the daily morning report to owners and admins, held unless EMAIL_LIVE_SENDS allows
-  '/api/cron/daily-report']
+  '/api/cron/daily-report',
+  // agent events: the 15-minute sweep (one sweep event per active organization) and the event jobs it runs
+  '/api/cron/sweep']
 const RETIRED = ['/api/cron/morning-pipeline', '/api/cron/morning-report', '/api/cron/workers']
 
 describe('vercel.json crons', () => {

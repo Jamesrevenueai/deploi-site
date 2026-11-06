@@ -30,6 +30,8 @@ import '../discovery/jobs'
 import { enqueueHealthWork } from '../integrations/health'
 // notify.morning (lib/notify/morning.ts registers the handler; /api/cron/daily-report queues it once a day)
 import '../notify/morning'
+// event.handle and loop.resume (lib/events/jobs.ts registers the handlers)
+import '../events/jobs'
 
 registerJobHandler('agent.run', async (payload, ctx) => {
   const agentId = String(payload.agentId ?? '')

@@ -15,12 +15,14 @@ dev_store_url = "james-jwtftl1e.myshopify.com"
 
 [access_scopes]
 # Installed with the app: read only. Enough for every template at "drafts only" (lib/connectors/shopify/config.ts REQUIRED_SCOPES).
-scopes = "read_products,read_inventory,read_locations"
+# Agent events add read-only order, fulfillment, customer, return and discount scopes (config.ts EVENT_SCOPES); every
+# write scope is still optional and asked for at runtime.
+scopes = "read_products,read_inventory,read_locations,read_orders,read_fulfillments,read_customers,read_returns,read_discounts"
 # Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant widens an agent past drafts only:
 #   write_products        Inventory Watcher after "after my approval" / "without asking" ("Continue selling when out of stock" On -> Off), price and SKU corrections
 #   read_publications,    publication correction only (which sales channels a product is on; publish / unpublish)
 #   write_publications
-# Must match OPTIONAL_SCOPES in config.ts. No customer, order, report or inventory-write scope anywhere.
+# Must match OPTIONAL_SCOPES in config.ts. No customer, order or inventory WRITE scope anywhere; no report scope.
 optional_scopes = ["write_products", "read_publications", "write_publications"]
 use_legacy_install_flow = false
 
@@ -34,6 +36,14 @@ api_version = "2026-10"
 
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled", "app/scopes_update", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
+  uri = "/api/shopify/webhooks"
+
+  # Agent events (lib/events): each delivery becomes one AgentEvent for the agents that react to it, after the HMAC
+  # check and receipt dedupe. products/update and inventory_levels/update (above) are routed too. These topics need
+  # the read scopes in [access_scopes] and, for orders, fulfillments, customers, refunds and returns, approved
+  # Protected customer data access (Partner Dashboard > App > API access). See lib/connectors/shopify/config.ts EVENT_TOPIC_SCOPES.
+  [[webhooks.subscriptions]]
+  topics = ["orders/create", "orders/updated", "orders/fulfilled", "orders/cancelled", "fulfillments/create", "fulfillments/update", "customers/create", "customers/update", "refunds/create", "returns/request", "returns/approve", "returns/decline", "returns/cancel", "returns/close", "returns/reopen", "discounts/create", "discounts/update"]
   uri = "/api/shopify/webhooks"
 
   [[webhooks.subscriptions]]

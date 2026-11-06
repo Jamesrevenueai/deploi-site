@@ -62,7 +62,7 @@ import { notifyCrewImpl } from '../lib/notify/crew'
 import { runUndo } from '../lib/undo/run'
 import { setMode } from '../lib/autonomy/settings'
 import { setSyntheticState, getSyntheticState, mutateSynthetic, commerceQuietState, seedCommerceScenario, injectFault, COMMERCE_IDS, type CommerceScenario, type SynthCommerce } from '../lib/connectors/shopify/synthetic'
-import { getSynth, mutateSynth, resetSynth, injectPortFault, synthPay } from '../lib/packs/synthetic'
+import { getSynth, mutateSynth, resetSynth, injectPortFault } from '../lib/packs/synthetic'
 import { chooseBusinessType } from '../lib/packs/settings'
 import { recordQuote, scheduleJob } from '../lib/packs/home-services'
 import { recordPlacement } from '../lib/packs/commission'
@@ -453,6 +453,11 @@ add({ id: 'A20', pack: 'A', title: 'Unreadable store -> agent reports failed, no
   run: async c => { await resetCommerce(c.m, ['weak_description']); await injectFault(c.m.conn, { op: 'commerce.products', mode: 'read_error', remaining: 50 }); await commerceSweep(c) },
   check: async (o, c) => [['nothing done for the description', workOf(o, 'weak_description').every(w => w.status !== 'done')], ['description untouched', (await commerceOf(c.m)).info[COMMERCE_IDS.candle.product].descriptionHtml === '<p>Nice candle.</p>']] })
 
+add({ id: 'A21', pack: 'A', title: 'Customer question that is not about an order -> left for the owner, unanswered', kind: 'edge', agents: ['customer_care'], expected: 'a draft for the owner (customer_message_for_owner); nothing sent to the customer',
+  rules: 'needs AI', rulesWhy: 'Rules can only recognise it is not a WISMO mail; answering "is it machine washable?" needs AI (or the owner).', synthetic: SYN_SHOP,
+  run: async c => { await resetCommerce(c.m); await mutateSynthetic(c.m.conn, s => { s.commerce!.mailbox.push({ id: 'mail-q-1', receivedAt: new Date().toISOString(), from: 'grace@shopper.example', to: 'hello@fernhill.example', subject: 'Is the throw machine washable?', text: 'Can I wash it?', inReplyTo: null }) }); await commerceSweep(c) },
+  check: async (o, c) => [['draft for owner', workOf(o, 'customer_message_for_owner').some(w => w.status === 'draft')], ['nothing sent', (await commerceOf(c.m)).outbox.length === 0]] })
+
 // ===== B. Home services
 
 const HS = (c: Ctx, settings: Record<string, unknown> = { reviewUrl: 'https://reviews.example/acme' }) => resetPacks(c.m, 'home_services', { trade: 'roofing', settings })
@@ -517,6 +522,11 @@ add({ id: 'B10', pack: 'B', title: 'Customer picks a quote time -> visit booked 
   run: async c => { await HS(c); await c.conn(mailboxEvent('lead.email', hsLead('m-1'), T)); await q(`delete from agent_loops where org_id = $1`, [c.m.org]); c.seeded()
     await c.conn(mailboxEvent('mail.received', { from: 'dana@homeowner.example', subject: 'Re: Your quote request', text: '2 works for me, thanks', messageId: 'r-1' }, plus(T, 1))) },
   check: async (_o, c) => [['booked', (await q1<{ kind: string }>(`select kind from pack_appointments where org_id = $1`, [c.m.org]))?.kind === 'quote_visit'], ['calendar event', (await getSynth(c.m.org, 'calendar')).events.length === 1]] })
+
+add({ id: 'B11', pack: 'B', title: 'Customer answers with a free-form time ("Tuesday afternoon") -> nothing booked', kind: 'edge', agents: ['hs_quote_booking'], expectNoAction: true, expected: 'no appointment is invented from words the rules cannot read',
+  rules: 'needs AI', rulesWhy: 'Mapping "Tuesday afternoon" onto an offered slot needs language understanding; rules safely do nothing.', synthetic: `${SYN_PORTS}; reply in the pack contract shape`,
+  run: async c => { await HS(c); await c.conn(mailboxEvent('lead.email', hsLead('m-1'), T)); c.seeded(); await c.conn(mailboxEvent('mail.received', { from: 'dana@homeowner.example', subject: 'Re: Your quote request', text: 'Tuesday afternoon would suit me best', messageId: 'r-ft' }, plus(T, 1))) },
+  check: async (_o, c) => [['nothing booked', (await q(`select 1 from pack_appointments where org_id = $1`, [c.m.org])).length === 0], ['calendar untouched', (await getSynth(c.m.org, 'calendar')).events.length === 0]] })
 
 // ===== C. Leasing
 
@@ -903,9 +913,60 @@ function report(results: Result[], meta: Record<string, unknown>): string {
 }
 
 /** Hand-written notes on failures and readiness (kept next to the code that produces the numbers). */
-const NOTES: Record<string, string[]> = {}
-const READINESS: Partial<Record<PackId, string>> = {}
-const EXTRA_SECTIONS: string[] = []
+const NOTES: Record<string, string[]> = {
+  A05: [
+    'Real product gap (NOT fixed): the commerce crew roster (CommerceStore.crew()) is not the Settings -> Crew roster (crew_members). The synthetic store hands notifyCrew the id `crew-packer-1`, which the real crew pipeline rejects with "an organization and a crew member are required"; the live store returns no crew at all (lib/commerce/pack/live-store.ts), so on a real store no packer is ever messaged. The failed packer message fails the verify, so the case is blocked and retried. One roster has to be chosen; that is a design decision, not a small fix.',
+    'FIXED by this run: before the fix the retry re-ran the whole act and emailed the customer a second time (observed: 2 delay emails to kit@shopper.example). Order Tracker now reuses the delay email it already sent (lib/commerce/pack/agents.ts; test "a packer message that fails ..." in tests/commerce/pack-scenarios.test.ts). The check "customer emailed once, even after a retry" now passes.',
+  ],
+  B03: ['Real product gap (NOT fixed): hs_dispatch sends to a pack_crew_members id (the crew list on the pack settings page) but the real notifyCrew looks the id up in crew_members (Settings -> Crew) and answers "skipped: no such crew member in this organization". The work order stays `scheduled`, the loop is not_verified and the owner is warned, but no crew member is ever messaged. tests/packs/home-services.test.ts passes only because tests/packs/helpers.ts fakes notifyCrew. Needs one crew roster for packs and notify.'],
+  F04: ['Same gap as B03: office_crew_updates reuses the home-services dispatcher (agent key hs_dispatch) and its pack_crew_members ids. The DONE -> invoice half works (the crew.done event is routed with the payload markJobDone emits).'],
+  C09: ['Real product gap (NOT fixed): the Outlook mail.received event carries ids, sender and subject but not the text (it stays encrypted in email_inbound, by design: lib/outlook/mail-events.ts). Every pack reply reader (renter answers, quote and showing picks, vendor and tenant replies, opt-outs) reads e.payload.text, so through the real Outlook path the renter\'s answers are invisible and nothing happens. The fix is a text read at handling time (lib/office/case-sync.ts inboundContent) in each pack\'s mail.received handler, with its own privacy review: not small. B10, C03, D04, D06, E01 and E03 pass only with the pack contract shape (text in the payload), which no real connection emits today.'],
+  E07: ['Same gap as C09: the tenant\'s mail arrives without its text, so the classifier sees only the subject ("Problem in my apartment") and no maintenance request is logged. A subject that carries a keyword would be logged, but without the unit.'],
+}
+const READINESS: Partial<Record<PackId, string>> = {
+  A: 'Every seeded problem was found unprompted by the sweep or the webhook it belongs to, verified by a fresh read, with working undo links and one action per problem across agents. Synthetic only: the live store does not wire sendEmail, inbox, sent or crew yet (lib/commerce/pack/live-store.ts), so the customer-email and packer agents cannot run on a real store.',
+  B: 'Leads (also through the real Outlook path after the lead-source fix), quote follow-ups, invoicing on DONE and payment chasing work on rules. Crew dispatch never reaches a crew member through the real crew pipeline (two crew rosters), and customer replies through Outlook are unreadable (no text).',
+  C: 'Strongest regulated-flow evidence: commission invoices exact to the cent and sent once, payment notices deduped, fair-housing content check refuses steering, 12 renters with different backgrounds get byte-identical replies apart from name and times. Renter answers through the real Outlook path are unreadable (no text).',
+  D: 'Buyer, seller and CRM leads (the CRM poll shape after the lead-source fix) are answered and logged in the CRM; a CRM outage is reported, not hidden. Showing picks and opt-outs work only with text in the payload (see C09). A seller lead that arrives through Outlook is treated as a buyer: the inbox-sync payload carries no subject or lead type.',
+  E: 'The Buildium path works end to end with the real poll shape (request read fresh, vendor dispatched, status written back, repeat poll deduped). Tenant and vendor emails through Outlook are unreadable (no text).',
+  F: 'QuickBooks changes in the real poll shape reach the receivables agent, due-only sweeps hold, a 401 is reported. Office quote follow-up and crew updates run the home-services code under hs_* agent keys (the dashboard shows them as home-services agents), and crew updates share the crew-roster gap.',
+}
+const EXTRA_SECTIONS: string[] = [
+  `## Code fixes made by this run
+
+1. **Pack lead sources read the payloads real connections emit** (lib/packs/leads.ts, test tests/packs/lead-sources.test.ts). Before: B02, C02 and D03 FAILED. A Zillow lead through the Outlook inbox sync (\`emitMailEvents\`) carries \`{ providerMessageId, lead: { source, name, email, phone, moveIn, ... } }\`, and a new CRM person (\`crm.contact.changed\` -> \`crm.lead.created\`) carries \`{ provider, contact: { id, kind, email, firstName, lastName } }\`. \`emailLeadSource.parse\` and \`crmLeadSource.parse\` read only the pack's own contract shape (\`messageId\` / \`externalId\` at the top level), returned null, and the handlers returned without a word: the job was marked succeeded, no lead row, no reply, no owner update (observed: \`{"sent":[],"activity":[],"leads":[]}\`). Both now map the real shapes; only labelled fields are read (an ISO move-in date; the free-text message is never mined).
+2. **Order Tracker never emails a customer twice on a retry** (lib/commerce/pack/agents.ts, new test in tests/commerce/pack-scenarios.test.ts). Before: when the packer message failed, the stuck-order case was retried and the delay email went out again (observed 2). Now the retry reuses the email it already sent.
+
+Both fixes were checked with tests/commerce/pack-scenarios.test.ts and tests/packs/*.test.ts (120 tests) run against the harness database, not deploi_test.`,
+  `## Real product bugs left failing
+
+| Scenario(s) | Bug | Exact error / observation | Why not fixed here |
+|---|---|---|---|
+| A05 | Commerce crew roster is not crew_members; live store returns no crew | notifyCrew: \`failed: an organization and a crew member are required (crewMemberId=crew-packer-1)\`; work row \`failed: the fresh read did not confirm the change\` | needs a decision on one crew roster |
+| B03, F04 | Pack crew (pack_crew_members) is not the notify crew (crew_members) | notifyCrew: \`skipped: no such crew member in this organization\`; work order stays \`scheduled\`, loop \`not_verified\` | same roster decision |
+| C09, E07 (and every reply flow through Outlook) | Outlook mail.received has no text; packs read payload.text | no lead/request change, no activity row, job \`succeeded\` | needs a decrypting text read in each pack handler plus a privacy review |`,
+  `## Observations (not failures)
+
+- Office quote follow-up and crew updates write their activity under \`hs_quote_followup\` / \`hs_dispatch\` / \`hs_invoice\` (lib/packs/home-services.ts is reused with pack = office), so the Office pack dashboard attributes them to home-services agent keys.
+- The ask-first flow has no expiry: an owner who never answers gets a reminder at 24 h and an escalation at 72 h, and the action stays decidable. X05 checks that nothing is done or sent; "expires" is not a product behaviour.
+- The QuickBooks payment change carries only the payment id, so the leasing payment matcher needs the pack-shaped notice (C06 uses it; the limit is documented in lib/connections/events.ts).
+- Detection times are wall-clock milliseconds from the end of seeding to the first agent_loops row, measured on this machine with the job worker running in-process right after the trigger. In production the sweep runs every 15 minutes and webhooks are handled right after the response, so real detection time is dominated by that schedule, not by these numbers.`,
+  `## How the harness stays honest
+
+- Own database \`${DB_NAME}\`, created, migrated (scripts/migrate.ts) and seeded (scripts/seed.ts) by the harness; it refuses a non-local URL. deploi_test is never touched.
+- No agent is called directly; the only entry points are emitSweep, routeEvent (Shopify webhook and crew events, shaped as lib/connectors/shopify/webhooks.ts and lib/notify/crew.ts emit them), emitConnectionEvent (mailbox, CRM, QuickBooks, Buildium) and emitMailEvents (Outlook), then runDueJobs. X03 runs three job workers in parallel.
+- "Pack contract shape" events (lead.email / mail.received with text from a \`mailbox\` source, quickbooks.payment with an invoice number) are synthetic: they are what the pack tests feed, not what a real connection emits today. Scenarios that use the real emitters say so in their title.
+- Time: packs read the event's own time, so sweeps are emitted at simulated times. X05 simulates the passing of 25 h and 73 h by moving the loop's asked_at and the case's next_check_at back, then runs the real case.check jobs. X06 moves next_retry_at back to make a retry due.
+- For packs B-F the Harbor organization's Shopify connection is marked uninstalled so the commerce agents stay out of the measurement; packs B-F do not need a store.
+- Owner emails: "rendered" means an owner_updates email row whose system_emails row has a rendered HTML body (> 200 characters); every one is held (no RESEND_API_KEY). Undo: tokens are counted in undo_tokens; A03 and A10 redeem the token from the owner update through runUndo, the same code as the /undo link.`,
+  `## Rerun
+
+\`\`\`
+service postgresql start   # if Postgres is down
+npx tsx scripts/scenario-harness.ts                 # all packs, writes this file and proof/scenarios/results.json
+npx tsx scripts/scenario-harness.ts --only A,X05    # a subset (prints only, writes nothing)
+\`\`\``,
+]
 
 // ------------------------------------------------------------------ main
 

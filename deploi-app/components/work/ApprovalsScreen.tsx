@@ -40,7 +40,7 @@ export function ApprovalsScreen() {
         {data.approvals === null && <Banner tone="warn"><strong>The approvals list could not be read.</strong> Cases waiting for you are still listed below.</Banner>}
         {data.approvals?.errors?.map(e => <Banner key={e.source} tone="warn"><strong>Some items could not be loaded</strong> ({e.source}): {e.message}</Banner>)}
       </div>
-      <p className="mb-2 text-[14px] text-grey-h" data-testid="approvals-total">{total} waiting</p>
+      {total > 0 && <p className="mb-2 text-[14px] text-grey-h" data-testid="approvals-total">{total} waiting</p>}
       {total === 0 && (
         <EmptyState title="Nothing needs you right now" testId="needs-you-empty" action={<><Button href="/store">Back to the Command center</Button><Button variant="secondary" href="/store/work">See work in progress</Button></>}>
           Your agents have no decisions waiting for you. When one needs a yes, it shows up here with what it spotted and what it prepared.

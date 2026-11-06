@@ -238,9 +238,9 @@ button.badge[aria-pressed="true"] { color: var(--c-on-accent); background: var(-
 .au-level button { border: 0; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; color: var(--c-body); background: transparent; cursor: pointer; }
 .au-level button[aria-pressed="true"] { color: #fff; background: var(--c-accent); }
 .au-level button:disabled { opacity: 0.5; cursor: not-allowed; }
-.au-feedback { position: fixed; right: 16px; bottom: 80px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-ink); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-raised); cursor: pointer; }
+.au-feedback { position: fixed; right: 16px; bottom: 16px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-ink); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-raised); cursor: pointer; }
 @media (min-width: 960px) { .au-feedback { bottom: 24px; right: 24px; } }
-.au-help { position: fixed; right: 136px; bottom: 80px; z-index: 45; }
+.au-help { position: fixed; right: 136px; bottom: 16px; z-index: 45; }
 @media (min-width: 960px) { .au-help { bottom: 24px; right: 144px; } }
 .au-help-menu { position: absolute; right: 0; bottom: 48px; min-width: 230px; padding: 6px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-raised); }
 .au-step { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--c-line); }

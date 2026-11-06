@@ -7,7 +7,8 @@
 /* ------------------------------------------------------------------ backdrop and surface */
 .app-backdrop {
   min-height: 100vh; min-height: 100dvh;
-  padding: 24px;
+  /* the bottom keeps room for the floating Help and Feedback buttons, so they never cover the last row */
+  padding: 24px 24px 80px;
   background-color: var(--app-backdrop);
   background-image:
     radial-gradient(ellipse 55% 50% at 0% 0%, color-mix(in srgb, var(--app-glow-tl) 60%, transparent), transparent 70%),
@@ -25,7 +26,7 @@
 }
 .app-main { flex: 999 1 560px; min-width: 0; }
 @media (max-width: 640px) {
-  .app-backdrop { padding: 8px; }
+  .app-backdrop { padding: 8px 8px 72px; }
   .app-surface { padding: 16px; gap: 16px; border-radius: 18px; }
 }
 .app-skip { position: absolute; left: 8px; top: -60px; z-index: 100; padding: 10px 14px; border-radius: 10px; background: var(--app-btn-bg); color: var(--app-btn-text); font-weight: 600; }
@@ -34,7 +35,7 @@
 
 /* ------------------------------------------------------------------ sidebar */
 .app-sidebar {
-  flex: 1 1 240px; max-width: 100%;
+  flex: 1 1 240px; min-width: 0; max-width: 100%;
   display: flex; flex-direction: column; gap: 18px;
   padding: 18px 14px; background: var(--app-fill); border-right: 1px solid var(--app-border-card); border-radius: 16px;
 }

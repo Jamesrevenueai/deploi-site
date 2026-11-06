@@ -193,16 +193,24 @@ describe.skipIf(!ready)('alerts', () => {
   })
 
   it('repeated unknown outcomes in 24 hours alert the organization', async () => {
-    process.env.OPS_UNKNOWN_24H = '2'
+    // outcomes other test files left unconfirmed in the last 24 hours count too: measure them first, so this test
+    // does not depend on the order the files run in
+    const since = new Date(Date.now() - 864e5).toISOString()
+    const base = (await admin(db => db.one<{ store: number; office: number; email: number }>(`select
+      (select count(*)::int from executions where org_id = $1 and status = 'unknown' and coalesce(finished_at, started_at) > $2) as store,
+      (select count(*)::int from office_actions where org_id = $1 and status = 'unknown' and updated_at > $2) as office,
+      (select count(*)::int from email_messages where org_id = $1 and status = 'delivery_unknown' and updated_at > $2) as email`, [NW.org, since])))!
+    const before = base.store + base.office + base.email
+    process.env.OPS_UNKNOWN_24H = String(before + 2)
     await evaluateAlerts({ rules: ['execution.unknown'] })
-    expect(await live('execution.unknown')).toEqual([])
+    expect((await live('execution.unknown')).filter(a => a.org_id === NW.org)).toEqual([])
     const keys = [`ops-test:${randomUUID()}`, `ops-test:${randomUUID()}`]
     await asOwner(async q => {
       for (const k of keys) await q(`insert into office_actions (org_id, agent_id, kind, purpose, idempotency_key, status, payload, payload_hash) values ($1, gen_random_uuid(), 'crm_note', 't', $2, 'unknown', '{}', 'h')`, [NW.org, k])
     })
     try {
       await evaluateAlerts({ rules: ['execution.unknown'] })
-      expect((await live('execution.unknown'))[0]).toMatchObject({ org_id: NW.org, title: '2 outcomes in 24 hours could not be confirmed', detail: expect.objectContaining({ office_actions: 2 }) })
+      expect((await live('execution.unknown')).find(a => a.org_id === NW.org)).toMatchObject({ org_id: NW.org, title: `${before + 2} outcomes in 24 hours could not be confirmed`, detail: expect.objectContaining({ office_actions: base.office + 2 }) })
     } finally { await admin(db => db.query(`delete from office_actions where idempotency_key = any($1)`, [keys])) }
   })
 

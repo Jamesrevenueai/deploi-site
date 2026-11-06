@@ -727,7 +727,7 @@ add({ id: 'F06', pack: 'F', title: 'QuickBooks rejects the token mid-run -> noth
 
 // ===== X. Cross-cutting
 
-add({ id: 'X01', pack: 'X', org: 'NW', title: 'Duplicate events: the same Shopify event twice -> one action', kind: 'edge', agents: ['customer_care'], expected: 'router records one event + one duplicate; one reply to the customer',
+add({ id: 'X01', pack: 'X', org: 'NW', title: 'Duplicate events: the same store-mailbox event routed twice -> one reply', kind: 'edge', agents: ['customer_care'], expected: 'router records one event + one duplicate; one reply to the customer',
   rules: 'fully', rulesWhy: 'Dedupe on provider id; no judgement.', synthetic: SYN_SHOP,
   run: async c => { await resetCommerce(c.m, ['wismo_email']); c.seeded(); const e = { source: 'mailbox' as const, type: 'mail.received', externalId: 'mail:dup-1', occurredAt: new Date().toISOString(), payload: { id: 'mail-wismo-1', from: 'ben@shopper.example' } }
     c.facts.first = await c.route(e); c.facts.second = await c.route(e) },

@@ -46,7 +46,7 @@ test('the navigation has the customer labels, and old URLs still work', async ({
   await signIn(page, NORTHWIND)
   await expect(page).toHaveURL(/\/store$/)
   const nav = page.getByRole('navigation', { name: 'Main' })
-  const labels = ['Command center', 'Needs you', 'My agents', 'Agent library', 'Proof log', 'Connections', 'Plan & actions']
+  const labels = ['Command center', 'Needs you', 'My agents', 'Team room', 'Agent library', 'Proof log', 'Connections', 'Plan & actions']
   // a label may carry its live count after it ("Needs you 2", "My agents 5")
   await expect(nav.getByRole('link')).toHaveText(labels.map(l => new RegExp(`^${l.replace(/[&]/g, '\\$&')}\\s*\\d*$`)))
   await expect(nav.getByRole('link', { name: /^Command center/ })).toHaveAttribute('aria-current', 'page')

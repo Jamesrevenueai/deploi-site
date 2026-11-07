@@ -11,10 +11,11 @@ import { isLibraryError } from '../library/errors'
 import { AGENT_REF, type AgentAutonomy } from './profiles'
 import { commandCenter, merchantOrg, isWorkspace } from './feeds'
 import { actorKey, getWorkspace, pauseAgent, resumeAgent, setAgentAutonomy } from './control'
+import { delegateTask } from './tasks'
 import type { ChatAction, ChatIntent, ChatMessage, NeedsYouItem, TeamAgent, Workspace } from './contract'
 
 export const CHAT_MAX = 1000
-const CAN_DO = ['"status" (what I am doing now)', '"what did you do today"', '"what needs me"', '"pause" or "resume"', '"ask me first", "do it and tell me" or "go autonomous"']
+const CAN_DO = ['"task: ..." (give me a job)', '"status" (what I am doing now)', '"what did you do today"', '"what needs me"', '"pause" or "resume"', '"ask me first", "do it and tell me" or "go autonomous"']
 const LEVEL_WORDS: Record<AgentAutonomy, string> = { ask_first: 'ask you first', act_then_tell: 'do it and tell you after', autonomous: 'act on its own and tell you in the daily summary' }
 
 export function intentOf(text: string): { intent: ChatIntent; autonomy?: AgentAutonomy } {
@@ -28,6 +29,8 @@ export function intentOf(text: string): { intent: ChatIntent; autonomy?: AgentAu
   if (/\b(today|so far|what (did|have) you (do|done)|what got done|done today)\b/.test(t)) return { intent: 'today' }
   if (/\b(status|what are you (doing|up to)|doing now|how are you|how is it going|what'?s happening|working on)\b/.test(t)) return { intent: 'status' }
   if (/\b(help|what can you do|commands?)\b/.test(t)) return { intent: 'help' }
+  // a job for the agent: "task: ...", "please ...", "can you ...": it becomes a delegated task (lib/app/tasks.ts)
+  if (/(^|, |: |^@\S+ )(task|todo|to do)\s*:/.test(t) || /(^|, |: |^@\S+ )(please|can you|could you|i need you to|go and|make sure)\b/.test(t)) return { intent: 'delegate' }
   return { intent: 'unknown' }
 }
 
@@ -83,6 +86,15 @@ async function reply(actor: Actor, agentId: string | null, workspace: Workspace,
         await setAgentAutonomy(actor, agent.id, autonomy)
         return { intent, text: `Done: ${agent.name} will now ${LEVEL_WORDS[autonomy!]}. Anything that moves money still waits for your approval.` }
       } catch (e) { return { intent, text: honestRefusal(e) } }
+    }
+    case 'delegate': {
+      // only a task actually given counts as 'delegate' (the room shows it once, as the task); otherwise it stays chat
+      if (!agent) return { intent: 'unknown', text: `Which agent should take it? Start with its name, e.g. "${cc.team[0]?.name ?? 'Inventory Watcher'}, please ...", or open the agent and give it the task there.` }
+      try {
+        const named = text.toLowerCase().startsWith(agent.name.toLowerCase()) ? text.slice(agent.name.length).replace(/^[\s,:]+/, '') : text
+        const task = await delegateTask(actor, agent.id, named.replace(/^@\S+\s+/, '').replace(/^(task|todo|to do)\s*:\s*/i, ''))
+        return { intent, text: `Task ${task.ref} given to ${agent.name}. ${task.reply}` }
+      } catch (e) { return { intent: 'unknown', text: honestRefusal(e) } }
     }
     case 'help':
       return { intent, text: `Here is what I can do: ${CAN_DO.join(', ')}.` }

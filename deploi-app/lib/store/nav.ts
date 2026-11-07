@@ -3,7 +3,7 @@
  * The embedded Shopify app uses App Bridge's own menu.
  *
  * The labels are the owner's words for the work (approved redesign 2026-11-06): Command center, Needs you, My agents,
- * Agent library, Proof log, Connections, Plan & actions. Pages that are not in the list (work in progress, inbox,
+ * Team room (the agents' own conversation, added 2026-11-07), Agent library, Proof log, Connections, Plan & actions. Pages that are not in the list (work in progress, inbox,
  * insights, settings) stay reachable from the pages that link to them and from the sidebar's footer (Settings).
  */
 import type { NavItem } from '../nav'
@@ -15,6 +15,7 @@ export const MERCHANT_NAV: AppNavItem[] = [
   { href: '/store', label: 'Command center', icon: 'home', exact: true, also: ['/store/control-room'] },
   { href: '/store/approvals', label: 'Needs you', icon: 'check', count: 'needsYou', also: ['/office/approvals'] },
   { href: '/store/my-team', label: 'My agents', icon: 'users', count: 'agents', also: ['/agents', '/store/agents', '/office/agents', '/store/packs'] },
+  { href: '/store/room', label: 'Team room', icon: 'chat' },
   { href: '/store/team', label: 'Agent library', icon: 'spark' },
   { href: '/store/completed', label: 'Proof log', icon: 'badge', also: ['/store/activity', '/store/weekly', '/office/log'] },
   { href: '/store/integrations', label: 'Connections', icon: 'plug', also: ['/store/connections', '/store/connect', '/office/connections'] },

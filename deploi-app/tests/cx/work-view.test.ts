@@ -20,12 +20,13 @@ const approval = (over: Partial<ApprovalEntry> = {}): ApprovalEntry => ({ source
 
 describe('customer navigation', () => {
   it('has the exact labels in order (approved redesign)', () => {
-    expect(NAV_LABELS).toEqual(['Command center', 'Needs you', 'My agents', 'Agent library', 'Proof log', 'Connections', 'Plan & actions'])
+    expect(NAV_LABELS).toEqual(['Command center', 'Needs you', 'My agents', 'Team room', 'Agent library', 'Proof log', 'Connections', 'Plan & actions'])
   })
   it('maps each label to its page and keeps old pages under the right entry', () => {
     expect(nav('Command center').href).toBe('/store')
     expect(nav('Needs you')).toMatchObject({ href: '/store/approvals', count: 'needsYou' })
     expect(nav('My agents')).toMatchObject({ href: '/store/my-team', count: 'agents' })
+    expect(nav('Team room').href).toBe('/store/room')
     expect(nav('Agent library').href).toBe('/store/team')
     expect(nav('Proof log').href).toBe('/store/completed')
     expect(nav('Plan & actions').href).toBe('/store/plan')

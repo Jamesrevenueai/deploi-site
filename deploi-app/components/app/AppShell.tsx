@@ -39,6 +39,14 @@ export function AppShell({ shell, session, children, subnav }: { shell: ShellDat
             </div>
           </div>
           <SidebarNav items={MERCHANT_NAV} counts={{ needsYou: shell.needsYouCount, agents: shell.agentCount }} />
+          {(shell.sections ?? []).length > 0 && (
+            <nav aria-label="Your business" className="app-nav-sub" data-testid="business-sections">
+              <p className="app-label">Your business</p>
+              <ul className="app-nav">
+                {shell.sections.map(s => <li key={s.href}><Link href={s.href} className="app-nav-link"><span>{s.label}</span></Link></li>)}
+              </ul>
+            </nav>
+          )}
           <Usage allowance={shell.allowance} />
           <div className="app-signout">
             <span title={session.email}>{session.email}</span>

@@ -21,12 +21,14 @@ import { fakeResend, resetEnv, cleanNotify, sent } from './helpers'
 const ready = await prepareDb()
 const T0 = new Date()
 
+// the report lists the first 20 resolved cases of the window, oldest first: the seeded one closes early in the
+// window, so other suites' cases resolved during the same run cannot push it out of the list
 async function seedNight() {
   await notifyOwner({ orgId: NW.org, agentKey: 'refunds', agentName: 'Refund Agent', headline: 'Refunded order #1001', whatHappened: 'Charged twice.', whatIDid: ['Refunded'], proof: [], detailsPath: '/store/work/DC-1', severity: 'info', dedupeKey: `m-${Date.now()}-1` })
   await notifyOwner({ orgId: NW.org, agentKey: 'pricing', agentName: 'Pricing Agent', headline: 'Discount <b>50%</b> needs OK', whatHappened: 'x', whatIDid: [], proof: [], detailsPath: '/store/approvals', severity: 'action', dedupeKey: `m-${Date.now()}-2` })
   await admin(async db => {
     await db.query(`insert into cases (org_id, suite, kind, source_app, dedupe_key, title, problem, status, outcome, closed_at) values
-      ($1,'commerce','morning_test','import','morning:resolved','Stuck order 1001','x','resolved',$2,now()),
+      ($1,'commerce','morning_test','import','morning:resolved','Stuck order 1001','x','resolved',$2,now() - interval '23 hours'),
       ($1,'commerce','morning_test','import','morning:blocked','Supplier missing tracking','x','blocked',null,null),
       ($1,'commerce','morning_test','import','morning:waiting','Refund over limit','x','awaiting_approval',null,null)`, [NW.org, JSON.stringify({ summary: 'ok', verifiedAt: new Date().toISOString() })])
     await db.query(`update cases set status_reason = 'the supplier has not answered in 2 days' where org_id = $1 and dedupe_key = 'morning:blocked'`, [NW.org])

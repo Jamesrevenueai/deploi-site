@@ -1,7 +1,7 @@
 'use client'
 /**
  * The agent dashboard (/agents/:id): header with pause/resume and "Call this agent", four stats, the chat, its
- * autonomy level, standing instructions, what it can touch, and its work with proof. All real data: the server
+ * tasks you gave it, its autonomy level, standing instructions, what it can touch, and its work with proof. All real data: the server
  * page passes the first dashboard and chat history; every change goes through /api/app (or the pause action).
  */
 import { useRef, useState } from 'react'
@@ -12,6 +12,7 @@ import { setAgentPaused, type PauseResult } from './actions'
 import { Button, MicIcon, StatusPill } from './bits'
 import { AutonomyCard } from './AutonomyCard'
 import { InstructionsCard } from './InstructionsCard'
+import { TasksCard } from './TasksCard'
 import { ChatPanel, type ChatHandle } from './ChatPanel'
 import { ScopesCard, StatCards, WorkTable } from './Panels'
 
@@ -69,6 +70,8 @@ export function AgentDashboard({ initial, history, pause = setAgentPaused }: { i
         <ChatPanel ref={chat} agent={agent} history={history}
           ops={{ send: async t => { const m = await agentApi.chat(id, t); void refresh(); return m }, decide: async a => { await agentApi.decide(a.needsYouId, a.decision); void refresh() } }} />
         <div className="flex min-w-0 flex-col gap-5">
+          <TasksCard agentName={agent.name} tasks={d.tasks ?? []}
+            ops={{ give: async t => { const r = await agentApi.giveTask(id, t); await refresh(); return r }, finish: async (ref, op) => { await agentApi.finishTask(ref, op); await refresh() } }} />
           <AutonomyCard agentName={agent.name} value={agent.autonomy} chosen={agent.autonomyChosen} onSave={saveAutonomy} />
           <InstructionsCard agentName={agent.name} initial={d.instructions}
             ops={{ add: t => agentApi.addInstruction(id, t), update: (iid, t) => agentApi.updateInstruction(id, iid, t), remove: async iid => { await agentApi.deleteInstruction(id, iid) } }} />

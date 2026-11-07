@@ -10,6 +10,8 @@ import type { Actor } from '../engine/actor'
 import type { Session } from '../session'
 import { commandCenter, getWorkspace } from './contract'
 import { orgStopReason } from '../engine/kill-switch'
+import { orgPacks } from '../packs/settings'
+import { PACKS } from '../packs/registry'
 import type { Allowance, CommandCenter, Workspace } from './contract'
 
 export type ShellData = {
@@ -21,6 +23,8 @@ export type ShellData = {
   needsYouCount: number
   agentCount: number
   allowance: Allowance
+  /** the business's own sections: one per agent pack that is on (Commerce, Home services, Leasing ...), each its pack page */
+  sections: { href: string; label: string }[]
 }
 
 const PLATFORM: Record<string, string> = { shopify: 'Shopify', woocommerce: 'WooCommerce', amazon: 'Amazon' }
@@ -59,8 +63,9 @@ export async function workspaceSources(orgId: string, workspace: Workspace): Pro
 
 export async function loadShell(actor: Extract<Actor, { kind: 'profile' }>): Promise<ShellData> {
   const workspace = await loadWorkspace(actor)
-  const [cc, ws] = await Promise.all([loadCommandCenter(actor, workspace), workspaceSources(actor.orgId, workspace)])
-  return { workspace, workspaceName: ws.name, sources: ws.sources, needsYouCount: cc.needsYou.length, agentCount: cc.team.length, allowance: cc.allowance }
+  const [cc, ws, packs] = await Promise.all([loadCommandCenter(actor, workspace), workspaceSources(actor.orgId, workspace), admin(db => orgPacks(db, actor.orgId))])
+  const sections = packs.packs.map(k => ({ href: `/store/packs/${k}`, label: k === 'office' ? 'Office' : PACKS[k].name }))
+  return { workspace, workspaceName: ws.name, sources: ws.sources, needsYouCount: cc.needsYou.length, agentCount: cc.team.length, allowance: cc.allowance, sections }
 }
 
 /** The organization's own time zone (agencies.timezone), for the greeting and dates. */

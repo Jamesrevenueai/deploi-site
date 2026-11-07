@@ -8,9 +8,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type { CommandCenter as Data, NeedsYouItem } from '@/lib/app/contract'
+import type { CommandCenter as Data, Learned as LearnedData, NeedsYouItem } from '@/lib/app/contract'
 import { Button, Card, EmptyState } from '@/components/app/ui'
 import { Hero } from './Hero'
+import { Learned } from './Learned'
 import { NeedsYouCard } from './NeedsYouCard'
 import { DoneList } from './DoneList'
 import { TeamTable } from './TeamTable'
@@ -28,7 +29,7 @@ const has = (q: string, ...xs: (string | null | undefined)[]) => xs.some(x => (x
  * `now` is the time of the server's read and `timeZone` the organization's own, so the greeting and the times are
  * the same on the server and in the browser (no hydration mismatch) and match the business's day.
  */
-export function CommandCenter({ data, now: nowIso, timeZone, stopped = null, canAct = true }: { data: Data; now: string; timeZone: string; stopped?: string | null; canAct?: boolean }) {
+export function CommandCenter({ data, now: nowIso, timeZone, stopped = null, canAct = true, learned }: { data: Data; now: string; timeZone: string; stopped?: string | null; canAct?: boolean; learned?: LearnedData | null }) {
   const router = useRouter()
   const now = useMemo(() => new Date(nowIso), [nowIso])
   const [query, setQuery] = useState('')
@@ -57,12 +58,14 @@ export function CommandCenter({ data, now: nowIso, timeZone, stopped = null, can
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
             <input type="search" className="app-input" placeholder="Search agents, orders, proof" value={query} onChange={e => setQuery(e.target.value)} />
           </label>
+          <Button variant="secondary" href="/store/room">Team room</Button>
           <Button onClick={() => setChat({ agentId: null, name: 'your team' })}><MicIcon />Talk to your team</Button>
         </div>
       </header>
 
       <StopNotice stopped={stopped} canAct={canAct} onChanged={refresh} />
       <Hero hero={data.hero} now={now} />
+      {learned !== undefined && <Learned data={learned} />}
 
       <div className="cc-cols">
         <section aria-labelledby="needs-title">

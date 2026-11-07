@@ -1,5 +1,5 @@
 /** Client calls of the agent dashboard to the /api/app endpoints (lib/app/contract.ts). */
-import type { AgentAutonomy, AgentDashboard, AutonomyResult, ChatMessage, Instruction, NeedsYouDecision } from '@/lib/app/contract'
+import type { DelegatedTask, AgentAutonomy, AgentDashboard, AutonomyResult, ChatMessage, Instruction, NeedsYouDecision } from '@/lib/app/contract'
 
 export class ApiError extends Error { constructor(public status: number, public code: string, message: string) { super(message); this.name = 'ApiError' } }
 
@@ -32,5 +32,7 @@ export const agentApi = {
   updateInstruction: async (id: string, instructionId: string, text: string) => (await call<{ instruction: Instruction }>('PATCH', `${base(id)}/instructions/${encodeURIComponent(instructionId)}`, { text })).instruction,
   deleteInstruction: (id: string, instructionId: string) => call<{ deleted: true }>('DELETE', `${base(id)}/instructions/${encodeURIComponent(instructionId)}`),
   chat: async (id: string, text: string) => (await call<{ messages: ChatMessage[] }>('POST', `${base(id)}/chat`, { text })).messages,
+  giveTask: async (id: string, text: string) => (await call<{ task: DelegatedTask }>('POST', `${base(id)}/tasks`, { text })).task,
+  finishTask: (ref: string, op: 'done' | 'cancel') => call<{ task: { ref: string; status: string } }>('POST', `/api/app/tasks/${encodeURIComponent(ref)}`, { op }),
   decide: async (needsYouId: string, decision: 'approve' | 'decline') => (await call<{ result: NeedsYouDecision }>('POST', `/api/app/needs-you/${encodeURIComponent(needsYouId)}`, { decision })).result,
 }

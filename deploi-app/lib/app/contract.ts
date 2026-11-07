@@ -135,13 +135,15 @@ export type ScopeLevel = 'read' | 'draft' | 'ask' | 'act'
 export type AgentScope = { label: string; level: ScopeLevel }
 export type WorkRow = { when: string; what: string; result: string; proof: Proof | null }
 export type Instruction = { id: string; agentId: string; text: string; position: number; createdBy: string; createdAt: string; updatedAt: string }
-export type AgentDashboard = { agent: TeamAgent; stats: AgentStat[]; scopes: AgentScope[]; work: WorkRow[]; instructions: Instruction[] }
+/** A task the owner gave this agent (a case of kind owner_task); open ones first, then the last finished. */
+export type AgentTask = { ref: string; text: string; status: string; result: string; open: boolean; at: string }
+export type AgentDashboard = { agent: TeamAgent; stats: AgentStat[]; scopes: AgentScope[]; work: WorkRow[]; instructions: Instruction[]; tasks: AgentTask[] }
 
 export type AutonomyResult = { agentId: string; autonomy: AgentAutonomy; changed: boolean; applied: string[] }
 
 export type ChatAction = { label: string; needsYouId: string; decision: 'approve' | 'decline' }
 export type ChatMessage = { id?: string; role: 'owner' | 'agent'; text: string; actions?: ChatAction[]; at?: string; agentId?: string | null }
-export type ChatIntent = 'status' | 'today' | 'needs_you' | 'pause' | 'resume' | 'set_autonomy' | 'help' | 'unknown'
+export type ChatIntent = 'status' | 'today' | 'needs_you' | 'pause' | 'resume' | 'set_autonomy' | 'delegate' | 'help' | 'unknown'
 
 // ---------------------------------------------------------------- server functions
 
@@ -149,3 +151,6 @@ export { getWorkspace, setWorkspace, defaultWorkspace, setAgentAutonomy, pauseAg
 export { needsYou, decideNeedsYou, doneWithProof, team, hero, allowance, agentDashboard, commandCenter, findAgent } from './feeds'
 export { chat, chatHistory } from './chat'
 export { instructionsFor } from './profiles'
+export { delegateTask, finishTask, TASK_KIND, type DelegatedTask } from './tasks'
+export { teamRoom, type RoomMessage } from './room'
+export { learned, type Learned } from './learned'

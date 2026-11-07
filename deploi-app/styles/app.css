@@ -201,3 +201,44 @@
 /* the pages that keep their own screens render inside the white surface: they use the light values of the shared
    Aurora layer (.aurora-surface in styles/aurora.css), set on .app-main */
 .app-main .subnav { margin-top: 0; }
+
+/* ---------------------------------------------------------------- team room (/store/room) */
+.room { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding-bottom: 72px; }
+.room-sub { color: var(--app-text-2); font-size: 14px; margin: 6px 0 0; max-width: 640px; }
+.room-team { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.room-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px 4px 6px; border: 1px solid var(--app-border-card); border-radius: 999px; color: var(--app-text); font-size: 13px; font-weight: 600; text-decoration: none; background: var(--app-surface); }
+.room-chip:hover { background: var(--app-fill); }
+.room-chip:focus-visible { outline: 2px solid var(--app-working-text); outline-offset: 2px; }
+.room-log { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 16px; list-style: none; border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius-lg); background: var(--app-fill); max-height: max(260px, calc(100vh - 420px)); overflow-y: auto; }
+.room-msg { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.room-msg--owner { flex-direction: row-reverse; }
+.room-msg--owner .room-body { background: var(--app-btn-bg); color: #fff; }
+.room-msg--owner .room-meta, .room-msg--owner .room-meta time { color: #D5D5E0; }
+.room-msg--owner .room-link { color: #fff; }
+.room-msg--deploi .room-body { background: var(--app-proof-bg); }
+.room-body { min-width: 0; max-width: min(640px, 100%); padding: 10px 14px; border-radius: 14px; background: var(--app-surface); border: 1px solid var(--app-border-card); }
+.room-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0 0 4px; font-size: 12.5px; color: var(--app-text-2); }
+.room-meta strong { color: inherit; font-weight: 700; }
+.room-msg--agent .room-meta strong, .room-msg--deploi .room-meta strong { color: var(--app-text); }
+.room-kind { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; background: var(--app-off-bg); color: var(--app-off-text); }
+.room-text { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
+.room-link { display: inline-block; margin-top: 6px; font-size: 13px; }
+.room-avatar { flex: none; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; font: 700 14px var(--app-font-heading); color: #fff; background: var(--app-btn-bg); }
+.room-avatar--deploi { background: linear-gradient(135deg, var(--app-glow-tl), var(--app-glow-tr) 60%, var(--app-glow-br)); }
+.room-compose { display: flex; gap: 10px; }
+.room-compose .app-input { flex: 1; min-width: 0; }
+.room-error { color: #B42318; font-size: 13px; font-weight: 600; margin: 0; }
+
+/* ---------------------------------------------------------------- what your team learned (Command center) */
+.learned { display: grid; gap: 14px; padding: 20px; border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius-lg); background: var(--app-surface); }
+.learned-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; }
+.learned-line { margin: 0; color: var(--app-text-2); font-size: 14px; }
+.learned-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.learned-facts li { padding: 10px 12px; border-radius: 12px; background: var(--app-fill); min-width: 0; }
+.learned-facts .v { display: block; font: 700 18px var(--app-font-heading); color: var(--app-text); overflow-wrap: anywhere; }
+.learned-facts .k { display: block; font-size: 12.5px; color: var(--app-text-2); }
+.learned-miss { margin: 0; font-size: 13px; color: var(--app-waiting-text); }
+
+/* ---------------------------------------------------------------- sidebar: your business sections */
+.app-nav-sub { margin-top: 4px; }
+.app-nav-sub .app-nav-link { font-size: 13.5px; }

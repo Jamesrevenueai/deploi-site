@@ -20,7 +20,7 @@ import { ESTIMATE_MINUTES } from '../agents/weekly'
 import { PACK_AGENTS } from '../packs/registry'
 import { teamState, liveTeam, refOfCase, refOfLoop, workspaceOfRef, type AgentSource, type TeamState } from './team'
 import { listInstructionsIn } from './control'
-import type { AgentDashboard, AgentScope, AgentStat, Allowance, CommandCenter, DoneItem, Hero, NeedsYouDecision, NeedsYouItem, Proof, TeamAgent, WorkRow, Workspace } from './contract'
+import type { AgentDashboard, AgentScope, AgentStat, AgentTask, Allowance, CommandCenter, DoneItem, Hero, NeedsYouDecision, NeedsYouItem, Proof, TeamAgent, WorkRow, Workspace } from './contract'
 
 export const isWorkspace = (v: unknown): v is Workspace => v === 'store' || v === 'office'
 
@@ -400,6 +400,14 @@ async function workFor(db: Db, orgId: string, st: TeamState, src: AgentSource): 
   return rows.sort((a, b) => b.when.localeCompare(a.when)).slice(0, 30)
 }
 
+async function tasksFor(db: Db, orgId: string, st: TeamState, src: AgentSource): Promise<AgentTask[]> {
+  const rows = await db.query<{ ref: string; problem: string; status: string; agent_kind: string | null; agent_ref: string | null; dedupe_key: string; records: { type: string; id: string }[]; updated_at: string }>(
+    `select ref, problem, status, agent_kind, agent_ref, dedupe_key, records, updated_at from cases where org_id = $1 and kind = 'owner_task' order by (status in ('resolved','cancelled')), updated_at desc limit 200`, [orgId])
+  return rows.filter(r => refOfCase(st.idx, r) === src.id).slice(0, 10).map(r => ({
+    ref: r.ref, text: r.problem, status: r.status, result: r.status === 'resolved' ? 'Done' : RESULT[r.status] ?? r.status, open: !['resolved', 'cancelled'].includes(r.status), at: iso(r.updated_at),
+  }))
+}
+
 /** One agent's page: the agent, four stats for its kind, what it may do (from its real grants), its work and instructions. */
 export async function agentDashboard(actor: Actor, id: string, opts: { now?: Date } = {}): Promise<AgentDashboard> {
   const orgId = merchantOrg(actor)
@@ -411,7 +419,7 @@ export async function agentDashboard(actor: Actor, id: string, opts: { now?: Dat
     const [agent] = await liveTeam(db, orgId, { ...st, sources: [src] }, waitingMap(needs), now)
     return {
       agent, stats: await statsFor(db, orgId, src, needs.length, now), scopes: await scopesFor(db, orgId, src, agent.autonomy, agent.autonomyChosen),
-      work: await workFor(db, orgId, st, src), instructions: await listInstructionsIn(db, orgId, id),
+      work: await workFor(db, orgId, st, src), instructions: await listInstructionsIn(db, orgId, id), tasks: await tasksFor(db, orgId, st, src),
     }
   })
 }

@@ -8,12 +8,12 @@ Variables), with **Sensitive** on, scoped to **Preview** first, and to **Product
 - `https://deploi-app-git-claude-deploi-operating-system-james-ai.vercel.app` (PR #16 preview)
 - `https://app.getdeploi.com` (production)
 
-## What you still owe before the Shopify submission (as of 2026-11-06)
+## What you still owe before the Shopify submission (as of 2026-11-07)
 In order. Nothing else blocks the submission; items 6–14 below are optional connectors.
 
 | # | What | Where | Status |
 |---|------|-------|--------|
-| A | Run `docs/preview/APPLY-064-ON-DEPLOI-PREVIEW.sql` in the Supabase SQL editor of **deploi-preview** (ref `bhddgjcefwasdyrrfptc`), never deploi-prod (`makqaqzlylhckijdbjzi`) | Supabase dashboard | **open**: blocks the preview check, after-screenshots and click-through |
+| A | Run `docs/preview/APPLY-064-ON-DEPLOI-PREVIEW.sql` in the Supabase SQL editor of **deploi-preview** (ref `bhddgjcefwasdyrrfptc`), never deploi-prod (`makqaqzlylhckijdbjzi`) | Supabase dashboard | **open**: until it runs, every page of the new design on the preview shows an error (the tables are missing). Nothing new was added to this file on 2026-11-07: the team room, tasks and "what your team learned" use existing tables |
 | B | Website live: DNS for getdeploi.com (item 1) | Squarespace | open |
 | C | `support@getdeploi.com` mailbox + MX/SPF/DKIM/DMARC (item 2) | mail provider, Squarespace | open |
 | D | Shopify Partner: $19 registration, emergency contact, public distribution, protected-data opt-out, pricing (item 3) | Partner / Dev Dashboard | open |

@@ -15,6 +15,10 @@ export const MS_SEND = 'Mail.Send'
 export const MS_READ = 'Mail.ReadBasic'
 /** inbox reading (bodies): Email Operations only, when the owner turns it on */
 export const MS_READ_INBOX = 'Mail.Read'
+/** Outlook workspace (launch build): read, organise and send mail, and read and write the calendar */
+export const MS_MAIL_RW = 'Mail.ReadWrite'
+export const MS_CALENDAR = 'Calendars.ReadWrite'
+export const canUseCalendar = (s: string[]) => has(s, MS_CALENDAR)
 const has = (scopes: string[], s: string) => scopes.some(x => x.toLowerCase() === s.toLowerCase() || x.toLowerCase().endsWith('/' + s.toLowerCase()))
 
 function tokens(json: Record<string, unknown>, fallbackScopes: string[]) {
@@ -31,7 +35,7 @@ export const microsoftAdapter: EmailAdapter = {
   provider: 'microsoft',
   label: 'Microsoft 365 / Outlook',
   configured: () => Boolean(emailConfig.microsoftClientId && emailConfig.microsoftClientSecret),
-  scopesFor: ({ read, inbox }) => [...BASE, MS_SEND, ...(inbox ? [MS_READ_INBOX] : read ? [MS_READ] : [])],
+  scopesFor: ({ read, inbox, calendar }) => calendar ? [...BASE, MS_SEND, MS_MAIL_RW, MS_CALENDAR] : [...BASE, MS_SEND, ...(inbox ? [MS_READ_INBOX] : read ? [MS_READ] : [])],
   canSend: s => has(s, MS_SEND),
   // UNVERIFIED: setting internetMessageId on sendMail and filtering Sent Items by it; lookups are disabled below
   reliableNotFound: false,

@@ -11,6 +11,8 @@
  *   jobs             finished job rows older than RETENTION_JOBS_DAYS (90) are deleted
  *   rateLimits       rate-limit windows that expired more than RETENTION_RATE_LIMIT_DAYS (1) ago are deleted
  *   webhookReceipts  webhook receipts older than RETENTION_WEBHOOK_RECEIPTS_DAYS (90) are deleted
+ *   agent chat       the rules-only chat with the agents (agent_chat_messages) older than APP_CHAT_RETENTION_DAYS (180)
+ *                    is deleted
  *   case history     kept while the organization exists
  * An organization may shorten (or, up to RETENTION_MAX_DAYS = 730, lengthen) its own emailBodies,
  * inboundRaw and jobs periods (agencies.retention, set by an owner or admin). Every period is at least 1 day.
@@ -37,7 +39,13 @@ export function retentionDefaults(e: Record<string, string | undefined> = proces
   return out
 }
 
-export type RetentionResult = { emailBodiesErased: number; inboundErased: number; inboundEventsDeleted: number; jobsDeleted: number; rateLimitsDeleted: number; webhookReceiptsDeleted: number; privacyExportsDeleted: number }
+export type RetentionResult = { emailBodiesErased: number; inboundErased: number; inboundEventsDeleted: number; jobsDeleted: number; rateLimitsDeleted: number; webhookReceiptsDeleted: number; privacyExportsDeleted: number; agentChatDeleted: number }
+
+/** Days the agent chat is kept (APP_CHAT_RETENTION_DAYS, 1 to 730; default 180). */
+export function chatRetentionDays(e: Record<string, string | undefined> = process.env): number {
+  const n = Number((e.APP_CHAT_RETENTION_DAYS ?? '').trim())
+  return Number.isInteger(n) && n >= 1 && n <= RETENTION_MAX_DAYS ? n : 180
+}
 
 const days = (k: RetentionKey) => `make_interval(days => coalesce(case when (g.retention->>'${k}') ~ '^[0-9]{1,4}$' then least(greatest((g.retention->>'${k}')::int, 1), ${RETENTION_MAX_DAYS}) end, $2::int))`
 
@@ -59,6 +67,7 @@ export async function runRetention(opts: { now?: Date } = {}): Promise<Retention
       webhookReceiptsDeleted: await n(`delete from webhook_receipts where received_at < $1::timestamptz - make_interval(days => $2::int)`, [now, d.webhookReceipts]),
       // a customer's data export (Shopify customers/data_request) is kept only until its expiry
       privacyExportsDeleted: await n(`delete from privacy_exports where expires_at <= $1::timestamptz`, [now]),
+      agentChatDeleted: await n(`delete from agent_chat_messages where created_at < $1::timestamptz - make_interval(days => $2::int)`, [now, chatRetentionDays()]),
     }
   })
   await recordHeartbeat('platform.retention', 'ok', r).catch(() => {})

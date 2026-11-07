@@ -99,7 +99,7 @@ test('the customer journey: sign up to a verified, completed case, and the accou
   await shoot(page, '07-permission')
   expect((await api(page, 'POST', `/api/office/agents/${ar.agentId}`, { op: 'run' })).status).toBe(200)
   await page.goto('/store/approvals')
-  await expect(page.getByRole('heading', { level: 1, name: 'Needs My Approval' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Needs you' })).toBeVisible()
   const card = page.locator('[data-approval^="office:"]').filter({ hasText: '1037' }).first()
   await expect(card).toBeVisible({ timeout: 30_000 })
   await expect(card).toContainText('accounts@brightpath.example')
@@ -136,7 +136,7 @@ test('the customer journey: sign up to a verified, completed case, and the accou
   await shoot(page, '09-completed')
 
   // 10: the account around the work
-  await page.locator('nav.rail').getByRole('link', { name: 'Billing' }).click()
+  await page.goto('/store/billing')
   await expect(page.getByRole('heading', { level: 1, name: 'Billing' })).toBeVisible()
   await shoot(page, '10-billing')
   await page.goto('/store/settings')
@@ -144,7 +144,7 @@ test('the customer journey: sign up to a verified, completed case, and the accou
   await page.getByLabel('Role', { exact: true }).selectOption('viewer')
   await page.getByRole('button', { name: 'Send invitation' }).click()
   await expect(page.getByTestId('members').locator(`[data-invite="teammate.${RUN}@e2e-journey.example"]`)).toContainText('viewer')
-  await page.locator('nav.rail').getByRole('link', { name: 'Integrations' }).click()
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Connections' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Integrations' })).toBeVisible()
   await expect(page.getByText(/QuickBooks/).first()).toBeVisible()
   await shoot(page, '10-integrations')

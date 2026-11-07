@@ -4,7 +4,8 @@ import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { EngineError } from '../engine/errors'
 import { hasProduct } from '../products'
 import { emailConfig } from '../email/config'
-import { officeConfig, PROVIDER_LABEL, providerConfigured, type OfficeProvider } from './config'
+import { isSyntheticProvider, OFFICE_PROVIDERS, officeConfig, PROVIDER_LABEL, providerConfigured, type OfficeProvider } from './config'
+import { providerStatus } from '../email/accounts'
 import { listOfficePendingApprovals } from './approvals'
 import { OFFICE_TEMPLATES } from './templates'
 import type { ActionPayload } from './actions'
@@ -50,10 +51,14 @@ export async function officeConnections(actor: Actor) {
   const org = orgOf(actor)
   const rows = await withActor(actor, db => db.query<{ id: string; provider: OfficeProvider; status: string; status_reason: string | null; is_synthetic: boolean; display_name: string | null; external_account_id: string; scopes: string[]; timezone: string | null; connected_at: string }>(
     `select id, provider, status, status_reason, is_synthetic, display_name, external_account_id, scopes, timezone, connected_at from office_connections where org_id = $1 and status <> 'disconnected' order by provider`, [org]))
-  const mailboxes = await withActor(actor, db => db.query<{ id: string; provider: string; address: string; status: string; can_send: boolean; can_read: boolean; is_synthetic: boolean; office_mailbox: boolean }>(
-    `select id, provider, address, status, can_send, can_read, is_synthetic, office_mailbox from email_accounts where org_id = $1 and status <> 'disconnected' and (provider <> 'deploi' or office_mailbox) order by connected_at`, [org]))
-  const providers = (['hubspot', 'google_calendar', 'quickbooks'] as OfficeProvider[]).map(p => ({ provider: p, label: PROVIDER_LABEL[p], configured: providerConfigured(p), connection: rows.find(r => r.provider === p) ?? null }))
-  return { providers, mailboxes, syntheticAllowed: officeConfig.syntheticAllowed, officeMailboxAvailable: Boolean(emailConfig.agentMailDomain), liveSends: emailConfig.liveSends }
+  const mailboxes = await withActor(actor, db => db.query<{ id: string; provider: string; address: string; status: string; can_send: boolean; can_read: boolean; is_synthetic: boolean; office_mailbox: boolean; has_calendar: boolean }>(
+    `select id, provider, address, status, can_send, can_read, is_synthetic, office_mailbox, 'Calendars.ReadWrite' = any(granted_scopes) as has_calendar from email_accounts where org_id = $1 and status <> 'disconnected' and (provider <> 'deploi' or office_mailbox) order by connected_at`, [org]))
+  const sandbox = (p: OfficeProvider) => (p === 'quickbooks' && officeConfig.quickbooksSandbox) || (p === 'buildium' && officeConfig.buildiumSandbox) || (p === 'salesforce' && officeConfig.salesforceLoginUrl === 'https://test.salesforce.com')
+  const providers = OFFICE_PROVIDERS.map(p => ({ provider: p, label: PROVIDER_LABEL[p], configured: providerConfigured(p), connection: rows.find(r => r.provider === p) ?? null,
+    auth: p === 'buildium' ? 'api_key' as const : 'oauth' as const, synthetic: isSyntheticProvider(p), sandboxOnly: sandbox(p) }))
+  // Outlook / Microsoft 365 mail and calendar (one account connects both; Gmail is deferred)
+  const outlook = { configured: providerStatus('microsoft').configured, calendarAccounts: mailboxes.filter(m => m.provider === 'microsoft' && m.has_calendar).map(m => m.id) }
+  return { providers, mailboxes, outlook, syntheticAllowed: officeConfig.syntheticAllowed, officeMailboxAvailable: Boolean(emailConfig.agentMailDomain), liveSends: emailConfig.liveSends }
 }
 
 export async function officeAgents(actor: Actor) {

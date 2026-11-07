@@ -35,7 +35,8 @@ export type AgentKind = 'engine' | 'office'
 type MerchantActor = Exclude<Actor, { kind: 'staff' }>
 
 export type SetupContext = {
-  actor: MerchantActor; orgId: string; timezone: string; orgName: string; notify: string | null
+  /** the owner clicking "Set up recommended team"; null for the autonomy setting at connect (lib/autonomy/on-connect.ts) */
+  actor: MerchantActor | null; orgId: string; timezone: string; orgName: string; notify: string | null
   store: ConnectionRow | null; officeEnabled: boolean
   office: { hubspot: string | null; calendar: string | null; mailbox: string | null; quickbooks: string | null }
 }
@@ -52,6 +53,9 @@ export type TemplateSetup = {
   /** an agent for this template the organization already has (set up by the wizard or by hand) */
   findExisting(db: Db, ctx: SetupContext): Promise<string | null>
   create(ctx: SetupContext): Promise<{ agentId: string }>
+  /** Office templates: the drafts-only policy the agent is created with (the autonomy setting at connect widens its tiers) */
+  officePolicy?(ctx: SetupContext): Record<string, unknown>
+  officeKind?: OfficeKind
 }
 
 const setups = new Map<string, TemplateSetup>()
@@ -114,6 +118,7 @@ function engineSetup(key: TemplateKey): TemplateSetup {
     async create(ctx) {
       const withEmail = Boolean(emailConfig.agentMailDomain) && Boolean(ctx.notify) && t.mailbox
       const policy = draftsOnlyTemplatePolicy(key, { connectionId: ctx.store!.id, timezone: ctx.timezone, notify: ctx.notify, withEmail })
+      if (!ctx.actor) throw new EngineError('forbidden', 'store agents are set up by the owner')
       const r = await createAgent(ctx.actor, { name: t.name, taskText: t.job, policy, mailbox: withEmail && Boolean(policy.email), templateKey: key })
       return { agentId: r.agentId }
     },
@@ -138,13 +143,17 @@ function officeSetup(kind: OfficeKind): TemplateSetup {
     async findExisting(db, ctx) {
       return (await db.one<{ id: string }>(`select id from office_agents where org_id = $1 and kind = $2 and status not in ('deleted','revoked') order by created_at limit 1`, [ctx.orgId, kind]))?.id ?? null
     },
-    async create(ctx) {
+    officeKind: kind,
+    officePolicy(ctx) {
       const needs = new Set(t.needs)
-      const policy = officeTemplatePolicy(kind, {
+      return officeTemplatePolicy(kind, {
         hubspotConnectionId: needs.has('hubspot') ? ctx.office.hubspot : null, calendarConnectionId: needs.has('calendar') ? ctx.office.calendar : null,
         mailboxAccountId: needs.has('mailbox') ? ctx.office.mailbox : null, quickbooksConnectionId: needs.has('quickbooks') ? ctx.office.quickbooks : null, timezone: ctx.timezone, senderName: ctx.orgName,
       })
-      const r = await createOfficeAgent(ctx.actor, { kind, name: t.name, policy })
+    },
+    async create(ctx) {
+      if (!ctx.actor) throw new EngineError('forbidden', 'the owner sets this agent up')
+      const r = await createOfficeAgent(ctx.actor, { kind, name: t.name, policy: this.officePolicy!(ctx) })
       return { agentId: r.agentId }
     },
   }
@@ -242,17 +251,20 @@ function merchantOrg(actor: Actor): MerchantActor {
   return actor
 }
 
-async function setupContext(actor: MerchantActor): Promise<SetupContext> {
+async function setupContext(actor: MerchantActor): Promise<SetupContext> { return orgSetupContext(actor.orgId, actor) }
+
+/** What setup can use in an organization: its store, its Office connections and mailbox. `actor` null: the autonomy setting. */
+export async function orgSetupContext(orgId: string, actor: MerchantActor | null): Promise<SetupContext> {
   return admin(async db => {
-    const org = await db.one<{ name: string; timezone: string | null }>('select name, timezone from agencies where id = $1', [actor.orgId])
-    const store = (await activeStores(db, actor.orgId))[0] ?? null
-    const conn = async (provider: string) => (await db.one<{ id: string }>(`select id from office_connections where org_id = $1 and provider = $2 and status = 'active' order by connected_at limit 1`, [actor.orgId, provider]))?.id ?? null
+    const org = await db.one<{ name: string; timezone: string | null }>('select name, timezone from agencies where id = $1', [orgId])
+    const store = (await activeStores(db, orgId))[0] ?? null
+    const conn = async (provider: string) => (await db.one<{ id: string }>(`select id from office_connections where org_id = $1 and provider = $2 and status = 'active' order by connected_at limit 1`, [orgId, provider]))?.id ?? null
     const mailbox = (await db.one<{ id: string }>(
-      `select id from email_accounts where org_id = $1 and status = 'active' and (office_mailbox or (provider <> 'deploi' and agent_id is null)) order by office_mailbox desc, connected_at limit 1`, [actor.orgId]))?.id ?? null
+      `select id from email_accounts where org_id = $1 and status = 'active' and (office_mailbox or (provider <> 'deploi' and agent_id is null)) order by office_mailbox desc, connected_at limit 1`, [orgId]))?.id ?? null
     return {
-      actor, orgId: actor.orgId, timezone: org?.timezone || store?.timezone || 'UTC', orgName: (org?.name || 'The team').slice(0, 80),
-      notify: actor.kind === 'profile' ? actor.session.email.toLowerCase() : null, store,
-      officeEnabled: await hasProduct(db, actor.orgId, 'office'),
+      actor, orgId, timezone: org?.timezone || store?.timezone || 'UTC', orgName: (org?.name || 'The team').slice(0, 80),
+      notify: actor?.kind === 'profile' ? actor.session.email.toLowerCase() : null, store,
+      officeEnabled: await hasProduct(db, orgId, 'office'),
       office: { hubspot: await conn('hubspot'), calendar: await conn('google_calendar'), mailbox, quickbooks: await conn('quickbooks') },
     }
   })

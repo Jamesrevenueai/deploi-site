@@ -99,6 +99,28 @@ describe.skipIf(!ready)('setup wizard', () => {
     expect((await agentsOf(NW.org)).filter(a => a.policy_status === 'active').every(a => a.approval_mode === 'draft')).toBe(true)
   })
 
+  it('discovery stays open while an agent the team setup created still waits for its grant, even when another already works', async () => {
+    const actor = await merchantActor(NW)
+    await saveBusiness(actor, { name: original, timezone: 'UTC' })
+    await chooseProducts(actor, { commerce: true, office: false, platform: 'shopify' })
+    await discoverNow(actor)
+    await setUpTeam(actor)
+    const shown = (await discoverView(actor)).team.filter(t => t.agent?.pending?.draftsOnly)
+    expect(shown.length).toBeGreaterThan(1)
+    const grantOf = (t: (typeof shown)[number]) => ({ agentId: t.agent!.agentId, policyId: t.agent!.pending!.policyId, policyHash: t.agent!.pending!.policyHash })
+    // one agent working, the rest still waiting: the step (and its grant button) stays open
+    expect((await grantShownTeam(actor, [grantOf(shown[0])])).every(x => x.ok)).toBe(true)
+    let v = await wizardView(actor)
+    expect(v.discovery).toMatchObject({ activeAgents: 1, waitingAgents: shown.length - 1 })
+    expect(v.current).toBe('discover')
+    await expect(completeWizard(actor)).rejects.toMatchObject({ code: 'needs_setup' })
+    // granting the rest closes it
+    expect((await grantShownTeam(actor, shown.slice(1).map(grantOf))).every(x => x.ok)).toBe(true)
+    v = await wizardView(actor)
+    expect(v.discovery).toMatchObject({ activeAgents: shown.length, waitingAgents: 0 })
+    expect(v.current).toBe('done')
+  })
+
   it('with LEGAL_GATE on, a new organization\'s setup waits on the agreements step for the real acceptances', async () => {
     process.env.LEGAL_GATE = 'draft'
     // a throwaway organization: acceptances are append-only and leave only with their organization

@@ -14,14 +14,20 @@ automatically_update_urls_on_dev = true
 dev_store_url = "james-jwtftl1e.myshopify.com"
 
 [access_scopes]
-# Installed with the app: read only. Enough for every template at "drafts only" (lib/connectors/shopify/config.ts REQUIRED_SCOPES).
-scopes = "read_products,read_inventory,read_locations"
-# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant widens an agent past drafts only:
-#   write_products        Inventory Watcher after "after my approval" / "without asking" ("Continue selling when out of stock" On -> Off), price and SKU corrections
-#   read_publications,    publication correction only (which sales channels a product is on; publish / unpublish)
+# Installed with the app (lib/connectors/shopify/config.ts REQUIRED_SCOPES + EVENT_SCOPES): the reads, plus write_products,
+# the one write the ready store agents use to fix things (Inventory Watcher: "Continue selling when out of stock" On -> Off;
+# price and SKU corrections). The merchant approves it once at install, so the agents can fix at connect; each change still
+# follows the merchant's setting per action (do it and tell me, or ask first). No inventory quantity write, no discount write.
+# First App Store submission: no protected customer data (no order, fulfillment, customer or return scopes). The
+# order-, return- and customer-facing commerce agents stay hidden in the embedded app until Shopify approves the
+# protected customer data request; docs/app-store/PROTECTED-CUSTOMER-DATA.md has the phase-2 scopes and topics.
+# read_discounts is not protected.
+scopes = "read_products,write_products,read_inventory,read_locations,read_discounts"
+# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant turns on publication correction:
+#   read_publications,    which sales channels a product is on; publish / unpublish
 #   write_publications
-# Must match OPTIONAL_SCOPES in config.ts. No customer, order, report or inventory-write scope anywhere.
-optional_scopes = ["write_products", "read_publications", "write_publications"]
+# Must match OPTIONAL_SCOPES in config.ts. No customer, order or inventory WRITE scope anywhere; no report scope.
+optional_scopes = ["read_publications", "write_publications"]
 use_legacy_install_flow = false
 
 [auth]
@@ -34,6 +40,12 @@ api_version = "2026-10"
 
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled", "app/scopes_update", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
+  uri = "/api/shopify/webhooks"
+
+  # Agent events (lib/events): products/* and inventory_* (above) are routed to the agents too, and discount changes
+  # here. Order, fulfillment, customer, refund and return topics need protected customer data: phase 2, after approval.
+  [[webhooks.subscriptions]]
+  topics = ["discounts/create", "discounts/update"]
   uri = "/api/shopify/webhooks"
 
   [[webhooks.subscriptions]]

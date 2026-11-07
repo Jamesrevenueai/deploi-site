@@ -54,7 +54,7 @@ export interface EmailAdapter {
   /** OAuth client configured in this environment */
   configured(): boolean
   /** read: reply senders and times; inbox: the whole inbox with bodies (Email Operations, only when the owner turns it on) */
-  scopesFor(opts: { read: boolean; inbox?: boolean }): string[]
+  scopesFor(opts: { read: boolean; inbox?: boolean; calendar?: boolean }): string[]
   canSend(scopes: string[]): boolean
   canRead(scopes: string[]): boolean
   /** the granted scopes allow reading inbox messages with their bodies */

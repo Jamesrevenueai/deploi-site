@@ -8,6 +8,7 @@
  * Every action is written to library_actions with its evidence, the permission that allowed it, and
  * the proof of what happened; usage is recorded per action for billing.
  */
+import { instructionsFor } from '../app/profiles'
 import { randomUUID } from 'node:crypto'
 import { admin, type Db } from '../db'
 import { audit } from '../engine/audit'
@@ -68,7 +69,9 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
   const stopped = await admin(db => orgStopReason(db, opts.orgId))
   if (stopped) throw new LibraryError('conflict', stopped)
   const permission: PermissionLevel = opts.permission ?? sw?.permission ?? 'draft'
-  const instructions = opts.instructions ?? sw?.standing_instructions ?? ''
+  // the switch's own instructions, then the owner's standing instructions for this agent in the app (lib/app/profiles.ts)
+  const standing = opts.customAgentId ? [] : await instructionsFor(opts.orgId, `store:${opts.agentKey}`)
+  const instructions = [opts.instructions ?? sw?.standing_instructions ?? '', ...standing].filter(x => x.trim()).join('\n')
   const settings = opts.settings ?? sw?.settings ?? {}
   const counts = empty()
   const finish = async (status: LibraryRunResult['status'], reason?: string, engine?: Record<string, unknown>) => {

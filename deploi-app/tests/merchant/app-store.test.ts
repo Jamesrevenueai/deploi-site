@@ -13,6 +13,7 @@ import { GET as billingRoute } from '../../app/api/store/billing/route'
 import { signSessionToken } from '../../lib/connectors/shopify/auth'
 import { frameAncestors } from '../../middleware'
 import { appBridgeFirst } from '../../lib/shopify/head'
+import { REQUIRED_SCOPES, EVENT_SCOPES, SUBSCRIBED_EVENT_TOPICS, PHASE2_EVENT_TOPICS, PHASE2_EVENT_SCOPES } from '../../lib/connectors/shopify/config'
 import { NW, resetMerchant } from './helpers'
 
 const ready = await prepareDb()
@@ -68,7 +69,7 @@ describe('embedded app shell', () => {
     expect(head).toContain('<meta name="shopify-api-key"')
     expect(head).toContain('https://cdn.shopify.com/shopifycloud/app-bridge.js')
     expect(head).not.toMatch(/async|defer/)
-    expect(readFileSync('middleware.ts', 'utf8')).toContain("p.forward({ 'x-deploi-embedded': '1' })")
+    expect(readFileSync('middleware.ts', 'utf8')).toContain("p.forward({ 'x-deploi-embedded': '1', 'x-deploi-path': req.nextUrl.pathname })")
     expect(readFileSync('app/shopify/layout.tsx', 'utf8')).not.toContain('app-bridge.js"')
     expect(frameAncestors('/shopify/agents', 'demo.myshopify.com')).toBe('frame-ancestors https://demo.myshopify.com https://admin.shopify.com;')
     expect(frameAncestors('/store', null)).toBe("frame-ancestors 'none';")
@@ -81,13 +82,23 @@ describe('embedded app shell', () => {
     expect(appBridgeFirst(plain)).toBe(plain)
   })
 
-  it('shopify.app.toml.example: managed install, minimal scopes, all compliance topics, no sales channel', () => {
+  it('shopify.app.toml.example: managed install, the scopes the agents use (no protected data), all compliance topics, no sales channel', () => {
     const toml = readFileSync('shopify.app.toml.example', 'utf8')
     expect(toml).not.toMatch(/^\s*use_legacy_install_flow/m)
     expect(toml).toMatch(/embedded = true/)
     expect(toml).toMatch(/compliance_topics = \["customers\/data_request", "customers\/redact", "shop\/redact"\]/)
     expect(toml).toMatch(/"app\/uninstalled"/)
-    expect(toml).not.toMatch(/orders|customers"?,? *"?read_customers|read_customers|write_customers|read_orders/)
+    // agent events add read-only, non-protected scopes (config.ts EVENT_SCOPES); the only install write is write_products
+    // (the ready agents' fixes, config.ts INSTALL_WRITE_SCOPES); no customer, order, return, discount or fulfillment write
+    expect(toml).not.toMatch(/write_customers|write_orders|write_returns|write_discounts|write_fulfillments|read_reports/)
+    const scopes = /^scopes = "([^"]+)"/m.exec(toml)![1].split(',')
+    expect([...scopes].sort()).toEqual([...REQUIRED_SCOPES, ...EVENT_SCOPES].sort())
+    expect(scopes.filter(s => s.startsWith('write_'))).toEqual(['write_products'])
+    expect(/^optional_scopes = (.*)$/m.exec(toml)![1]).not.toContain('write_products')
+    for (const t of SUBSCRIBED_EVENT_TOPICS) expect(toml, t).toContain(`"${t}"`)
+    // first submission: no protected customer data topic or scope (phase 2, after Shopify approves the request)
+    for (const t of PHASE2_EVENT_TOPICS) expect(toml, t).not.toContain(`"${t}"`)
+    for (const sc of PHASE2_EVENT_SCOPES) expect(scopes, sc).not.toContain(sc)
     expect(toml).toMatch(/api_version = "2026-10"/)
   })
 })
@@ -119,6 +130,23 @@ describe.skipIf(!ready)('App Store behaviours against the database', () => {
     expect(await admin(db => syncSubscription(db, conn, { fetchImpl: f.fn, force: true }))).toEqual({ active: false, planHandle: null, checked: true })
     const row = await admin(db => db.one<{ status: string; plan_key: string }>(`select status, plan_key from app_subscriptions where provider = 'shopify_billing' and external_id = $1`, [`app_pricing:${NW.domain}`]))
     expect(row).toEqual({ status: 'cancelled', plan_key: 'standard' })
+  })
+
+  it('an App Pricing plan whose handle is one of our plan keys sets the organization plan and tier; an unknown handle changes nothing', async () => {
+    Object.assign(process.env, PARTNER_ENV)
+    await admin(db => db.query(`update store_connections set is_synthetic = false, shop_gid = 'gid://shopify/Shop/9001' where id = $1`, [NW.conn]))
+    const before = await admin(db => db.one<{ plan_key: string | null; plan_tier: string }>('select plan_key, plan_tier from agencies where id = $1', [NW.org]))
+    const conn = { id: NW.conn, org_id: NW.org, external_id: NW.domain, shop_gid: 'gid://shopify/Shop/9001', is_synthetic: false }
+    const sub = (handle: string) => fakeFetch(() => ({ status: 200, body: { data: { activeSubscription: { cancelAtEndOfCycle: false, trialEndsAt: null, currentBillingCycle: null, items: [{ handle }] } } } })).fn
+    try {
+      await admin(db => db.query(`update agencies set plan_key = null, plan_tier = 'starter' where id = $1`, [NW.org]))
+      await admin(db => syncSubscription(db, conn, { fetchImpl: sub('not-a-plan-key'), force: true }))
+      expect(await admin(db => db.one('select plan_key, plan_tier from agencies where id = $1', [NW.org]))).toEqual({ plan_key: null, plan_tier: 'starter' })
+      await admin(db => syncSubscription(db, conn, { fetchImpl: sub('growth'), force: true }))
+      expect(await admin(db => db.one('select plan_key, plan_tier from agencies where id = $1', [NW.org]))).toEqual({ plan_key: 'growth', plan_tier: 'growth' })
+    } finally {
+      await admin(db => db.query('update agencies set plan_key = $2, plan_tier = $3 where id = $1', [NW.org, before?.plan_key ?? null, before?.plan_tier ?? 'starter']))
+    }
   })
 
   it('the plan banner agrees with the change engine: an early-access grant counts as active; without it a plan is required', async () => {

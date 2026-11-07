@@ -122,6 +122,8 @@ export async function connectStore(input: ConnectInput, deps: ConnectDeps = {}):
     const site = deps.transport ? { siteUrl, creds: input.creds, authMode: facts.authMode, transport: deps.transport } : await siteFor(result.row)
     webhooksError = (await registerWebhooks(result.row, site, input.actor)).error
   } catch (e) { webhooksError = (e as Error).message.slice(0, 200) }
+  // the agents start on the store at once (lib/autonomy/on-connect.ts; never throws)
+  await (await import('../../autonomy/on-connect')).onConnected({ orgId: input.orgId, kind: 'woocommerce', connectionId: result.connectionId, provider: 'woocommerce' })
   return { connectionId: result.connectionId, created: result.created, webhooksError }
 }
 

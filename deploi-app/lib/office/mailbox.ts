@@ -32,7 +32,7 @@ export async function createOfficeMailbox(actor: Actor) {
       if (row) { await officeAudit(db, { orgId: actor.orgId, entityType: 'office_connection', entityId: row.id, event: 'mailbox.created', actor: actor.label, detail: { address } }); return row }
     }
     throw new EngineError('busy', 'could not reserve a mailbox address; try again')
-  })
+  }).then(async row => { await (await import('../autonomy/on-connect')).onConnected({ orgId: row.org_id, kind: 'email', connectionId: row.id, provider: 'deploi' }); return row })
 }
 
 /** Tests and demos: a synthetic mailbox (nothing leaves Deploi) connected through the same consent code as a real provider. */

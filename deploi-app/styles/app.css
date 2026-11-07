@@ -1,0 +1,244 @@
+/* ==========================================================================
+   Deploi app: the logged-in shell (components/app/AppShell.tsx), the shared UI primitives
+   (components/app/ui/*) and the command center (components/app/command/*). Every value comes from
+   the tokens in styles/app-tokens.css. No left-border accent cards, no emoji.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ backdrop and surface */
+.app-backdrop {
+  min-height: 100vh; min-height: 100dvh;
+  /* the bottom keeps room for the floating Help and Feedback buttons, so they never cover the last row */
+  padding: 24px 24px 80px;
+  background-color: var(--app-backdrop);
+  background-image:
+    radial-gradient(ellipse 55% 50% at 0% 0%, color-mix(in srgb, var(--app-glow-tl) 60%, transparent), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 100% 0%, color-mix(in srgb, var(--app-glow-tr) 50%, transparent), transparent 70%),
+    radial-gradient(ellipse 55% 50% at 100% 100%, color-mix(in srgb, var(--app-glow-br) 50%, transparent), transparent 70%);
+  background-attachment: fixed;
+  color-scheme: light;
+}
+.app-surface {
+  max-width: var(--app-surface-max); margin: 0 auto;
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px;
+  padding: var(--app-surface-pad-y) var(--app-surface-pad-x);
+  background: var(--app-surface); border-radius: var(--app-surface-radius); box-shadow: var(--app-surface-shadow);
+  color: var(--app-text-body); font-family: var(--app-font-body);
+}
+.app-main { flex: 999 1 560px; min-width: 0; }
+@media (max-width: 640px) {
+  .app-backdrop { padding: 8px 8px 72px; }
+  .app-surface { padding: 16px; gap: 16px; border-radius: 18px; }
+}
+.app-skip { position: absolute; left: 8px; top: -60px; z-index: 100; padding: 10px 14px; border-radius: 10px; background: var(--app-btn-bg); color: var(--app-btn-text); font-weight: 600; }
+.app-skip:focus { top: 8px; }
+.app-surface :focus-visible { outline: 2px solid var(--app-proof-text); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------ sidebar */
+.app-sidebar {
+  flex: 1 1 240px; min-width: 0; max-width: 100%;
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 18px 14px; background: var(--app-fill); border-right: 1px solid var(--app-border-card); border-radius: 16px;
+}
+@media (min-width: 841px) { .app-sidebar { position: sticky; top: 24px; } }
+.app-logo { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px; color: var(--app-text); text-decoration: none; }
+.app-logo-mark { position: relative; width: 30px; height: 30px; border-radius: 9px; flex: none; background: linear-gradient(135deg, #3A4BE0, #FF4D9D 60%, #FF8A3D); }
+.app-logo-mark::before, .app-logo-mark::after { content: ""; position: absolute; top: 12px; width: 5px; height: 6px; border-radius: 999px; background: #FFFFFF; }
+.app-logo-mark::before { left: 9px; }
+.app-logo-mark::after { right: 9px; }
+.app-logo-word { font-family: var(--app-font-heading); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; line-height: 1; }
+.app-label { font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--app-text-2); margin: 0 6px 8px; }
+
+.app-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--app-divider); border: 1px solid var(--app-border-input); }
+.app-switch button {
+  min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--app-text-2);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.app-switch button[aria-checked="true"] { background: var(--app-surface); color: var(--app-text); box-shadow: 0 1px 2px rgba(10, 10, 40, .08), 0 2px 6px rgba(10, 10, 40, .06); }
+.app-switch button:disabled { cursor: progress; }
+.app-ws { margin: 10px 6px 0; min-width: 0; }
+.app-ws-name { color: var(--app-text); font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.app-ws-sources { color: var(--app-text-2); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.app-ws-sources a { color: var(--app-proof-text); text-decoration: underline; text-underline-offset: 2px; }
+
+.app-nav { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.app-nav-link {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: 10px;
+  color: var(--app-text-body); font-size: 14.5px; font-weight: 500; text-decoration: none;
+}
+.app-nav-link:hover { background: var(--app-divider); color: var(--app-text); }
+.app-nav-link[aria-current="page"] { background: var(--app-btn-bg); color: var(--app-btn-text); }
+.app-nav-link svg { flex: none; }
+.app-count { margin-left: auto; min-width: 24px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 22px; text-align: center; background: var(--app-off-bg); color: var(--app-off-text); }
+.app-count.orange { background: var(--app-waiting-bg); color: var(--app-waiting-text); }
+
+.app-usage { padding: 14px; border-radius: 14px; background: var(--app-surface); border: 1px solid var(--app-border-card); }
+.app-usage-title { color: var(--app-text-2); font-size: 12.5px; font-weight: 600; }
+.app-usage-value { color: var(--app-text); font-size: 15px; font-weight: 600; margin-top: 4px; }
+.app-usage-sub { color: var(--app-text-2); font-size: 12.5px; margin-top: 8px; }
+.app-bar { height: 8px; margin-top: 10px; border-radius: 999px; background: var(--app-divider); overflow: hidden; }
+.app-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--app-usage-bar); }
+.app-signout { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 6px; color: var(--app-text-2); font-size: 13px; min-width: 0; }
+.app-signout span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ------------------------------------------------------------------ type */
+.app-h1 { font-family: var(--app-font-heading); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--app-text); margin: 0; }
+.app-h2 { font-family: var(--app-font-heading); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; color: var(--app-text); margin: 0; }
+.app-muted { color: var(--app-text-2); }
+.app-link { color: var(--app-proof-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 640px) { .app-h1 { font-size: 24px; } }
+
+/* ------------------------------------------------------------------ primitives */
+.app-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--app-btn-min-h); padding: 0 18px; border-radius: var(--app-btn-radius); border: 1px solid transparent;
+  font: inherit; font-size: 15px; font-weight: 600; line-height: 1.2; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.app-btn--primary { background: var(--app-btn-bg); color: var(--app-btn-text); }
+.app-btn--primary:hover { background: #2A2A3A; }
+.app-btn--secondary { background: var(--app-surface); color: var(--app-text); border-color: var(--app-border-input); }
+.app-btn--secondary:hover { background: var(--app-fill); }
+.app-btn--text { background: transparent; color: var(--app-proof-text); padding: 0 10px; text-decoration: underline; text-underline-offset: 3px; }
+.app-btn:disabled, .app-btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+
+.app-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
+.app-pill--working { background: var(--app-working-bg); color: var(--app-working-text); }
+.app-pill--waiting { background: var(--app-waiting-bg); color: var(--app-waiting-text); }
+.app-pill--watching { background: var(--app-watching-bg); color: var(--app-watching-text); }
+.app-pill--off { background: var(--app-off-bg); color: var(--app-off-text); }
+
+.app-proof { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.3; white-space: nowrap; background: var(--app-proof-bg); color: var(--app-proof-text); text-decoration: none; }
+.app-proof::after { content: ""; position: absolute; inset: -9px -4px; }
+.app-proof:hover { text-decoration: underline; }
+
+.app-card { background: var(--app-surface); border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius); padding: 20px; min-width: 0; }
+.app-card--lg { border-radius: var(--app-card-radius-lg); }
+.app-card--flush { padding: 0; }
+
+.app-empty { padding: 28px 20px; border-radius: var(--app-card-radius); background: var(--app-fill); border: 1px dashed var(--app-border-input); text-align: center; }
+.app-empty-title { color: var(--app-text); font-weight: 600; font-size: 15px; }
+.app-empty-body { color: var(--app-text-2); font-size: 14px; margin-top: 6px; }
+.app-empty-action { margin-top: 14px; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
+
+.app-table-wrap { position: relative; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius); background: var(--app-surface); }
+.app-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.app-table th { text-align: left; padding: 12px 16px; color: var(--app-text-2); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; background: var(--app-fill); border-bottom: 1px solid var(--app-border-card); white-space: nowrap; }
+.app-table td { padding: 14px 16px; border-bottom: 1px solid var(--app-divider); color: var(--app-text-body); vertical-align: middle; }
+.app-table tr:last-child td { border-bottom: 0; }
+
+.app-input {
+  width: 100%; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--app-border-input); background: var(--app-surface);
+  color: var(--app-text); font: inherit; font-size: 15px;
+}
+.app-input::placeholder { color: var(--app-text-2); }
+.app-input:focus { outline: 2px solid var(--app-proof-text); outline-offset: 1px; }
+.app-search { position: relative; display: block; flex: 1 1 260px; max-width: 340px; }
+.app-search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--app-text-2); pointer-events: none; }
+.app-search .app-input { padding-left: 38px; }
+
+/* ------------------------------------------------------------------ command center */
+.cc { display: flex; flex-direction: column; gap: 24px; }
+.cc-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.cc-date { color: var(--app-text-2); font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+.cc-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex: 1 1 380px; justify-content: flex-end; }
+
+.cc-hero {
+  position: relative; overflow: hidden; display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between;
+  padding: 28px; border-radius: var(--app-hero-radius); color: #FFFFFF;
+  background-color: var(--app-hero-bg);
+  background-image:
+    radial-gradient(ellipse 45% 90% at 100% 0%, rgba(255, 77, 157, .26), transparent 70%),
+    radial-gradient(ellipse 45% 90% at 100% 100%, rgba(255, 138, 61, .22), transparent 70%);
+}
+.cc-hero-text { flex: 1 1 420px; min-width: 0; }
+.cc-live { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: rgba(255, 255, 255, .86); }
+.cc-live-dot { width: 9px; height: 9px; border-radius: 999px; background: var(--app-hero-live); box-shadow: 0 0 0 4px rgba(94, 230, 168, .18); }
+.cc-hero-line { font-family: var(--app-font-heading); font-size: 26px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; margin: 12px 0 8px; color: #FFFFFF; }
+.cc-hero-sub { color: rgba(255, 255, 255, .78); font-size: 15px; }
+.cc-tiles { flex: 1 1 400px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: 12px; margin: 0; }
+.cc-tile { padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); min-width: 0; }
+.cc-tile dt { color: rgba(255, 255, 255, .82); font-size: 13px; font-weight: 500; }
+.cc-tile dd { margin: 6px 0 0; color: #FFFFFF; font-family: var(--app-font-heading); font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cc-tile dd.orange { color: var(--app-hero-waiting); }
+@media (max-width: 640px) { .cc-hero { padding: 20px; } .cc-hero-line { font-size: 21px; } }
+
+.cc-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 20px; align-items: start; }
+.cc-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.cc-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.cc-need-top { display: flex; align-items: center; gap: 12px; }
+.cc-need-name { color: var(--app-text); font-weight: 600; font-size: 15px; }
+.cc-need-time { color: var(--app-text-2); font-size: 13px; }
+.cc-need-title { color: var(--app-text); font-weight: 600; margin-top: 12px; }
+.cc-need-body { color: var(--app-text-body); font-size: 14.5px; line-height: 1.5; margin-top: 4px; }
+.cc-need-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+.cc-need-error { color: #A11B1B; font-size: 13.5px; margin-top: 8px; }
+.cc-done { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--app-divider); }
+.cc-done:last-child { border-bottom: 0; }
+.cc-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; margin-top: 6px; }
+.cc-done-text { flex: 1 1 auto; min-width: 0; color: var(--app-text-body); font-size: 14.5px; line-height: 1.45; }
+.cc-done-text strong { color: var(--app-text); font-weight: 700; }
+.cc-done-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; color: var(--app-text-2); font-size: 13px; }
+.cc-agent { display: flex; align-items: center; gap: 12px; }
+.cc-agent-name { color: var(--app-text); font-weight: 600; }
+.cc-agent-area { color: var(--app-text-2); font-size: 13px; }
+
+/* ------------------------------------------------------------------ chat panel */
+.app-chat {
+  position: fixed; right: 16px; bottom: 16px; z-index: 60; width: min(440px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 32px));
+  display: flex; flex-direction: column; background: var(--app-surface); border: 1px solid var(--app-border-card); border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(10, 10, 40, .35); color: var(--app-text-body);
+}
+.app-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 12px 12px 18px; border-bottom: 1px solid var(--app-divider); }
+.app-chat-log { flex: 1 1 auto; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 160px; }
+.app-chat-msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; font-size: 14.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.app-chat-msg.owner { align-self: flex-end; background: var(--app-btn-bg); color: var(--app-btn-text); }
+.app-chat-msg.agent { align-self: flex-start; background: var(--app-fill); border: 1px solid var(--app-border-card); color: var(--app-text); }
+.app-chat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--app-divider); }
+.app-icon-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; border: 1px solid var(--app-border-input); background: var(--app-surface); color: var(--app-text); cursor: pointer; }
+.app-icon-btn[aria-pressed="true"] { background: var(--app-waiting-bg); color: var(--app-waiting-text); border-color: transparent; }
+.app-icon-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* the pages that keep their own screens render inside the white surface: they use the light values of the shared
+   Aurora layer (.aurora-surface in styles/aurora.css), set on .app-main */
+.app-main .subnav { margin-top: 0; }
+
+/* ---------------------------------------------------------------- team room (/store/room) */
+.room { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding-bottom: 72px; }
+.room-sub { color: var(--app-text-2); font-size: 14px; margin: 6px 0 0; max-width: 640px; }
+.room-team { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.room-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px 4px 6px; border: 1px solid var(--app-border-card); border-radius: 999px; color: var(--app-text); font-size: 13px; font-weight: 600; text-decoration: none; background: var(--app-surface); }
+.room-chip:hover { background: var(--app-fill); }
+.room-chip:focus-visible { outline: 2px solid var(--app-working-text); outline-offset: 2px; }
+.room-log { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 16px; list-style: none; border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius-lg); background: var(--app-fill); max-height: max(260px, calc(100vh - 420px)); overflow-y: auto; }
+.room-msg { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.room-msg--owner { flex-direction: row-reverse; }
+.room-msg--owner .room-body { background: var(--app-btn-bg); color: #fff; }
+.room-msg--owner .room-meta, .room-msg--owner .room-meta time { color: #D5D5E0; }
+.room-msg--owner .room-link { color: #fff; }
+.room-msg--deploi .room-body { background: var(--app-proof-bg); }
+.room-body { min-width: 0; max-width: min(640px, 100%); padding: 10px 14px; border-radius: 14px; background: var(--app-surface); border: 1px solid var(--app-border-card); }
+.room-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0 0 4px; font-size: 12.5px; color: var(--app-text-2); }
+.room-meta strong { color: inherit; font-weight: 700; }
+.room-msg--agent .room-meta strong, .room-msg--deploi .room-meta strong { color: var(--app-text); }
+.room-kind { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; background: var(--app-off-bg); color: var(--app-off-text); }
+.room-text { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
+.room-link { display: inline-block; margin-top: 6px; font-size: 13px; }
+.room-avatar { flex: none; display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; font: 700 14px var(--app-font-heading); color: #fff; background: var(--app-btn-bg); }
+.room-avatar--deploi { background: linear-gradient(135deg, var(--app-glow-tl), var(--app-glow-tr) 60%, var(--app-glow-br)); }
+.room-compose { display: flex; gap: 10px; }
+.room-compose .app-input { flex: 1; min-width: 0; }
+.room-error { color: #B42318; font-size: 13px; font-weight: 600; margin: 0; }
+
+/* ---------------------------------------------------------------- what your team learned (Command center) */
+.learned { display: grid; gap: 14px; padding: 20px; border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius-lg); background: var(--app-surface); }
+.learned-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: baseline; }
+.learned-line { margin: 0; color: var(--app-text-2); font-size: 14px; }
+.learned-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.learned-facts li { padding: 10px 12px; border-radius: 12px; background: var(--app-fill); min-width: 0; }
+.learned-facts .v { display: block; font: 700 18px var(--app-font-heading); color: var(--app-text); overflow-wrap: anywhere; }
+.learned-facts .k { display: block; font-size: 12.5px; color: var(--app-text-2); }
+.learned-miss { margin: 0; font-size: 13px; color: var(--app-waiting-text); }
+
+/* ---------------------------------------------------------------- sidebar: your business sections */
+.app-nav-sub { margin-top: 4px; }
+.app-nav-sub .app-nav-link { font-size: 13.5px; }

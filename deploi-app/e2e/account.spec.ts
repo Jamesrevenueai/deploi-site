@@ -72,7 +72,7 @@ test('invite → accept as a new user → lands in the organization with the inv
   await page.getByRole('button', { name: /^Join .* as admin$/ }).click()
   await page.waitForURL(u => u.pathname === '/store')
   joined.push(invited)
-  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /Your team is on it\.$/ })).toBeVisible()
   const me = (await api<Members>(page, 'GET', '/api/store/settings/members')).json
   expect(me.yourRole).toBe('admin')
   expect(me.members.find(m => m.email === invited)?.role).toBe('admin')
@@ -161,7 +161,7 @@ test('a new sign-up: own organization as owner, then products, connect, discover
   await expect(page.locator('[data-step="done"][data-raw-state="current"]')).toBeVisible()
   await page.getByRole('button', { name: 'Finish setup' }).click()
   await expect(page.getByText('Done. Your team is ready.')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Go to Home' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Go to the Command center' })).toBeVisible()
 })
 
 test('Get help from the help menu: the request is in the customer\'s own support view', async ({ page }) => {

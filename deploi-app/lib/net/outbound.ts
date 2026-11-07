@@ -4,7 +4,7 @@
  */
 
 /** Providers the app may talk to, by purpose. Adding a provider is a code change, not a config change. */
-export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe' | 'hubspot' | 'google_calendar' | 'quickbooks' | 'ai', string[]> = {
+export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'shopify_partners' | 'amazon' | 'woocommerce' | 'competitor_public' | 'stripe' | 'hubspot' | 'google_calendar' | 'quickbooks' | 'salesforce' | 'pipedrive' | 'zoho_crm' | 'buildium' | 'outlook' | 'ai', string[]> = {
   shopify: [], // <shop>.myshopify.com only, checked by suffix below
   shopify_partners: ['partners.shopify.com'], // Partner API: Shopify App Pricing subscription status
   amazon: ['api.amazon.com', 'sellingpartnerapi-na.amazon.com', 'sellingpartnerapi-eu.amazon.com', 'sellingpartnerapi-fe.amazon.com'],
@@ -19,6 +19,17 @@ export const APPROVED_HOSTS: Record<'email' | 'supabase_mgmt' | 'shopify' | 'sho
   // Deploi Office: Intuit OAuth token + revoke endpoints and the QuickBooks Online Accounting API (production and sandbox);
   // appcenter.intuit.com (consent) is a browser redirect, never fetched
   quickbooks: ['oauth.platform.intuit.com', 'developer.api.intuit.com', 'quickbooks.api.intuit.com', 'sandbox-quickbooks.api.intuit.com'],
+  // Salesforce: the login hosts (token, revoke, userinfo); each org's own instance (<domain>.my.salesforce.com,
+  // sandboxes <domain>--<box>.sandbox.my.salesforce.com) is checked by suffix below
+  salesforce: ['login.salesforce.com', 'test.salesforce.com'],
+  // Pipedrive: OAuth server and the API; each company's own api_domain (<company>.pipedrive.com) is checked by suffix below
+  pipedrive: ['oauth.pipedrive.com', 'api.pipedrive.com'],
+  // Zoho CRM: the accounts server and API domain of each data center (US, EU, India, Australia)
+  zoho_crm: ['accounts.zoho.com', 'accounts.zoho.eu', 'accounts.zoho.in', 'accounts.zoho.com.au', 'www.zohoapis.com', 'www.zohoapis.eu', 'www.zohoapis.in', 'www.zohoapis.com.au'],
+  // Buildium Open API: production and sandbox
+  buildium: ['api.buildium.com', 'apisandbox.buildium.com'],
+  // Microsoft 365 calendar and mail through Microsoft Graph, and the Microsoft identity platform token endpoint
+  outlook: ['graph.microsoft.com', 'login.microsoftonline.com'],
   competitor_public: [], // a public https store the merchant chose to monitor; never a private address or an IP, and never a provider above
   // the model provider (lib/ai/gateway.ts): exactly the https host of AI_ENDPOINT, a public name, never a provider above
   ai: [],
@@ -46,14 +57,16 @@ export function assertApprovedHost(url: string, purpose: keyof typeof APPROVED_H
   if (purpose === 'shopify') ok = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) && url.startsWith('https://')
   // the merchant's own https store: a public name (never an IP literal), never a provider above; the transport also checks every resolved address
   else if (purpose === 'woocommerce') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
-    && !/^https:\/\/[^/]*@/.test(url) && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.myshopify.com')
+    && !/^https:\/\/[^/]*@/.test(url) && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.myshopify.com') && !host.endsWith('.salesforce.com') && !host.endsWith('.pipedrive.com')
   else if (purpose === 'competitor_public') ok = url.startsWith('https://') && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host) && !host.includes(':')
-    && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.supabase.co')
+    && !Object.values(APPROVED_HOSTS).flat().includes(host) && !host.endsWith('.supabase.co') && !host.endsWith('.salesforce.com') && !host.endsWith('.pipedrive.com')
   else if (purpose === 'ai') {
     const configured = hostOf((process.env.AI_ENDPOINT ?? '').trim())
     ok = url.startsWith('https://') && Boolean(configured) && host === configured && !isPrivateHost(host) && host.includes('.') && !/^[\d.]+$/.test(host)
       && !Object.values(APPROVED_HOSTS).flat().includes(host)
   }
+  else if (purpose === 'salesforce') ok = url.startsWith('https://') && (APPROVED_HOSTS.salesforce.includes(host) || /^[a-z0-9][a-z0-9-]{0,80}(\.sandbox)?\.my\.salesforce\.com$/.test(host))
+  else if (purpose === 'pipedrive') ok = url.startsWith('https://') && (APPROVED_HOSTS.pipedrive.includes(host) || /^[a-z0-9][a-z0-9-]{0,62}\.pipedrive\.com$/.test(host))
   else ok = APPROVED_HOSTS[purpose].includes(host)
   if (!ok) throw new OutboundBlocked(host || url, purpose)
   return host

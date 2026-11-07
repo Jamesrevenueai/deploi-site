@@ -70,6 +70,20 @@ describe('2026-11-06 release migration set', () => {
   })
 })
 
+describe('2026-11-07 release migration set', () => {
+  it('lists exactly the 2026-11-07 migrations on disk, in order, each with a rollback, and needs the 2026-11-06 release applied', async () => {
+    const { readdirSync, existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { RELEASE_2026_11_07, RELEASE_2026_11_06, SETS, setFrom, laterApplied } = await import('../../scripts/launch-migrations')
+    const dir = join(__dirname, '..', '..', 'supabase')
+    expect(RELEASE_2026_11_07).toEqual(readdirSync(join(dir, 'migrations')).filter(f => f.startsWith('20261107')).sort())
+    for (const f of RELEASE_2026_11_07) expect(existsSync(join(dir, 'rollback', f.replace(/\.sql$/, '.down.sql'))), f).toBe(true)
+    expect(SETS['2026-11-07'].prereq).toBe(RELEASE_2026_11_06[RELEASE_2026_11_06.length - 1])
+    expect(setFrom(['--set=2026-11-07']).files).toBe(RELEASE_2026_11_07)
+    expect(laterApplied([...RELEASE_2026_11_06, RELEASE_2026_11_07[0]], SETS['2026-11-06'])).toEqual([RELEASE_2026_11_07[0]])
+  })
+})
+
 describe('release rollback order', () => {
   it('a release cannot be rolled back while a later one is applied', async () => {
     const { laterApplied, SETS } = await import('../../scripts/launch-migrations')

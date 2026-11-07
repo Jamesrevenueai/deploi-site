@@ -4,19 +4,11 @@ import type { WizardView, WizardStep, AutoSetupResult } from '@/lib/library/onbo
 
 export type { ControlRoom, Integration, IntegrationStatus, Tier, AgentHealth, StopAllResult, WizardView, WizardStep, AutoSetupResult }
 export type ControlRoomResponse = { ok: true; canAct: boolean } & ControlRoom
-export type IntegrationsResponse = { ok: true; integrations: Integration[] }
 export type WizardResponse = { ok: true; wizard: WizardView }
 export type WizardOpResponse<R = unknown> = { ok: true; result: R; wizard: WizardView }
 
 /** Client-safe labels for the three permission tiers (the server's own labels live with the policy code). */
 export const TIER_WORDS: Record<Tier, string> = { draft: 'Drafts only', send_approved: 'After my approval', send_autonomous: 'Without asking, within limits' }
-export const HEALTH_WORDS: Record<AgentHealth, { label: string; tone: 'ok' | 'warn' | 'danger' | 'muted' | 'none' }> = {
-  active: { label: 'Active', tone: 'ok' },
-  paused: { label: 'Paused', tone: 'muted' },
-  needs_attention: { label: 'Needs attention', tone: 'warn' },
-  draft: { label: 'Waiting for your grant', tone: 'warn' },
-  revoked: { label: 'Revoked', tone: 'muted' },
-}
 export const INTEGRATION_WORDS: Record<IntegrationStatus, { label: string; tone: 'ok' | 'warn' | 'muted' }> = {
   connected: { label: 'Connected', tone: 'ok' },
   needs_setup: { label: 'Needs setup', tone: 'warn' },

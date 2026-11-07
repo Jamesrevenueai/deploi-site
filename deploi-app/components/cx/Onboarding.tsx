@@ -211,7 +211,7 @@ function DiscoverStep({ w, busy, op, reload }: StepProps) {
 }
 
 function DoneStep({ w, busy, op, base }: StepProps) {
-  if (w.completedAt) return <div className="mt-3"><Link href={base} className="btn sm">Go to Home<Icon name="arrow-right" size={14} /></Link></div>
+  if (w.completedAt) return <div className="mt-3"><Link href={base} className="btn sm">Go to the Command center<Icon name="arrow-right" size={14} /></Link></div>
   if (w.current !== 'done') return null
   return <div className="mt-3"><Button size="sm" onClick={() => void op('complete', { op: 'complete' }, () => 'Done. Your team is ready.')} disabled={busy !== null}><Icon name="check" size={15} />{busy === 'complete' ? 'Finishing…' : 'Finish setup'}</Button></div>
 }

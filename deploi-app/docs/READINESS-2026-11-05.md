@@ -391,3 +391,77 @@ The goal was a working PR #16 preview with demo data. **Production was not touch
 Both failures are the discovery defect recorded in 8.7 (an existing Office agent drops out of the recommended team when discovery runs again). They are unrelated to the theme and occur exactly as before the theme change.
 
 **Production (read-only, after):** deployment `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (e7d2b6c), with the same 9 production-scoped variable names. Nothing in production was changed.
+
+## 9. Full-platform build and Shopify launch (branch `claude/deploi-platform-launch`, PR #18; 2026-11-06 00:50–02:50 UTC)
+
+Built on top of PR #16 (`claude/deploi-operating-system`). Nothing merged, production untouched, `AI_PROVIDER=off` throughout,
+synthetic providers and local databases only.
+
+### 9.1 What was built
+- **Engine (W1):** autonomy modes ("do it and tell me" default, "ask me first" per action, money actions switchable),
+  event router (`agent_events`, deduped), detect → act → verify → proof → notify loop, 15-minute sweep, undo links.
+- **Owner and crew updates (W2):** HTML owner email, text and voice simulated (Twilio steps in `docs/NOTIFY-CHANNELS.md`),
+  crew jobs with a "done" link that triggers the next step, morning report. One crew roster: Settings → Crew.
+- **Connections (W3):** Outlook mail and calendar, HubSpot/Salesforce/Pipedrive/Zoho behind one CRM client, QuickBooks
+  writes, Buildium, Zillow/Apartments.com/Zumper lead parsing. Every provider tested against fake HTTP only.
+- **Packs:** A Commerce (12 agents), B Home services, C Leasing (commission invoicing, fair-housing consistency),
+  D Real estate, E Property management, F Office. Pack pages at `/store/packs`.
+- **Shopify (W5):** embedded gating (unfinished features hidden), Privacy/Agreements/Plan pages inside Shopify,
+  listing, checklist and protected-data docs in `docs/app-store/`.
+- Migrations 058–062 = release set `2026-11-07`, each with a tested rollback.
+
+### 9.2 Numbers
+| Check | Before (bb2df30) | After (95aee53) |
+|---|---|---|
+| vitest, fresh DB | 959/959 (135 files) | **1276/1276 (169 files)** |
+| tsc | clean | clean |
+| eslint | 0 errors | 0 errors, 9 warnings (pre-existing) |
+| app build / site build | pass | pass / pass |
+| forbidden-name grep | clean | clean |
+| Scenario harness | none | **72/72** (A 21, B 11, C 9, D 8, E 7, F 6, cross-cutting 10) |
+| Browser, standalone (`e2e/launch.spec.ts`) | – | 2/2, 16 screenshot pairs 1440/390 in `proof/launch/` |
+| Browser, embedded (`e2e/embedded.spec.ts`) | – | 4/4, listing drafts 1600×900 in `proof/listing/` |
+
+Scenario detail (detection ms, action, verification, owner email, crew message, undo): `docs/SCENARIOS-2026-11-07.md`.
+Rules vs AI across the 72: **60 handled fully by rules, 10 partly, 2 need AI** (a non-order customer question; free-form
+replies such as "Tuesday afternoon").
+
+### 9.3 Findings, by severity (all fixed unless marked)
+1. **High: Outlook replies were ignored by every pack.** The `mail.received` event carries no text (by design), and every
+   reply handler read text from the event, so renter answers, vendor and tenant replies did nothing while the job
+   reported success. Fixed: `lib/email/message-text.ts` decrypts the stored message for the handling agent only.
+2. **High: two crew rosters.** Commerce and home-services sent to ids the crew pipeline rejects
+   (`failed: an organization and a crew member are required`, `skipped: no such crew member in this organization`);
+   on a live store no packer was ever messaged. Fixed: one roster (`crew_members`), migration 062.
+3. **High: leads from real connections dropped silently** (Zillow via Outlook sync, new CRM person). Fixed in `lib/packs/leads.ts`.
+4. **Medium: Order Tracker emailed the customer twice on a retry.** Fixed.
+5. **Medium: a repeat of a failed crew message read as delivered.** Fixed in `lib/notify/crew.ts`.
+6. **Medium: Commerce pack page failed "no such pack"** from a link on the packs list. Fixed.
+7. **Medium: Aurora tiles showed white numbers on white; the selected Issues tab was unreadable; the night sky stopped
+   on short pages.** Fixed in the shared `styles/aurora.css` (regression test added).
+8. **Medium: 16 cross-workstream integration failures** after merging (crew events, blocked vs failed, gating, Buildium
+   mapping). Fixed.
+9. **Open: commerce live store has no email send**, so customer-email commerce agents run on synthetic data only;
+   all 12 commerce agents stay `shopifyReady: false`.
+10. **Open: protected customer data.** First submission opts out; order/customer/return agents hidden in Shopify (phase 2).
+11. **Open, low:** a seller lead via Outlook is treated as a buyer; QuickBooks payment changes carry only the payment id;
+    Office quote follow-up and crew updates log under `hs_*` keys; ask-first has reminders at 24h/72h but no expiry.
+
+### 9.4 Real vs simulated
+- **Real (in code, exercised locally):** event router, loop, autonomy, undo, owner email rendering, crew pipeline,
+  provider clients (against fake HTTP), Shopify embedded app, privacy export/erase for every new table.
+- **Simulated:** text and voice (no Twilio), every third-party account (no keys), Shopify store data, email delivery
+  (rendered and held). Nothing has run against a real provider, store, mailbox or customer.
+
+### 9.5 Production (read-only)
+deploi-app production `dpl_9B3Xf6FmBfnvBqNVhqPBQywDPvYd` (main e7d2b6c) and deploi-site production
+`dpl_9F9SLG7trSjuikvDnP1qoT1yEU6s` (main 5b2bb76): unchanged by this run. deploi-prod database untouched.
+
+### 9.6 Pack readiness (from the harness)
+C Leasing, E Property management, D Real estate, B Home services, F Office, A Commerce (synthetic only).
+
+### 9.7 Shopify submission: can we submit Saturday?
+**Yes for the code, conditional on five founder steps by Friday evening** (`docs/FOUNDER_ACTIONS.md` items 1–5):
+getdeploi.com live (DNS), support@getdeploi.com, the $19 registration and app setup, a development-store live run with
+final screenshots, and legal sign-off on privacy/terms. The development-store run is the long pole: if it is not done by
+Friday evening, submit Monday.

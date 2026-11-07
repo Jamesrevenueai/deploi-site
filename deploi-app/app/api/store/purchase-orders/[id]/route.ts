@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
+import { assertNotEmbedded } from '@/lib/store/embedded-gate'
 import { admin } from '@/lib/db'
 import { assertMerchant, withActor } from '@/lib/engine/actor'
 import { loadPo, recordReceipt } from '@/lib/commerce/purchase-orders'
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await resolveActor(req)
+    assertNotEmbedded(actor) // purchase orders (Supplier Coordinator) are not offered inside Shopify
     if (actor.kind === 'staff') throw new HttpError(400, 'invalid_input', 'open this from the organization')
     const { id } = await params
     const r = await withActor(actor, async db => {
@@ -30,6 +32,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const actor = await resolveActor(req, { mutating: true })
+    assertNotEmbedded(actor)
     const { id } = await params
     const body = await readJson(req)
     if (body.op !== 'receive') throw new HttpError(400, 'invalid_input', 'op must be receive')

@@ -3,7 +3,7 @@ import { navActive } from '../../lib/nav'
 import { MERCHANT_NAV, NAV_LABELS, LEGACY_REDIRECTS, CASE_VIEWS, caseHref } from '../../lib/store/nav'
 import { OFFICE_NAV } from '../../app/office/nav'
 import {
-  STATUS_WORDS, agentLabel, approvalContentRows, approvalsWithoutCase, caseTimeline, homeInsights, homeMetrics, humanize, mergeCases,
+  STATUS_WORDS, agentLabel, approvalContentRows, approvalsWithoutCase, caseTimeline, humanize, mergeCases,
   pendingDecisionsFor, teamMembers, EMPTY_DIRECTORY, type ApprovalEntry, type CaseEventItem, type CaseItem,
 } from '../../components/work/caseView'
 import { readDiscovery } from '../../components/discover/firstRun'
@@ -19,27 +19,27 @@ const kase = (over: Partial<CaseItem> = {}): CaseItem => ({
 const approval = (over: Partial<ApprovalEntry> = {}): ApprovalEntry => ({ source: 'email', id: 'a1', orgId: 'o', kind: 'email', title: 'Send', agent: null, createdAt: '2026-11-01T00:00:00Z', expiresAt: null, version: 'v', decisions: ['approve', 'reject'], why: null, content: {}, ...over })
 
 describe('customer navigation', () => {
-  it('has the exact labels in order', () => {
-    expect(NAV_LABELS).toEqual(['Home', 'My AI Team', 'Work in Progress', 'Needs My Approval', 'Completed Work', 'Inbox', 'Business Insights', 'Integrations', 'Billing', 'Settings'])
+  it('has the exact labels in order (approved redesign)', () => {
+    expect(NAV_LABELS).toEqual(['Command center', 'Needs you', 'My agents', 'Team room', 'Agent library', 'Proof log', 'Connections', 'Plan & actions'])
   })
   it('maps each label to its page and keeps old pages under the right entry', () => {
-    expect(nav('Home').href).toBe('/store')
-    expect(nav('Inbox').href).toBe('/store/inbox/mail')
-    expect(nav('Billing').href).toBe('/store/billing')
-    expect(navActive(nav('Home'), '/store/control-room')).toBe(true)
-    expect(navActive(nav('Home'), '/store/work')).toBe(false)
-    expect(navActive(nav('Work in Progress'), '/store/work/DC-000001')).toBe(true)
-    expect(navActive(nav('My AI Team'), '/store/agents/x')).toBe(true)
-    expect(navActive(nav('My AI Team'), '/office/agents')).toBe(true)
-    expect(navActive(nav('Completed Work'), '/store/activity')).toBe(true)
-    expect(navActive(nav('Billing'), '/store/plan')).toBe(true)
-    expect(navActive(nav('Settings'), '/store/rules')).toBe(true)
-    expect(navActive(nav('Integrations'), '/store/connect/woocommerce')).toBe(true)
-    // the customer inbox is not mistaken for approvals
-    expect(navActive(nav('Needs My Approval'), '/store/inbox/mail')).toBe(false)
+    expect(nav('Command center').href).toBe('/store')
+    expect(nav('Needs you')).toMatchObject({ href: '/store/approvals', count: 'needsYou' })
+    expect(nav('My agents')).toMatchObject({ href: '/store/my-team', count: 'agents' })
+    expect(nav('Team room').href).toBe('/store/room')
+    expect(nav('Agent library').href).toBe('/store/team')
+    expect(nav('Proof log').href).toBe('/store/completed')
+    expect(nav('Plan & actions').href).toBe('/store/plan')
+    expect(navActive(nav('Command center'), '/store/control-room')).toBe(true)
+    expect(navActive(nav('Command center'), '/store/work')).toBe(false)
+    expect(navActive(nav('My agents'), '/store/agents/x')).toBe(true)
+    expect(navActive(nav('My agents'), '/agents/store%3Ainventory_watcher')).toBe(true)
+    expect(navActive(nav('My agents'), '/office/agents')).toBe(true)
+    expect(navActive(nav('Proof log'), '/store/activity')).toBe(true)
+    expect(navActive(nav('Plan & actions'), '/store/billing')).toBe(true)
+    expect(navActive(nav('Connections'), '/store/connect/woocommerce')).toBe(true)
     // every path is claimed by at most one entry
-    for (const p of ['/store', '/store/work', '/store/approvals', '/store/inbox/mail', '/store/settings', '/office', '/store/team/listing_writer']) expect(MERCHANT_NAV.filter(n => navActive(n, p))).toHaveLength(1)
-    expect(MERCHANT_NAV.filter(n => n.mobile).length).toBeLessThanOrEqual(4)
+    for (const p of ['/store', '/store/approvals', '/store/my-team', '/store/team/listing_writer', '/store/completed', '/office/approvals', '/office/connections']) expect(MERCHANT_NAV.filter(n => navActive(n, p))).toHaveLength(1)
     expect(OFFICE_NAV.every(n => n.href.startsWith('/office'))).toBe(true)
   })
   it('redirects old URLs to their new homes', () => {
@@ -93,26 +93,6 @@ describe('case view shaping', () => {
     expect(m.map(x => [x.group, x.name, x.status])).toEqual([['Store agents', 'Stock Guardian', 'Working'], ['Office agents', 'Lead Follow-up', 'Paused'], ['Agent library', 'Listing Writer', 'On']])
     expect(m[2].detail).toBe('Drafts only · 2 waiting for you')
     expect(teamMembers({ engine: [], office: null, library: null })).toEqual([])
-  })
-})
-
-describe('Home metrics', () => {
-  it('uses only API values; a missing source is null, never a guess; the time saved is an estimate with its formula', () => {
-    const counts = { in_progress: 3, needs_approval: 1, completed: 5, attention: 1, total: 10, resolved_30d: 2 }
-    const m = Object.fromEntries(homeMetrics({ counts, approvals: 4, agents: { running: 2, total: 3, needsAttention: 0 }, connectedApps: 2, weekly: { minutes: 30, formula: 'n x 3 min' } }).map(x => [x.key, x]))
-    expect(m.discovered.value).toBe(10)
-    expect(m.resolved.value).toBe(5)
-    expect(m.resolved.sub).toMatch(/Verified only/)
-    expect(m.in_progress.value).toBe(4)
-    expect(m.approvals.value).toBe(4)
-    expect(m.time).toMatchObject({ value: 30, estimate: true, formula: 'n x 3 min' })
-    const empty = homeMetrics({ counts: null, approvals: null, agents: null, connectedApps: null, weekly: null })
-    expect(empty.every(x => x.value === null)).toBe(true)
-  })
-  it('states insights only from the data', () => {
-    expect(homeInsights({ counts: null, approvals: null, cases: [], connectedApps: null })).toEqual([])
-    const i = homeInsights({ counts: { in_progress: 0, needs_approval: 0, completed: 0, attention: 2, total: 2, resolved_30d: 0 }, approvals: 1, cases: [kase({ priority: 'high' })], connectedApps: 0 })
-    expect(i.map(x => x.href)).toEqual(['/store/work', '/store/approvals', '/store/work/DC-000001', '/store/integrations'])
   })
 })
 

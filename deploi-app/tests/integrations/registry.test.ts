@@ -27,6 +27,7 @@ const ALL_ENV: Record<string, string> = {
   GOOGLE_CALENDAR_CLIENT_ID: 'g', GOOGLE_CALENDAR_CLIENT_SECRET: 'g', QUICKBOOKS_CLIENT_ID: 'q', QUICKBOOKS_CLIENT_SECRET: 'q', AGENT_MAIL_DOMAIN: 'agents.example', RESEND_API_KEY: 're_x',
   EMAIL_OAUTH_PROVIDERS: 'on', GOOGLE_OAUTH_CLIENT_ID: 'g', GOOGLE_OAUTH_CLIENT_SECRET: 'g', MICROSOFT_OAUTH_CLIENT_ID: 'm', MICROSOFT_OAUTH_CLIENT_SECRET: 'm',
   BILLING_MODE: 'test', STRIPE_SECRET_KEY: 'sk_test_x', STRIPE_WEBHOOK_SECRET: 'whsec_x',
+  SALESFORCE_CLIENT_ID: 'sf', SALESFORCE_CLIENT_SECRET: 'sf', PIPEDRIVE_CLIENT_ID: 'pd', PIPEDRIVE_CLIENT_SECRET: 'pd', ZOHO_CLIENT_ID: 'z', ZOHO_CLIENT_SECRET: 'z',
 }
 const none = Object.fromEntries(ENV_NAMES.map(k => [k, undefined]))
 const statusFor = async (orgId: string, key: IntegrationKey) => admin(db => statusOf(db, integrationDef(key), orgId))

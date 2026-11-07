@@ -178,7 +178,7 @@ button.badge[aria-pressed="true"] { color: var(--c-on-accent); background: var(-
 @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .fade-up { animation: none; } }
 
-/* ------------------------------------------------------------------ shell */
+/* ------------------------------------------------------------------ staff console shell (components/shell/StaffShell.tsx) */
 .rail { position: fixed; inset: 0 auto 0 0; width: 248px; border-right: 1px solid var(--c-line); background: var(--c-surface); display: none; flex-direction: column; padding: 20px 12px; gap: 2px; overflow-y: auto; z-index: 30; }
 .rail-link { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; color: var(--c-body); font-size: 14.5px; font-weight: 500; }
 .rail-link:hover { background: var(--c-sunken); color: var(--c-ink); }
@@ -205,15 +205,10 @@ button.badge[aria-pressed="true"] { color: var(--c-on-accent); background: var(-
 .wordmark .dot { color: var(--c-accent); }
 
 /* ------------------------------------------------------------------ agent team screens (au-*), light */
-.au-panel, .au-tile, .au-plan, .au-log-row, .au-surface { position: relative; border-radius: var(--r-card); border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-body); box-shadow: var(--shadow-card); }
+.au-panel, .au-tile, .au-plan, .au-log-row { position: relative; border-radius: var(--r-card); border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-body); box-shadow: var(--shadow-card); }
 .au-panel.glow { border-color: var(--c-accent-line); }
 .au-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-accent); }
 .au-gradient-text { color: var(--c-accent); }
-.au-character { position: relative; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; font-size: 28px; line-height: 1; color: var(--c-ink); background: var(--c-accent-soft); border: 1px solid var(--c-accent-line); }
-.au-character.round { border-radius: 999px; }
-.au-character.lg { width: 84px; height: 84px; font-size: 42px; border-radius: 22px; }
-.au-character.sm { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
-.au-character.off { filter: grayscale(1); opacity: 0.7; }
 .au-switch { position: relative; width: 48px; height: 28px; border-radius: 999px; border: 1px solid var(--c-line-strong); background: #E2E8F0; cursor: pointer; transition: background var(--dg-fade-ms) ease; flex: none; padding: 0; }
 .au-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,0.3); transition: transform var(--dg-fade-ms) ease; }
 .au-switch[aria-checked="true"] { background: var(--c-accent); border-color: var(--c-accent); }
@@ -243,9 +238,9 @@ button.badge[aria-pressed="true"] { color: var(--c-on-accent); background: var(-
 .au-level button { border: 0; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; color: var(--c-body); background: transparent; cursor: pointer; }
 .au-level button[aria-pressed="true"] { color: #fff; background: var(--c-accent); }
 .au-level button:disabled { opacity: 0.5; cursor: not-allowed; }
-.au-feedback { position: fixed; right: 16px; bottom: 80px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-ink); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-raised); cursor: pointer; }
+.au-feedback { position: fixed; right: 16px; bottom: 16px; z-index: 45; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--c-line-strong); background: var(--c-surface); color: var(--c-ink); font-size: 14px; font-weight: 500; box-shadow: var(--shadow-raised); cursor: pointer; }
 @media (min-width: 960px) { .au-feedback { bottom: 24px; right: 24px; } }
-.au-help { position: fixed; right: 136px; bottom: 80px; z-index: 45; }
+.au-help { position: fixed; right: 136px; bottom: 16px; z-index: 45; }
 @media (min-width: 960px) { .au-help { bottom: 24px; right: 144px; } }
 .au-help-menu { position: absolute; right: 0; bottom: 48px; min-width: 230px; padding: 6px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow-raised); }
 .au-step { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--c-line); }

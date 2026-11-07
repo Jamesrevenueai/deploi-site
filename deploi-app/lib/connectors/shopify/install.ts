@@ -53,7 +53,7 @@ export async function ensureInstalled(shop: string, idToken: string, opts: { exc
   }
   const token = await (opts.exchange ?? ((s, t) => exchangeSessionToken(s, t)))(shop, idToken)
   const info = await (opts.info ?? shopInfo)(shop, token.accessToken)
-  return admin(async db => {
+  const done = await admin(async db => {
     // one install per shop at a time: two first loads at once must not create two organizations
     await db.query('select pg_advisory_xact_lock(hashtext($1))', [`shopify-install:${shop}`])
     const current = await db.one<{ id: string; org_id: string }>(`select id, org_id from store_connections where platform = 'shopify' and external_id = $1`, [shop])
@@ -85,6 +85,9 @@ export async function ensureInstalled(shop: string, idToken: string, opts: { exc
     if (!created) await restoredIfBroken(db, { orgId, integration: 'shopify', connectionId: conn!.id, actor: `shopify:${shop}`, rowBroken: Boolean(existing && existing.status !== 'active') })
     return { connectionId: conn!.id, orgId, created, tokenExchanged: true }
   })
+  // the agents start on the store at once: packs, the first check, the owner's summary (lib/autonomy/on-connect.ts; never throws)
+  await (await import('../../autonomy/on-connect')).onConnected({ orgId: done.orgId, kind: 'shopify', connectionId: done.connectionId, provider: 'shopify' })
+  return done
 }
 
 /** app/uninstalled: stop everything for the shop. Credentials are deleted; live proposals are cancelled. */
@@ -141,6 +144,8 @@ export async function redactShop(db: Db, shop: string): Promise<{ deleted: boole
   }
   if (agentIds.length) await db.query('delete from ai_usage where org_id = $1 and agent_ref = any($2::text[])', [c.org_id, agentIds])
   await db.query('delete from purchase_orders where org_id = $1 and connection_id = $2', [c.org_id, c.id])
+  // the agents' events from this shop (order, customer, refund and return webhooks): lib/events
+  await db.query(`delete from agent_events where org_id = $1 and source = 'shopify' and payload->'_deploi'->>'connectionId' = $2`, [c.org_id, c.id])
   await db.query('delete from business_profiles where org_id = $1', [c.org_id])
   await db.query('delete from discovery_runs where org_id = $1', [c.org_id])
   await db.query('delete from privacy_exports where org_id = $1 and connection_id = $2', [c.org_id, c.id])

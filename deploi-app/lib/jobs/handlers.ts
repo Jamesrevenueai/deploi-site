@@ -10,6 +10,7 @@
  *  discovery.run      read what an organization connected, open cases, recommend a team (lib/discovery).
  *  platform.retention, platform.deletion   registered in lib/platform/jobs.ts (retention, organization deletion)
  *  connection.health  hourly read-only probes of every connection (lib/integrations/health.ts)
+ *  notify.morning     the daily morning report per organization (lib/notify/morning.ts), queued by /api/cron/daily-report
  *  engine.recover     interrupted store writes: queued/prechecking resume through every gate; a write that
  *                     may have happened becomes "unknown" for the merchant (lib/engine/recover.ts).
  *
@@ -27,6 +28,12 @@ import { enqueue, registerJobHandler, type EnqueueResult } from './queue'
 import '../discovery/jobs'
 // connection.health (lib/integrations/health.ts registers the handler)
 import { enqueueHealthWork } from '../integrations/health'
+// notify.morning (lib/notify/morning.ts registers the handler; /api/cron/daily-report queues it once a day)
+import '../notify/morning'
+// event.handle and loop.resume (lib/events/jobs.ts registers the handlers)
+import '../events/jobs'
+// autonomy.connect and autonomy.connect_summary: the first run after a connection (lib/autonomy/on-connect.ts)
+import '../autonomy/on-connect'
 
 registerJobHandler('agent.run', async (payload, ctx) => {
   const agentId = String(payload.agentId ?? '')
@@ -94,6 +101,9 @@ export async function enqueueDueWork(opts: { now?: Date; limit?: number } = {}) 
   out.maintenance.push(...(await enqueuePlatformWork(now)))
   // integrations: the hourly connection-health probes (lib/integrations/health.ts)
   out.maintenance.push(await enqueueHealthWork(now))
+  // connections: change polling of CRMs, QuickBooks, Buildium and the Outlook calendar (lib/connections/poll.ts)
+  const { enqueueConnectionPolls } = await import('../connections/poll')
+  out.maintenance.push(await enqueueConnectionPolls(now))
   // operations: alert evaluation once per ten-minute window (lib/ops/jobs.ts)
   const { enqueueOpsWork } = await import('../ops/jobs')
   out.maintenance.push(...(await enqueueOpsWork(now)))

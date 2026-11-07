@@ -27,7 +27,7 @@ import { log } from '../log'
 
 export type BucketName =
   | 'lead' | 'magic_link_ip' | 'magic_link_email' | 'dev_login' | 'auth_callback'
-  | 'oauth_start' | 'oauth_callback' | 'unsubscribe' | 'woo_callback' | 'merchant_write' | 'webhook_invalid' | 'contact'
+  | 'oauth_start' | 'oauth_callback' | 'unsubscribe' | 'woo_callback' | 'merchant_write' | 'webhook_invalid' | 'contact' | 'crew_done'
 
 export type BucketConfig = { limit: number; windowS: number; onError: 'open' | 'closed'; why: string }
 
@@ -45,6 +45,7 @@ export const BUCKETS: Record<BucketName, BucketConfig> = {
   merchant_write: { limit: 600, windowS: 60, onError: 'open', why: 'state-changing merchant API calls, per organization (staff: per user)' },
   webhook_invalid: { limit: 120, windowS: 600, onError: 'open', why: 'webhook deliveries that FAILED signature verification, per IP; valid deliveries are never counted or refused' },
   contact: { limit: 5, windowS: 600, onError: 'open', why: 'public website contact form, per IP (each message notifies staff by email)' },
+  crew_done: { limit: 60, windowS: 600, onError: 'open', why: 'crew "mark done" one-time links, per IP (a crew member closes a few jobs a day)' },
 }
 
 export function bucketConfig(name: BucketName, env: Record<string, string | undefined> = process.env): BucketConfig {

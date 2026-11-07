@@ -12,6 +12,7 @@ import { BUILT_IN_SOURCES } from './sources'
 import { officeSource } from './office-source'
 import { purchaseOrderSource } from '../commerce/approval-source'
 import { caseSource } from '../cases/decisions'
+import { loopSource } from '../events/approvals'
 // registers the synthetic demo case kind's decision handler (its cases exist only on synthetic stores)
 import '../cases/demo'
 
@@ -20,6 +21,8 @@ registerApprovalSource(officeSource)
 // purchase-order resolution options from the Supplier Coordinator (lib/commerce)
 registerApprovalSource(purchaseOrderSource)
 registerApprovalSource(caseSource)
+// agent-loop actions an owner asked to approve first (lib/events/loop.ts, ask_first)
+registerApprovalSource(loopSource)
 
 export { registerApprovalSource, listPendingApprovals, decideApproval, approvalSources, getApprovalSource } from './registry'
 export type { ApprovalItem, ApprovalSource, ApprovalDecision, DecisionInput, DecisionResult } from './registry'

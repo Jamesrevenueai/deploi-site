@@ -26,7 +26,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
             <div>
               <h1 className="text-2xl">Sign in</h1>
               <p className="mt-2 text-grey text-[15px]">
-                {dev ? 'Development sign-in: pick a seeded user, or create a new test account.' : 'New or returning, we will email you a one-time sign-in link. A new address gets a new account.'}
+                {dev ? 'Development sign-in: pick a seeded user, or create a new test account.' : env.hasSupabase ? 'New or returning, we will email you a one-time sign-in link. A new address gets a new account.' : 'This server is reached through Shopify.'}
               </p>
             </div>
             {sp.sent && <Banner icon="mail"><strong>Check your email.</strong> The link signs you in on this device.</Banner>}
@@ -49,6 +49,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
                 </Field>
                 <Button type="submit" variant="ghost">Create account</Button>
               </form>
+            ) : !env.hasSupabase ? (
+              <Banner><strong>Email sign-in is not set up on this server.</strong> Open Deploi from your Shopify admin (Apps → Deploi).</Banner>
             ) : (
               <form action={magicLink} className="flex flex-col gap-4">
                 <Field label="Work email" htmlFor="email">

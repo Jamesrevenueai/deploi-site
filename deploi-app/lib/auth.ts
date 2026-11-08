@@ -70,6 +70,9 @@ export async function getSession(): Promise<Session | null> {
     // re-read the profile so role/agency changes take effect immediately
     return (await profileFor(s.uid)) ?? null
   }
+  // a server with no Supabase web keys (the dev-store preview: the app is reached through Shopify's session tokens) has no
+  // web session; never crash the page that asked
+  if (!env.hasSupabase) return null
   const { supabaseServer } = await import('./supabase/server')
   const sb = await supabaseServer()
   const { data } = await sb.auth.getUser()

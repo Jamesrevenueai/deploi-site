@@ -20,6 +20,9 @@ Status labels:
 
 ## 0. F-02: do this first (production is exposed today)
 
+> **Update 2026-11-08:** steps 1–3 are done on deploi-prod and checked (sign-up off; audit clean, nobody used the hole;
+> `F02-hotfix.sql` applied, true / true / true). Step 4 (PR #17's one-line app change) ships with the release.
+
 Anyone can sign up to `deploi-prod` and make themselves staff. Staff can read every organization.
 
 The containment steps are in `docs/HOTFIX-F02.md`:

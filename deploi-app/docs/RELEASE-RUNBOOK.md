@@ -13,6 +13,9 @@ Projects:
 
 ## 0. Today, before anything else: the F-02 hotfix (PR #17)
 
+> **2026-11-08:** steps 1–3 are done on deploi-prod (sign-up off, audit clean, `F02-hotfix.sql` applied and checked).
+> Only step 4 remains: PR #17 merges with the planned release.
+
 Follow `docs/HOTFIX-F02.md` (on the hotfix branch):
 1. Turn off email sign-up.
 2. Audit staff profiles.

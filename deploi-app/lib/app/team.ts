@@ -93,7 +93,7 @@ export async function agentSources(db: Db, orgId: string): Promise<AgentSource[]
   for (const e of engine) {
     if (linked.has(e.id)) continue
     out.push({
-      id: `store:${e.id}`, kind: 'store', workspace: 'store', name: e.name, area: 'Store', job: 'Checks your store and corrects what its authorization covers.', createdAt: isoOf(e.created_at),
+      id: `store:${e.id}`, kind: 'store', workspace: 'store', name: e.name, area: 'Custom agent', job: 'Checks your store and corrects what its authorization covers.', createdAt: isoOf(e.created_at),
       key: e.id, loopKey: null, officeAgentId: null, engineAgentId: e.id, on: e.status === 'active' && !stopped, offReason: stopped ?? (e.status === 'active' ? null : e.status === 'paused' ? 'paused' : 'waiting for your grant'),
       derivedAutonomy: e.mode === 'autonomous' ? 'act_then_tell' : 'ask_first', libraryPermission: null, officeTiers: null, engineApprovalMode: e.mode ?? 'draft', actions: (e.correction_types ?? []).map(t => `store_${t}`),
     })
@@ -120,6 +120,15 @@ export async function agentSources(db: Db, orgId: string): Promise<AgentSource[]
       key: a.key, loopKey: a.key, officeAgentId: null, engineAgentId: null, on: !stopped, offReason: stopped, derivedAutonomy: await loopAutonomy(db, orgId, a.actions),
       libraryPermission: null, officeTiers: null, engineApprovalMode: null, actions: a.actions,
     })
+  }
+  // two different agents can carry the same name (a library agent and a custom agent built from the template of the
+  // same name): both are real and both stay; the custom one is told apart in its name
+  const used = new Set(out.filter(a => !(a.engineAgentId && !a.loopKey)).map(a => `${a.workspace}:${a.name.toLowerCase()}`))
+  for (const a of out) {
+    if (!(a.engineAgentId && !a.loopKey)) continue
+    let name = a.name
+    for (let n = 1; used.has(`${a.workspace}:${name.toLowerCase()}`); n++) name = `${a.name} (custom${n > 1 ? ` ${n}` : ''})`
+    used.add(`${a.workspace}:${name.toLowerCase()}`); a.name = name
   }
   // creation order (stable): the colours are assigned in this order on first sight
   return out.map((a, i) => ({ a, i })).sort((x, y) => x.a.createdAt.localeCompare(y.a.createdAt) || x.i - y.i).map(x => x.a)

@@ -1,5 +1,10 @@
 # HOTFIX F-02: anyone can sign up as staff (production)
 
+> **Status 2026-11-08: contained on deploi-prod.** The founder turned sign-up off, ran the audit (nobody used the hole:
+> `claimed_role` / `claimed_org` NULL on every row; the third staff profile is `ojae@getdeploi.com`, the COO, kept as staff
+> and added to `STAFF_EMAILS`) and applied `docs/hotfix/F02-hotfix.sql`; the step 3 check returned true / true / true.
+> **Remaining:** step 4, the one-line app change in PR #17, which ships with the planned release.
+
 **Severity: critical. Live on `deploi-prod` as of 2026-11-05** (checked read-only: email sign-up enabled,
 `handle_new_user` reads `raw_user_meta_data`, staff matched by substring).
 
@@ -42,7 +47,7 @@ The full release (PR #16) contains the same statements in migration 042. Re-appl
    where p.role = 'staff' or u.raw_user_meta_data ? 'role' or u.raw_user_meta_data ? 'agency_id'
    order by p.created_at;
    ```
-   - Every `staff` row must be an address in `STAFF_EMAILS` (`hello@getdeploi.com`, `omarjames908@gmail.com`).
+   - Every `staff` row must be an address in `STAFF_EMAILS` (`hello@getdeploi.com`, `omarjames908@gmail.com`, and since 2026-11-08 `ojae@getdeploi.com`).
    - Every non-null `claimed_role` or `claimed_org` is suspicious.
    - For a profile that is not yours: `update profiles set role = 'client', agency_id = null where id = '<id>';`, then delete the user under Authentication → Users.
    - Write the ids down first: the audit log (`audit_log`) shows what each one read.

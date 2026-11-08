@@ -8,18 +8,33 @@ Variables), with **Sensitive** on, scoped to **Preview** first, and to **Product
 - `https://deploi-app-git-claude-deploi-operating-system-james-ai.vercel.app` (PR #16 preview)
 - `https://app.getdeploi.com` (production)
 
-## What you still owe before the Shopify submission (as of 2026-11-07)
-In order. Nothing else blocks the submission; items 6–14 below are optional connectors.
+## What you still owe before the Shopify submission (as of 2026-11-08)
+In order. Items 6–14 below are optional connectors.
 
+### Done by you (2026-11-07/08), recorded here
+- **A.** Migration 064 applied on deploi-preview; read-only check: recorded in `_migrations`, RLS and read policies on all four tables (all true).
+- **F-02 database part, on deploi-prod:** sign-up turned off; audit run (3 staff profiles: hello@, omarjames908@ and ojae@getdeploi.com,
+  the COO, who stays staff; `claimed_role` and `claimed_org` NULL on every row, so nobody used the hole); `docs/hotfix/F02-hotfix.sql`
+  applied; check `fixed_trigger`, `leads_closed`, `staff_list_closed` all true. Only PR #17's one-line app change remains; it ships
+  with the release (G).
+- **B.** DNS for getdeploi.com moved to Vercel (`@` A 216.150.1.1 / 216.150.16.1, `www`, `app`, `dev` CNAMEs). Vercel reports
+  all four valid.
+- **D (part).** App Store registration paid ($19, org "deploi ai", Registered); emergency developer contact set.
+- Deploi (dev) client secret rotated (keep the old one until the new one is confirmed working); `SHOPIFY_API_SECRET` added to
+  Vercel Preview; `dev.getdeploi.com` added to the project on branch `claude/deploi-platform-launch`.
+
+### Still open
 | # | What | Where | Status |
 |---|------|-------|--------|
-| A | Run `docs/preview/APPLY-064-ON-DEPLOI-PREVIEW.sql` in the Supabase SQL editor of **deploi-preview** (ref `bhddgjcefwasdyrrfptc`), never deploi-prod (`makqaqzlylhckijdbjzi`) | Supabase dashboard | **open**: until it runs, every page of the new design on the preview shows an error (the tables are missing). Nothing new was added to this file on 2026-11-07: the team room, tasks and "what your team learned" use existing tables |
-| B | Website live: DNS for getdeploi.com (item 1) | Squarespace | open |
-| C | `support@getdeploi.com` mailbox + MX/SPF/DKIM/DMARC (item 2) | mail provider, Squarespace | open |
-| D | Shopify Partner: $19 registration, emergency contact, public distribution, protected-data opt-out, pricing (item 3) | Partner / Dev Dashboard | open |
-| E | Create the development store and install the app (item 4); I then repeat the click-through there and take the 1600×900 listing screenshots on the new design | Partner Dashboard | open |
+| S | Add `ojae@getdeploi.com` to the database staff list: run `docs/hotfix/STAFF-ADD-OJAE.sql` in deploi-prod (and deploi-preview). Vercel `STAFF_EMAILS` already lists it (2026-11-08) | Supabase SQL editor | open |
+| P | `dev.getdeploi.com` is behind Vercel Authentication (preview custom domains are protected too), so Shopify cannot load the app or deliver webhooks. Decide how to open it (see the report of 2026-11-08) | Vercel → deploi-app → Settings → Deployment Protection | **open: blocks the dev-store run** |
+| Q | Deploi (dev) app version: app URL, redirect URL, scopes, webhooks, compliance topics (`docs/app-store/DEV-APP-CONFIG.md`) | Dev Dashboard / Shopify CLI | open |
+| I | IP allowlist for the app (Shopify requires one for public apps by 2026-11-20) (`docs/app-store/DEV-APP-CONFIG.md` §4) | Dev Dashboard → app → Settings → IP allowlist | open |
+| C | `support@getdeploi.com` mailbox + MX/SPF/DKIM/DMARC (item 2). The current Squarespace Email Security preset (SPF `-all`, DMARC reject) blocks all mail from the domain until it is replaced with the provider's records | mail provider, Squarespace | open |
+| D | Shopify Partner: public distribution, protected-data opt-out, pricing (item 3, steps 3–5) | Dev Dashboard | open |
+| E | Install the app on `james-jwtftl1e.myshopify.com` (after P and Q); I then repeat the click-through there and take the 1600×900 listing screenshots | Dev Dashboard | open |
 | F | Legal sign-off on `/privacy` and `/terms` (item 5) | counsel | open |
-| G | F-02 sign-up hotfix: PR #17 is still an open, unmerged draft; production still runs main `e7d2b6c` | GitHub | open: decide with the release |
+| G | F-02 app change: PR #17 (one line in `lib/auth.ts`) ships with the release | GitHub | open: with the release |
 | H | Written OK for the one planned release (item 15), only after the dev-store run passes | you | open |
 
 Order matters for items 1–4: they are the long pole for the Shopify submission.
@@ -116,6 +131,6 @@ Rent Manager, ResMan, Rently: apply through each vendor's partner program (`docs
 allow-lists caller IPs, so Deploi needs fixed outbound IPs (Vercel Secure Compute or a proxy) first.
 
 ## 15. Your written OK (nothing below happens without it)
-- Done on **deploi-preview** with your OK: release set 2026-11-07 migrations 058–063. Migration 064 (redesign) is item A above.
+- Done on **deploi-preview**: release set 2026-11-07, migrations 058–064 (064 applied by you on 2026-11-07).
 - One planned release, after the dev-store run passes, with the runbook: merge PR #16, PR #17 and PR #18; apply
   058–064 to **deploi-prod**; promote to production. Not before your written OK.

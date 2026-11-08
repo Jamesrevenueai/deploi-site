@@ -307,3 +307,11 @@ button.badge[aria-pressed="true"] { color: var(--c-on-accent); background: var(-
 .aurora-surface .eyebrow, .panel .eyebrow, .bg-surface .eyebrow { background: none; color: var(--c-muted); }
 .skip-link { background: #fff; color: #000; }
 .au-feedback { background: rgba(13, 18, 32, 0.9); color: #fff; border-color: var(--dg-glass-border); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+
+/* phones: Help and Feedback shrink to round icon buttons in the corner so they cover as little of the page as possible
+   (2026-11-08); their names stay for screen readers */
+@media (max-width: 640px) {
+  .au-feedback { width: 44px; padding: 0; justify-content: center; right: 12px; bottom: 12px; }
+  .au-help { right: 64px; bottom: 12px; }
+  .au-fab-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}

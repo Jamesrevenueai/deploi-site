@@ -41,7 +41,7 @@ export function HelpMenu() {
   return (
     <>
       <div className="au-help">
-        <button type="button" className="au-feedback !static" onClick={() => setMenu(m => !m)} aria-haspopup="menu" aria-expanded={menu} aria-controls="help-menu"><Icon name="alert" size={15} />Help</button>
+        <button type="button" className="au-feedback !static" onClick={() => setMenu(m => !m)} aria-haspopup="menu" aria-expanded={menu} aria-controls="help-menu"><Icon name="alert" size={15} /><span className="au-fab-label">Help</span></button>
         {menu && (
           <div id="help-menu" role="menu" aria-label="Help" className="au-help-menu panel">
             <button type="button" role="menuitem" className="rail-link w-full" onClick={start}><Icon name="chat" size={15} />Get help</button>

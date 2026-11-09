@@ -13,7 +13,7 @@ export const SUPPORT_FAQ: { q: string; a: ReactNode }[] = [
   },
   {
     q: 'What can the app change in my store?',
-    a: <>Only what you approve, or what an agent&rsquo;s authorization you granted covers: a variant&rsquo;s out-of-stock setting, whether a product is published on the one sales channel you choose, a variant&rsquo;s price or compare-at price from your price list, and a variant&rsquo;s SKU from your mapping. It never changes stock counts, product status, customers or orders.</>,
+    a: <>Only what you approve, or what an agent&rsquo;s authorization you granted covers: a variant&rsquo;s out-of-stock setting, whether a product is published on the one sales channel you choose, a variant&rsquo;s price or compare-at price from your price list, and a variant&rsquo;s SKU from your mapping. Anything that moves money always waits for your approval. It never changes stock counts, product status, customers or orders. The full list of permissions and why each is needed is in the <Link to="/privacy">Privacy Policy</Link>.</>,
   },
   {
     q: 'Deploi says my store is not enabled for changes yet. Why?',
@@ -45,7 +45,7 @@ export default function Support() {
         <Link to="/" className="back">← Back to {BRAND}</Link>
         <h1>Contact and support</h1>
         <p className="lead">Email {mail}. For a store, include its myshopify.com address and what you were doing. Never send passwords or access keys.</p>
-        <p className="legal-meta">Sales and pilot questions go to the same address, or <Link to="/#early-access">apply for a paid pilot</Link>. We do not promise a response time.</p>
+        <p className="legal-meta">Sales and pilot questions go to the same address, or <Link to="/#early-access">apply for a paid pilot</Link>. We reply within 2 business days.</p>
         <h2 id="contact-form">Write to us</h2>
         <ContactForm />
         <p className="legal-meta">Already a customer? Use Help → Get help inside the app: your request is linked to your account and any case.</p>

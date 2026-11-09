@@ -231,3 +231,8 @@ ul, ol { margin: 0; padding: 0; }
 
 /* old reveal hook: content is always visible (no hidden-until-scrolled text) */
 .reveal { opacity: 1; }
+
+.legal-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+.legal-table th, .legal-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid rgba(127,127,127,.25); }
+.legal-table code { font-size: 13px; white-space: nowrap; }
+@media (max-width: 640px) { .legal-table, .legal-table thead, .legal-table tbody, .legal-table tr, .legal-table th, .legal-table td { display: block; } .legal-table thead { position: absolute; left: -9999px; } .legal-table tr { padding: 8px 0; border-bottom: 1px solid rgba(127,127,127,.25); } .legal-table td { border: 0; padding: 2px 0; } }

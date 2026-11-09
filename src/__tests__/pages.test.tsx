@@ -61,8 +61,14 @@ describe('Legal', () => {
   it('describes what the Shopify app reads, token protection, deletion and no analytics', () => {
     const { container } = render(<MemoryRouter><Legal kind="privacy" /></MemoryRouter>)
     const text = container.textContent ?? ''
-    expect(text).toMatch(/Products, product variants \(including prices, SKUs and barcodes\), inventory levels and locations/)
-    expect(text).toMatch(/does not read customer or order data/)
+    // every Shopify permission the app asks for (deploi-app/shopify.app.deploi-dev.toml.example), with what and why
+    for (const s of ['read_products', 'write_products', 'read_inventory', 'read_locations', 'read_discounts', 'read_publications, write_publications (optional)']) expect(text).toContain(s)
+    expect(text).toMatch(/does not ask for, read or store your Shopify customers, orders/)
+    for (const t of ['customers/data_request', 'customers/redact']) expect(text).toContain(t)
+    for (const p of ['Vercel', 'Supabase', 'Resend', 'Twilio', 'No AI provider']) expect(text).toContain(p)
+    expect(text).toMatch(/AI features are switched off/)
+    expect(text).toMatch(/never use your data to train models/)
+    expect(text).toMatch(/stored in the United States/)
     expect(text).toMatch(/encrypted at rest/)
     expect(text).toMatch(/never shown in the browser/)
     expect(text).toMatch(/shop\/redact/)
@@ -83,13 +89,14 @@ describe('Support', () => {
     expect(text).toMatch(/delete your store.s data/)
     expect(text).toMatch(/invite code/)
     expect(text).not.toMatch(/guarantee|within \d+ (hours|minutes)|24\/7/i)
+    expect(text).toMatch(/We reply within 2 business days/)
     expect(text).not.toMatch(CONSULTING)
   })
 
   it('the privacy policy covers customers, retention and transfers', () => {
     const { container } = render(<MemoryRouter><Legal kind="privacy" /></MemoryRouter>)
     const text = container.textContent ?? ''
-    expect(text).toMatch(/does not read, receive or store information about your customers/)
+    expect(text).toMatch(/does not ask for, read or store your Shopify customers/)
     expect(text).toMatch(/kept for up to 30 days/)
     expect(text).toMatch(/outside your country/)
   })

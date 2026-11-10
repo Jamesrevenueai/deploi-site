@@ -14,7 +14,7 @@ import '../styles/app.css'
 
 
 export const metadata: Metadata = {
-  title: { default: 'Deploi AI', template: '%s · Deploi AI' },
+  title: { default: 'Deploi', template: '%s · Deploi' },
   description: 'Deploi operating system',
   robots: { index: false, follow: false },
 }

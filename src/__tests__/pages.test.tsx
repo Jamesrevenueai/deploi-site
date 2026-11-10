@@ -5,7 +5,7 @@ import { Footer } from '../components/Footer'
 import Legal, { PRIVACY, termsSections } from '../pages/Legal'
 import Support, { SUPPORT_FAQ } from '../pages/Support'
 import { AppRoutes } from '../App'
-import { CONTACT_EMAIL } from '../lib/brand'
+import { CONTACT_EMAIL, LEGAL } from '../lib/brand'
 
 const CONSULTING = /home care|assessment|retainer|EVV|BAA|Website Improvement|\$500/i
 
@@ -43,16 +43,16 @@ describe('Legacy routes', () => {
 })
 
 describe('Legal', () => {
-  it('replaces the entity placeholder and links the contact email', () => {
-    const sections = termsSections('Example Holdings LLC')
+  it('names the operator from the one config value (LEGAL) and links the contact email', () => {
+    const sections = termsSections()
     render(<MemoryRouter><ol>{sections.map(s => <li key={s.title}>{s.body}</li>)}</ol></MemoryRouter>)
-    expect(screen.getByText('Example Holdings LLC')).toBeInTheDocument()
+    expect(screen.getByText(LEGAL.entity)).toBeInTheDocument()
     expect(screen.getAllByText(CONTACT_EMAIL).length).toBeGreaterThan(0)
   })
 
   it('keeps the draft notice and states pricing honestly in the terms', async () => {
     const { container } = render(<MemoryRouter><Legal kind="terms" /></MemoryRouter>)
-    expect(screen.getByText(/pending legal review/)).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/pending legal review|DRAFT/)
     expect(container.textContent).toContain('Pricing will be published before general availability.')
     expect(container.textContent).toMatch(/none is generally available yet/)
     expect(container.textContent).not.toMatch(CONSULTING)

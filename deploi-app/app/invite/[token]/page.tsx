@@ -6,7 +6,7 @@ import { Banner } from '@/components/ui/Banner'
 import { acceptInviteAction, inviteDevSignIn, inviteMagicLink } from './actions'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Invitation · Deploi AI', robots: { index: false } }
+export const metadata = { title: 'Invitation · Deploi', robots: { index: false } }
 
 const ROLE_WORDS: Record<string, string> = {
   admin: 'Admins grant and widen agents, approve work, manage billing, connections and members.',
@@ -23,9 +23,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-dvh flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md fade-up">
-        <div className="wordmark mb-10 text-center">deploi <span className="text-grey-h">ai</span></div>
+        <div className="wordmark mb-10 text-center">deploi</div>
         <div className="panel p-6 md:p-8"><div className="flex flex-col gap-5" data-testid="invite">{children}</div></div>
-        <p className="mt-6 text-center text-[13px] text-grey-h">Questions? hello@getdeploi.com</p>
+        <p className="mt-6 text-center text-[13px] text-grey-h">Questions? support@getdeploi.com</p>
       </div>
     </main>
   )

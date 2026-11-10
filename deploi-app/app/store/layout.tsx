@@ -6,7 +6,7 @@ import { BillingStatusBanner } from '@/components/store/BillingStatusBanner'
 import { HelpMenu } from '@/components/support/HelpMenu'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: { default: 'Store', template: '%s · Deploi AI' } }
+export const metadata = { title: { default: 'Store', template: '%s · Deploi' } }
 
 /** Merchant area of the Deploi web app. Staff are redirected by requireRole; an account without a store sees /no-store. */
 export default async function StoreLayout({ children }: { children: React.ReactNode }) {

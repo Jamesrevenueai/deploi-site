@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { BRAND, CONTACT_EMAIL } from '../lib/brand'
-import { env } from '../lib/env'
+import { BRAND, CONTACT_EMAIL, LEGAL } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
 
 type LegalKind = 'terms' | 'privacy'
@@ -11,14 +10,14 @@ const LEGAL_UPDATED = 'November 9, 2026'
 
 const mail = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
 
-export function termsSections(entity: string): LegalSection[] {
+export function termsSections(): LegalSection[] {
   return [
     {
       title: 'Who we are',
-      body: <>{BRAND} is a trade name operated by <strong>{entity}</strong>, an Ohio limited liability company (d/b/a {BRAND}). By using this website or the {BRAND} app, you agree to these Terms.</>,
+      body: <>{BRAND} is operated by <strong>{LEGAL.entity}</strong>, {LEGAL.entityType} based in {LEGAL.location}. By using this website or the {BRAND} app, you agree to these Terms.</>,
     },
     {
-      title: 'What Deploi AI is',
+      title: `What ${BRAND} is`,
       body: <>{BRAND} is subscription software that finds supported stock and listing problems in an online store, shows the evidence, proposes a fix, makes the change you approve through the platform&rsquo;s official API, and re-reads the store to confirm the change took effect. It is offered as a <strong>pilot</strong>: each integration&rsquo;s status (Pilot or Planned) is shown on the Integrations page, and none is generally available yet. We do not provide legal, tax or accounting advice.</>,
     },
     {
@@ -71,7 +70,7 @@ export function termsSections(entity: string): LegalSection[] {
     },
     {
       title: 'Contact',
-      body: <>Questions about these Terms? Email {mail}.</>,
+      body: <>Questions about these Terms? Email {mail}. {BRAND} is operated by {LEGAL.entity}, {LEGAL.location}.</>,
     },
   ]
 }
@@ -88,7 +87,7 @@ const SCOPES: [string, string, string][] = [
 export const PRIVACY: LegalSection[] = [
   {
     title: 'What this policy covers',
-    body: <>This policy covers this website and the {BRAND} app: the Shopify app and the office tools you can connect to it. {BRAND} is operated by {env.legalEntity}.</>,
+    body: <>This policy covers this website and the {BRAND} app: the Shopify app and the office tools you can connect to it. {BRAND} is operated by {LEGAL.entity} ({LEGAL.location}).</>,
   },
   {
     title: 'What the Shopify app reads, and why',
@@ -179,7 +178,7 @@ type Props = { kind: LegalKind }
 
 export default function Legal({ kind }: Props) {
   const title = kind === 'terms' ? 'Terms of Service' : 'Privacy Policy'
-  const sections = kind === 'terms' ? termsSections(env.legalEntity) : PRIVACY
+  const sections = kind === 'terms' ? termsSections() : PRIVACY
 
   useSeo({
     title: `${title} — ${BRAND}`,
@@ -193,7 +192,6 @@ export default function Legal({ kind }: Props) {
     <div className="page">
       <div className="container-narrow">
         <Link to="/" className="back">← Back to {BRAND}</Link>
-        {!env.legalReviewed && <div className="draft-badge" role="status">DRAFT — pending legal review</div>}
         <h1>{title}</h1>
         <div className="legal-meta">Last updated: {LEGAL_UPDATED}</div>
         <ol className="legal-sections">

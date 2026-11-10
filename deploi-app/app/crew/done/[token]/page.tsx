@@ -3,13 +3,13 @@ import { Button } from '@/components/ui/Button'
 import { Banner } from '@/components/ui/Banner'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Mark a job done · Deploi AI', robots: { index: false } }
+export const metadata = { title: 'Mark a job done · Deploi', robots: { index: false } }
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-dvh flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md fade-up">
-        <div className="wordmark mb-10 text-center">deploi <span className="text-grey-h">ai</span></div>
+        <div className="wordmark mb-10 text-center">deploi</div>
         <div className="panel p-6 md:p-8"><div className="flex flex-col gap-5" data-testid="crew-done">{children}</div></div>
       </div>
     </main>

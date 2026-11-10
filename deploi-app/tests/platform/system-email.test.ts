@@ -66,7 +66,7 @@ describe.skipIf(!ready)('system mailer', () => {
     expect(sent.map(s => s.body.to)).toEqual([['me@owner.example'], ['anyone@team.example']])
   })
 
-  it('all: sent from hello@<site domain> through Resend with an idempotency key; a repeat with the same key never sends twice', async () => {
+  it('all: sent from support@<site domain> through Resend with an idempotency key; a repeat with the same key never sends twice', async () => {
     process.env.EMAIL_LIVE_SENDS = 'all'
     process.env.NEXT_PUBLIC_SITE_URL = 'https://www.getdeploi.com'
     expect(systemFromAddress()).toBe('hello@getdeploi.com')
@@ -76,7 +76,7 @@ describe.skipIf(!ready)('system mailer', () => {
     expect(sent).toHaveLength(1)
     expect(sent[0].headers.authorization).toBe('Bearer re_test_key')
     expect(sent[0].headers['idempotency-key']).toMatch(/^deploi-system-[0-9a-f]{48}$/)
-    expect(sent[0].body).toMatchObject({ from: 'Deploi AI <hello@getdeploi.com>', to: ['pat@example.com'] })
+    expect(sent[0].body).toMatchObject({ from: 'Deploi <support@getdeploi.com>', to: ['pat@example.com'] })
     // a header injection in the subject is flattened onto one line
     expect(sent[0].body.subject).toBe('Note for Pat Bcc: evil@example.com')
     const again = await sendSystemEmail({ key: k, template: 'test_note', to: 'pat@example.com', params: { name: 'Pat', link: 'https://app.test/i/1' } })

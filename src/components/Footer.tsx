@@ -1,14 +1,8 @@
 import { Link } from 'react-router-dom'
-import { BRAND, CONTACT_EMAIL } from '../lib/brand'
+import { BRAND, CONTACT_EMAIL, LEGAL } from '../lib/brand'
 import { CTA_HREF, CTA_LABEL } from './Button'
 import { NAV_LINKS, Wordmark } from './Nav'
-import { env } from '../lib/env'
 import { CORE_MESSAGE } from '../lib/site-config'
-
-/** Marks a legal document as a draft until counsel has reviewed it (VITE_LEGAL_REVIEWED=true). */
-export function LegalDraftTag() {
-  return env.legalReviewed ? null : <span className="legal-draft-tag">Draft<span className="sr-only">, pending legal review</span></span>
-}
 
 export function Footer() {
   const year = new Date().getFullYear()
@@ -39,8 +33,8 @@ export function Footer() {
             <div className="footer-col">
               <div className="footer-col-title">Legal</div>
               <ul>
-                <li><Link to="/privacy">Privacy Policy</Link><LegalDraftTag /></li>
-                <li><Link to="/terms">Terms of Service</Link><LegalDraftTag /></li>
+                <li><Link to="/privacy">Privacy Policy</Link></li>
+                <li><Link to="/terms">Terms of Service</Link></li>
                 <li><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></li>
               </ul>
             </div>
@@ -50,7 +44,7 @@ export function Footer() {
           Shopify, WooCommerce, HubSpot, Google Calendar, QuickBooks and the other names on this site are trademarks of their respective owners.
           {' '}{BRAND} connects through each service&rsquo;s official API and is not affiliated with or endorsed by them; integrations are not partnerships.
         </p>
-        <div className="footer-copy">© {year} {BRAND}. All rights reserved.</div>
+        <div className="footer-copy">© {year} {LEGAL.entity}. {BRAND} is operated by {LEGAL.entity}, {LEGAL.location}. All rights reserved.</div>
       </div>
     </footer>
   )

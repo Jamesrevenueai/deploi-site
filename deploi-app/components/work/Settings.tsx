@@ -117,7 +117,7 @@ export function SettingsScreen() {
             : <Row href={null} title="Retention" body="Not available here right now." badge={pending} />}
           {data?.deletion?.available
             ? <li><DeletionControl request={(data.deletion.json?.request as Deletion) ?? null} coolingOffDays={typeof data.deletion.json?.coolingOffDays === 'number' ? data.deletion.json.coolingOffDays : null} onChange={reload} /></li>
-            : <Row href={null} title="Account deletion" body="Not available here right now. To delete your business's data, write to hello@getdeploi.com." badge={pending} />}
+            : <Row href={null} title="Account deletion" body="Not available here right now. To delete your business's data, write to support@getdeploi.com." badge={pending} />}
           <Row href="/store/activity" title="Activity and audit" body="Every change your agents made, with its verification." />
           <Row href="/store/privacy" title="Privacy requests" body="Customer data requests and erasures from Shopify, and the exports to send your customers." />
         </ul>

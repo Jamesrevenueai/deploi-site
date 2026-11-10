@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { BRAND, CONTACT_EMAIL } from '../lib/brand'
+import { BRAND, CONTACT_EMAIL, LEGAL } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
 import { ContactForm } from '../components/ContactForm'
 
@@ -59,6 +59,7 @@ export default function Support() {
           ))}
         </ol>
         <p className="legal-meta">Privacy questions and data requests: see the <Link to="/privacy">Privacy Policy</Link> or email {mail}.</p>
+        <p className="legal-meta">{BRAND} is operated by {LEGAL.entity}, {LEGAL.location}.</p>
       </div>
     </div>
   )

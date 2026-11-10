@@ -23,5 +23,5 @@ export const env = {
   get isProd() { return process.env.NODE_ENV === 'production' },
 }
 
-export const COMPANY_EMAIL = 'hello@getdeploi.com'
-export const COMPANY_NAME = 'Deploi AI'
+export const COMPANY_EMAIL = 'support@getdeploi.com'
+export const COMPANY_NAME = 'Deploi'

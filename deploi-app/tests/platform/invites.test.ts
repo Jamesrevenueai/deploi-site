@@ -72,11 +72,11 @@ describe.skipIf(!ready)('member invitations', () => {
     const org = (await admin(db => db.one<{ name: string }>('select name from agencies where id = $1', [NW.org])))!.name
     const link = String(m.text).match(/https:\/\/app\.deploi\.test\/invite\/\S+/)![0]
     const expires = new Date(Date.parse(r.expiresAt)).toISOString().slice(0, 10)
-    expect(m.from).toBe('Deploi AI <hello@getdeploi.com>')
+    expect(m.from).toBe('Deploi <support@getdeploi.com>')
     expect(m.to).toEqual([email])
-    expect(m.subject).toBe(`${NW.email} invited you to ${org} on Deploi AI`)
+    expect(m.subject).toBe(`${NW.email} invited you to ${org} on Deploi`)
     expect(m.text).toBe([
-      `${NW.email} invited you to join ${org} on Deploi AI as an admin.`,
+      `${NW.email} invited you to join ${org} on Deploi as an admin.`,
       '',
       `Accept the invitation: ${link}`,
       '',

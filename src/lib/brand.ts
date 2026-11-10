@@ -4,7 +4,7 @@ export const WORDMARK: [string, string] = ['deploi', 'ai']
 export const CONTACT_EMAIL = 'support@getdeploi.com'
 
 /**
- * Who operates Deploi: the one place to change the legal entity or its public location (Terms, Privacy, Support,
+ * Who operates Deploi (set 2026-11-10): the one place to change the legal entity or its public location (Terms, Privacy, Support,
  * footer). No street address is published; only the city.
  */
 export const LEGAL = {

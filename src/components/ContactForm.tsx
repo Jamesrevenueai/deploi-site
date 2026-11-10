@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { CONTACT_TOPICS, contactEndpoint, submitContact, validateContact, type ContactPayload, type ContactTopic } from '../lib/contact'
+import { CONTACT_TOPICS, ContactUnavailable, contactEndpoint, submitContact, validateContact, type ContactPayload, type ContactTopic } from '../lib/contact'
 import { CONTACT_EMAIL } from '../lib/brand'
 
 /**
@@ -22,13 +22,16 @@ export function ContactForm() {
     }
     const problem = validateContact(p)
     if (problem) { setError(problem); return }
-    if (!url) {
+    const byEmail = () => {
       window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Contact (${p.topic})`)}&body=${encodeURIComponent(`${p.message}\n\n${p.name}${p.company ? `, ${p.company}` : ''}`)}`
       setStatus('done')
-      return
     }
+    if (!url) { byEmail(); return }
     setStatus('sending')
-    try { await submitContact(url, p); setStatus('done') } catch (err) { setStatus('idle'); setError(err instanceof Error ? err.message : 'Something went wrong.') }
+    try { await submitContact(url, p); setStatus('done') } catch (err) {
+      if (err instanceof ContactUnavailable) { byEmail(); return }
+      setStatus('idle'); setError(err instanceof Error ? err.message : 'Something went wrong.')
+    }
   }
 
   if (status === 'done') return <div className="confirmation" role="status"><h3>Message sent.</h3><p>Thank you. We will reply by email.</p></div>

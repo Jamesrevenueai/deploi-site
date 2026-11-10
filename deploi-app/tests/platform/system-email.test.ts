@@ -69,7 +69,7 @@ describe.skipIf(!ready)('system mailer', () => {
   it('all: sent from support@<site domain> through Resend with an idempotency key; a repeat with the same key never sends twice', async () => {
     process.env.EMAIL_LIVE_SENDS = 'all'
     process.env.NEXT_PUBLIC_SITE_URL = 'https://www.getdeploi.com'
-    expect(systemFromAddress()).toBe('hello@getdeploi.com')
+    expect(systemFromAddress()).toBe('support@getdeploi.com')
     const k = key('all')
     const r = await sendSystemEmail({ key: k, template: 'test_note', to: 'Pat@Example.com', params: { name: 'Pat', link: 'https://app.test/i/1' } })
     expect(r).toMatchObject({ status: 'sent', duplicate: false })
@@ -84,7 +84,7 @@ describe.skipIf(!ready)('system mailer', () => {
     expect(sent).toHaveLength(1)
     expect(await row(r.id)).toMatchObject({ status: 'sent', provider_message_id: 're_1', attempts: 1 })
     process.env.SYSTEM_MAIL_DOMAIN = 'mail.getdeploi.test'
-    expect(systemFromAddress()).toBe('hello@mail.getdeploi.test')
+    expect(systemFromAddress()).toBe('support@mail.getdeploi.test')
   })
 
   it('a refused send is recorded as failed and retried under the same key; a lost response is "uncertain" and not resent', async () => {

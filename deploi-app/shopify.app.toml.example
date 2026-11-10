@@ -1,17 +1,19 @@
-# Shopify app configuration (copy to shopify.app.toml, or run `shopify app config link` and merge;
-# release with `shopify app deploy`). Values in <> come from the Dev Dashboard / Partner Dashboard.
+# PRODUCTION app "Deploi" (the one submitted to the App Store; Deploi (dev) is never made public).
+# Link it once: shopify app config link --client-id <client id> --file-name shopify.app.deploi.toml, replace that file
+# with this template (client_id filled in), then release with: shopify app deploy --config deploi. Values in <> come from the Dev Dashboard / Partner Dashboard.
 # Never commit the client secret: it lives only in the hosting environment (SHOPIFY_API_SECRET).
 client_id = "<SHOPIFY_API_KEY>"
 # must match (or be very close to) the name in the App Store submission form
-name = "Deploi AI"
+name = "Deploi"
 # also the <app-handle> in Shopify's plan page URL (SHOPIFY_APP_HANDLE)
-handle = "<app-handle>"
+handle = "deploi"
 # the embedded admin UI; must not contain "shopify" or "example" in the host
 application_url = "https://app.getdeploi.com/shopify"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+# false: the production URLs never change to a tunnel
+automatically_update_urls_on_dev = false
 
 [access_scopes]
 # Installed with the app (lib/connectors/shopify/config.ts REQUIRED_SCOPES + EVENT_SCOPES): the reads, plus write_products,
@@ -28,8 +30,8 @@ scopes = "read_products,write_products,read_inventory,read_locations,read_discou
 #   write_publications
 # Must match OPTIONAL_SCOPES in config.ts. No customer, order or inventory WRITE scope anywhere; no report scope.
 optional_scopes = ["read_publications", "write_publications"]
-# `use_legacy_install_flow` is deliberately omitted: Shopify managed installation grants the scopes above at install,
-# then the app exchanges the ID token for an expiring offline token.
+# `use_legacy_install_flow` is deliberately omitted (Shopify's default is managed installation): Shopify grants the scopes
+# above at install, then the app exchanges the ID token for an expiring offline token.
 
 [auth]
 # only the non-embedded fallback (authorization-code grant) uses this; managed installation does not

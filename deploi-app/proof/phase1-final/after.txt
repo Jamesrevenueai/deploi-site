@@ -1,0 +1,18 @@
+== AFTER 2026-11-11T23:08:39Z deployment dpl_8mUhPAtfi8s42GkyX6z5DKBbaHb7 sha 6c5d81d20a5a8cd16a6a466726b755e636d30949
+HTTP/2 307 
+location: /login
+{"ok":true,"auth":"supabase","email":"mock","db":{"reachable":true,"latencyMs":235},"queue":{"depth":20,"due":20,"running":0,"dead":0,"expiredLeases":0,"oldestDueAgeSec":518890},"crons":{},"ai":{"provider":"off","configured":false,"problems":0,"lastHour":{"calls":0,"providerErrors":0,"refused":0},"stalePending":0},"retention":{"lastRunAt":null,"status":"never","lagHours":null},"deletion":{"overdue":0,"failed":0,"oldestOverdueHours":null},"paused":{"jobs":false,"liveWrites":false}}
+GET /api/health -> 200
+-- unsigned webhook:
+HTTP/2 401 
+content-type: application/json
+server: Vercel
+x-content-type-options: nosniff
+x-vercel-id: cle1::iad1::l4hh6-1794438522210-fd4a970ff05e
+{"ok":false,"error":"invalid hmac"}
+-- public-surface checks:
+POST /api/admin/devstore -> 404
+POST /api/store/demo -> 401
+login page dev sign-in present: 0
+old preview (dev sign-in build) deploi-fllxxkpsf: 403
+old previews blocked: 91/91 (403), firewall rule 'Previews only via dev.getdeploi.com'

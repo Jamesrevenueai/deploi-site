@@ -1,0 +1,9 @@
+== BEFORE 2026-11-11T22:47:57Z deployment dpl_5DirRtdrHcxXLPLfd7j7HBHPh32y sha 6c5d81d
+GET / -> 307 https://dev.getdeploi.com/login
+{"ok":true,"auth":"supabase","email":"mock","db":{"reachable":true,"latencyMs":420},"queue":{"depth":20,"due":20,"running":0,"dead":0,"expiredLeases":0,"oldestDueAgeSec":517648},"crons":{},"ai":{"provider":"off","configured":false,"problems":0,"lastHour":{"calls":0,"providerErrors":0,"refused":0},"stalePending":0},"retention":{"lastRunAt":null,"status":"never","lagHours":null},"deletion":{"overdue":0,"failed":0,"oldestOverdueHours":null},"paused":{"jobs":false,"liveWrites":false}}
+GET /api/health -> 200
+HTTP/1.1 200 Connection Established
+HTTP/2 401 
+server: Vercel
+x-vercel-id: cle1::iad1::44xh9-1794437280726-b75856348b0b
+{"ok":false,"error":"invalid hmac"}

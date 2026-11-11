@@ -1,0 +1,66 @@
+/* ==========================================================================
+   Deploi app: design tokens of the logged-in app (approved redesign 2026-11-06).
+   These custom properties mirror lib/app/tokens.ts one for one; edit both together.
+   The component and shell classes that use them are in styles/app.css.
+   ========================================================================== */
+:root {
+  /* the self-hosted faces (@fontsource, imported in app/layout.tsx); the names the rest of the CSS uses */
+  --font-inter: 'Inter';
+  --font-grotesk: 'Space Grotesk';
+  --app-font-body: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --app-font-heading: var(--font-grotesk), 'Space Grotesk', var(--app-font-body);
+
+  /* backdrop */
+  --app-backdrop: #07070D;
+  --app-glow-tl: #2A3BFF;
+  --app-glow-tr: #FF4D9D;
+  --app-glow-br: #FF8A3D;
+
+  /* app surface */
+  --app-surface: #FFFFFF;
+  --app-surface-max: 1392px;
+  --app-surface-radius: 22px;
+  --app-surface-shadow: 0 30px 80px rgba(10, 10, 40, .45);
+  --app-surface-pad-x: 28px;
+  --app-surface-pad-y: 24px;
+
+  /* text */
+  --app-text: #14141F;
+  --app-text-2: #5C5C70;
+  --app-text-body: #2A2A3A;
+
+  /* lines and fills */
+  --app-border-card: #ECECF2;
+  --app-border-input: #E3E3EC;
+  --app-divider: #F2F2F6;
+  --app-fill: #FAFAFC;
+
+  /* buttons */
+  --app-btn-bg: #14141F;
+  --app-btn-text: #FFFFFF;
+  --app-btn-radius: 12px;
+  --app-btn-min-h: 44px;
+
+  /* cards */
+  --app-card-radius: 16px;
+  --app-card-radius-lg: 18px;
+
+  /* status pills */
+  --app-working-bg: #E6EAFF;  --app-working-text: #2333A8;
+  --app-waiting-bg: #FFE7D6;  --app-waiting-text: #8A3300;
+  --app-watching-bg: #ECF7F1; --app-watching-text: #17663F;
+  --app-off-bg: #F2F2F6;      --app-off-text: #5C5C70;
+
+  /* proof chip */
+  --app-proof-bg: #EEF0FF;
+  --app-proof-text: #2A35B0;
+
+  /* usage bar */
+  --app-usage-bar: linear-gradient(90deg, #3A4BE0, #FF4D9D, #FF8A3D);
+
+  /* hero band */
+  --app-hero-bg: #0E0E1A;
+  --app-hero-radius: 20px;
+  --app-hero-live: #5EE6A8;
+  --app-hero-waiting: #FFB27A;
+}

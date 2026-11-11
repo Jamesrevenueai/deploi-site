@@ -4,6 +4,7 @@
  * route (signature, dedupe, livemode), subscription state, grace period and read-only enforcement.
  */
 import '../merchant/env'
+import { readFileSync } from 'node:fs'
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
@@ -170,10 +171,12 @@ describe.skipIf(!ready)('Stripe billing flow', () => {
   })
 
   it('with billing on, the free plan switch is refused: the tier follows the paid subscription', async () => {
+    // inside Shopify the library tier switch does not exist at all (lib/shopify/embedded.ts): Shopify merchants change plans on Shopify's plan page
     const auth = `Bearer ${signSessionToken({ dest: `https://${NW.domain}`, sub: '7' }, process.env.SHOPIFY_API_SECRET!, process.env.SHOPIFY_API_KEY!)}`
     const res = await planPost(new Request('http://localhost/api/store/plan', { method: 'POST', headers: { authorization: auth, 'content-type': 'application/json' }, body: JSON.stringify({ tier: 'pro' }) }))
-    expect(res.status).toBe(409)
-    expect((await res.json()).error).toBe('use_billing')
+    expect(res.status).toBe(404)
+    // for the web app the switch is refused while billing is on (SECURITY-REVIEW F-09)
+    expect(readFileSync('app/api/store/plan/route.ts', 'utf8')).toMatch(/billingMode\(\) !== 'off'\) throw new HttpError\(409, 'use_billing'/)
   })
 
   it('with BILLING_MODE off the free beta is unchanged: no read-only, env limits', async () => {

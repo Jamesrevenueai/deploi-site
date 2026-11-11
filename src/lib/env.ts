@@ -9,8 +9,6 @@ export const env = {
   appApiUrl: read('VITE_APP_API_URL').replace(/\/+$/, ''),
   /** Formspree endpoint, used only when VITE_APP_API_URL is empty. */
   formspreeEndpoint: read('VITE_FORMSPREE_ENDPOINT'),
-  legalEntity: read('VITE_LEGAL_ENTITY') || 'Deploi AI',
-  legalReviewed: read('VITE_LEGAL_REVIEWED') === 'true',
   /** Where Signup and Sign in send people: the Deploi app (VITE_APP_URL, else VITE_APP_API_URL). */
   appUrl: (read('VITE_APP_URL') || read('VITE_APP_API_URL') || 'https://app.getdeploi.com').replace(/\/+$/, ''),
 }

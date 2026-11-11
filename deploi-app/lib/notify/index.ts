@@ -1,0 +1,61 @@
+/**
+ * Owner and crew updates. SHARED INTERFACE — owned by workstream W2.
+ * notifyOwner: a professional HTML email (subject, what happened, what the agent did, proof, link to details/undo),
+ * sent through the system mailer (held unless EMAIL_LIVE_SENDS allows), plus text/voice behind the same call.
+ * notifyCrew: a message to a crew member (packer, warehouse, field crew) about a job; their "done" reply
+ * becomes an AgentEvent { source: 'crew', type: 'crew.done' }.
+ */
+export type ProofItem = { label: string; value: string; url?: string | null }
+export type OwnerUpdate = {
+  orgId: string
+  agentKey: string
+  agentName: string
+  caseRef?: string | null
+  headline: string
+  whatHappened: string
+  whatIDid: string[]
+  proof: ProofItem[]
+  /** an undo the owner can use, when the action can be reversed */
+  undoToken?: string | null
+  /** app path for the details page, e.g. /store/work/DC-000123 */
+  detailsPath: string
+  severity?: 'info' | 'action' | 'warning'
+  /** one update per dedupeKey */
+  dedupeKey: string
+  /** a routine update for the daily summary only (an agent the owner set to autonomous): never emailed, texted or voiced on its own */
+  digest?: boolean
+}
+export type NotifyResult = { status: 'sent' | 'held' | 'queued' | 'skipped' | 'failed'; id: string | null; reason?: string }
+export type CrewMessage = {
+  orgId: string
+  crewMemberId: string
+  jobRef: string
+  subject: string
+  body: string
+  address?: string | null
+  photos?: string[]
+  dedupeKey: string
+}
+
+let ownerImpl: (u: OwnerUpdate) => Promise<NotifyResult> = async () => ({ status: 'skipped', id: null, reason: 'owner updates not wired yet' })
+let crewImpl: (m: CrewMessage) => Promise<NotifyResult> = async () => ({ status: 'skipped', id: null, reason: 'crew messages not wired yet' })
+// the real implementations (lib/notify/impl.ts) are loaded on first use, so a caller imports only this module;
+// an implementation installed with setNotifyImpl first (e.g. a test fake) is kept
+const installed = { owner: false, crew: false }
+let loading: Promise<unknown> | null = null
+async function ensure(kind: 'owner' | 'crew') {
+  if (installed[kind]) return
+  loading ??= import('./impl')
+  await loading
+}
+export const notifyOwner = async (u: OwnerUpdate) => { await ensure('owner'); return ownerImpl(u) }
+export const notifyCrew = async (m: CrewMessage) => { await ensure('crew'); return crewImpl(m) }
+/** W2 installs the real implementations (lib/notify/impl.ts) */
+export function setNotifyImpl(o: { owner?: typeof ownerImpl; crew?: typeof crewImpl }) {
+  if (o.owner) { ownerImpl = o.owner; installed.owner = true }
+  if (o.crew) { crewImpl = o.crew; installed.crew = true }
+}
+/** The real implementations, installed only where nothing was installed first (lib/notify/impl.ts calls this). */
+export function setNotifyDefaults(o: { owner: typeof ownerImpl; crew: typeof crewImpl }) {
+  setNotifyImpl({ owner: installed.owner ? undefined : o.owner, crew: installed.crew ? undefined : o.crew })
+}

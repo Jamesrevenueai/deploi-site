@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
-import { Inter } from 'next/font/google'
+// self-hosted fonts (@fontsource, latin only): bundled at build time, nothing is fetched from Google
+import '@fontsource/inter/latin-400.css'
+import '@fontsource/inter/latin-500.css'
+import '@fontsource/inter/latin-600.css'
+import '@fontsource/inter/latin-700.css'
+import '@fontsource/space-grotesk/latin-500.css'
+import '@fontsource/space-grotesk/latin-600.css'
+import '@fontsource/space-grotesk/latin-700.css'
 import './globals.css'
+import '../styles/app-tokens.css'
+import '../styles/app.css'
 
-const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: { default: 'Deploi AI', template: '%s · Deploi AI' },
+  title: { default: 'Deploi', template: '%s · Deploi' },
   description: 'Deploi operating system',
   robots: { index: false, follow: false },
 }
@@ -22,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const embedded = Boolean(apiKey) && h.get('x-deploi-embedded') === '1'
   const nonce = h.get('x-nonce') ?? undefined
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en">
       <head>
         {embedded && <meta name="shopify-api-key" content={apiKey} />}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}

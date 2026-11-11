@@ -22,7 +22,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
       await limitActor('oauth_start', actor)
       return NextResponse.json({ ok: true, ...(await startConnect(actor, { provider: acc.provider, accountId: acc.id, read: body.read === true || acc.can_read,
         // keep inbox reading when the account already has it (reconnecting never narrows it silently)
-        inbox: Boolean(emailAdapter(acc.provider).canReadInbox?.(acc.granted_scopes)), returnTo: typeof body.returnTo === 'string' ? body.returnTo : null })) })
+        inbox: Boolean(emailAdapter(acc.provider).canReadInbox?.(acc.granted_scopes)), calendar: body.calendar === true || acc.granted_scopes.includes('Calendars.ReadWrite'), returnTo: typeof body.returnTo === 'string' ? body.returnTo : null })) })
     }
     throw new HttpError(404, 'not_found', 'unknown action')
   } catch (e) { return errorResponse(e) }

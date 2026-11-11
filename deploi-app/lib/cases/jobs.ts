@@ -13,6 +13,8 @@ import { registerEngineCaseKinds } from '../engine/case-sync'
 import '../agents/case-sync'
 import '../library/case-sync'
 import '../competitors/case-sync'
+// agent loops: reminders, escalation and retries (case kind agent_action)
+import '../events/loop'
 registerEngineCaseKinds()
 
 registerJobHandler('case.check', async (payload, ctx) => {

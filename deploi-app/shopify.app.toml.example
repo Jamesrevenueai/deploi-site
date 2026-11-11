@@ -1,29 +1,37 @@
-# Shopify app configuration (copy to shopify.app.toml, or run `shopify app config link` and merge;
-# release with `shopify app deploy`). Values in <> come from the Dev Dashboard / Partner Dashboard.
+# PRODUCTION app "Deploi" (the one submitted to the App Store; Deploi (dev) is never made public).
+# Link it once: shopify app config link --client-id <client id> --file-name shopify.app.deploi.toml, replace that file
+# with this template (client_id filled in), then release with: shopify app deploy --config deploi. Values in <> come from the Dev Dashboard / Partner Dashboard.
 # Never commit the client secret: it lives only in the hosting environment (SHOPIFY_API_SECRET).
 client_id = "<SHOPIFY_API_KEY>"
 # must match (or be very close to) the name in the App Store submission form
-name = "Deploi AI"
+name = "Deploi"
 # also the <app-handle> in Shopify's plan page URL (SHOPIFY_APP_HANDLE)
-handle = "<app-handle>"
+handle = "deploi"
 # the embedded admin UI; must not contain "shopify" or "example" in the host
 application_url = "https://app.getdeploi.com/shopify"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+# false: the production URLs never change to a tunnel
+automatically_update_urls_on_dev = false
 
 [access_scopes]
-# Installed with the app: read only. Enough for every template at "drafts only" (lib/connectors/shopify/config.ts REQUIRED_SCOPES).
-scopes = "read_products,read_inventory,read_locations"
-# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant widens an agent past drafts only:
-#   write_products        Inventory Watcher after "after my approval" / "without asking" ("Continue selling when out of stock" On -> Off), price and SKU corrections
-#   read_publications,    publication correction only (which sales channels a product is on; publish / unpublish)
+# Installed with the app (lib/connectors/shopify/config.ts REQUIRED_SCOPES + EVENT_SCOPES): the reads, plus write_products,
+# the one write the ready store agents use to fix things (Inventory Watcher: "Continue selling when out of stock" On -> Off;
+# price and SKU corrections). The merchant approves it once at install, so the agents can fix at connect; each change still
+# follows the merchant's setting per action (do it and tell me, or ask first). No inventory quantity write, no discount write.
+# First App Store submission: no protected customer data (no order, fulfillment, customer or return scopes). The
+# order-, return- and customer-facing commerce agents stay hidden in the embedded app until Shopify approves the
+# protected customer data request; docs/app-store/PROTECTED-CUSTOMER-DATA.md has the phase-2 scopes and topics.
+# read_discounts is not protected.
+scopes = "read_products,write_products,read_inventory,read_locations,read_discounts"
+# Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant turns on publication correction:
+#   read_publications,    which sales channels a product is on; publish / unpublish
 #   write_publications
-# Must match OPTIONAL_SCOPES in config.ts. No customer, order, report or inventory-write scope anywhere.
-optional_scopes = ["write_products", "read_publications", "write_publications"]
-# `use_legacy_install_flow` is deliberately omitted: Shopify managed installation grants the scopes above at install,
-# then the app exchanges the ID token for an expiring offline token.
+# Must match OPTIONAL_SCOPES in config.ts. No customer, order or inventory WRITE scope anywhere; no report scope.
+optional_scopes = ["read_publications", "write_publications"]
+# `use_legacy_install_flow` is deliberately omitted (Shopify's default is managed installation): Shopify grants the scopes
+# above at install, then the app exchanges the ID token for an expiring offline token.
 
 [auth]
 # only the non-embedded fallback (authorization-code grant) uses this; managed installation does not
@@ -36,6 +44,12 @@ api_version = "2026-10"
 
   [[webhooks.subscriptions]]
   topics = ["app/uninstalled", "app/scopes_update", "products/create", "products/update", "products/delete", "inventory_levels/update", "inventory_items/update"]
+  uri = "https://app.getdeploi.com/api/shopify/webhooks"
+
+  # Agent events (lib/events): products/* and inventory_* (above) are routed to the agents too, and discount changes
+  # here. Order, fulfillment, customer, refund and return topics need protected customer data: phase 2, after approval.
+  [[webhooks.subscriptions]]
+  topics = ["discounts/create", "discounts/update"]
   uri = "https://app.getdeploi.com/api/shopify/webhooks"
 
   # mandatory privacy compliance topics (configurable only here or in the Dev Dashboard). Deploi answers them:

@@ -1,8 +1,13 @@
-import { HomeScreen } from '@/components/work/Home'
+import { CommandCenter } from '@/components/app/command/CommandCenter'
+import { learned } from '@/lib/app/contract'
+import { loadCommandCenter, loadWorkspace, merchantSession, orgTimeZone, orgStopped } from '@/lib/app/shell'
 
-export const metadata = { title: 'Home' }
+export const metadata = { title: 'Command center' }
+export const dynamic = 'force-dynamic'
 
-/** Home: the Control Room with the work overview (components/work/Home.tsx). */
-export default function StoreHomePage() {
-  return <HomeScreen />
+/** The Command center: the side (Store or Office) this person chose, read once with the shell (lib/app/shell.ts). */
+export default async function CommandCenterPage() {
+  const { session, actor } = await merchantSession()
+  const [data, timeZone, stopped, known] = await Promise.all([loadWorkspace(actor).then(w => loadCommandCenter(actor, w)), orgTimeZone(actor.orgId), orgStopped(actor.orgId), learned(actor)])
+  return <CommandCenter data={data} now={new Date().toISOString()} timeZone={timeZone} stopped={stopped} canAct={session.orgRole !== 'viewer'} learned={known} />
 }

@@ -66,6 +66,8 @@ Operational logs are also stored (table `ops_logs`, 30 days, `OPS_LOG_RETENTION_
 | `/api/cron/alerts` | `*/10 * * * *` | the alert evaluation (`ops.alerts`) |
 | `/api/cron/retention` | `17 4 * * *` | the daily retention pass and due organization deletions |
 | `/api/cron/health` | `29 * * * *` | a health snapshot into the operational log and the `cron.health` heartbeat |
+| `/api/cron/daily-report` | `11 12 * * *` | the morning report to each organization's owners and admins (`notify.morning`, once per organization per day; heartbeat `cron.daily-report`) |
+| `/api/cron/sweep` | `*/15 * * * *` | the agent sweep: one `sweep` event per active organization, then the event jobs (`event.handle`), approved actions (`loop.resume`) and case checks; heartbeat `cron.sweep` |
 
 Every cron needs `Authorization: Bearer $CRON_SECRET` (Vercel sends it when `CRON_SECRET` is set on the project).
 Failed invocations appear under the project's **Cron Jobs** tab; the heartbeats below are the cross-check.

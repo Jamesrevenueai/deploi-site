@@ -1,9 +1,8 @@
 'use client'
-/** Needs My Approval: every decision waiting, from every source (store changes, emails, agent and Office actions, case decisions), with the exact content. */
+/** Needs you: every decision waiting, from every source (store changes, emails, agent and Office actions, case decisions), with the exact content. */
 import { useState } from 'react'
 import Link from 'next/link'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { Empty } from '@/components/ui/Empty'
+import { Button, EmptyState } from '@/components/app/ui'
 import { Banner } from '@/components/ui/Banner'
 import { useLoad } from '@/components/store/useLoad'
 import { ErrorState, Loading, Section } from '@/components/store/bits'
@@ -17,7 +16,12 @@ export function ApprovalsScreen() {
     return { approvals, ...c, dir: directoryOf(team) }
   }, 'approvals')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const header = <PageHeader title="Needs My Approval" sub="Everything your AI team is waiting on you for. Approving does exactly what is shown and nothing else; rejecting closes it. Nothing here happens until you decide." />
+  const header = (
+    <header className="mb-6 flex flex-col gap-2">
+      <h1 className="app-h1">Needs you</h1>
+      <p className="app-muted max-w-[62ch]">Everything your agents are waiting on you for. Approving does exactly what is shown and nothing else; declining closes it. Nothing here happens until you decide.</p>
+    </header>
+  )
   if (loading && !data) return <>{header}<Loading label="Loading approvals" rows={3} /></>
   if (error && !data) return <>{header}<ErrorState error={error} onRetry={reload} /></>
   if (!data) return null
@@ -36,8 +40,12 @@ export function ApprovalsScreen() {
         {data.approvals === null && <Banner tone="warn"><strong>The approvals list could not be read.</strong> Cases waiting for you are still listed below.</Banner>}
         {data.approvals?.errors?.map(e => <Banner key={e.source} tone="warn"><strong>Some items could not be loaded</strong> ({e.source}): {e.message}</Banner>)}
       </div>
-      <p className="mb-2 text-[14px] text-grey-h" data-testid="approvals-total">{total} waiting</p>
-      {total === 0 && <Empty title="Nothing waiting for you">Your team has no decisions for you right now. <Link href="/store/work" className="link">See work in progress</Link>.</Empty>}
+      {total > 0 && <p className="mb-2 text-[14px] text-grey-h" data-testid="approvals-total">{total} waiting</p>}
+      {total === 0 && (
+        <EmptyState title="Nothing needs you right now" testId="needs-you-empty" action={<><Button href="/store">Back to the Command center</Button><Button variant="secondary" href="/store/work">See work in progress</Button></>}>
+          Your agents have no decisions waiting for you. When one needs a yes, it shows up here with what it spotted and what it prepared.
+        </EmptyState>
+      )}
       {withCase.length > 0 && (
         <Section id="case-decisions" title="Decisions on open work" sub="Each belongs to a case; open the case for the full history and evidence.">
           <div className="flex flex-col gap-3">{withCase.map(a => <ApprovalCard key={`${a.source}:${a.id}`} item={a} caseRef={caseOf(a)?.ref} onDone={done} />)}</div>

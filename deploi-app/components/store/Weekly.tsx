@@ -22,7 +22,7 @@ export function WeeklyScreen() {
       <Section id="email" title="The email" sub={d.liveSends === 'off' ? 'Email sending is off in this environment: this is exactly what would be sent, but nothing is sent.' : 'Sent on Mondays to the people in your organization.'}>
         <Panel>
           <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-[14px]">
-            <dt className="text-grey-h">From</dt><dd className="m-0 break-all text-ink">{d.from ?? 'Deploi AI'}</dd>
+            <dt className="text-grey-h">From</dt><dd className="m-0 break-all text-ink">{d.from ?? 'Deploi'}</dd>
             <dt className="text-grey-h">Subject</dt><dd className="m-0 break-words text-ink">{d.rendered.subject}</dd>
           </dl>
           {d.rendered.html ? (

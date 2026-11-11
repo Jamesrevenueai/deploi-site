@@ -5,6 +5,7 @@ import { createAgent } from '@/lib/agents/lifecycle'
 import { parseTask } from '@/lib/agents/parse'
 import { TEMPLATES, templateByKey, templatePolicy } from '@/lib/agents/templates'
 import { withActor } from '@/lib/engine/actor'
+import { assertEmbeddedTemplate, templatesFor } from '@/lib/store/embedded-gate'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     const actor = await resolveActor(req)
-    return NextResponse.json({ ok: true, agents: await listAgents(actor, new URL(req.url).searchParams.get('connection')), templates: TEMPLATES })
+    return NextResponse.json({ ok: true, agents: await listAgents(actor, new URL(req.url).searchParams.get('connection')), templates: templatesFor(actor, TEMPLATES) })
   } catch (e) { return errorResponse(e) }
 }
 
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
     if (typeof body.template === 'string') {
       const t = templateByKey(body.template)
       if (!t) throw new HttpError(400, 'invalid_input', 'unknown template')
+      assertEmbeddedTemplate(actor, t.key) // inside Shopify only the templates offered there
       const connectionId = String(body.connectionId ?? '')
       // read under the actor's RLS: another organization's store is simply not found here (and createAgent refuses it)
       const tz = await withActor(actor, db => db.one<{ timezone: string | null }>('select timezone from store_connections where id = $1', [connectionId]))

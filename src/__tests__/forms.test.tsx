@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 // The form reads the lead target from env at render time; point it at a stub API.
 vi.mock('../lib/env', () => ({
-  env: { appApiUrl: 'https://app.test', formspreeEndpoint: '', legalEntity: 'Deploi AI', legalReviewed: false },
+  env: { appApiUrl: 'https://app.test', formspreeEndpoint: '' },
 }))
 
 import { EarlyAccessForm } from '../components/EarlyAccessForm'

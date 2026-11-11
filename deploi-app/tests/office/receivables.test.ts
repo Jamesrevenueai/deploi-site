@@ -116,11 +116,34 @@ describe.skipIf(!ready)('Accounts Receivable agent (synthetic QuickBooks and mai
     expect(await admin(db => db.query(`select id from office_actions where id = $1 and status = 'awaiting_approval'`, [a.id]))).toHaveLength(0)
   })
 
+  it('an approved reminder that goes out at once moves the case to waiting for payment, without waiting for the next run', async () => {
+    const agent = await arAgent(s, 'send_approved')
+    await run(agent, T)
+    const [a] = await arActions(agent)
+    const [row] = await invoices(agent)
+    expect(await caseOf(row.case_id!)).toMatchObject({ status: 'awaiting_approval', approval_required: true })
+    expect((await approveOfficeAction(s.actor, a.id, a.payload_hash)).status).toBe('succeeded')
+    expect(await sent(s)).toHaveLength(1)
+    const c = await caseOf(row.case_id!)
+    expect(c).toMatchObject({ status: 'waiting_external', approval_required: false })
+    expect(c.status_reason).toMatch(/^Reminder 1 sent to ap@acme-studio\.example; waiting for payment/)
+    expect(c.next_check_at).not.toBeNull()
+    const fresh = (await invoices(agent))[0]
+    expect(fresh).toMatchObject({ reminders_sent: 1, synced_action_id: a.id })
+    // the next run takes the same send up once: no second reminder, the count stays at one
+    await run(agent, addDays(T, 1))
+    expect(await sent(s)).toHaveLength(1)
+    expect((await invoices(agent))[0].reminders_sent).toBe(1)
+    expect((await caseOf(row.case_id!)).status).toBe('waiting_external')
+  })
+
   it('declining a reminder stops reminders for that invoice; payment is still checked', async () => {
     const agent = await arAgent(s, 'send_approved')
     await run(agent, T)
     const [a] = await arActions(agent)
     await rejectOfficeAction(s.actor, a.id)
+    // the case reflects the owner's decision at once, not only after the next run
+    expect((await caseOf((await invoices(agent))[0].case_id!)).status).toBe('blocked')
     await run(agent, addDays(T, 1))
     const [row] = await invoices(agent)
     expect(row.status).toBe('stopped')

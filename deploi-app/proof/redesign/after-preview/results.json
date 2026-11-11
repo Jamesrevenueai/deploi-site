@@ -1,0 +1,165 @@
+[
+  {
+    "step": "command-center-store",
+    "path": "/store",
+    "status": 200,
+    "finalPath": "/store",
+    "h1": "Good afternoon. Your team is on it.",
+    "errors": []
+  },
+  {
+    "step": "needs-you",
+    "path": "/store/approvals",
+    "status": 200,
+    "finalPath": "/store/approvals",
+    "h1": "Needs you",
+    "errors": []
+  },
+  {
+    "step": "my-agents",
+    "path": "/store/my-team",
+    "status": 200,
+    "finalPath": "/store/my-team",
+    "h1": "My AI Team",
+    "errors": []
+  },
+  {
+    "step": "team-room",
+    "path": "/store/room",
+    "status": 200,
+    "finalPath": "/store/room",
+    "h1": "Team room",
+    "errors": []
+  },
+  {
+    "step": "agent-library",
+    "path": "/store/team",
+    "status": 200,
+    "finalPath": "/store/team",
+    "h1": "Agents",
+    "errors": []
+  },
+  {
+    "step": "proof-log",
+    "path": "/store/completed",
+    "status": 200,
+    "finalPath": "/store/completed",
+    "h1": "Completed Work",
+    "errors": []
+  },
+  {
+    "step": "connections",
+    "path": "/store/integrations",
+    "status": 200,
+    "finalPath": "/store/integrations",
+    "h1": "Integrations",
+    "errors": []
+  },
+  {
+    "step": "plan",
+    "path": "/store/plan",
+    "status": 200,
+    "finalPath": "/store/plan",
+    "h1": "Plans",
+    "errors": []
+  },
+  {
+    "step": "settings",
+    "path": "/store/settings",
+    "status": 200,
+    "finalPath": "/store/settings",
+    "h1": "Settings",
+    "errors": []
+  },
+  {
+    "step": "agent-dashboard",
+    "path": "/agents/store%3Ainventory_watcher",
+    "status": 200,
+    "finalPath": "/agents/store%3Ainventory_watcher",
+    "h1": "Inventory Watcher",
+    "errors": []
+  },
+  {
+    "step": "section-commerce",
+    "path": "/store/packs/commerce",
+    "status": 200,
+    "finalPath": "/store/packs/commerce",
+    "h1": "Commerce",
+    "errors": []
+  },
+  {
+    "step": "section-office",
+    "path": "/store/packs/office",
+    "status": 200,
+    "finalPath": "/store/packs/office",
+    "h1": "General office",
+    "errors": []
+  },
+  {
+    "step": "command-center-office",
+    "path": "/office",
+    "status": 200,
+    "finalPath": "/office",
+    "h1": "Office",
+    "errors": []
+  },
+  {
+    "step": "office-needs-you",
+    "path": "/office/approvals",
+    "status": 200,
+    "finalPath": "/office/approvals",
+    "h1": "Approvals",
+    "errors": []
+  },
+  {
+    "step": "office-agents",
+    "path": "/office/agents",
+    "status": 200,
+    "finalPath": "/office/agents",
+    "h1": "Agents",
+    "errors": []
+  },
+  {
+    "step": "office-connections",
+    "path": "/office/connections",
+    "status": 200,
+    "finalPath": "/office/connections",
+    "h1": "Connections",
+    "errors": []
+  },
+  {
+    "step": "office-log",
+    "path": "/office/log",
+    "status": 200,
+    "finalPath": "/office/log",
+    "h1": "Work log",
+    "errors": []
+  },
+  {
+    "step": "approve -> done with proof",
+    "ref": "DC-000012",
+    "opened": 200,
+    "finalStatus": "resolved",
+    "proof": "Verified\"Linen Throw Blanket\" no longer has the tag \"needs-review\" (confirmed by a fresh read)By Fresh read of the synthetic store · Nov 7, 10:47 PMFresh read: ",
+    "stillInNeedsYou": 0,
+    "errors": []
+  },
+  {
+    "step": "autonomy change + reload",
+    "before": "act_then_tell",
+    "chose": "Ask first",
+    "checkedAfterReload": true,
+    "server": {
+      "autonomy": "ask_first",
+      "chosen": true
+    },
+    "errors": []
+  },
+  {
+    "step": "team room task",
+    "task": "YYou →to Inventory WatcherTaskjust nowInventory Watcher, please recount the green bowls (mw6zvgrd)Case DC-000013",
+    "pickedUp": "Inventory Watcher →to YouOn itjust nowOn it: please recount the green bowls (mw6zvgrd)Case DC-000013",
+    "taskCount": 1,
+    "errors": []
+  }
+]

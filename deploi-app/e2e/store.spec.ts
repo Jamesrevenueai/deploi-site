@@ -73,6 +73,8 @@ test('scan creates issues', async ({ page }) => {
   // this spec exercises the store-wide rule flow, so it turns the rule on for its run and off again afterwards
   expect((await api(page, 'PUT', '/api/store/rules', { connectionId: conn, checkKey: 'shopify.oversell_policy', enabled: true })).status).toBe(200)
 
+  // the scan lives on the store overview (since the redesign /store is the Command center)
+  await page.goto('/store/control-room/overview')
   await page.getByRole('button', { name: /Run scan/ }).click()
   await expect(page.getByText('Scan finished.')).toBeVisible({ timeout: 60_000 })
 

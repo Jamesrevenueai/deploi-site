@@ -599,24 +599,38 @@ registerEmailPrecheck(async a => {
 })
 
 /**
+ * A reminder that was sent, refused or declined moves its case at once (sent: waiting for payment; otherwise blocked), the same
+ * way the next sync would (syncReceivables reads settled actions in order), so an approved reminder that went out
+ * never leaves its case at "awaiting approval" until the next run.
  * An approved reminder that cannot go out yet (quiet hours, the day's limit, a provider asking to slow down) is no
- * longer waiting for the owner: the case moves on to sending, with the real reason it waits. Sent, refused or
- * declined reminders are taken up by the next sync (syncReceivables reads settled actions in order).
+ * longer waiting for the owner either: the case moves on to sending, with the real reason it waits.
  */
 onOfficeActionSettled(async (actionId, now) => {
   const a = await admin(db => db.one<OfficeActionRow>('select * from office_actions where id = $1', [actionId]))
-  if (!a || a.kind !== 'send_email' || a.status !== 'queued' || !a.approval_kind) return
+  if (!a || a.kind !== 'send_email') return
   const p = a.payload as EmailPayload
   if (p.type !== 'email' || p.recipientSource.kind !== 'invoice') return
   const invoiceId = p.recipientSource.invoiceId
+  const waiting = async () => {
+    const row = await admin(db => db.one<{ case_id: string | null }>('select case_id from office_invoices where id = $1 and org_id = $2', [invoiceId, a.org_id]))
+    if (!row?.case_id) return null
+    const c = await admin(db => db.one<{ status: string }>('select status from cases where id = $1', [row.case_id]))
+    return c?.status === 'awaiting_approval' ? row.case_id : null
+  }
+  if (a.status === 'succeeded' || a.status === 'failed' || a.status === 'rejected') {
+    // only the owner's decision is taken up here; a run's own sends are counted by that run's sync
+    if (!(await waiting())) return
+    const ctx = await admin(db => agentCtx(db, a.agent_id))
+    if (ctx) await syncReceivables(ctx, now, {}, invoiceId)
+    return
+  }
+  if (a.status !== 'queued' || !a.approval_kind) return
+  const caseId = await waiting()
+  if (!caseId) return
   await admin(async db => {
-    const row = await db.one<{ case_id: string | null }>('select case_id from office_invoices where id = $1 and org_id = $2', [invoiceId, a.org_id])
-    if (!row?.case_id) return
-    const c = await db.one<{ status: string }>('select status from cases where id = $1', [row.case_id])
-    if (c?.status !== 'awaiting_approval') return
     const n = Number((p.meta as { reminder?: number } | undefined)?.reminder ?? 1)
     const when = a.next_attempt_at ? new Date(a.next_attempt_at) : null
-    await moveCase(db, row.case_id, 'executing', `Reminder ${n} ${a.approval_kind === 'individual' ? 'approved by you' : 'covered by the standing authorization'}; ${a.status_reason && a.status_reason !== 'approved by you' ? a.status_reason : 'sending'}`, 'system:office-receivables',
+    await moveCase(db, caseId, 'executing', `Reminder ${n} ${a.approval_kind === 'individual' ? 'approved by you' : 'covered by the standing authorization'}; ${a.status_reason && a.status_reason !== 'approved by you' ? a.status_reason : 'sending'}`, 'system:office-receivables',
       { nextAction: when && when > now ? `Send reminder ${n} at ${when.toISOString().slice(11, 16)} UTC` : `Send reminder ${n}`, nextCheckAt: when && when > now ? when : new Date(now.getTime() + 3600e3) })
   })
 })

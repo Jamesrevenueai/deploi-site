@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const provider = String(body.provider ?? '') as EmailProvider
     if (!['gmail', 'microsoft', 'synthetic'].includes(provider)) throw new HttpError(400, 'invalid_input', 'unknown provider')
     await limitActor('oauth_start', actor)
-    const r = await startConnect(actor, { provider, read: body.read === true, accountId: typeof body.accountId === 'string' ? body.accountId : null, returnTo: typeof body.returnTo === 'string' ? body.returnTo : null })
+    const r = await startConnect(actor, { provider, read: body.read === true, calendar: body.calendar === true, accountId: typeof body.accountId === 'string' ? body.accountId : null, returnTo: typeof body.returnTo === 'string' ? body.returnTo : null })
     return NextResponse.json({ ok: true, ...r })
   } catch (e) { return errorResponse(e) }
 }

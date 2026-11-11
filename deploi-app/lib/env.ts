@@ -4,7 +4,8 @@ import { resolveAuthMode } from './auth-guard'
 const e = (k: string, d = '') => (process.env[k] ?? d).trim()
 
 export const env = {
-  get databaseUrl() { return e('DATABASE_URL') },
+  /** DATABASE_URL first (Production, local). DATABASE_URL_POOLED is the Preview-wide pooler string (Supabase transaction mode, port 6543); a branch-scoped DATABASE_URL wins over it. */
+  get databaseUrl() { return e('DATABASE_URL') || e('DATABASE_URL_POOLED') },
   get supabaseUrl() { return e('NEXT_PUBLIC_SUPABASE_URL') },
   get supabaseAnonKey() { return e('NEXT_PUBLIC_SUPABASE_ANON_KEY') },
   get supabaseServiceKey() { return e('SUPABASE_SERVICE_ROLE_KEY') },
@@ -23,5 +24,5 @@ export const env = {
   get isProd() { return process.env.NODE_ENV === 'production' },
 }
 
-export const COMPANY_EMAIL = 'hello@getdeploi.com'
-export const COMPANY_NAME = 'Deploi AI'
+export const COMPANY_EMAIL = 'support@getdeploi.com'
+export const COMPANY_NAME = 'Deploi'

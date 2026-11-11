@@ -29,4 +29,10 @@ describe('Aurora v2 tokens shared by app and site', () => {
     }
     expect(read('styles/aurora.css')).toMatch(/:root, \.aurora-ground, \.metal \{\n  color-scheme: dark;/)
   })
+
+  it('a tile stays a white surface inside a card or panel (its value was white on white); the night sky fills short pages', () => {
+    const css = read('styles/aurora.css')
+    for (const sel of ['.panel .metal', '.card .metal', '.bg-surface .metal', '.aurora-ground .metal', '.aurora-surface .metal']) expect(css, sel).toContain(`${sel}:not(.tile)`)
+    expect(css).toMatch(/^body \{ min-height: 100vh; min-height: 100dvh;/m)
+  })
 })

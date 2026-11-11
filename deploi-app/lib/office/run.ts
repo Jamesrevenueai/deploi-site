@@ -4,6 +4,7 @@
  * the granted policy alone. Incoming mail is reduced to a category: its text never adds a recipient or
  * changes a permission. Every run is recorded in office_runs and the audit trail.
  */
+import { instructionsFor } from '../app/profiles'
 import { admin, type Db } from '../db'
 import { log } from '../log'
 import { decryptSecret } from '../connectors/credentials'
@@ -328,9 +329,11 @@ export async function runOfficeAgent(agentId: string, opts: { trigger?: 'manual'
   const ctx = await admin(db => agentCtx(db, agentId))
   if (!ctx || ctx.agent.status !== 'active' || !ctx.policy || ctx.policyStatus !== 'active') return { status: 'blocked' as const, reason: 'the agent is not active', counts: {} }
   const p: OfficePolicy = ctx.policy
+  // the owner's standing instructions for this agent travel with the run (rules only today; recorded with the run)
+  ctx.instructions = await instructionsFor(ctx.agent.org_id, `office:${agentId}`)
   const run = await admin(async db => {
     await db.query('update office_agents set last_run_at = $2, next_run_at = $3 where id = $1', [agentId, now.toISOString(), new Date(now.getTime() + p.schedule.everyMinutes * 60e3).toISOString()])
-    return (await db.one<{ id: string }>(`insert into office_runs (org_id, agent_id, policy_id, policy_version, trigger) values ($1,$2,$3,$4,$5) returning id`, [ctx.agent.org_id, agentId, ctx.policyId, ctx.policyVersion, opts.trigger ?? 'schedule']))!
+    return (await db.one<{ id: string }>(`insert into office_runs (org_id, agent_id, policy_id, policy_version, trigger, instructions) values ($1,$2,$3,$4,$5,$6) returning id`, [ctx.agent.org_id, agentId, ctx.policyId, ctx.policyVersion, opts.trigger ?? 'schedule', JSON.stringify(ctx.instructions)]))!
   })
   const counts: Counts = {}
   let status: 'completed' | 'failed' | 'blocked' = 'completed', reason: string | null = null

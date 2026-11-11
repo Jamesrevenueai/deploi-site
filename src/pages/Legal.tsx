@@ -1,24 +1,23 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { BRAND, CONTACT_EMAIL } from '../lib/brand'
-import { env } from '../lib/env'
+import { BRAND, CONTACT_EMAIL, LEGAL } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
 
 type LegalKind = 'terms' | 'privacy'
 type LegalSection = { title: string; body: ReactNode }
 
-const LEGAL_UPDATED = 'October 29, 2026'
+const LEGAL_UPDATED = 'November 9, 2026'
 
 const mail = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
 
-export function termsSections(entity: string): LegalSection[] {
+export function termsSections(): LegalSection[] {
   return [
     {
       title: 'Who we are',
-      body: <>{BRAND} is a trade name operated by <strong>{entity}</strong>, an Ohio limited liability company (d/b/a {BRAND}). By using this website or the {BRAND} app, you agree to these Terms.</>,
+      body: <>{BRAND} is operated by <strong>{LEGAL.entity}</strong>, {LEGAL.entityType} based in {LEGAL.location}. By using this website or the {BRAND} app, you agree to these Terms.</>,
     },
     {
-      title: 'What Deploi AI is',
+      title: `What ${BRAND} is`,
       body: <>{BRAND} is subscription software that finds supported stock and listing problems in an online store, shows the evidence, proposes a fix, makes the change you approve through the platform&rsquo;s official API, and re-reads the store to confirm the change took effect. It is offered as a <strong>pilot</strong>: each integration&rsquo;s status (Pilot or Planned) is shown on the Integrations page, and none is generally available yet. We do not provide legal, tax or accounting advice.</>,
     },
     {
@@ -26,8 +25,12 @@ export function termsSections(entity: string): LegalSection[] {
       body: <>Early access is limited and may change. Features may be added, changed or removed, and the service may contain errors or be unavailable at times. During early access the service is provided <strong>&ldquo;as is&rdquo;</strong>, without warranties of any kind, to the extent the law allows. We may end early access for any account with reasonable notice.</>,
     },
     {
+      title: 'Agents act on your instructions',
+      body: <>{BRAND}&rsquo;s agents act only on your instructions: the jobs you switch on, the tasks you give them, and the authorization you grant each one (ask first, act then tell, or fully on its own within its limits). Anything that moves money always waits for your approval. You can pause an agent, change what it may do, or revoke it at any time, and every action is logged with its proof.</>,
+    },
+    {
       title: 'Your approval and your store',
-      body: <>{BRAND} changes your store only after you approve the exact change it proposes. You decide what to approve and remain responsible for your store, your products, your stock counts and what you sell. Verification confirms that the setting we changed reads back as expected; it does not confirm physical stock.</>,
+      body: <>{BRAND} changes your store only as you approve or authorize: each change waits for your yes unless you have set that agent to act on its own within its limits, and anything that moves money always waits for you. You decide what to approve and remain responsible for your store, your products, your stock counts and what you sell. Verification confirms that the setting we changed reads back as expected; it does not confirm physical stock.</>,
     },
     {
       title: 'Fees',
@@ -67,83 +70,107 @@ export function termsSections(entity: string): LegalSection[] {
     },
     {
       title: 'Contact',
-      body: <>Questions about these Terms? Email {mail}.</>,
+      body: <>Questions about these Terms? Email {mail}. {BRAND} is operated by {LEGAL.entity}, {LEGAL.location}.</>,
     },
   ]
 }
 
+const SCOPES: [string, string, string][] = [
+  ['read_products', 'Products and variants: titles, prices, compare-at prices, SKUs, barcodes, tags, status and the out-of-stock setting', 'To find listing and stock problems, show you the evidence and re-read a product before and after a change'],
+  ['write_products', 'The same product fields', 'To make only the changes you approve or an agent authorization you granted covers: a variant\u2019s out-of-stock setting, its price or compare-at price from your price list, and its SKU from your mapping'],
+  ['read_inventory', 'Available quantity of each variant at each location', 'To find items that are out of stock, oversold or running low'],
+  ['read_locations', 'Your locations\u2019 names', 'To show where stock is'],
+  ['read_discounts', 'Your discounts and their dates, amounts and conditions (no customer data)', 'To let the Promo Manager agent find discounts that are expired, overlapping or set up wrong'],
+  ['read_publications, write_publications (optional)', 'Which sales channels a product is published on', 'Asked for only if you turn on publication fixes; then used to publish or unpublish a product on the one channel you choose'],
+]
+
 export const PRIVACY: LegalSection[] = [
   {
     title: 'What this policy covers',
-    body: <>This policy covers this website and the {BRAND} app, starting with the Shopify version, which is in early access.</>,
+    body: <>This policy covers this website and the {BRAND} app: the Shopify app and the office tools you can connect to it. {BRAND} is operated by {LEGAL.entity} ({LEGAL.location}).</>,
   },
   {
-    title: 'What the Shopify app reads',
-    body: <>Products, product variants (including prices, SKUs and barcodes), inventory levels and locations, the sales channels a product is published on, and fixed prices on Markets or B2B price lists, plus your shop&rsquo;s name, domain, timezone and currency. <strong>The app does not read customer or order data.</strong> It asks Shopify for permission to read products, inventory, locations and publications, to write products (a variant&rsquo;s out-of-stock setting, price, compare-at price or SKU) and to write publications (publishing or unpublishing a product on the sales channel you authorize). Reference files you upload (price lists, SKU mappings, publication lists) are stored with your account and used only to compare against your store.</>,
-  },
-  {
-    title: 'Why it reads that data',
-    body: <>To find the stock problems the app checks for, to show you the evidence (the out-of-stock setting, available quantity at each location, and product tags), to propose a fix, to re-read a variant just before changing it, and to confirm the change afterwards. The timezone is used to show times in your store&rsquo;s local time.</>,
+    title: 'What the Shopify app reads, and why',
+    body: (
+      <>
+        <p>The app asks Shopify only for these permissions:</p>
+        <table className="legal-table">
+          <thead><tr><th scope="col">Permission</th><th scope="col">What it reads</th><th scope="col">Why</th></tr></thead>
+          <tbody>{SCOPES.map(([s, what, why]) => <tr key={s}><td><code>{s}</code></td><td>{what}</td><td>{why}</td></tr>)}</tbody>
+        </table>
+        <p>It also reads your shop&rsquo;s name, domain, timezone and currency. <strong>The app does not ask for, read or store your Shopify customers, orders, fulfillments or returns</strong>, and it adds nothing to your storefront: no scripts, cookies or tracking for your shoppers. Reference files you upload (price lists, SKU mappings, channel lists) are stored with your account and used only to compare against your store.</p>
+      </>
+    ),
   },
   {
     title: 'What the app changes',
-    body: <>Only what you approve, or what an agent&rsquo;s authorization you granted explicitly covers: a variant&rsquo;s out-of-stock setting, whether a product is published on the one sales channel you choose, a variant&rsquo;s price or compare-at price from your price list, and a variant&rsquo;s SKU from your mapping. The app does not change stock counts or product status.</>,
+    body: <>Only what you approve, or what an agent&rsquo;s authorization you granted explicitly covers. Anything that moves money always waits for your approval, whatever an agent&rsquo;s setting. The app never changes stock counts, customers or orders.</>,
   },
   {
-    title: 'If you connect an email account',
-    body: <>You connect a mailbox through Google&rsquo;s or Microsoft&rsquo;s own sign-in; we never ask for your mailbox password. We keep the access tokens <strong>encrypted at rest</strong>, your address and display name, and the permissions you granted. No agent can use the account until you grant that agent permission. For messages an agent drafts or sends, we keep the sender, recipients, subject, body and attachments (content encrypted at rest), your approvals and the provider&rsquo;s response. We read your mailbox only if you grant read access for a task that needs it, and then only to notice that a reply arrived to a message the agent sent; we do not keep reply content. You can disconnect at any time, which deletes the tokens and cancels unsent messages.</>,
+    title: 'Systems you choose to connect',
+    body: <>You can connect other systems so your agents can work there too: email and calendar (Google or Microsoft, through their own sign-in), CRMs (HubSpot, Salesforce, Pipedrive, Zoho CRM), accounting (QuickBooks Online) and property management (Buildium). For each one we read only what its agents need (for example contacts, deals and activities in a CRM, invoices and their status in accounting, rentals, leases, applicants and tasks in property management), keep the access tokens or keys <strong>encrypted at rest</strong>, and act only within the permissions you grant each agent. When you connect, {BRAND} reads a summary of your business (counts and facts, such as how many items are out of stock or invoices are overdue) to set up your team; you can see what it read on the Command center. Disconnecting deletes the tokens and stops all reads and changes there.</>,
   },
   {
-    title: 'If you use the Competitor & Trend Watcher',
-    body: <>It reads only the public pages of the stores you list (their product feed, prices, availability as shown, and their own bestseller collection), obeying each store&rsquo;s robots.txt, waiting between requests and never signing in or working around a block. We keep what those pages showed, with the time we saw it, so you can compare over time. It collects no personal data about anyone and does not read or change your own store. It cannot see other stores&rsquo; sales, and does not claim to.</>,
+    title: 'Email, agent addresses and messages',
+    body: <>We never ask for a mailbox password. For messages an agent drafts or sends we keep the sender, recipients, subject, body and attachments (content encrypted at rest), your approvals and the provider&rsquo;s response. An agent can have its own address on our domain; mail it sends goes through our email provider (Resend), and mail sent to it is stored encrypted so you can read it in {BRAND}. Incoming mail never changes what an agent is allowed to do; mail from unexpected senders is kept apart as quarantined.</>,
   },
   {
-    title: 'Agent email addresses',
-    body: <>An agent can have its own email address on our domain. Messages it sends from there go through our email provider (Resend). Mail sent to that address, including threads you forward or copy to it and replies from your suppliers, is <strong>stored encrypted at rest</strong> with its sender, recipients, subject and text so you can read it in Deploi. Incoming mail never changes what an agent is allowed to do. Mail from senders outside the agent&rsquo;s allowed list, or that fails sender checks, is kept separately as quarantined. Deleting the agent closes its address.</>,
+    title: 'Other people\u2019s information in your systems',
+    body: <>The systems you connect can hold information about your own contacts, such as names and email addresses of leads, tenants, suppliers or customers in your CRM or mailbox. We process it only on your behalf, to do the work you set up, and delete it when you ask or when you remove {BRAND}.</>,
   },
   {
-    title: 'Your store\u2019s customers',
-    body: <>The app does not read, receive or store information about your customers or their orders, and it adds nothing to your storefront: no scripts, cookies or tracking for your shoppers.</>,
+    title: 'Shopify privacy requests',
+    body: <>The app handles all three of Shopify&rsquo;s mandatory privacy webhooks. <strong>customers/data_request</strong>: we gather everything we hold about that customer within your shop (in practice, only mail or records from systems you connected) into an encrypted export you can download in the app, and record that the request was answered. <strong>customers/redact</strong>: we delete that customer&rsquo;s messages and anonymize any other record of them, and record what was done. <strong>shop/redact</strong>: see below.</>,
   },
   {
-    title: 'Information you give us',
-    body: <>When you use the app we record who approved or changed what (the Shopify staff user ID or your Deploi sign-in email), your settings, agents and their authorizations, and, during the beta, whether your store is enabled for changes and any access request or invite code you used (codes are stored only in hashed form). If you contact support we keep the email conversation.</>,
+    title: 'Deletion when you uninstall',
+    body: <>When you uninstall, the app immediately stops every read, change and message for your store and deletes its access token. Shopify then sends a <strong>shop/redact</strong> request (Shopify sends it 48 hours after uninstall), and we erase your store&rsquo;s data, including its activity history, when it arrives. If you reinstall before then, nothing is erased. You can ask us to delete it sooner at {mail}.</>,
   },
   {
-    title: 'What we keep, and for how long',
-    body: <>The issues found in your store, the evidence for each, the fixes proposed, your approvals, the changes made and their verification results. This activity history is kept while the app is installed so you can see what happened and why. Server logs contain no access tokens, passwords or message content and are kept for up to 30 days. When your store&rsquo;s data is deleted after uninstall (below), this history is deleted with it.</>,
+    title: 'AI',
+    body: <>{BRAND}&rsquo;s agents run on rules and templates today. <strong>AI features are switched off, and no store or business data is sent to any AI provider.</strong> Before any AI feature is switched on, we will name the provider in this policy, send only the text a task needs, and use only a provider that does not train its models on that data. We never use your data to train models.</>,
+  },
+  {
+    title: 'Service providers (subprocessors)',
+    body: (
+      <>
+        <p>We do not sell personal information. These providers process data for us, under confidentiality obligations:</p>
+        <ul>
+          <li><strong>Vercel</strong> (application hosting and functions; United States, Washington DC region)</li>
+          <li><strong>Supabase</strong> (database and sign-in; United States East)</li>
+          <li><strong>Resend</strong> (sending email from agent addresses and our notifications)</li>
+          <li><strong>Google Fonts</strong> (this website&rsquo;s typeface; your browser requests it from Google)</li>
+          <li><strong>Twilio</strong> (text and voice updates, only if you turn them on; not live yet)</li>
+          <li>The systems you connect (Shopify, Google, Microsoft, HubSpot, Salesforce, Pipedrive, Zoho, Intuit QuickBooks, Buildium) receive the requests our agents make on your behalf</li>
+          <li>No AI provider (see AI above)</li>
+        </ul>
+        <p>We will update this list before adding a provider. Providers may process data outside your country; where the law requires it, we rely on appropriate safeguards for those transfers.</p>
+      </>
+    ),
+  },
+  {
+    title: 'Where data is stored, and for how long',
+    body: <>Data is stored in the United States. Your activity history (problems found, evidence, approvals, changes and their proof) is kept while the app is installed, then erased as described above. Server logs contain no access tokens, passwords or message content and are kept for up to 30 days. Backups held by our database host expire on its backup schedule. Information from this website&rsquo;s early access form is kept until you ask us to delete it.</>,
   },
   {
     title: 'How access tokens are protected',
-    body: <>When you install the app, Shopify gives us an access token for your store. We store it <strong>encrypted at rest</strong>, and it is <strong>never shown in the browser</strong>.</>,
+    body: <>Store access tokens, connection keys and message content are <strong>encrypted at rest</strong>; tokens are never shown in the browser.</>,
   },
   {
-    title: 'Deletion after you uninstall',
-    body: <>When you uninstall the app, Shopify sends us a <strong>shop/redact</strong> request (Shopify documents this as arriving 48 hours after uninstall). We delete your store&rsquo;s data when we receive it. You can also ask us to delete it sooner by emailing {mail}.</>,
+    title: 'Information you give us',
+    body: <>Who approved or changed what (the Shopify staff user ID or your {BRAND} sign-in email), your settings, agents and their authorizations, tasks you give agents, and any invite code you used (stored only in hashed form). If you contact support we keep the conversation.</>,
   },
   {
-    title: 'What this website collects',
-    body: <>Only what you type into the early access form: your name, work email, store or company name, store URL, the platforms you sell on, an approximate number of products, and the problem you describe. We use it to review your application and reply to you. Never send passwords or API keys through the form.</>,
-  },
-  {
-    title: 'No analytics or tracking',
-    body: <>This website has no analytics, no advertising pixels and no session replay, and it does not set tracking cookies. Pages load the Inter typeface from Google Fonts, so your browser requests it from Google&rsquo;s servers.</>,
-  },
-  {
-    title: 'Sharing',
-    body: <>We do not sell personal information. We share information only with service providers who help us run the service (for example hosting, database and email delivery) under confidentiality obligations, or where the law requires it. Those providers may process data outside your country; where the law requires it, we rely on appropriate safeguards for those transfers.</>,
+    title: 'This website',
+    body: <>The website collects only what you type into the early access form (your name, work email, company, store URL, platforms, approximate product count and the problem you describe), to reply to you. It has no analytics, advertising pixels or session replay, and sets no tracking cookies.</>,
   },
   {
     title: 'Security',
-    body: <>We use reasonable administrative and technical safeguards to protect information. No system is perfectly secure.</>,
-  },
-  {
-    title: 'Your choices',
-    body: <>You can ask to see, correct or delete the information we hold about you or your store at any time by emailing {mail}. Depending on where you live you may have further rights, such as objecting to processing or complaining to a data protection authority; contact us and we will help.</>,
+    body: <>We use reasonable administrative and technical safeguards, including encryption at rest, per-organization access controls and audit logs of every change. No system is perfectly secure.</>,
   },
   {
     title: 'Contact',
-    body: <>Questions about this Privacy Policy? Email {mail}.</>,
+    body: <>You can ask to see, correct or delete the information we hold about you or your store at any time at {mail}; we reply within 2 business days. Depending on where you live you may have further rights, such as objecting to processing or complaining to a data protection authority; contact us and we will help.</>,
   },
 ]
 
@@ -151,7 +178,7 @@ type Props = { kind: LegalKind }
 
 export default function Legal({ kind }: Props) {
   const title = kind === 'terms' ? 'Terms of Service' : 'Privacy Policy'
-  const sections = kind === 'terms' ? termsSections(env.legalEntity) : PRIVACY
+  const sections = kind === 'terms' ? termsSections() : PRIVACY
 
   useSeo({
     title: `${title} — ${BRAND}`,
@@ -165,7 +192,6 @@ export default function Legal({ kind }: Props) {
     <div className="page">
       <div className="container-narrow">
         <Link to="/" className="back">← Back to {BRAND}</Link>
-        {!env.legalReviewed && <div className="draft-badge" role="status">DRAFT — pending legal review</div>}
         <h1>{title}</h1>
         <div className="legal-meta">Last updated: {LEGAL_UPDATED}</div>
         <ol className="legal-sections">

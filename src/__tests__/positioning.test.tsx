@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { LEGAL } from '../lib/brand'
 import { MemoryRouter } from 'react-router-dom'
 
 // legalReviewed is flipped per test through this mutable mock
-const envMock = vi.hoisted(() => ({ env: { appApiUrl: '', formspreeEndpoint: '', legalEntity: 'Deploi AI', legalReviewed: false, appUrl: 'https://app.example.test' } }))
+const envMock = vi.hoisted(() => ({ env: { appApiUrl: '', formspreeEndpoint: '', appUrl: 'https://app.example.test' } }))
 vi.mock('../lib/env', () => envMock)
 
 import Home, { PILLARS, PRODUCTS, HOME_TITLE, HOME_DESCRIPTION } from '../pages/Home'
@@ -14,7 +15,6 @@ import { Footer } from '../components/Footer'
 import { CTA_HREF, CTA_LABEL } from '../components/Button'
 import { CORE_MESSAGE } from '../lib/site-config'
 
-beforeEach(() => { envMock.env.legalReviewed = false })
 
 describe('positioning', () => {
   it('leads with the core message and the three things Deploi does', () => {
@@ -41,21 +41,21 @@ describe('positioning', () => {
   })
 })
 
-describe('legal pages carry a DRAFT label until review', () => {
-  it('shows Draft next to Terms and Privacy in the footer, on the legal index and DRAFT on the pages while unreviewed', () => {
-    const { container } = render(<MemoryRouter><Footer /></MemoryRouter>)
-    expect(container.querySelectorAll('.legal-draft-tag')).toHaveLength(2)
-    expect(screen.getByText('Terms of Service')).toHaveAttribute('href', '/terms')
-    render(<MemoryRouter><Legal kind="terms" /></MemoryRouter>)
-    expect(screen.getByRole('status')).toHaveTextContent('DRAFT — pending legal review')
-    const idx = render(<MemoryRouter><LegalIndex /></MemoryRouter>)
-    expect(idx.container.querySelectorAll('.legal-draft-tag')).toHaveLength(2)
+describe('legal pages: no draft labels, the operator from one config value', () => {
+  it('Terms, Privacy, the legal index and the footer show no DRAFT or pending-review label', () => {
+    const { container } = render(<MemoryRouter><Footer /><Legal kind="terms" /><Legal kind="privacy" /><LegalIndex /></MemoryRouter>)
+    expect(container.textContent).not.toMatch(/DRAFT|pending legal/)
+    expect(screen.getAllByText('Terms of Service')[0]).toHaveAttribute('href', '/terms')
   })
 
-  it('drops the labels when VITE_LEGAL_REVIEWED=true', () => {
-    envMock.env.legalReviewed = true
-    const { container } = render(<MemoryRouter><Footer /><Legal kind="privacy" /><LegalIndex /></MemoryRouter>)
-    expect(container.querySelectorAll('.legal-draft-tag')).toHaveLength(0)
-    expect(container.textContent).not.toMatch(/DRAFT|pending legal review/)
+  it('names the operator exactly, with the city only (no street address)', () => {
+    expect(LEGAL).toEqual({ entity: 'James Investments and real estate holdings LLC', entityType: 'an Ohio limited liability company', location: 'Columbus, Ohio, USA' })
+    for (const kind of ['terms', 'privacy'] as const) {
+      const { container, unmount } = render(<MemoryRouter><Legal kind={kind} /></MemoryRouter>)
+      expect(container.textContent).toContain('Deploi is operated by James Investments and real estate holdings LLC')
+      expect(container.textContent).toContain('Columbus, Ohio, USA')
+      expect(container.textContent).not.toMatch(/Deploi AI/)
+      unmount()
+    }
   })
 })

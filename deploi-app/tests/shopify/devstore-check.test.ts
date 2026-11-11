@@ -14,7 +14,7 @@ function fakeShopify(opts: { dev?: boolean; scopes?: string[]; domain?: string; 
     if (opts.status) return new Response('{}', { status: opts.status })
     const data: Record<string, unknown> = {
       DeploiShop: { shop: { id: 'gid://shopify/Shop/1', name: 'Dev check', myshopifyDomain: opts.domain ?? SHOP, plan: { publicDisplayName: opts.dev === false ? 'Basic' : 'Development', partnerDevelopment: opts.dev !== false } } },
-      DeploiAccessScopes: { currentAppInstallation: { accessScopes: (opts.scopes ?? ['read_products', 'read_inventory', 'read_locations', 'read_publications']).map(handle => ({ handle })) } },
+      DeploiAccessScopes: { currentAppInstallation: { accessScopes: (opts.scopes ?? ['read_products', 'write_products', 'read_inventory', 'read_locations', 'read_publications']).map(handle => ({ handle })) } },
       DeploiVariants: { productVariants: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [{ id: 'gid://shopify/ProductVariant/1', title: 'Default Title', sku: 'A', inventoryPolicy: 'DENY', product: { id: 'gid://shopify/Product/1', title: 'P', status: 'ACTIVE', tags: [] }, inventoryItem: { id: 'gid://shopify/InventoryItem/1', tracked: true, inventoryLevels: { nodes: [{ location: { id: 'l', name: 'L' }, quantities: [{ name: 'available', quantity: 0 }] }] } } }] } },
       DeploiPublications: { shop: { currencyCode: 'USD' }, publications: { nodes: [{ id: 'gid://shopify/Publication/1', catalog: { title: 'Online Store', status: 'ACTIVE' } }] } },
     }
@@ -48,7 +48,7 @@ describe('dev-store smoke check (fake Shopify, no network)', () => {
     expect((await runDevstoreCheck({ shop: SHOP, accessToken: 'x', apiVersion: '2026-10', fetchImpl: fakeShopify({ status: 401 }).fetchImpl })).lines[0]).toMatchObject({ ok: false, detail: expect.stringMatching(/token was refused/) })
     const r = await runDevstoreCheck({ shop: SHOP, accessToken: 'x', apiVersion: '2026-10', fetchImpl: fakeShopify({ scopes: ['read_products'] }).fetchImpl })
     expect(r.ok).toBe(false)
-    expect(r.lines.find(l => l.name === 'scopes')!.detail).toMatch(/missing required scopes: read_inventory, read_locations/)
+    expect(r.lines.find(l => l.name === 'scopes')!.detail).toMatch(/missing required scopes: write_products, read_inventory, read_locations/)
   })
 
   it('refuses to send a mutation', () => {

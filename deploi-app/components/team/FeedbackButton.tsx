@@ -21,7 +21,7 @@ export function FeedbackButton() {
   }
   return (
     <>
-      <button type="button" className="au-feedback" onClick={() => { setOpen(true); setState('idle') }} aria-haspopup="dialog"><Icon name="chat" size={15} />Feedback</button>
+      <button type="button" className="au-feedback" onClick={() => { setOpen(true); setState('idle') }} aria-haspopup="dialog"><Icon name="chat" size={15} /><span className="au-fab-label">Feedback</span></button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Tell us what you think">
         {state === 'sent' ? <p className="text-[15px] text-grey">Thank you. We read every message during the private beta.</p> : (
           <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); void send() }}>

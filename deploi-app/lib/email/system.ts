@@ -64,8 +64,8 @@ export function systemMailDomain(): string {
   if (set) return set
   try { return new URL(env.siteUrl).hostname.replace(/^www\./, '') } catch { return 'getdeploi.com' }
 }
-export const systemFromAddress = () => `hello@${systemMailDomain()}`
-/** Where staff notices go: SUPPORT_INBOX, else hello@<site domain>. */
+export const systemFromAddress = () => `support@${systemMailDomain()}`
+/** Where staff notices go: SUPPORT_INBOX, else support@<site domain>. */
 export const supportInbox = () => ((process.env.SUPPORT_INBOX ?? '').trim().toLowerCase() || systemFromAddress())
 
 const ADDRESS = /^[^\s@<>(),;:"[\]\\]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i

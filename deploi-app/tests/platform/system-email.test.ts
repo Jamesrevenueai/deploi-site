@@ -66,17 +66,17 @@ describe.skipIf(!ready)('system mailer', () => {
     expect(sent.map(s => s.body.to)).toEqual([['me@owner.example'], ['anyone@team.example']])
   })
 
-  it('all: sent from hello@<site domain> through Resend with an idempotency key; a repeat with the same key never sends twice', async () => {
+  it('all: sent from support@<site domain> through Resend with an idempotency key; a repeat with the same key never sends twice', async () => {
     process.env.EMAIL_LIVE_SENDS = 'all'
     process.env.NEXT_PUBLIC_SITE_URL = 'https://www.getdeploi.com'
-    expect(systemFromAddress()).toBe('hello@getdeploi.com')
+    expect(systemFromAddress()).toBe('support@getdeploi.com')
     const k = key('all')
     const r = await sendSystemEmail({ key: k, template: 'test_note', to: 'Pat@Example.com', params: { name: 'Pat', link: 'https://app.test/i/1' } })
     expect(r).toMatchObject({ status: 'sent', duplicate: false })
     expect(sent).toHaveLength(1)
     expect(sent[0].headers.authorization).toBe('Bearer re_test_key')
     expect(sent[0].headers['idempotency-key']).toMatch(/^deploi-system-[0-9a-f]{48}$/)
-    expect(sent[0].body).toMatchObject({ from: 'Deploi AI <hello@getdeploi.com>', to: ['pat@example.com'] })
+    expect(sent[0].body).toMatchObject({ from: 'Deploi <support@getdeploi.com>', to: ['pat@example.com'] })
     // a header injection in the subject is flattened onto one line
     expect(sent[0].body.subject).toBe('Note for Pat Bcc: evil@example.com')
     const again = await sendSystemEmail({ key: k, template: 'test_note', to: 'pat@example.com', params: { name: 'Pat', link: 'https://app.test/i/1' } })
@@ -84,7 +84,7 @@ describe.skipIf(!ready)('system mailer', () => {
     expect(sent).toHaveLength(1)
     expect(await row(r.id)).toMatchObject({ status: 'sent', provider_message_id: 're_1', attempts: 1 })
     process.env.SYSTEM_MAIL_DOMAIN = 'mail.getdeploi.test'
-    expect(systemFromAddress()).toBe('hello@mail.getdeploi.test')
+    expect(systemFromAddress()).toBe('support@mail.getdeploi.test')
   })
 
   it('a refused send is recorded as failed and retried under the same key; a lost response is "uncertain" and not resent', async () => {

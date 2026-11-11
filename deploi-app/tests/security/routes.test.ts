@@ -54,6 +54,9 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/cron/alerts/route.ts': { why: 'Vercel cron (alert evaluation, lib/ops)', evidence: /cronAuthorized\(req\)/ },
   'app/api/cron/retention/route.ts': { why: 'Vercel cron (daily retention pass)', evidence: /cronAuthorized\(req\)/ },
   'app/api/cron/health/route.ts': { why: 'Vercel cron (health snapshot, counts only)', evidence: /cronAuthorized\(req\)/ },
+  'app/api/crew/done/route.ts': { why: 'crew "mark done" button: signed, single-use, expiring token; no sign-in', evidence: /completeCrewLink\(t\)/ },
+  'app/api/cron/daily-report/route.ts': { why: 'Vercel cron (morning report per organization, lib/notify)', evidence: /cronAuthorized\(req\)/ },
+  'app/api/cron/sweep/route.ts': { why: 'Vercel cron (15-minute agent sweep and event jobs)', evidence: /cronAuthorized\(req\)/ },
   'app/api/webhooks/agent-mail/unsubscribe/route.ts': { why: 'one-click unsubscribe: signed token per message and recipient', evidence: /verifyUnsubscribeToken\(/ },
   'app/api/woocommerce/callback/route.ts': { why: 'WooCommerce key callback: signed, one-time, expiring state bound to the organization', evidence: /receiveCallback\(body\)/ },
   'app/api/woocommerce/return/route.ts': { why: 'browser return from WooCommerce: signed state must belong to the signed-in session\'s organization', evidence: /session\.agencyId !== state\.org_id/ },
@@ -64,6 +67,9 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/office/oauth/hubspot/callback/route.ts': { why: 'HubSpot OAuth callback: session + one-time state', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/office/oauth/quickbooks/callback/route.ts': { why: 'Intuit OAuth callback: session + one-time state + realmId', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/office/oauth/google/callback/route.ts': { why: 'Google OAuth callback: session + one-time state + PKCE', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
+  'app/api/office/oauth/salesforce/callback/route.ts': { why: 'Salesforce OAuth callback: session + one-time state + PKCE', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
+  'app/api/office/oauth/pipedrive/callback/route.ts': { why: 'Pipedrive OAuth callback: session + one-time state', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
+  'app/api/office/oauth/zoho/callback/route.ts': { why: 'Zoho OAuth callback: session + one-time state + known data center', evidence: /resolveActor\(req\)[\s\S]*completeOfficeConnect/ },
   'app/api/email/oauth/synthetic/route.ts': { why: 'synthetic consent page, off unless synthetic mail is allowed', evidence: /syntheticAllowed/ },
   'app/api/staff/economics/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/integrations/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
@@ -73,6 +79,8 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/staff/plans/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on edits', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
 }
 
+/** The redesigned app's API (lib/app/contract.ts): merchant routes like app/api/store, held to the same guards. */
+const isAppApi = (f: string) => f.startsWith('app/api/app/')
 /** Deploi Office API: every handler resolves the session through officeActor (session, CSRF, staff refused, product enabled). */
 const isOfficeApi = (f: string) => f.startsWith('app/api/office/') && !f.startsWith('app/api/office/oauth/') && !f.startsWith('app/api/office/webhooks/')
 
@@ -80,7 +88,7 @@ describe('API route sweep', () => {
   const all = routes(API)
 
   it('every route is a merchant route, a webhook, or a classified exception', () => {
-    const unclassified = all.filter(f => !f.startsWith('app/api/store/') && !f.startsWith('app/api/billing/') && !isOfficeApi(f) && !WEBHOOKS[f] && !OTHER[f])
+    const unclassified = all.filter(f => !f.startsWith('app/api/store/') && !isAppApi(f) && !f.startsWith('app/api/billing/') && !isOfficeApi(f) && !WEBHOOKS[f] && !OTHER[f])
     expect(unclassified).toEqual([])
     for (const k of [...Object.keys(WEBHOOKS), ...Object.keys(OTHER)]) expect(all, `stale entry ${k}`).toContain(k)
   })
@@ -96,7 +104,8 @@ describe('API route sweep', () => {
 
   it('every merchant and billing handler resolves the organization from the session', () => {
     const bad: string[] = []
-    for (const f of all.filter(f => (f.startsWith('app/api/store/') || f.startsWith('app/api/billing/')) && !WEBHOOKS[f])) {
+    expect(all.filter(isAppApi).length).toBeGreaterThanOrEqual(9)
+    for (const f of all.filter(f => (f.startsWith('app/api/store/') || isAppApi(f) || f.startsWith('app/api/billing/')) && !WEBHOOKS[f])) {
       const text = src(f)
       const hs = handlers(text)
       if (!hs.length) bad.push(`${f}: no handler found`)
@@ -109,7 +118,7 @@ describe('API route sweep', () => {
 
   it('no merchant route takes an organization id from the query or the body', () => {
     const bad: string[] = []
-    for (const f of all.filter(f => f.startsWith('app/api/store/') || f.startsWith('app/api/billing/'))) {
+    for (const f of all.filter(f => f.startsWith('app/api/store/') || isAppApi(f) || f.startsWith('app/api/billing/'))) {
       const t = src(f)
       if (/searchParams\.get\(['"](org|orgId|org_id|agencyId|agency_id)['"]\)|body\.(orgId|org_id|agencyId|agency_id)\b/.test(t)) bad.push(f)
     }
@@ -118,7 +127,7 @@ describe('API route sweep', () => {
 
   it('state-changing merchant handlers pass mutating (CSRF origin check)', () => {
     const bad: string[] = []
-    for (const f of all.filter(f => f.startsWith('app/api/store/') || (f.startsWith('app/api/billing/') && !WEBHOOKS[f]))) {
+    for (const f of all.filter(f => f.startsWith('app/api/store/') || isAppApi(f) || (f.startsWith('app/api/billing/') && !WEBHOOKS[f]))) {
       for (const h of handlers(src(f))) if (h.method !== 'GET' && !/resolveActor\(req, \{ mutating: true \}\)/.test(h.body)) bad.push(`${f} ${h.method}`)
     }
     // reviewed: passes mutating=true through its visibleConnection(req, id, true) helper
@@ -146,9 +155,13 @@ describe('API route sweep', () => {
       'app/api/shopify/auth/callback/route.ts': 'oauth_callback',
       'app/api/office/oauth/google/callback/route.ts': 'oauth_callback',
       'app/api/office/oauth/hubspot/callback/route.ts': 'oauth_callback',
+      'app/api/office/oauth/salesforce/callback/route.ts': 'oauth_callback',
+      'app/api/office/oauth/pipedrive/callback/route.ts': 'oauth_callback',
+      'app/api/office/oauth/zoho/callback/route.ts': 'oauth_callback',
       'app/api/email/oauth/callback/route.ts': 'oauth_callback',
       'app/api/webhooks/agent-mail/unsubscribe/route.ts': 'unsubscribe',
       'app/api/woocommerce/callback/route.ts': 'woo_callback',
+      'app/api/crew/done/route.ts': 'crew_done',
     }
     for (const [f, bucket] of Object.entries(BY_IP)) {
       const t = src(f)

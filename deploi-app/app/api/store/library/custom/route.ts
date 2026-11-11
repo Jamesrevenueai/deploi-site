@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { resolveActor, errorResponse, readJson } from '@/lib/store/request'
+import { assertNotEmbedded } from '@/lib/store/embedded-gate'
 import { createCustomAgent } from '@/lib/library/custom'
 
 export const dynamic = 'force-dynamic'
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
     const actor = await resolveActor(req, { mutating: true })
+    assertNotEmbedded(actor) // build your own is not offered inside Shopify
     const body = await readJson(req)
     await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)
     return NextResponse.json({ ok: true, agent: await createCustomAgent(actor, { name: String(body.name ?? ''), job: String(body.job ?? ''), permission: body.permission }) })

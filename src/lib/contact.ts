@@ -26,8 +26,13 @@ export function validateContact(p: ContactPayload): string | null {
   return null
 }
 
+/** The contact endpoint is not there or not reachable: send by email instead. */
+export class ContactUnavailable extends Error { constructor() { super('contact endpoint unavailable') } }
+
 export async function submitContact(url: string, p: ContactPayload): Promise<void> {
-  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) })
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => null)
+  // the app endpoint is missing (an older app) or unreachable: the caller falls back to the visitor's mail client
+  if (!res || res.status === 404 || res.status === 405) throw new ContactUnavailable()
   if (res.status === 429) throw new Error('Too many messages from here. Please try again in a few minutes, or email us.')
   if (!res.ok) throw new Error('We could not send your message. Please try again, or email us.')
 }

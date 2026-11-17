@@ -35,13 +35,19 @@ still unverified.
 3. a **development store** (Shopify's `shop.plan.partnerDevelopment`, read with the store's own token, re-checked
    daily) is enabled automatically;
 4. `STORE_ACCESS_MODE=open` enables every installed store.
+5. `STORE_ACCESS_MODE=review` (added 2026-11-17) is for the review period: **only** development stores and stores
+   staff approve one by one may be changed. Invites are ignored, so a real merchant who installs from the listing
+   while it is in review is never written to. If a reviewer's store is not reported as a development store,
+   approve that one store on `/staff/store-access` and reply to the reviewer.
 
 A store without access is still installed, scanned and fully reviewable (issues, evidence, proposed changes,
 agents, email drafts); it cannot be written to and cannot send real email, and it sees a card to enter an invite
 code or request access. `LIVE_WRITES=off` pauses writes to every real store.
 
 **Reviewer access.** Shopify does not say which store type reviewers use (UNVERIFIED), and reviewers must get full
-feature access. So **submit with `STORE_ACCESS_MODE=open`**. Keep the beta audience small with a
+feature access. So submit with `STORE_ACCESS_MODE=open` (every reviewer store works without any action), or with
+`STORE_ACCESS_MODE=review` if you want real merchants' stores protected during review (reviewers on development stores
+work at once; any other reviewer store needs one staff approval). Switch to `open` when the listing is approved. Keep the beta audience small with a
 **limited-visibility** listing (installable only from its listing URL, not indexed) and, once pricing exists,
 private plans. The invite flow covers beta merchants before then, and is a fallback for reviewers (an invite
 code goes in the testing instructions).

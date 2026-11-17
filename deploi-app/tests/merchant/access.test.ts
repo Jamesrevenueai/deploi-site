@@ -13,7 +13,7 @@ import { ensureInstalled, parseShopInfo } from '../../lib/connectors/shopify/ins
 import { handleShopifyWebhook } from '../../lib/connectors/shopify/webhooks'
 import { signSessionToken } from '../../lib/connectors/shopify/auth'
 import { NORTHWIND_IDS } from '../../lib/connectors/shopify/demo-store'
-import { decide, getAccess, createInvite, redeemInvite, requestAccess, decideAccess, revokeInvite, writeBlockReason, emailBlockReason, recordShopFacts, hashCode, loadAccessRow } from '../../lib/engine/access'
+import { decide, parseAccessMode, REVIEW_PENDING_REASON, getAccess, createInvite, redeemInvite, requestAccess, decideAccess, revokeInvite, writeBlockReason, emailBlockReason, recordShopFacts, hashCode, loadAccessRow } from '../../lib/engine/access'
 import { GET as getAccessRoute, POST as postAccessRoute } from '../../app/api/store/access/route'
 import { NW, HB, resetMerchant, merchantActor } from './helpers'
 
@@ -44,6 +44,23 @@ describe('access rules (pure)', () => {
     expect(decide({ ...none, invite_id: 'x' }, 'beta')).toEqual({ status: 'eligible', basis: 'beta_invite' })
     expect(decide({ ...none, staff_decision: 'approved' }, 'beta')).toEqual({ status: 'eligible', basis: 'staff_approved' })
     expect(decide({ staff_decision: 'denied', invite_id: 'x', is_development_store: true }, 'open')).toEqual({ status: 'denied', basis: null })
+  })
+
+  it('review mode (App Store review): development stores and staff approvals only; invites ignored; denial still wins', () => {
+    const none = { staff_decision: null, invite_id: null, is_development_store: null }
+    expect(decide({ ...none, is_development_store: true }, 'review')).toEqual({ status: 'eligible', basis: 'development_store' })
+    expect(decide({ ...none, staff_decision: 'approved' }, 'review')).toEqual({ status: 'eligible', basis: 'staff_approved' })
+    expect(decide({ ...none, invite_id: 'x' }, 'review')).toEqual({ status: 'pending', basis: null })
+    expect(decide({ ...none, is_development_store: false }, 'review')).toEqual({ status: 'pending', basis: null })
+    expect(decide(none, 'review')).toEqual({ status: 'pending', basis: null })
+    expect(decide(null, 'review')).toEqual({ status: 'pending', basis: null })
+    expect(decide({ staff_decision: 'denied', invite_id: null, is_development_store: true }, 'review')).toEqual({ status: 'denied', basis: null })
+  })
+
+  it('STORE_ACCESS_MODE parsing: review and open are read exactly; anything else is beta', () => {
+    expect(parseAccessMode('review')).toBe('review')
+    expect(parseAccessMode('open')).toBe('open')
+    for (const v of ['', 'beta', 'Review', 'OPEN', 'all', 'true']) expect(parseAccessMode(v)).toBe('beta')
   })
 
   it('reads the development-store flag from Shopify’s shop.plan, and treats a missing flag as unknown', () => {
@@ -153,6 +170,42 @@ describe.skipIf(!ready)('store access (beta eligibility) replaces the live-write
     expect(await admin(db => getAccess(db, conn))).toMatchObject({ eligible: false, status: 'pending' })
     await admin(db => decideAccess(db, row.id, 'approved', 'beta merchant', 'staff:test'))
     expect(await admin(db => getAccess(db, conn))).toMatchObject({ eligible: true, basis: 'staff_approved' })
+  })
+
+  it('review mode: a reviewer development store can be changed end to end; a real merchant store and an invited store cannot', async () => {
+    process.env.STORE_ACCESS_MODE = 'review'
+    await runScan(NW.conn, { trigger: 'test' })
+    const actor = await merchantActor(NW)
+    const conn = await asRealStore()
+    // a real (non-development) store that installs from the listing during review
+    await admin(db => recordShopFacts(db, conn, { isDevelopmentStore: false, planName: 'Basic' }, 'test'))
+    expect(await admin(db => getAccess(db, conn))).toMatchObject({ eligible: false, status: 'pending', mode: 'review', reason: REVIEW_PENDING_REASON })
+    expect(await admin(db => writeBlockReason(db, conn))).toBe('during App Store review, changes are enabled on Shopify development stores only')
+    expect(await admin(db => emailBlockReason(db, NW.org))).toBe('this store is not enabled for real email yet (beta access)')
+    let p = (await proposalFor(V(2001)))!
+    await approveProposal(actor, p.id, p.change_hash)
+    expect(await executeProposal(p.id, { actor: actor.label })).toMatchObject({ status: 'blocked', reason: 'during App Store review, changes are enabled on Shopify development stores only' })
+    // a beta invite does not open it during review
+    const { code } = await admin(db => createInvite(db, { label: 'review-mode test' }, 'staff:test'))
+    expect(await admin(db => redeemInvite(db, conn, code, 'test'))).toMatchObject({ ok: true, access: { eligible: false, status: 'pending' } })
+    // the same shop reported by Shopify as a development store (a reviewer's store) is enabled at once
+    await admin(db => recordShopFacts(db, conn, { isDevelopmentStore: true, planName: 'Development' }, 'test'))
+    expect(await admin(db => getAccess(db, conn))).toMatchObject({ eligible: true, basis: 'development_store', mode: 'review' })
+    expect(await admin(db => writeBlockReason(db, conn))).toBeNull()
+    // and a change is actually written and verified (the synthetic transport stands in for Shopify)
+    await runScan(NW.conn, { trigger: 'test' })
+    p = (await proposalFor(V(2003)))!
+    await approveProposal(actor, p.id, p.change_hash)
+    expect(await executeProposal(p.id, { actor: actor.label })).toMatchObject({ status: 'verified' })
+    // a reviewer store that Shopify does not report as a development store: staff approve that one store
+    await admin(db => recordShopFacts(db, conn, { isDevelopmentStore: false, planName: 'Basic' }, 'test'))
+    expect(await admin(db => getAccess(db, conn))).toMatchObject({ eligible: false })
+    const row = (await admin(db => loadAccessRow(db, 'shopify', conn.external_id)))!
+    await admin(db => decideAccess(db, row.id, 'approved', 'Shopify reviewer store', 'staff:test'))
+    expect(await admin(db => getAccess(db, conn))).toMatchObject({ eligible: true, basis: 'staff_approved', mode: 'review' })
+    // the LIVE_WRITES incident switch still wins
+    process.env.LIVE_WRITES = 'off'
+    try { expect(await admin(db => writeBlockReason(db, conn))).toMatch(/paused/) } finally { delete process.env.LIVE_WRITES }
   })
 
   it('open mode enables every installed store; real email follows the same access', async () => {

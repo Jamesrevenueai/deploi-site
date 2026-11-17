@@ -153,7 +153,7 @@ export type StoreAccess = {
   eligible: boolean
   status: 'eligible' | 'pending' | 'denied'
   basis: 'open_access' | 'development_store' | 'beta_invite' | 'staff_approved' | 'synthetic' | null
-  mode: 'beta' | 'open'
+  mode: 'beta' | 'review' | 'open'
   reason: string
   isDevelopmentStore: boolean | null
   requestedAt: string | null

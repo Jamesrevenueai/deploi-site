@@ -7,7 +7,7 @@
 import type { ApplyResult, Connector, ConnectionRow, Correction, LookupKeys } from '../../engine/types'
 import { shopifyGraphql, ShopifyApiError } from './client'
 import { Q_NODES, Q_VARIANTS, M_SET_INVENTORY_POLICY, Q_FIND_VARIANTS, Q_FIND_BY_HANDLE, Q_PUBLICATIONS, M_PUBLISH, M_UNPUBLISH, M_UPDATE_VARIANT, Q_PRICE_OVERRIDES, docFor } from './queries'
-import { normalizeVariant, type GqlVariant } from './normalize'
+import { normalizeVariant, fillAbsentPublications, type GqlVariant } from './normalize'
 import { ACTION_SCOPES, READ_SCOPES } from './config'
 import { SET_POLICY_ACTION } from './checks'
 import { PUBLISH_ACTION, UNPUBLISH_ACTION, SET_PRICE_ACTION, SET_COMPARE_AT_ACTION, SET_SKU_ACTION } from './listing-checks'
@@ -71,6 +71,21 @@ async function priceOverrides(conn: ConnectionRow, variantId: string): Promise<s
   return data.priceLists.nodes.filter(n => n.prices.nodes.length > 0).map(n => n.name)
 }
 
+/** Known publication ids per connection (the app's sales channels), cached briefly; used to read "absent" as "not published". */
+const pubCache = new Map<string, { at: number; ids: string[] }>()
+const PUB_CACHE_MS = 10 * 60e3
+export function clearPublicationCache() { pubCache.clear() }
+async function knownPublications(conn: ConnectionRow): Promise<string[]> {
+  if (!conn.scopes.includes('read_publications')) return []
+  const hit = pubCache.get(conn.id)
+  if (hit && Date.now() - hit.at < PUB_CACHE_MS) return hit.ids
+  try {
+    const ids = (await listPublications(conn)).publications.map(p => p.id)
+    pubCache.set(conn.id, { at: Date.now(), ids })
+    return ids
+  } catch { return hit?.ids ?? [] }
+}
+
 export const shopifyConnector: Connector<ShopifyVariantRecord> = {
   platform: 'shopify',
   operational: true,
@@ -101,6 +116,11 @@ export const shopifyConnector: Connector<ShopifyVariantRecord> = {
         if (n.__typename === 'ProductVariant') { const r = normalizeVariant(n as GqlVariant, fetchedAt); out.set(r.resourceId, r) }
         else if (n.__typename === 'Product' || n.__typename === 'InventoryItem') for (const v of n.variants.nodes) { const r = normalizeVariant(v, fetchedAt); out.set(r.resourceId, r) }
       }
+    }
+    // the fresh read used by verification: a channel missing from a complete list is not published
+    if (wanted.some(isProductId) && [...out.values()].some(r => r.publicationsComplete)) {
+      const known = await knownPublications(conn)
+      for (const r of out.values()) fillAbsentPublications(r, known)
     }
     return out
   },
@@ -164,7 +184,12 @@ export const shopifyConnector: Connector<ShopifyVariantRecord> = {
       variant = { id: c.targetId, inventoryItem: { sku: to } }
     }
     const variables = { productId, variants: [variant] }
-    return send(conn, { operation: 'productVariantsBulkUpdate', variables }, { query: M_UPDATE_VARIANT, operationName: 'DeploiUpdateVariant', variables },
+    const r = await send(conn, { operation: 'productVariantsBulkUpdate', variables }, { query: M_UPDATE_VARIANT, operationName: 'DeploiUpdateVariant', variables },
       d => d.productVariantsBulkUpdate as { userErrors: UserError[] })
+    // Shopify documents only write_products for this mutation (docs/platform-research/shopify-app-store.md §5). If a live store
+    // refuses the inventoryItem.sku part for missing access, say so plainly: the fix is granting write_inventory, not a retry.
+    if (c.actionKey === SET_SKU_ACTION && r.outcome === 'rejected' && /access|denied|write_inventory|permission/i.test(r.error ?? ''))
+      return { ...r, error: `${r.error}. Shopify refused the SKU write for missing access; it may need the write_inventory scope (see docs/SHOPIFY-SETUP.md, "SKU writes and write_inventory").`, blocked: true }
+    return r
   },
 }

@@ -1,0 +1,14 @@
+Tue Nov 10 03:30:19 UTC 2026
+
+HTTP/1.1 200 Connection Established
+
+HTTP/2 302 
+cache-control: no-store, max-age=0
+content-type: text/plain
+date: Tue, 10 Nov 2026 03:30:19 GMT
+location: https://vercel.com/sso-api?url=https%3A%2F%2Fdev.getdeploi.com%2F&nonce=…
+server: Vercel
+strict-transport-security: max-age=63072000
+x-frame-options: DENY
+x-vercel-id: iad1::mrtvj-1794281419165-61f2c2ed3d88
+

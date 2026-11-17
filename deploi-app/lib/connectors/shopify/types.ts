@@ -34,5 +34,7 @@ export type ShopifyVariantRecord = ResourceRecord & {
   /** publication id -> published now (a future-dated publication counts as not published, and is listed in scheduledOn) */
   published: Record<string, boolean>
   scheduledOn: string[]
+  /** true when every publication of the product was read (a channel absent from the list is then not published) */
+  publicationsComplete?: boolean
   onlineStoreUrl: string | null
 }

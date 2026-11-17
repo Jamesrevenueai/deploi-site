@@ -1,0 +1,6 @@
+{
+  "from": "news@mail.zillow.com",
+  "subject": "Your weekly market report for Portland",
+  "text": "Home values in your area rose 0.4% this week. See the full report.",
+  "expect": null
+}

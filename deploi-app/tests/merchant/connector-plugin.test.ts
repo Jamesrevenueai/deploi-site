@@ -1,6 +1,6 @@
 /**
  * Pluggable connectors: a second platform plugs in through the registry alone. This test registers an
- * operational in-memory WooCommerce connector (the real one stays planned) and runs an agent on it end
+ * operational in-memory WooCommerce connector (in place of the real one, restored afterwards) and runs an agent on it end
  * to end: same agent lifecycle, same permission tiers, same execution engine, same audit trail. No agent,
  * policy or audit code knows about WooCommerce. Unknown action keys are refused.
  */
@@ -29,7 +29,7 @@ const rec = (productId: number, over: Partial<WooStockRecord> = {}): WooStockRec
 })
 let wooStore = new Map<string, WooStockRecord>()
 const writesSeen: Correction[] = []
-const planned = getConnector('woocommerce')
+const realWoo = getConnector('woocommerce')
 const wooConnector: Connector<WooStockRecord> = {
   platform: 'woocommerce', operational: true,
   requiredScopes: { read: ['read'], actions: { 'woocommerce.product.set_backorders': ['write'] } },
@@ -51,7 +51,7 @@ beforeAll(async () => {
     values ($1,$2,'woocommerce','woo-test.example','Northwind Woo (test)','active',$3,true,'USD') on conflict (id) do update set status = 'active'`, [WOO_CONN, NW.org, ['read', 'write']]))
 })
 afterAll(async () => {
-  registerConnector(planned) // the real WooCommerce connector stays planned
+  registerConnector(realWoo) // put the real WooCommerce connector back
   if (ready) await admin(async db => {
     await db.query('delete from agent_runs where agent_id in (select id from agents where connection_id = $1)', [WOO_CONN])
     await db.query('delete from executions where connection_id = $1', [WOO_CONN])
@@ -75,6 +75,7 @@ describe('connector capabilities (no database)', () => {
     expect(fieldForAction('made.up.action')).toBeUndefined()
   })
   it('the planned connectors still refuse every call', async () => {
+    const planned = getConnector('amazon')
     expect(planned.operational).toBe(false)
     await expect(planned.readResources({} as ConnectionRow, ['x'])).rejects.toThrow(/planned/)
   })

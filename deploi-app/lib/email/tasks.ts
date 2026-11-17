@@ -7,7 +7,7 @@ import type { EmailPolicy } from '../agents/policy'
 import type { ResourceRecord } from '../engine/types'
 import type { MessageContent } from './types'
 
-export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder' | 'supplier_followup'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown>; inReplyTo?: string | null }
+export type DraftMessage = { taskKey: 'run_report' | 'needs_person_alert' | 'supplier_reorder' | 'supplier_followup' | 'supplier_exception'; dedupeKey: string; to: string[]; cc: string[]; content: MessageContent; meta: Record<string, unknown>; inReplyTo?: string | null }
 
  
 const clean = (s: unknown, max = 200) => String(s ?? '').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -68,29 +68,44 @@ export function needsPersonAlert(e: EmailPolicy, f: { runId: string; agentId: st
     content: { subject: clean(`Deploi: ${f.items.length} ${f.items.length === 1 ? 'item needs' : 'items need'} a person in ${f.storeName}`, 180), bodyText: lines.join('\n'), attachments: [] } }
 }
 
-export type ReorderItem = { variantId: string; sku: string | null; label: string; available: number }
+export type ReorderItem = { variantId: string; sku: string | null; label: string; available: number; reorderQty?: number | null; leadTimeDays?: number | null }
 /** Variants at or below the threshold, in scope, tracked and active. Quantities to order are never guessed. */
 export function reorderCandidates(records: ResourceRecord[], threshold: number, inScope: (r: ResourceRecord) => boolean): ReorderItem[] {
-  return records.filter(r => r.resourceType === 'variant' && r.productStatus === 'ACTIVE' && r.tracked === true && r.isGiftCard !== true && typeof r.totalAvailable === 'number' && (r.totalAvailable as number) <= threshold && inScope(r))
+  return records.filter(r => (r.resourceType === 'variant' || r.resourceType === 'woo_stock_object') && r.productStatus === 'ACTIVE' && r.tracked === true && r.isGiftCard !== true && typeof r.totalAvailable === 'number' && (r.totalAvailable as number) <= threshold && inScope(r))
     .map(r => ({ variantId: String(r.variantId), sku: (r.sku as string | null) ?? null, available: r.totalAvailable as number,
       label: `${clean(r.productTitle, 120)}${r.variantTitle && r.variantTitle !== 'Default Title' ? ` / ${clean(r.variantTitle, 60)}` : ''}` }))
 }
 
-export function supplierReorder(e: EmailPolicy, f: { runId: string; agentName: string; storeName: string; at: Date; items: ReorderItem[] }): DraftMessage | null {
+/** The calendar day (UTC) a request belongs to: one consolidated request per supplier per day. */
+export const requestDay = (d: Date) => d.toISOString().slice(0, 10)
+export const supplierReorderKey = (supplier: string, day: string) => `supplier_reorder:${supplier.toLowerCase()}:${day}`
+
+/**
+ * One consolidated restock request to one supplier. The recipient is the supplier given (from the agent's
+ * supplier mapping) or the policy's default supplier; quantities and lead times are quoted only when the
+ * merchant's mapping file states them. The dedupe key (supplier + day) makes a second run on the same day
+ * a no-op, so a supplier never gets two requests in a day.
+ */
+export function supplierReorder(e: EmailPolicy, f: { runId: string; agentName: string; storeName: string; at: Date; items: ReorderItem[]; supplier?: { address: string; name?: string | null } }): DraftMessage | null {
   const s = e.supplierReorder
   if (!s || !f.items.length) return null
+  const to = (f.supplier?.address ?? s.supplierAddress).trim().toLowerCase()
+  const day = requestDay(f.at)
+  const quoted = f.items.some(i => typeof i.reorderQty === 'number')
   const lines = [
-    'Hello,', '',
-    `${clean(f.storeName, 120)} would like to restock the products below. Available quantities are as recorded in the store at ${stamp(f.at)}. Please confirm availability and lead time; the store will confirm quantities with you.`, '',
-    ...f.items.slice(0, 100).map(i => `- ${i.sku ? clean(i.sku, 60) + ' · ' : ''}${i.label} · available: ${i.available}`),
+    `Hello${f.supplier?.name ? ` ${clean(f.supplier.name, 80)}` : ''},`, '',
+    `${clean(f.storeName, 120)} would like to restock the products below. Available quantities are as recorded in the store at ${stamp(f.at)}. ${quoted ? 'Suggested order quantities come from the store\'s supplier list. ' : ''}Please confirm availability and lead time; the store will confirm quantities with you.`, '',
+    ...f.items.slice(0, 100).map(i => `- ${i.sku ? clean(i.sku, 60) + ' · ' : ''}${i.label} · available: ${i.available}${typeof i.reorderQty === 'number' ? ` · suggested order: ${i.reorderQty}` : ''}${typeof i.leadTimeDays === 'number' ? ` · usual lead time: ${i.leadTimeDays} day${i.leadTimeDays === 1 ? '' : 's'}` : ''}`),
     ...(f.items.length > 100 ? [`- and ${f.items.length - 100} more`] : []),
     '', `This message was prepared by the store's Deploi agent "${clean(f.agentName, 80)}".`,
   ]
   // the subject (counts only, no product data) is kept in meta so a follow-up can reply in the same thread
   const subject = clean(`Restock request from ${f.storeName}: ${f.items.length} product${f.items.length === 1 ? '' : 's'}`, 180)
-  const csv = ['sku,product,available', ...f.items.map(i => [i.sku ?? '', i.label, String(i.available)].map(v => `"${v.replace(/"/g, '""')}"`).join(','))].join('\r\n') + '\r\n'
+  const csv = ['sku,product,available,suggested_order', ...f.items.map(i => [i.sku ?? '', i.label, String(i.available), typeof i.reorderQty === 'number' ? String(i.reorderQty) : ''].map(v => `"${v.replace(/"/g, '""')}"`).join(','))].join('\r\n') + '\r\n'
   return {
-    taskKey: 'supplier_reorder', dedupeKey: `supplier_reorder:${f.runId}`, to: [s.supplierAddress], cc: [], meta: { variant_ids: f.items.map(i => i.variantId), subject },
+    taskKey: 'supplier_reorder', dedupeKey: supplierReorderKey(to, day), to: [to], cc: [],
+    meta: { variant_ids: f.items.map(i => i.variantId), subject, supplier: to, day, run_id: f.runId,
+      items: f.items.slice(0, 200).map(i => ({ variantId: i.variantId, sku: i.sku, label: i.label, available: i.available, reorderQty: i.reorderQty ?? null, leadTimeDays: i.leadTimeDays ?? null })) },
     content: { subject, bodyText: lines.join('\n'),
       attachments: e.allowAttachments ? [{ filename: 'restock-request.csv', contentType: 'text/csv', contentBase64: Buffer.from(csv, 'utf8').toString('base64') }] : [] },
   }

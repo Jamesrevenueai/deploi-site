@@ -58,6 +58,12 @@ export async function recordSubscription(db: Db, input: { orgId: string; connect
      on conflict (provider, external_id) where external_id is not null do update set plan_key = excluded.plan_key, status = excluded.status, is_test = excluded.is_test, current_period_end = excluded.current_period_end`,
     [input.orgId, input.connectionId, input.planKey, status, input.externalId, input.isTest, input.currentPeriodEnd ?? null])
   if (status === 'active') await db.query(`update app_subscriptions set status = 'cancelled' where connection_id = $1 and provider = 'early_access' and status = 'active'`, [input.connectionId])
+  // The plan follows the Shopify subscription, as it follows a Stripe one (lib/billing/webhooks.ts): an App Pricing plan
+  // whose handle is a key in `plans` sets the organization's plan and tier, so limits match what Shopify charges.
+  // A handle that is not one of ours changes nothing (the Partner Dashboard plan handles must equal the plan keys).
+  if (status === 'active') await db.query(
+    `update agencies g set plan_key = p.key, plan_tier = p.tier_key, plan_changed_at = now() from plans p
+     where g.id = $1 and p.key = $2 and (g.plan_key is distinct from p.key or g.plan_tier is distinct from p.tier_key)`, [input.orgId, input.planKey])
   await audit(db, { orgId: input.orgId, connectionId: input.connectionId, entityType: 'subscription', entityId: input.externalId, event: `subscription.${status}`, actor: input.actor, detail: { plan_key: input.planKey, is_test: input.isTest } })
 }
 

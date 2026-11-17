@@ -160,7 +160,7 @@ export function OverviewScreen() {
               </li>
             ))}
           </ul>
-          <p className="pt-3 text-[13px] text-grey-h">One connected store is all Deploi needs. WooCommerce and Amazon are planned and not available yet.</p>
+          <p className="pt-3 text-[13px] text-grey-h">One connected store is all Deploi needs: Shopify or WooCommerce. Amazon is planned and not available yet.</p>
         </Panel>
         <Panel>
           <h2 className="text-[1.05rem]">Subscription</h2>

@@ -8,7 +8,7 @@ export type Platform = 'shopify' | 'woocommerce' | 'amazon'
 
 export const PLATFORMS: { value: Platform; label: string; planned: boolean }[] = [
   { value: 'shopify', label: 'Shopify', planned: false },
-  { value: 'woocommerce', label: 'WooCommerce', planned: true },
+  { value: 'woocommerce', label: 'WooCommerce', planned: false },
   { value: 'amazon', label: 'Amazon Seller Central', planned: true },
 ]
 
@@ -137,7 +137,7 @@ export async function submitLead(
   const body =
     target.kind === 'app'
       ? payload
-      : { ...payload, _subject: `Deploi AI early access application (${payload.source})` }
+      : { ...payload, _subject: `Deploi early access application (${payload.source})` }
   const res = await fetchImpl(target.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

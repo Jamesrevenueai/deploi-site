@@ -31,11 +31,13 @@ export const gmailAdapter: EmailAdapter = {
   provider: 'gmail',
   label: 'Gmail / Google Workspace',
   configured: () => Boolean(emailConfig.googleClientId && emailConfig.googleClientSecret),
-  scopesFor: ({ read }) => [...BASE, GMAIL_SEND, ...(read ? [GMAIL_READ] : [])],
+  // inbox reading uses the same restricted scope as reply tracking (gmail.readonly): no wider scope is asked for
+  scopesFor: ({ read, inbox }) => [...BASE, GMAIL_SEND, ...(read || inbox ? [GMAIL_READ] : [])],
   canSend: s => s.includes(GMAIL_SEND) || s.includes('https://www.googleapis.com/auth/gmail.compose') || s.includes('https://mail.google.com/'),
   // UNVERIFIED: that Gmail keeps the Message-ID we set, so a miss on rfc822msgid: is not proof of "not sent"
   reliableNotFound: false,
   canRead: s => s.includes(GMAIL_READ) || s.includes('https://www.googleapis.com/auth/gmail.modify') || s.includes('https://mail.google.com/'),
+  canReadInbox: s => s.includes(GMAIL_READ) || s.includes('https://www.googleapis.com/auth/gmail.modify') || s.includes('https://mail.google.com/'),
 
   authorizeUrl({ state, codeChallenge, scopes, loginHint }) {
     const q = new URLSearchParams({
@@ -65,8 +67,11 @@ export const gmailAdapter: EmailAdapter = {
   },
   async send(_account, accessToken, msg) {
     const raw = base64url(buildMime(msg))
+    // a reply to mail read from this inbox goes into the same Gmail thread: threadId plus In-Reply-To / References
+    // and a matching subject (users.messages.send; developers.google.com/workspace/gmail/api/guides/threads)
+    const threadId = msg.providerReply?.threadId ?? null
     return sendOutcome(
-      () => emailFetch(`${API}/messages/send`, { method: 'POST', headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ raw }) }),
+      () => emailFetch(`${API}/messages/send`, { method: 'POST', headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }, body: JSON.stringify(threadId ? { raw, threadId } : { raw }) }),
       async res => { const j = (await res.json().catch(() => ({}))) as { id?: string; threadId?: string }; return { outcome: 'accepted', providerMessageId: j.id ?? null, providerThreadId: j.threadId ?? null, evidence: 'Gmail returned a message id for the sent message' } })
   },
   async findSent(account, accessToken, internetMessageId) {

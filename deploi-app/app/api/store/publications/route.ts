@@ -15,6 +15,8 @@ export async function GET(req: Request) {
     const visible = await withActor(actor, db => db.one<{ id: string }>('select id from store_connections where id = $1', [id]))
     if (!visible) throw new HttpError(404, 'not_found', 'store not found')
     const conn = await admin(db => loadConnection(db, id))
+    // a WooCommerce store has one "channel": its storefront (status publish vs draft)
+    if (conn?.platform === 'woocommerce' && conn.status === 'active') return NextResponse.json({ ok: true, currency: conn.currency ?? null, publications: [{ id: 'woocommerce:storefront', title: 'Storefront', supportsFuturePublishing: false }] })
     if (!conn || conn.platform !== 'shopify' || conn.status !== 'active') throw new HttpError(409, 'connection_inactive', 'the store is not connected')
     const r = await listPublications(conn)
     if (r.currency && r.currency !== conn.currency) await admin(db => db.query('update store_connections set currency = $2 where id = $1', [id, r.currency]))

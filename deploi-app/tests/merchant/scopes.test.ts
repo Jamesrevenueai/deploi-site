@@ -4,7 +4,10 @@ import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { NW, merchantActor, resetMerchant } from './helpers'
 import { DEFAULT_EXEMPT_TAGS } from '../../lib/connectors/shopify/checks'
-import { REQUIRED_SCOPES } from '../../lib/connectors/shopify/config'
+import { REQUIRED_SCOPES, OPTIONAL_SCOPES } from '../../lib/connectors/shopify/config'
+
+/** A store installed before write_products moved into the install scopes (read scopes only). */
+const LEGACY = REQUIRED_SCOPES.filter(s => s !== 'write_products')
 import { mutateSynthetic } from '../../lib/connectors/shopify/synthetic'
 import { syncScopes } from '../../lib/connectors/shopify/scopes'
 import { loadConnection } from '../../lib/engine/scan'
@@ -17,12 +20,12 @@ const ready = await prepareDb()
 const STOCK = { correctionTypes: ['oversell_policy'], rules: { oversell_policy: { exemptTags: DEFAULT_EXEMPT_TAGS, flagInStockVariants: true } } }
 const base = { connectionId: NW.conn, productScope: { mode: 'all' }, ...STOCK, schedule: { kind: 'manual' }, approvalMode: 'draft' }
 
-describe.skipIf(!ready)('optional write scope: a read-only install drafts; writing needs the store to grant write_products', () => {
+describe.skipIf(!ready)('a read-only install (from before write_products was requested at install) drafts; writing needs the store to grant write_products', () => {
   beforeEach(async () => {
     await resetMerchant(NW)
     // the store installed with the read-only scopes only, and Shopify says so too
-    await admin(db => db.query('update store_connections set scopes = $2 where id = $1', [NW.conn, REQUIRED_SCOPES]))
-    await mutateSynthetic(NW.conn, s => { s.accessScopes = [...REQUIRED_SCOPES] })
+    await admin(db => db.query('update store_connections set scopes = $2 where id = $1', [NW.conn, LEGACY]))
+    await mutateSynthetic(NW.conn, s => { s.accessScopes = [...LEGACY] })
   })
 
   it('drafts need no write scope; widening reports the missing scope; a write is blocked until Shopify grants it; then the sync clears it', async () => {
@@ -34,7 +37,7 @@ describe.skipIf(!ready)('optional write scope: a read-only install drafts; writi
     expect(r1.counts.drafted).toBeGreaterThan(0)
     let d = await agentDetail(actor, c.agentId)
     expect(d.policies.find(p => p.status === 'active')!.missing_scopes).toEqual([])
-    expect(d.storeScopes).toEqual({ granted: REQUIRED_SCOPES, requestable: ['write_products', 'read_publications', 'write_publications'] })
+    expect(d.storeScopes).toEqual({ granted: LEGACY, requestable: OPTIONAL_SCOPES })
 
     // widening to "after my approval" needs Deploi's grant AND the store's write_products
     const e = await editAgent(actor, c.agentId, { policy: { ...base, approvalMode: 'review' } })
@@ -53,10 +56,10 @@ describe.skipIf(!ready)('optional write scope: a read-only install drafts; writi
     expect(ex.status_reason).toBe('missing permission: write_products')
     expect((await admin(db => db.one<{ n: string }>('select count(*)::text as n from executions where connection_id = $1 and status = $2', [NW.conn, 'verified'])))!.n).toBe('0')
 
-    // the merchant grants it on Shopify's screen; Deploi re-reads the granted list from Shopify, never from the browser
-    await mutateSynthetic(NW.conn, s => { s.accessScopes = [...REQUIRED_SCOPES, 'write_products'] })
+    // the merchant approves the app's updated install scopes on Shopify's screen; Deploi re-reads the granted list from Shopify, never from the browser
+    await mutateSynthetic(NW.conn, s => { s.accessScopes = [...LEGACY, 'write_products'] })
     const sync = await admin(async db => syncScopes(db, (await loadConnection(db, NW.conn))!, actor.label))
-    expect(sync).toEqual({ granted: [...REQUIRED_SCOPES, 'write_products'].sort(), changed: true })
+    expect(sync).toEqual({ granted: [...LEGACY, 'write_products'].sort(), changed: true })
     d = await agentDetail(actor, c.agentId)
     expect(d.policies.find(p => p.status === 'active')!.missing_scopes).toEqual([])
     expect(d.storeScopes!.granted).toContain('write_products')

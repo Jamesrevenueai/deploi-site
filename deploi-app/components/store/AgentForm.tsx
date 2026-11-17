@@ -114,7 +114,7 @@ function productIds(s: string): { ids: string[]; bad: string[] } {
 }
 const showIds = (ids: string[]) => ids.map(id => id.replace(/^gid:\/\/shopify\/Product\//, '')).join(', ')
 const allAlerts = (): Record<CompetitorAlertKey, boolean> => Object.fromEntries(COMPETITOR_ALERTS.map(a => [a, true])) as Record<CompetitorAlertKey, boolean>
-const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false, supplier_followup: false })
+const noEmailTasks = (): Record<AgentEmailTask, boolean> => ({ run_report: false, needs_person_alert: false, supplier_reorder: false, supplier_followup: false, supplier_exception: false })
 
 // same formats the server accepts (lib/agents/policy.ts)
 const EMAIL_RE = /^[^\s@<>(),;:"\[\]\\]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
@@ -664,7 +664,7 @@ function EmailBlock({ f, set, n, agentId }: { f: AgentFormState; set: (patch: Pa
             <p className="text-[13px] text-grey-h">The agent may only ever write to these addresses and domains. A message to anyone else always waits for your approval.</p>
             <AreaField id={id('addresses')} label="Allowed recipient addresses" hint="Comma or line separated, e.g. owner@yourstore.com, orders@supplier.com." value={f.emailAddresses} onChange={v => set({ emailAddresses: v })} />
             {suggested.length > 0 && (
-              <div className="rounded-[14px] border border-[#4a3a1a] p-3">
+              <div className="rounded-[14px] border border-warn-line p-3">
                 <div className="flex flex-wrap items-center gap-2 text-[14px] text-ink"><Badge tone="warn">found in your text: confirm</Badge>{suggested.join(', ')}</div>
                 <p className="pt-1 text-[13px] text-grey-h">These addresses came from your task description. They are not allowed until you confirm them; remove any you do not want.</p>
                 <div className="mt-2"><Check checked={f.emailSuggestedConfirmed} onChange={v => set({ emailSuggestedConfirmed: v })} label="I confirm the agent may write to these addresses" /></div>

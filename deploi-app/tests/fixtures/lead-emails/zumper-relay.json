@@ -1,0 +1,13 @@
+{
+  "from": "no-reply@messaging.zumper.com",
+  "subject": "New message about 9 Birch Ct",
+  "text": "Renter name: Lee\nReply-To: r-77aa@messaging.zumper.com\nMessage:\nIs the rent negotiable?\n",
+  "expect": {
+    "source": "zumper",
+    "name": "Lee",
+    "email": "r-77aa@messaging.zumper.com",
+    "replyVia": "portal_relay",
+    "property": "9 Birch Ct",
+    "message": "Is the rent negotiable?"
+  }
+}

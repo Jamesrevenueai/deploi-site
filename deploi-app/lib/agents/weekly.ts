@@ -110,7 +110,7 @@ export function renderWeeklyHtml(f: WeeklyFacts, appUrl: string): string {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f4f4;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:16px 8px"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;padding:20px">
-<tr><td style="font-size:20px;font-weight:700;color:#000">deploi <span style="color:#888">ai</span></td></tr>
+<tr><td style="font-size:20px;font-weight:700;color:#000">deploi</td></tr>
 <tr><td style="padding-top:16px;font-size:18px;font-weight:600;color:#111">Your agents, week of ${esc(f.weekStart)} to ${esc(f.weekEnd)}</td></tr>
 <tr><td style="padding-top:4px;font-size:13px;color:#666">${esc(f.orgName)}</td></tr>
 <tr><td style="padding-top:20px;font-size:15px;font-weight:600;color:#111">What each agent did</td></tr>

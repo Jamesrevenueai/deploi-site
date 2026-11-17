@@ -20,7 +20,7 @@ async function visibleIssue(actor: Actor, issueId: string, ip?: string | null) {
 /** Acknowledge an issue. It stays closed until its evidence changes (its fingerprint changes). */
 export async function dismissIssue(actor: Actor, issueId: string, note: string, opts: { ip?: string | null } = {}) {
   await visibleIssue(actor, issueId, opts.ip)
-  return admin(async db => {
+  await admin(async db => {
     const i = await db.one<IssueRow>('select * from issues where id = $1 for update', [issueId])
     if (!i || !['open', 'needs_review'].includes(i.status)) throw new EngineError('not_pending', 'issue is not open')
     await db.query(`update issues set status = 'dismissed', resolution = 'dismissed_by_merchant', resolved_at = now(), status_reason = $2 where id = $1`, [i.id, note.slice(0, 500) || 'acknowledged'])
@@ -28,12 +28,19 @@ export async function dismissIssue(actor: Actor, issueId: string, note: string, 
     for (const p of props) await invalidateProposal(db, p, 'dismissed', 'issue dismissed by the merchant', actor.label)
     await audit(db, { orgId: i.org_id, connectionId: i.connection_id, entityType: 'issue', entityId: i.id, event: 'issue.dismissed', actor: actor.label, detail: { note } })
   })
+  await syncCase(issueId, actor)
+}
+
+/** The issue's Resolution Engine case follows the decision (lib/engine/case-sync.ts). */
+async function syncCase(issueId: string, actor: Actor) {
+  const { syncIssueCase } = await import('./case-sync')
+  await syncIssueCase(issueId, { actor: actor.label })
 }
 
 /** Exempt the product behind an issue from its check: recorded in the merchant rule (version bump). */
 export async function exemptProduct(actor: Actor, issueId: string, opts: { ip?: string | null } = {}) {
   await visibleIssue(actor, issueId, opts.ip)
-  return admin(async db => {
+  await admin(async db => {
     const i = await db.one<IssueRow>('select * from issues where id = $1', [issueId])
     const productId = String((i!.evidence as Record<string, unknown>).productId ?? '')
     if (!productId) throw new EngineError('invalid_input', 'this issue has no product to exempt')
@@ -45,14 +52,16 @@ export async function exemptProduct(actor: Actor, issueId: string, opts: { ip?: 
     for (const p of props) await invalidateProposal(db, p, 'dismissed', 'product exempted by the merchant', actor.label)
     await audit(db, { orgId: i!.org_id, connectionId: i!.connection_id, entityType: 'issue', entityId: i!.id, event: 'issue.exempted', actor: actor.label, detail: { product_id: productId } })
   })
+  await syncCase(issueId, actor)
 }
 
 /** After a revert, the merchant confirms Deploi may propose the change again (clears the loop guard for this issue). */
 export async function confirmReproposal(actor: Actor, issueId: string, opts: { ip?: string | null } = {}) {
   await visibleIssue(actor, issueId, opts.ip)
-  return admin(async db => {
+  await admin(async db => {
     const r = await db.query<IssueRow>(`update issues set status = 'open', status_reason = 'merchant confirmed a new proposal', guard_cleared_at = now() where id = $1 and status = 'needs_review' returning *`, [issueId])
     if (!r.length) throw new EngineError('not_pending', 'issue is not waiting for review')
     await audit(db, { orgId: r[0].org_id, connectionId: r[0].connection_id, entityType: 'issue', entityId: issueId, event: 'issue.guard_cleared', actor: actor.label })
   })
+  await syncCase(issueId, actor)
 }

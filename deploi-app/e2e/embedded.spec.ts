@@ -36,11 +36,15 @@ test.skip(!KEY || !SECRET, 'SHOPIFY_API_KEY and SHOPIFY_API_SECRET must be set f
 test('the admin loads /shopify: App Bridge is the first script, the frame is limited to the admin, and the store opens', async ({ page }) => {
   await stubAppBridge(page, SHOP)
   const res = await page.goto(`/shopify?shop=${SHOP}&host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvbm9ydGh3aW5k&embedded=1`)
-  expect(res!.headers()['content-security-policy']).toBe(`frame-ancestors https://${SHOP} https://admin.shopify.com;`)
+  const csp = res!.headers()['content-security-policy']
+  expect(csp).toContain(`frame-ancestors https://${SHOP} https://admin.shopify.com;`)
+  // the script policy's nonce is the one on App Bridge (and on Next.js's own scripts)
+  const nonce = /'nonce-([^']+)'/.exec(csp)![1]
+  expect(csp).toContain("'strict-dynamic'")
   const html = await res!.text()
   const head = html.slice(0, html.indexOf('</head>'))
   const firstScript = head.match(/<script[^>]*>/)![0]
-  expect(firstScript).toBe('<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js">')
+  expect(firstScript).toBe(`<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" nonce="${nonce}">`)
   expect(head.indexOf(`<meta name="shopify-api-key" content="${KEY}"/>`)).toBeGreaterThan(-1)
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
   // a synthetic demo store needs no beta access card
@@ -80,4 +84,25 @@ test('outside the Shopify admin (no App Bridge) the embedded page explains how t
   await page.route('https://cdn.shopify.com/shopifycloud/app-bridge.js', route => route.fulfill({ contentType: 'application/javascript', body: '' }))
   await page.goto('/shopify')
   await expect(page.getByRole('heading', { name: 'Open this app from your Shopify admin' })).toBeVisible()
+})
+
+test('inside Shopify only ready features are reachable: the menu lists them and a hidden page is a 404', async ({ page }) => {
+  await stubAppBridge(page, SHOP)
+  const res = await page.goto(`/shopify?shop=${SHOP}`)
+  const html = await res!.text()
+  const menu = html.slice(html.indexOf('<ui-nav-menu'), html.indexOf('</ui-nav-menu>'))
+  const hrefs = [...menu.matchAll(/href="([^"]+)"/g)].map(m => m[1])
+  expect(hrefs).toContain('/shopify/agents')
+  expect(hrefs).toContain('/shopify/privacy')
+  // nothing is marked ready for Shopify in the library, billing and the legal gate are off in this environment
+  for (const hidden of ['/shopify/team', '/shopify/plan', '/shopify/legal']) expect(hrefs).not.toContain(hidden)
+  for (const hidden of ['/shopify/team', '/shopify/team/order_tracker', '/shopify/plan', '/shopify/legal']) {
+    expect((await page.goto(`${hidden}?shop=${SHOP}`))!.status(), hidden).toBe(404)
+  }
+  await page.goto(`/shopify/privacy?shop=${SHOP}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy requests' })).toBeVisible()
+  // the agent templates offered inside Shopify are the three that work on a live store
+  await page.goto(`/shopify/agents?shop=${SHOP}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Agents' })).toBeVisible()
+  await expect(page.getByText('Competitor & Trend Watcher')).toHaveCount(0)
 })

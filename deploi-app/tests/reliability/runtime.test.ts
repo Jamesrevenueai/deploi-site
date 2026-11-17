@@ -53,6 +53,9 @@ async function clean() {
   await cleanInfra()
   await admin(async db => {
     await db.query(`delete from jobs where kind in ('case.check','agent.run','email.send')`)
+    // the queue runs one job per organization at a time: a job another test file left 'running' for these synthetic
+    // organizations (any kind) would hold this file's jobs back, so clear those too
+    await db.query(`delete from jobs where org_id = any($1) and status = 'running'`, [[NW.org, HB.org]])
     await db.query(`delete from cases where kind = 'rel_test'`)
   })
 }
@@ -239,9 +242,9 @@ describe.skipIf(!ready)('unauthorized actions', () => {
     const m = await createAgentMessages({ agentId: c.agentId, runId: null, actor: 'test', drafts: [{ taskKey: 'supplier_reorder', dedupeKey: `rel-${randomUUID()}`, to: [SUPPLIER], cc: [], meta: {}, content: { subject: 'Restock', bodyText: 'x', attachments: [] } }] })
     await admin(db => db.query(`update email_messages set status = 'queued', approval_kind = 'individual', approved_hash = content_hash, approved_by = 'test', approved_at = now() where id = $1`, [m.created[0].id]))
     // jobs of Harbor that name Northwind's records
-    const j1 = (await enqueue({ kind: 'case.check', orgId: HB.org, payload: { caseId: nwCase.id }, idempotencyKey: 'x1' })).id!
-    const j2 = (await enqueue({ kind: 'agent.run', orgId: HB.org, payload: { agentId: nwAgent, orgId: NW.org, trigger: 'schedule' }, idempotencyKey: 'x2' })).id!
-    const j3 = (await enqueue({ kind: 'email.send', orgId: HB.org, payload: { messageId: m.created[0].id }, idempotencyKey: 'x3' })).id!
+    const j1 = (await enqueue({ kind: 'case.check', orgId: HB.org, payload: { caseId: nwCase.id }, idempotencyKey: `x1-${randomUUID()}` })).id!
+    const j2 = (await enqueue({ kind: 'agent.run', orgId: HB.org, payload: { agentId: nwAgent, orgId: NW.org, trigger: 'schedule' }, idempotencyKey: `x2-${randomUUID()}` })).id!
+    const j3 = (await enqueue({ kind: 'email.send', orgId: HB.org, payload: { messageId: m.created[0].id }, idempotencyKey: `x3-${randomUUID()}` })).id!
     const runs0 = (await admin(db => db.query('select id from agent_runs where agent_id = $1', [nwAgent]))).length
     await runDueJobs({ kinds: ['case.check', 'agent.run', 'email.send'] })
     expect((await job(j1)).result).toMatchObject({ skipped: true, reason: expect.stringMatching(/another organization/) })
@@ -251,7 +254,7 @@ describe.skipIf(!ready)('unauthorized actions', () => {
     expect((await admin(db => db.query('select id from agent_runs where agent_id = $1', [nwAgent]))).length).toBe(runs0)
     expect(sent).toHaveLength(0)
     // the same jobs for the right organization work
-    await enqueue({ kind: 'case.check', orgId: NW.org, payload: { caseId: nwCase.id }, idempotencyKey: 'ok1' })
+    await enqueue({ kind: 'case.check', orgId: NW.org, payload: { caseId: nwCase.id }, idempotencyKey: `ok1-${randomUUID()}` })
     await runDueJobs({ kinds: ['case.check'] })
     expect(checks).toBe(1)
   })

@@ -118,6 +118,9 @@ describe.skipIf(!ready)('alerts', () => {
 
   it('an organization with too many failed or escalated cases alerts staff and that owner only, in plain words', async () => {
     process.env.OPS_ORG_CASE_FAILURES_24H = '2'
+    // Other suites in a full run leave failed/escalated case events on the same synthetic org within 24 hours;
+    // the rule counts all of them, so the expected number is this test's three plus whatever was already there.
+    const before = (await admin(db => db.one<{ n: number }>(`select count(*)::int as n from case_events where org_id = $1 and to_status in ('failed','escalated') and at > now() - interval '24 hours'`, [NW.org])))!.n
     for (const k of ['a', 'b', 'c']) await admin(async db => transitionCase(db, (await testCase(NW, k)).id, { to: 'escalated', actor: 'test', reason: 'needs a person' }))
     await admin(async db => transitionCase(db, (await testCase(HB, 'x')).id, { to: 'failed', actor: 'test', reason: 'failed once' }))
     await evaluateAlerts({ rules: ['org.case_failures'] })
@@ -125,7 +128,7 @@ describe.skipIf(!ready)('alerts', () => {
     expect(rows.map(r => [r.org_id, r.subject])).toEqual([[NW.org, NW.org]])
     const owner = rec.sent.find(n => n.audience === 'owner')!
     expect(owner.to).toEqual([NW.email])
-    expect(owner.text).toMatch(/3 pieces of work your AI team was handling failed or need you/)
+    expect(owner.text).toContain(`${before + 3} pieces of work your AI team was handling failed or need you`)
     expect(owner.text).not.toContain(NW.org)
     expect(rec.sent.find(n => n.audience === 'staff')!.text).toContain(NW.org)
     // the organization reads its own alert through RLS, and not another's; who was notified is not readable

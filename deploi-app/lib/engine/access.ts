@@ -9,6 +9,11 @@
  *      own token, so a merchant cannot claim it). Partners test on these; Shopify does not say whether its
  *      reviewers do, so the App Store submission runs in open mode.
  *   4. STORE_ACCESS_MODE=open (the public listing): every installed store
+ * STORE_ACCESS_MODE=review (Shopify App Store review): only Shopify development stores (reviewers' test
+ *   stores, not known in advance) and stores staff approve one by one may be changed. Beta invites do not
+ *   enable a store in this mode, so a real merchant who installs from the listing during review is never
+ *   written to; a staff denial still wins. If a reviewer's store is not reported as a development store,
+ *   staff approve that one store on /staff/store-access. Switch to "open" once the listing is approved.
  * Anything else is "pending". LIVE_WRITES=off pauses writes to every real store (incident switch).
  * Synthetic stores are always eligible; they never reach Shopify.
  */
@@ -20,9 +25,13 @@ import type { ConnectionRow } from './types'
 
 const e = (k: string) => (process.env[k] ?? '').trim()
 
+export type AccessMode = 'beta' | 'review' | 'open'
+/** Unknown values fall back to "beta" (the most restrictive mode that still serves invited merchants). */
+export function parseAccessMode(v: string): AccessMode { return v === 'open' ? 'open' : v === 'review' ? 'review' : 'beta' }
+
 export const accessConfig = {
-  /** "beta" (default) until the public listing; then "open" */
-  get mode(): 'beta' | 'open' { return e('STORE_ACCESS_MODE') === 'open' ? 'open' : 'beta' },
+  /** "beta" (default) until submission; "review" while Shopify reviews the listing; then "open" */
+  get mode(): AccessMode { return parseAccessMode(e('STORE_ACCESS_MODE')) },
   /** emergency stop for writes to every real store */
   get writesPaused() { return e('LIVE_WRITES') === 'off' },
   /** how often Shopify is asked again whether a store is still a development store */
@@ -46,7 +55,7 @@ export type AccessState = {
   eligible: boolean
   status: AccessStatus
   basis: AccessBasis | 'synthetic' | null
-  mode: 'beta' | 'open'
+  mode: AccessMode
   /** a plain sentence for the merchant */
   reason: string
   isDevelopmentStore: boolean | null
@@ -65,8 +74,13 @@ export const BASIS_LABEL: Record<AccessBasis | 'synthetic', string> = {
 type Facts = Pick<AccessRow, 'staff_decision' | 'invite_id' | 'is_development_store'>
 
 /** The rules, as a pure function of the stored facts and the mode. */
-export function decide(row: Facts | null, mode: 'beta' | 'open'): { status: AccessStatus; basis: AccessBasis | null } {
+export function decide(row: Facts | null, mode: AccessMode): { status: AccessStatus; basis: AccessBasis | null } {
   if (row?.staff_decision === 'denied') return { status: 'denied', basis: null }
+  if (mode === 'review') {
+    if (row?.is_development_store === true) return { status: 'eligible', basis: 'development_store' }
+    if (row?.staff_decision === 'approved') return { status: 'eligible', basis: 'staff_approved' }
+    return { status: 'pending', basis: null }
+  }
   if (row?.staff_decision === 'approved') return { status: 'eligible', basis: 'staff_approved' }
   if (row?.invite_id) return { status: 'eligible', basis: 'beta_invite' }
   if (row?.is_development_store) return { status: 'eligible', basis: 'development_store' }
@@ -74,7 +88,10 @@ export function decide(row: Facts | null, mode: 'beta' | 'open'): { status: Acce
   return { status: 'pending', basis: null }
 }
 
-function reasonFor(status: AccessStatus, basis: AccessBasis | null): string {
+export const REVIEW_PENDING_REASON = 'Deploi is in Shopify App Store review. During review, changes are enabled on Shopify development stores only. Your store is scanned and you can review what Deploi finds, but it will not change anything or send email yet.'
+
+function reasonFor(status: AccessStatus, basis: AccessBasis | null, mode: AccessMode = 'beta'): string {
+  if (status === 'pending' && mode === 'review') return REVIEW_PENDING_REASON
   if (status === 'denied') return 'Deploi has not enabled changes for this store. Contact support if you think this is a mistake.'
   if (status === 'pending') return 'Deploi is in beta. Your store is scanned and you can review what Deploi finds, but it will not change anything or send email until your store is enabled. Enter an invite code or request access.'
   return `Enabled: ${BASIS_LABEL[basis ?? 'open_access'].toLowerCase()}.`
@@ -92,7 +109,7 @@ export async function getAccess(db: Db, conn: ConnRef): Promise<AccessState> {
   if (conn.is_synthetic) return { eligible: true, status: 'eligible', basis: 'synthetic', mode: accessConfig.mode, reason: 'Synthetic test store: nothing reaches Shopify.', isDevelopmentStore: null, requestedAt: null, writesPaused: false }
   const row = await loadAccessRow(db, conn.platform, conn.external_id)
   const d = decide(row, accessConfig.mode)
-  return { eligible: d.status === 'eligible', status: d.status, basis: d.basis, mode: accessConfig.mode, reason: reasonFor(d.status, d.basis), isDevelopmentStore: row?.is_development_store ?? null, requestedAt: row?.requested_at ?? null, writesPaused: paused }
+  return { eligible: d.status === 'eligible', status: d.status, basis: d.basis, mode: accessConfig.mode, reason: reasonFor(d.status, d.basis, accessConfig.mode), isDevelopmentStore: row?.is_development_store ?? null, requestedAt: row?.requested_at ?? null, writesPaused: paused }
 }
 
 /** Why a write to this store must not happen, or null. */
@@ -101,7 +118,8 @@ export async function writeBlockReason(db: Db, conn: ConnRef): Promise<string | 
   if (accessConfig.writesPaused) return 'writes to live stores are paused by Deploi (LIVE_WRITES=off)'
   { const billing = await (await import('../billing/state')).billingWriteBlock(db, conn.org_id); if (billing) return billing } // plan read-only (lib/billing/state.ts); no query while BILLING_MODE=off
   const a = await getAccess(db, conn)
-  return a.eligible ? null : a.status === 'denied' ? 'Deploi has not enabled changes for this store' : 'this store is not enabled for changes yet (beta access)'
+  return a.eligible ? null : a.status === 'denied' ? 'Deploi has not enabled changes for this store'
+    : a.mode === 'review' ? 'during App Store review, changes are enabled on Shopify development stores only' : 'this store is not enabled for changes yet (beta access)'
 }
 
 /** Real email for an organization needs at least one enabled store connection. */

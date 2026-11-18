@@ -7,7 +7,7 @@ Never paste a secret into chat. Paste it only into the Vercel, Shopify or Resend
 
 **Already done for you (checked on Vercel on 2026-11-17, names and scopes only):**
 - The stale branch `DATABASE_URL`, `AUTH_MODE`, `ALLOW_DEV_LOGIN` and every `claude/jolly-ptolemy-kp7ljd` variable are gone.
-- `STORE_ACCESS_MODE=open` and `CREDENTIALS_KEY_ID=prod-k1` are on Production.
+- `CREDENTIALS_KEY_ID=prod-k1` is on Production. `STORE_ACCESS_MODE` is `review` (set 2026-11-18, for the review period).
 
 App names used below: **Deploi (dev)** is the testing app, never public. **Deploi** is the production app you submit.
 
@@ -47,23 +47,26 @@ It will look up Vercel's current outbound ranges.
 
 ---
 
-## 3. Production encryption key: decide before the first real store installs
+## 3. Production encryption key: add it before the first real store installs
 
-`CREDENTIALS_ENCRYPTION_KEY` is missing on Production. Shopify tokens are encrypted with it.
-**Do not create a new key until you have checked that nothing in production was encrypted with an earlier one.** A new key cannot read anything stored with an old key.
+`CREDENTIALS_ENCRYPTION_KEY` is missing on Production. Every store and mailbox token is encrypted with it.
+**Decided from the code on 2026-11-18, without touching the production database:**
+- `lib/connectors/credentials.ts` refuses to save anything without the key (`CredentialKeyMissing`). There is no default key and no plain-text fallback.
+- Vercel's event log has no production copy of this key ever being deleted; the only deletions were Preview.
 
-1. supabase.com → project **deploi-prod** → **SQL Editor** → **New query** → paste this and click **Run**. It only reads:
-   ```sql
-   select c.table_name,
-          (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from public.%I', c.table_name), false, true, '')))[1]::text::int as rows
-   from information_schema.columns c
-   where c.table_schema = 'public' and c.column_name = 'key_id'
-   order by 1;
-   ```
-2. **If every `rows` value is 0:** generate a key with your password manager (32 random bytes, base64) or `openssl rand -base64 32` on your computer.
-   Then vercel.com → **deploi-app** → **Environment Variables** → **Add**: key `CREDENTIALS_ENCRYPTION_KEY`, the value you generated, **Production** only, **Sensitive** on → **Save**. Keep a copy in your password manager, labelled "prod-k1".
-   - **Done looks like:** the variable is listed for Production with the lock icon, next to `CREDENTIALS_KEY_ID=prod-k1`.
-3. **If any `rows` value is above 0:** stop. Do not add a new key. Find the key those rows were written with (your password manager, "prod-k1") and add that one instead.
+So production cannot hold anything encrypted with an earlier key, and a fresh key is safe.
+The cloud session did not add it: the only way it could reach this project would have put the key's value in the session transcript.
+
+1. On your computer, run `openssl rand -base64 32`, or use your password manager's generator (32 random bytes, base64). Do **not** reuse the dev or preview key.
+2. vercel.com → **deploi-app** → **Settings** → **Environment Variables** → **Add**:
+   - key `CREDENTIALS_ENCRYPTION_KEY`
+   - the value from step 1
+   - **Production** only
+   - **Sensitive** on
+   - **Save**
+3. Keep a copy in your password manager, labelled "Deploi prod-k1". Vercel cannot show it again.
+4. **Deployments** → the current Production deployment → **⋯** → **Redeploy**.
+   - **Done looks like:** the variable is listed for Production with the lock icon, next to `CREDENTIALS_KEY_ID=prod-k1`, and the redeploy shows **Ready**.
 
 ---
 
@@ -99,11 +102,13 @@ It will look up Vercel's current outbound ranges.
 1. **Distribution** → **Public distribution (Shopify App Store)** → **Confirm**. This is permanent.
 2. **Pricing** → **Free**.
 3. **API access** → **Protected customer data** → request nothing. The app asks for no customer or order data.
-4. Store access during review (Vercel → deploi-app → Environment Variables → `STORE_ACCESS_MODE`, Production). Pick one:
-   - `open` (what is set now): every store that installs can be changed. Reviewers never get stuck.
-   - `review` (new, 2026-11-17): only Shopify development stores, and stores you approve on https://app.getdeploi.com/staff/store-access, can be changed. Real merchants who find the listing during review are protected. If a reviewer says they cannot make changes, approve their store on that page.
-   - After the listing is approved: set it to `open` and **Redeploy** Production.
-   - **Done looks like:** https://app.getdeploi.com/staff/store-access says "Mode: open" or "Mode: review".
+4. Store access during review: Production is set to **`STORE_ACCESS_MODE=review`** (set 2026-11-18).
+   - What it means: only Shopify development stores, and stores you approve on https://app.getdeploi.com/staff/store-access, can be changed.
+   - Real merchants who find the listing during review are protected.
+   - If a reviewer says they cannot make changes, approve their store on that page.
+   - It takes effect once PR #18 and PR #19 are live. Until then the code reads it as `beta`.
+   - **When Shopify approves the listing:** Vercel → deploi-app → Environment Variables → `STORE_ACCESS_MODE` (Production) → **Edit** → `open` → **Save** → Deployments → Production → **⋯** → **Redeploy**.
+   - **Done looks like:** https://app.getdeploi.com/staff/store-access says "Mode: review" during review, and "Mode: open" after you switch.
 
 ---
 

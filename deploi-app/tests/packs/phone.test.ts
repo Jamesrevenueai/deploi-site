@@ -315,3 +315,22 @@ describe.skipIf(!ready)('privacy: a caller\'s phone data', () => {
     expect(await one(`select phone, subject from pack_leads where org_id = $1 and source = 'phone'`, [NW.org])).toEqual({ phone: null, subject: null })
   })
 })
+
+describe.skipIf(!ready)('office pack page: phone line', () => {
+  beforeEach(resetPhone)
+  afterAll(() => { delete process.env.OFFICE_PHONE_AGENTS })
+  it('the Office pack view lists the line and recent missed calls while the flag is on, and nothing while it is off; the page op sets it', async () => {
+    const { packView, packWrite } = await import('../../lib/packs/dashboard')
+    const actor = await merchantActor(NW)
+    process.env.OFFICE_PHONE_AGENTS = 'on'
+    await missed(T)
+    await packWrite(actor, 'phone-line', { phoneNumber: LINE, forwardTo: '+15550100999' })
+    const on = await packView(actor, 'office')
+    expect(on.records.phoneLines).toEqual([expect.objectContaining({ phone_number: LINE, forward_to: '+15550100999', active: true })])
+    expect(on.records.calls).toEqual([expect.objectContaining({ from_phone: CALLER, state: 'texted' })])
+    process.env.OFFICE_PHONE_AGENTS = 'off'
+    const off = await packView(actor, 'office')
+    expect(off.records.phoneLines).toBeNull()
+    expect(off.records.calls).toBeNull()
+  })
+})

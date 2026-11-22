@@ -14,7 +14,7 @@ import { recordPlacement, recordPayment, weeklyTotals } from './commission'
 import { recordQuote, scheduleJob } from './home-services'
 import { PackBlocked } from './loop'
 import { addCrewMember, CREW_ROLES } from '../notify/crew'
-import { setPhoneLine } from './phone'
+import { phoneAgentsOn, setPhoneLine } from './phone'
 import './index'
 
 const orgOf = (actor: Actor) => { if (actor.kind === 'staff') throw new EngineError('forbidden', 'packs belong to a merchant'); return actor.orgId }
@@ -38,10 +38,16 @@ export async function packsOverview(actor: Actor) {
 async function packRecords(db: Db, orgId: string, pack: PackKey, today: string) {
   // the commerce agents keep their work in the store work log (library_actions), shown on Completed Work
   if (pack === 'commerce') return {}
-  if (pack === 'home_services' || pack === 'office') return {
-    jobs: await db.query(`select id, ref, customer_name, status, amount, currency, scheduled_start, invoice_number, invoice_balance, quote_follow_ups, payment_reminders, updated_at from pack_work_orders where org_id = $1 and pack = $2 order by updated_at desc limit 50`, [orgId, pack]),
-    // the one crew roster (Settings -> Crew); pack_crew_members is deprecated and no longer read
-    crew: await db.query(`select id, name, email, phone, role, active from crew_members where org_id = $1 and active order by name, id`, [orgId]),
+  if (pack === 'home_services' || pack === 'office') {
+    // Office phone agents (065), only while OFFICE_PHONE_AGENTS is on: the business's line and its recent missed calls (null when off)
+    const phoneOn = pack === 'office' && phoneAgentsOn()
+    return {
+      jobs: await db.query(`select id, ref, customer_name, status, amount, currency, scheduled_start, invoice_number, invoice_balance, quote_follow_ups, payment_reminders, updated_at from pack_work_orders where org_id = $1 and pack = $2 order by updated_at desc limit 50`, [orgId, pack]),
+      // the one crew roster (Settings -> Crew); pack_crew_members is deprecated and no longer read
+      crew: await db.query(`select id, name, email, phone, role, active from crew_members where org_id = $1 and active order by name, id`, [orgId]),
+      phoneLines: phoneOn ? await db.query(`select id, phone_number, forward_to, active from office_phone_lines where org_id = $1 order by created_at`, [orgId]) : null,
+      calls: phoneOn ? await db.query(`select id, from_phone, call_status, occurred_at, state, texted_at from phone_calls where org_id = $1 order by occurred_at desc limit 20`, [orgId]) : null,
+    }
   }
   if (pack === 'leasing') {
     const from = new Date(Date.parse(`${today}T00:00:00Z`) - 7 * 864e5).toISOString().slice(0, 10)

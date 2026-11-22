@@ -193,6 +193,14 @@ function Records({ pack, r, reload }: { pack: string; r: View['records']; reload
           <QuickForm title="Add a crew member" op="crew" onDone={reload} fields={[{ name: 'name', label: 'Name' }, { name: 'email', label: 'Email' }, { name: 'phone', label: 'Phone (e.g. +15551234567)' }, { name: 'role', label: 'Role', options: [['field', 'Field crew'], ['packer', 'Packer'], ['warehouse', 'Warehouse'], ['other', 'Other']] }]} />
           <p className="mt-2 text-[13px] text-grey-h">This is the same crew as Settings, Crew: one list for job messages and Mark done links.</p>
         </Panel></Section>
+        {Array.isArray(r.phoneLines) && (
+          <Section id="phone" title="Phone line"><Panel>
+            <Table rows={list('phoneLines')} empty="No phone line yet. Add the number your missed calls forward to, and the Missed Call Agent texts those callers back." cols={[['Deploi number', x => String(x.phone_number)], ['Rings first', x => String(x.forward_to ?? 'nobody: every call is a missed call')], ['Status', x => <Badge tone={x.active ? 'ok' : 'muted'}>{x.active ? 'On' : 'Off'}</Badge>]]} />
+            <QuickForm title="Set the phone line" op="phone-line" onDone={reload} fields={[{ name: 'phoneNumber', label: 'Deploi number (e.g. +15551234567)' }, { name: 'forwardTo', label: 'Phone that rings first (optional)' }]} />
+            <p className="mt-2 mb-4 text-[13px] text-grey-h">Calls ring your phone first. A call nobody answers is texted back by the Missed Call Agent.</p>
+            <Table rows={list('calls')} empty="No missed calls yet." cols={[['Caller', x => String(x.from_phone)], ['When', x => when(String(x.occurred_at))], ['Call', x => String(x.call_status)], ['What the agent did', x => <Badge tone={x.state === 'booked' ? 'ok' : x.state === 'opted_out' ? 'muted' : 'info'}>{String(x.state)}</Badge>]]} />
+          </Panel></Section>
+        )}
       </>
     )
   }

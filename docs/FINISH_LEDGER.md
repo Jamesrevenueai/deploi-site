@@ -238,8 +238,12 @@ proof entry are screenshotted.
 - **Why it stays off:**
   1. No SMS/voice account. The repo had only a simulated sender, and Twilio needs your account plus US A2P 10DLC registration (FOUNDER_ACTIONS B1).
   2. Calendar, CRM and invoicing for packs are synthetic ports. The real Outlook/HubSpot/QuickBooks clients exist but are not wired into the packs (`setPortsFactory`), and they are not live-verified.
-  3. No Office UI screen yet for entering the phone line (the API exists).
-  4. Not live-tested with a real phone.
+  3. Not live-tested with a real phone.
+- **Added after the first report (same day):** the Office pack page has a **Phone line** section. It shows the Deploi
+  number, the phone that rings first and recent missed calls with what the agent did, plus a form to set the line
+  (op `phone-line`). It appears only while `OFFICE_PHONE_AGENTS=on`.
+  - Screenshots: `proof/finish-2026-11-22/before|after/app-office-pack-{1440,390}.png` (flag off vs on, synthetic org).
+  - Test: `tests/packs/phone.test.ts` › "office pack page: phone line".
 
 ## 10. Shopify readiness (code side)
 | Requirement | Status | Proof |
@@ -272,7 +276,7 @@ Not done because of the gate:
 
 | Check | deploi-app | deploi-site |
 |---|---|---|
-| Unit | **1,382 / 1,382** passed (186 files; was 1,356 / 183) | **68 / 68** (8 files; was 64) |
+| Unit | **1,383 / 1,383** passed (186 files, fresh database; was 1,356 / 183) | **68 / 68** (8 files; was 64) |
 | E2E | **71 passed / 0 failed** in the main run + **5 / 5** `billing.spec.ts` on a server in billing test mode with the fake Stripe = **76 / 76** | n/a |
 | Typecheck | 0 errors | 0 errors |
 | Lint | 0 errors (9 warnings, all pre-existing) | 0 errors |
@@ -299,4 +303,5 @@ Screenshot pairs (before = live production, after = this branch built locally wi
 - `proof/finish-2026-11-22/before/site-office-*.png` → `after/site-office-*.png`
 - `proof/finish-2026-11-22/before/site-service-businesses-*.png` (404 today) → `after/site-service-businesses-*.png`
 - `docs/listing-screenshots/listing-*.png`: 1600×900 embedded drafts (synthetic store, **not for submission**)
+- `proof/finish-2026-11-22/before|after/app-office-pack-*.png`: the Office pack page, flag off → on (Phone line section)
 - App UI is unchanged with the flags off. Earlier app pairs: `proof/ship-2026-11-22/before` and `after-local` (commit 4f52669).

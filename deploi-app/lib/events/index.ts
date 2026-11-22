@@ -23,7 +23,7 @@ import type { Db } from '../db'
 /** The stored event and handler a running `event.handle` job is serving (the first-run pacing re-runs it later). */
 export const currentEvent = new AsyncLocalStorage<{ eventId: string; agentKey: string }>()
 
-export type EventSource = 'shopify' | 'outlook' | 'calendar' | 'crm' | 'quickbooks' | 'buildium' | 'mailbox' | 'sweep' | 'crew' | 'manual'
+export type EventSource = 'shopify' | 'outlook' | 'calendar' | 'crm' | 'quickbooks' | 'buildium' | 'mailbox' | 'sweep' | 'crew' | 'manual' | 'phone'
 export type AgentEvent = {
   source: EventSource
   /** e.g. 'orders/create', 'refunds/create', 'mail.received', 'lead.email', 'invoice.overdue', 'sweep' */
@@ -51,7 +51,7 @@ export function offEvent(type: string, agentKey: string) {
   if (list.length) handlers.set(type, list); else handlers.delete(type)
 }
 
-export const EVENT_SOURCES: readonly EventSource[] = ['shopify', 'outlook', 'calendar', 'crm', 'quickbooks', 'buildium', 'mailbox', 'sweep', 'crew', 'manual']
+export const EVENT_SOURCES: readonly EventSource[] = ['shopify', 'outlook', 'calendar', 'crm', 'quickbooks', 'buildium', 'mailbox', 'sweep', 'crew', 'manual', 'phone']
 const TYPE = /^[a-z][a-z0-9_./:-]{0,79}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Largest payload kept with an event (bytes of JSON); larger payloads keep their top-level ids only. */

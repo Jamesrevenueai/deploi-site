@@ -30,14 +30,16 @@ export interface CalendarPort {
   freeBusy(input: { timeMin: string; timeMax: string; timeZone: string }): Promise<BusyInterval[]>
   insertEvent(e: NewEvent): Promise<CalendarEvent>
   getEvent(id: string): Promise<CalendarEvent | null>
+  /** cancel a booked event (reschedules and cancellations); idempotent: cancelling twice is a no-op */
+  cancelEvent?(id: string): Promise<void>
 }
 
 export type CrmRecord = { id: string; email: string | null; name: string | null; stage: string | null; notes: string[]; tags: string[] }
 /** The CRM a real estate agent (or any pack) keeps contacts in (Follow Up Boss, kvCORE, HubSpot ...). */
 export interface CrmPort {
   readonly provider: string
-  /** find by email, or create; idempotent on email */
-  upsertContact(c: { email: string; name: string | null; phone: string | null; stage: string; tags: string[] }): Promise<CrmRecord>
+  /** find by email (else by phone, for a caller who gave no email), or create; idempotent on email / phone */
+  upsertContact(c: { email: string | null; name: string | null; phone: string | null; stage: string; tags: string[] }): Promise<CrmRecord>
   /** idempotent on idempotencyKey */
   addNote(contactId: string, note: string, idempotencyKey: string): Promise<{ id: string }>
   setStage(contactId: string, stage: string): Promise<CrmRecord>

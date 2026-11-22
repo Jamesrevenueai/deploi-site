@@ -14,6 +14,7 @@ import { recordPlacement, recordPayment, weeklyTotals } from './commission'
 import { recordQuote, scheduleJob } from './home-services'
 import { PackBlocked } from './loop'
 import { addCrewMember, CREW_ROLES } from '../notify/crew'
+import { setPhoneLine } from './phone'
 import './index'
 
 const orgOf = (actor: Actor) => { if (actor.kind === 'staff') throw new EngineError('forbidden', 'packs belong to a merchant'); return actor.orgId }
@@ -99,6 +100,7 @@ export async function packWrite(actor: Actor, op: unknown, b: Record<string, unk
     const m = await addCrewMember(actor, { name: b.name, email: b.email, phone: b.phone, role, channels: typeof b.phone === 'string' && b.phone.trim() ? ['email', 'text'] : ['email'] })
     return { id: m.id }
   }
+  if (op === 'phone-line') return setPhoneLine(actor, b)
   try {
     return await admin(async db => {
       switch (op) {

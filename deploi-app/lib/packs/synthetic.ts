@@ -89,12 +89,14 @@ export function syntheticPorts(orgId: string): Ports {
         return copy(ev)
       }),
       getEvent: id => call(orgId, 'calendar', 'getEvent', s => copy(s.events.find(e => e.id === id) ?? null)),
+      cancelEvent: id => call(orgId, 'calendar', 'cancelEvent', s => { const ev = s.events.find(e => e.id === id); if (ev) (ev as { status: string }).status = 'cancelled' }),
     },
     crm: {
       provider: 'synthetic',
       upsertContact: c => call(orgId, 'crm', 'upsertContact', s => {
-        const email = c.email.toLowerCase()
-        let r = s.contacts.find(x => x.email === email)
+        const email = c.email ? c.email.toLowerCase() : null
+        let r = email ? s.contacts.find(x => x.email === email) : (c.phone ? s.contacts.find(x => !x.email && x.phone === c.phone) : undefined)
+        if (!email && !c.phone) throw new PortError('crm', 'invalid', 'a contact needs an email or a phone number (synthetic)')
         if (!r) { r = { id: String(s.nextId++), email, name: c.name, phone: c.phone, stage: c.stage, notes: [], tags: [], noteKeys: [] }; s.contacts.push(r) }
         r.tags = [...new Set([...r.tags, ...c.tags])]
         if (!r.stage) r.stage = c.stage

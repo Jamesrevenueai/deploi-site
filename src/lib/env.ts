@@ -10,5 +10,7 @@ export const env = {
   /** Formspree endpoint, used only when VITE_APP_API_URL is empty. */
   formspreeEndpoint: read('VITE_FORMSPREE_ENDPOINT'),
   /** Where Signup and Sign in send people: the Deploi app (VITE_APP_URL, else VITE_APP_API_URL). */
+  /** The service-business sign-up page and form (/service-businesses). Off unless VITE_OFFICE_SIGNUP=on. */
+  officeSignup: read('VITE_OFFICE_SIGNUP').toLowerCase() === 'on',
   appUrl: (read('VITE_APP_URL') || read('VITE_APP_API_URL') || 'https://app.getdeploi.com').replace(/\/+$/, ''),
 }

@@ -4,8 +4,10 @@ import { Nav } from './components/Nav'
 import { Footer } from './components/Footer'
 import { useScrollReveal } from './hooks/useScrollReveal'
 import Home from './pages/Home'
+import { env } from './lib/env'
 // Secondary routes load on demand so the homepage bundle stays small.
 const Office = lazy(() => import('./pages/Office'))
+const ServiceBusinesses = lazy(() => import('./pages/ServiceBusinesses'))
 const Commerce = lazy(() => import('./pages/Commerce'))
 const HowItWorks = lazy(() => import('./pages/HowItWorks'))
 const Integrations = lazy(() => import('./pages/Integrations'))
@@ -57,6 +59,7 @@ export function AppRoutes() {
           <Route key={from} path={from} element={<Navigate to={to} replace />} />
         ))}
         <Route path="/office" element={<Office />} />
+        {env.officeSignup && <Route path="/service-businesses" element={<ServiceBusinesses />} />}
         <Route path="/commerce" element={<Commerce />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
         <Route path="/integrations" element={<Integrations />} />

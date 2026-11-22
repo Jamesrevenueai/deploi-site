@@ -10,6 +10,7 @@ import { registerLeasing } from './leasing'
 import { registerRealEstate } from './real-estate'
 import { registerPropertyManagement } from './property-management'
 import { registerOffice } from './office'
+import { registerPhone } from './phone'
 import { undoPayment } from './commission'
 
 let done = false
@@ -21,6 +22,7 @@ export function registerPacks() {
   registerRealEstate()
   registerPropertyManagement()
   registerOffice()
+  registerPhone()
   registerUndo('leasing_payment', undoPayment)
   registerUndo('work_order_status', undoWorkOrderStatus)
 }

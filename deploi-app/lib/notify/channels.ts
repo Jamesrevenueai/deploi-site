@@ -3,17 +3,20 @@
  *
  *   simulated (default)  the message is stored in notify_outbox with status "simulated" and nothing leaves
  *                        Deploi; a voice note is stored as the transcript the voice would read.
- *   anything else        no live provider is built in yet: the message is recorded as "held" with the reason,
+ *   twilio               live texts and voice notes (lib/notify/twilio.ts), held unless NOTIFY_LIVE_SENDS=on and,
+ *                        in test mode, only to NOTIFY_ALLOWED_NUMBERS
+ *   anything else        no other live provider is built in: the message is recorded as "held" with the reason,
  *                        and nothing leaves. docs/NOTIFY-CHANNELS.md lists what going live needs (provider
  *                        account, number registration, opt-in and STOP handling, a text-to-speech voice).
  *
  * Every call is idempotent per (organization, dedupe key, channel): a repeat returns the first record.
  */
 import { admin, type Db } from '../db'
+import { twilioAdapter } from './twilio'
 
 export type ChannelMessage = {
   orgId: string
-  audience: 'owner' | 'crew'
+  audience: 'owner' | 'crew' | 'customer'
   /** the profile (owner) or crew member the message is for */
   recipientRef: string | null
   toPhone: string
@@ -86,7 +89,9 @@ export function setChannelAdapter(a: ChannelAdapter | null) { override = a }
 export function channelAdapter(env: Record<string, string | undefined> = process.env): ChannelAdapter {
   if (override) return override
   const p = (env.NOTIFY_SMS_PROVIDER ?? '').trim().toLowerCase() || 'simulated'
-  return p === 'simulated' ? simulatedAdapter : heldAdapter(p)
+  if (p === 'simulated') return simulatedAdapter
+  if (p === 'twilio') return twilioAdapter(env)
+  return heldAdapter(p)
 }
 
 /** Convenience for callers without a transaction. */

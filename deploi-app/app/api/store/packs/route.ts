@@ -16,6 +16,7 @@ export async function GET(req: Request) {
 /**
  * Body { op }:
  *  business-type { businessType, trade? } · settings { patch } ·
+ *  phone-line { phoneNumber, forwardTo? } (Office phone agents, OFFICE_PHONE_AGENTS) ·
  *  crew | vendor | property | listing | placement | payment | quote | schedule (the owner's records; see lib/packs/dashboard.ts)
  */
 export async function POST(req: Request) {

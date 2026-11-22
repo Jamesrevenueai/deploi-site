@@ -3,6 +3,8 @@ import { useSeo } from '../hooks/useSeo'
 import { CtaButton } from '../components/Button'
 import { Cards, IntegrationStatusBadge, PageHero, Section } from '../components/Page'
 import { INTEGRATIONS } from '../lib/site-config'
+import { Link } from 'react-router-dom'
+import { env } from '../lib/env'
 
 export const OFFICE_WORK = [
   { title: 'Lead follow-up', body: 'Finds leads in HubSpot nobody followed up, drafts the follow-up, and records the outcome in the CRM once it is confirmed there.' },
@@ -20,6 +22,11 @@ export default function Office() {
         <CtaButton />
       </PageHero>
       <Section title="What it handles"><Cards items={OFFICE_WORK} cols={2} /></Section>
+      {env.officeSignup && (
+        <Section title="Run a service business?" tone="alt" lead="HVAC, construction, landscaping, property management, real estate and leasing: agents that text back the calls you miss, book the visit, dispatch your crew and send and chase the invoice.">
+          <Link to="/service-businesses" className="btn btn-primary" data-testid="office-service-link">See the agents for service businesses</Link>
+        </Section>
+      )}
       <Section title="Works with" tone="alt" lead="Status as of today. Pilot means tested against test accounts and set up with you.">
         <ul className="chips">{tools.map(i => <li key={i.key} className="chip"><span>{i.name}</span><IntegrationStatusBadge i={i} /></li>)}</ul>
       </Section>

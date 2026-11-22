@@ -17,6 +17,7 @@ import { createHash } from 'node:crypto'
 import type { Db } from '../../db'
 import { audit } from '../../engine/audit'
 import { redactShop } from './install'
+import { normalizePhone } from '../../notify/channels'
 import { collectCustomerData, redactCustomerData, type Subject } from '../../privacy/customer-data'
 import { storeExport, purgeExpiredExports } from '../../privacy/exports'
 
@@ -44,12 +45,12 @@ export async function handleCompliance(db: Db, input: { topic: ComplianceTopic; 
     const r = await redactShop(db, input.shop)
     if (r.skipped) status = 'deferred'
     result = { shop_data_erased: r.deleted, organization_erased: r.orgDeleted, ...(r.skipped ? { skipped: r.skipped } : {}) }
-  } else if (!input.conn || (!email && !customerId)) {
+  } else if (!input.conn || (!email && !customerId && !normalizePhone(p.customer?.phone))) {
     // no store connection (never installed, or already erased), or nothing to look for: nothing is held
     result = { customer_data_held: false, reason: !input.conn ? 'no data held for this shop' : 'the request names no email address or customer id' }
   } else {
     const ids = (v: unknown) => (Array.isArray(v) ? v : []).map(x => String(typeof x === 'object' && x && 'id' in x ? (x as { id: unknown }).id : x)).filter(x => /^\d{1,20}$/.test(x)).slice(0, 500)
-    const subject: Subject = { orgId: input.conn.org_id, email, customerId, orderIds: ids(input.topic === 'customers/data_request' ? p.orders_requested : p.orders_to_redact) }
+    const subject: Subject = { orgId: input.conn.org_id, email, customerId, orderIds: ids(input.topic === 'customers/data_request' ? p.orders_requested : p.orders_to_redact), phone: normalizePhone(p.customer?.phone) }
     if (input.topic === 'customers/data_request') {
       await purgeExpiredExports(db)
       const data = await collectCustomerData(db, subject, input.shop)

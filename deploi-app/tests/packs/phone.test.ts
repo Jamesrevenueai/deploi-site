@@ -296,3 +296,22 @@ describe.skipIf(!ready)('phone line setting', () => {
     await admin(db => db.query(`delete from office_phone_lines where phone_number = '+15550109001'`))
   })
 })
+
+describe.skipIf(!ready)('privacy: a caller\'s phone data', () => {
+  beforeEach(async () => { process.env.OFFICE_PHONE_AGENTS = 'on'; await resetPhone() })
+  afterAll(() => { delete process.env.OFFICE_PHONE_AGENTS })
+  it('exported and erased by phone number (customers/redact with customer.phone)', async () => {
+    const { collectCustomerData, redactCustomerData } = await import('../../lib/privacy/customer-data')
+    await missed(T)
+    await textIn('Leaking pipe under the sink', plus(T, 0.05))
+    const subject = { orgId: NW.org, email: null, customerId: null, orderIds: [], phone: CALLER }
+    const data = await admin(db => collectCustomerData(db, subject, 'northwind.myshopify.com'))
+    const t = data.tables as Record<string, unknown[]>
+    expect(t.phone_calls).toHaveLength(1)
+    expect(t.phone_texts).toHaveLength(1)
+    const out = await admin(db => redactCustomerData(db, subject))
+    expect(out).toMatchObject({ phone_calls: 1, phone_texts: 1, pack_leads_by_phone: 1 })
+    expect(await rows(`select 1 from phone_calls where org_id = $1`, [NW.org])).toHaveLength(0)
+    expect(await one(`select phone, subject from pack_leads where org_id = $1 and source = 'phone'`, [NW.org])).toEqual({ phone: null, subject: null })
+  })
+})

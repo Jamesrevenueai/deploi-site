@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto'
 import type { Db } from '../db'
 import { decryptSecret } from '../connectors/credentials'
 
-export type Subject = { orgId: string; email: string | null; customerId: string | null; orderIds: string[] }
+export type Subject = { orgId: string; email: string | null; customerId: string | null; orderIds: string[]; /** E.164, from the request's customer.phone */ phone?: string | null }
 export type TableStep = { export: string; redact: string }
 
 export const PRIVACY_COVERAGE: Record<string, TableStep> = {
@@ -44,6 +44,8 @@ export const PRIVACY_COVERAGE: Record<string, TableStep> = {
   agent_loops: { export: 'agent actions whose description names the customer', redact: 'the address and ids erased from the description; a waiting action is withdrawn' },
   undo_tokens: { export: 'undo links whose change names the customer', redact: 'the address and ids erased; an unused link stops working' },
   pack_leads: { export: 'agent-pack leads (renters, buyers, sellers, service requests) with that address: name, phone, stated criteria, status', redact: 'anonymized: address replaced by a hash, name, phone and criteria removed, follow-ups stopped' },
+  phone_calls: { export: 'missed calls from that phone number (time, status, what the Missed Call Agent did)', redact: 'deleted' },
+  phone_texts: { export: 'text messages received from that phone number', redact: 'deleted' },
   pack_messages: { export: 'agent-pack messages sent to that address, with their text and content-policy check', redact: 'deleted' },
   pack_work_orders: { export: 'home-services jobs and quotes for that address (work, amounts, dates)', redact: 'anonymized: customer name, address, phone and job address removed; amounts and dates kept for the accounts' },
   leasing_placements: { export: 'move-ins with that tenant address (unit, move-in date, rent, commission)', redact: 'anonymized: tenant name and address removed; unit, dates and amounts kept for the commission accounts' },
@@ -77,6 +79,7 @@ export const PRIVACY_EXEMPT: Record<string, string> = {
   applicants: 'the retired home-care agency product (no Shopify shop)',
   clients: 'the retired home-care agency product (no Shopify shop)',
   engagements: 'the retired consulting product\'s agency contacts (no Shopify shop)',
+  office_phone_lines: 'the business\'s own phone number and the owner\'s forwarding phone, set by the owner; never a shopper',
   notify_preferences: 'how the business\'s own owners and admins get updates (their own phone number), never a shopper',
   crew_members: 'the business\'s own crew (employees and contractors: name, work email and phone), managed by the owner; personal data of staff, never a shopper; deleted with the organization',
   // DEPRECATED (20261107000062): the crew roster is crew_members; kept here until the table is dropped
@@ -100,6 +103,7 @@ export function subjectTokens(s: Subject): string[] {
   if (s.email) t.push(bare(s.email))
   if (s.customerId && /^\d{1,20}$/.test(s.customerId)) t.push(`gid://shopify/customer/${s.customerId}`)
   for (const o of s.orderIds) if (/^\d{1,20}$/.test(o)) t.push(`gid://shopify/order/${o}`)
+  if (s.phone && /^\+[1-9][0-9]{6,14}$/.test(s.phone)) t.push(s.phone)
   return [...new Set(t)].filter(x => x.length >= 3)
 }
 const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -154,6 +158,8 @@ export async function collectCustomerData(db: Db, s: Subject, shop: string): Pro
   tables.agent_loops = await db.query(`select id, agent_key, action_type, state, action, created_at from agent_loops where org_id = $1 and ${names('action::text', 2)}`, [s.orgId, tokens])
   tables.undo_tokens = await db.query(`select id, kind, summary, payload, created_at, used_at from undo_tokens where org_id = $1 and ${names(`summary || payload::text`, 2)}`, [s.orgId, tokens])
   tables.pack_leads = email ? await db.query(`select id, pack, source, name, email, phone, intent, criteria, status, replied_at, follow_ups, created_at from pack_leads where org_id = $1 and lower(email) = $2`, [s.orgId, email]) : []
+  tables.phone_calls = s.phone ? await db.query(`select id, provider_call_id, from_phone, call_status, occurred_at, state, texted_at from phone_calls where org_id = $1 and from_phone = $2 order by occurred_at`, [s.orgId, s.phone]) : []
+  tables.phone_texts = s.phone ? await db.query(`select id, from_phone, body, received_at from phone_texts where org_id = $1 and from_phone = $2 order by received_at`, [s.orgId, s.phone]) : []
   tables.pack_messages = email ? await db.query(`select id, agent_key, to_address, subject, body, status, policy, created_at from pack_messages where org_id = $1 and lower(to_address) = $2 order by created_at`, [s.orgId, email]) : []
   tables.pack_work_orders = email ? await db.query(`select id, ref, customer_name, customer_email, customer_phone, address, description, amount, currency, status, invoice_number, paid_at, created_at from pack_work_orders where org_id = $1 and lower(customer_email) = $2`, [s.orgId, email]) : []
   tables.leasing_placements = email ? await db.query(`select id, tenant_name, tenant_email, unit, move_in_date, monthly_rent, commission_amount, status, created_at from leasing_placements where org_id = $1 and lower(tenant_email) = $2`, [s.orgId, email]) : []
@@ -207,6 +213,12 @@ export async function redactCustomerData(db: Db, s: Subject): Promise<Record<str
     out.pack_work_orders = (await db.query(`update pack_work_orders set customer_email = null, customer_name = null, customer_phone = null, address = null, next_quote_follow_up_at = null where org_id = $1 and lower(customer_email) = $2 returning id`, [s.orgId, email])).length
     out.leasing_placements = (await db.query(`update leasing_placements set tenant_email = null, tenant_name = '${ERASED}' where org_id = $1 and lower(tenant_email) = $2 returning id`, [s.orgId, email])).length
     out.pm_maintenance_requests = (await db.query(`update pm_maintenance_requests set tenant_email = null, tenant_name = null, tenant_phone = null where org_id = $1 and lower(tenant_email) = $2 returning id`, [s.orgId, email])).length
+  }
+  if (s.phone) {
+    out.phone_texts = (await db.query(`delete from phone_texts where org_id = $1 and from_phone = $2 returning id`, [s.orgId, s.phone])).length
+    out.phone_calls = (await db.query(`delete from phone_calls where org_id = $1 and from_phone = $2 returning id`, [s.orgId, s.phone])).length
+    out.pack_leads_by_phone = (await db.query(`update pack_leads set phone = null, name = null, criteria = '{}'::jsonb, subject = null, status = case when status in ('new','replied','qualifying','slots_offered') then 'stopped' else status end,
+      next_follow_up_at = null where org_id = $1 and phone = $2 returning id`, [s.orgId, s.phone])).length
   }
   out.pack_activity = (await db.query(`update pack_activity set title = ${rx('title')}, what_happened = ${rx('what_happened')}, what_i_did = ${rx('what_i_did::text')}::jsonb, proof = ${rx('proof::text')}::jsonb, error = ${rx('error')}
     where org_id = $1 and ${names(`title || ' ' || what_happened || ' ' || what_i_did::text || proof::text || coalesce(error, '')`, 2)} returning id`, [s.orgId, tokens, pat])).length

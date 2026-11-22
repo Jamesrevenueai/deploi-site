@@ -34,6 +34,8 @@ const WEBHOOKS: Record<string, { evidence: RegExp; lib?: { file: string; evidenc
   'app/api/webhooks/gmail-push/route.ts': { evidence: /verifyGooglePushToken\(req\.headers\.get\('authorization'\)\)/, lib: { file: 'lib/email/push.ts', evidence: /verify\('RSA-SHA256'/ } },
   'app/api/webhooks/graph-mail/route.ts': { evidence: /graphNotificationAccounts\(body\)/, lib: { file: 'lib/email/push.ts', evidence: /timingSafeEqual\(sha\(cs\)/ } },
   'app/api/woocommerce/webhooks/route.ts': { evidence: /handleWooWebhook/, lib: { file: 'lib/connectors/woocommerce/webhooks.ts', evidence: /verifyWooSignature\(raw, signature, secret\)/ } },
+  'app/api/webhooks/phone/voice/route.ts': { evidence: /handleVoiceWebhook\(raw, \{ twilio: req\.headers\.get\('x-twilio-signature'\)/, lib: { file: 'lib/packs/phone-webhook.ts', evidence: /verifyTwilioSignature\(token, webhookUrl\(path, env\), params, h\.twilio\)[\s\S]*timingSafeEqual\(want, got\)/ } },
+  'app/api/webhooks/phone/sms/route.ts': { evidence: /handleSmsWebhook\(raw, \{ twilio: req\.headers\.get\('x-twilio-signature'\)/, lib: { file: 'lib/packs/phone-webhook.ts', evidence: /if \(auth === 'unconfigured'\)[\s\S]*if \(auth === 'bad'\)/ } },
   'app/api/office/webhooks/quickbooks/route.ts': { evidence: /handleQuickBooksWebhook\(raw, req\.headers\.get\('intuit-signature'\)\)/, lib: { file: 'lib/office/quickbooks-webhook.ts', evidence: /verifyIntuitSignature\(rawBody, signature, verifier\)/ } },
   'app/api/billing/stripe/webhook/route.ts': { evidence: /verifyStripeSignature\(raw, req\.headers\.get\('stripe-signature'\)/ },
 }
@@ -75,6 +77,7 @@ const OTHER: Record<string, { why: string; evidence: RegExp }> = {
   'app/api/staff/integrations/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/finance/route.ts': { why: 'staff only: session resolved, non-staff refused', evidence: /await requireStaffApi\(req\)/ },
   'app/api/staff/support/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on replies', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
+  'app/api/public/office-signup/route.ts': { why: 'website service-business sign-up: off unless OFFICE_SIGNUP, rate-limited per IP, CORS-limited, anon SECURITY DEFINER insert only', evidence: /if \(!officeSignupOn\(\)\)[\s\S]*hitByIp\('lead', req\)[\s\S]*public_create_office_signup/ },
   'app/api/public/contact/route.ts': { why: 'website contact form: rate-limited per IP, CORS-limited, staff-only table', evidence: /hitByIp\('contact', req\)/ },
   'app/api/staff/plans/route.ts': { why: 'staff only: session resolved, non-staff refused, CSRF on edits', evidence: /export async function GET[\s\S]*await requireStaffApi\(req\)[\s\S]*export async function POST[\s\S]*requireStaffApi\(req, \{ mutating: true \}\)/ },
 }

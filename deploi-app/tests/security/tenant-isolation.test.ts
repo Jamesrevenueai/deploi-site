@@ -74,6 +74,12 @@ const VALUE_OVERRIDES: Record<string, string> = {
   'billing_payment_failures.invoice_external_id': `'in_' || substr(md5(random()::text), 1, 12)`,
   // an E.164 phone number (checked by the table); a reserved fictional number
   'notify_outbox.to_phone': `'+15555550100'`,
+  // phone agents (065): E.164 numbers checked by the tables; reserved fictional numbers
+  'office_phone_lines.phone_number': `'+15555550188'`,
+  'phone_calls.from_phone': `'+15555550101'`,
+  'phone_calls.to_phone': `'+15555550188'`,
+  'phone_texts.from_phone': `'+15555550101'`,
+  'phone_texts.to_phone': `'+15555550188'`,
   // an agent ref of the redesigned app (store:|office:|pack:<key>) and a palette colour (checked by the tables)
   'agent_profiles.agent_ref': `'pack:' || substr(md5(random()::text), 1, 12)`,
   'agent_profiles.color': `'#4F6BFF'`,

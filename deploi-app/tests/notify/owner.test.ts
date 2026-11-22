@@ -153,13 +153,21 @@ describe.skipIf(!ready)('owner updates', () => {
   })
 
   it('a named provider without a live sender holds the text (nothing leaves) and says why', async () => {
-    process.env.NOTIFY_SMS_PROVIDER = 'twilio'
+    // a provider with no sender in this build
+    process.env.NOTIFY_SMS_PROVIDER = 'vonage'
     await setMyPrefs(adminActor, { email: false, text: true, phone: '+15555550101' })
     const u = upd()
     await notifyOwner(u)
     const out = await admin(db => db.one<{ status: string; provider: string; status_reason: string }>('select status, provider, status_reason from notify_outbox where org_id = $1', [NW.org]))
-    expect(out).toMatchObject({ status: 'held', provider: 'twilio' })
+    expect(out).toMatchObject({ status: 'held', provider: 'vonage' })
     expect(out!.status_reason).toMatch(/not set up in this build/)
+    // Twilio has a sender (lib/notify/twilio.ts), but without its account it holds too, and says why
+    process.env.NOTIFY_SMS_PROVIDER = 'twilio'
+    const u2 = upd({ dedupeKey: `${u.dedupeKey}:twilio` })
+    await notifyOwner(u2)
+    const tw = await admin(db => db.one<{ status: string; provider: string; status_reason: string }>(`select status, provider, status_reason from notify_outbox where org_id = $1 and provider = 'twilio'`, [NW.org]))
+    expect(tw).toMatchObject({ status: 'held', provider: 'twilio' })
+    expect(tw!.status_reason).toMatch(/Twilio is not set up/)
   })
 
   it('daily digest: routine updates are queued for the morning report; warnings and decisions still go at once', async () => {

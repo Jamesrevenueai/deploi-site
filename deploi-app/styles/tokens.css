@@ -1,84 +1,122 @@
 /* ==========================================================================
-   Deploi — "Aurora" design tokens (Black Glass base, aurora light)
-   Shared verbatim between deploi-site and deploi-app. Edit here, copy there.
+   Deploi design tokens: the ONE file both the app and the marketing site use.
+   App: deploi-app/app/globals.css imports it. Site: src/styles.css imports ../deploi-app/styles/tokens.css.
+   Mirror for TypeScript (charts, inline SVG): deploi-app/lib/design/tokens.ts (a test keeps them equal).
+
+   Indigo theme (approved 2026-11-22):
+     ground white everywhere, tinted panels, indigo ink and accent, violet for decoration only,
+     coral only for the "Needs you" dot. Plus Jakarta Sans for UI, JetBrains Mono for times, ids, labels.
    ========================================================================== */
 :root {
-  /* Ground */
-  --dg-black: #06080F;
-  --dg-black-alt: #0B0F1A;
+  color-scheme: light;
 
-  /* Type colors */
-  --dg-white: #FFFFFF;
-  --dg-grey-headline: #8A8A8A;   /* two-tone headline secondary line */
-  --dg-grey-body: #A3A3A3;       /* body copy; never darker than this */
-  --dg-grey-nav: #CCCCCC;        /* desktop nav links */
-  --dg-grey-copy: #666666;       /* copyright line only */
+  /* ---------------------------------------------------------------- primitives (the spec) */
+  --dp-ground: #FFFFFF;
+  --dp-panel: #F5F7FF;          /* tinted panel / hero */
+  --dp-border: #E0E7FF;
+  --dp-divider: #EEF2FF;
 
-  /* Lines */
-  --dg-line: #222222;            /* dividers */
-  --dg-line-ghost: #333333;      /* ghost button border */
+  --dp-ink-heading: #1E1B4B;    /* headings */
+  --dp-ink-body: #3730A3;       /* body */
+  --dp-ink-label: #4F46E5;      /* labels and links */
+  --dp-ink-secondary: #312E81;  /* secondary body */
 
-  /* Accent: chat bubble, eyebrows, icons, focus. Used sparingly on black. */
-  --dg-blue: #2F6BFF;
-  --dg-accent: #4D7CFF;
-  --dg-accent-soft: rgba(77, 124, 255, 0.16);
-  --dg-accent-border: rgba(77, 124, 255, 0.40);
+  --dp-accent: #4F46E5;
+  --dp-accent-hover: #4338CA;
+  --dp-violet: #7C6BFF;         /* decoration only, never text */
+  --dp-chip-1: #EEF2FF;
+  --dp-chip-2: #E0E7FF;
+  --dp-chip-3: #C7D2FE;
 
-  /* Glass */
-  --dg-glass-bg: rgba(255, 255, 255, 0.08);
-  --dg-glass-border: rgba(255, 255, 255, 0.18);
-  --dg-glass-blur: 12px;
+  --dp-coral: #E8734A;          /* the "Needs you" dot only */
+  --dp-coral-text: #9A3412;     /* text on the coral tint */
+  --dp-coral-tint: #FFF1EB;
 
-  /* Buttons */
-  --dg-btn-h: 56px;
-  --dg-btn-px: 32px;
-  --dg-btn-radius: 999px;
-  --dg-btn-hover: #E6E6E6;
+  --dp-ok: #047857;  --dp-ok-tint: #ECFDF5;
+  --dp-danger: #B42318; --dp-danger-tint: #FEF3F2;
 
-  /* Cards */
-  --dg-card-radius: 20px;
-  --dg-card-gap: 24px;
+  --dp-font: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --dp-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Layout */
-  --dg-max-w: 1120px;
-  --dg-gutter: 24px;
-  --dg-section-y: 120px;
-  --dg-section-y-mobile: 80px;
+  --dp-r-card: 18px;            /* cards 16-20 */
+  --dp-r-card-sm: 16px;
+  --dp-r-hero: 24px;            /* hero panels 20-28 */
+  --dp-r-button: 12px;
+  --dp-r-pill: 999px;
+  --dp-touch: 44px;             /* minimum touch target */
 
-  /* Type */
-  --dg-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --dg-body-size: 17px;
-  --dg-body-lh: 1.5;
-  --dg-headline-tracking: -0.02em;
+  --dp-focus: 2px solid #4F46E5;
+  --dp-shadow-soft: 0 1px 2px rgba(30, 27, 75, 0.06);   /* the only shadow inside the app */
+  --dp-shadow-float: 0 12px 32px -12px rgba(30, 27, 75, 0.22); /* marketing floating cards */
 
-  /* Motion */
-  --dg-fade-ms: 300ms;
+  /* ---------------------------------------------------------------- semantic layer (--c-*) used by every component */
+  --c-page: var(--dp-ground);
+  --c-alt: var(--dp-panel);
+  --c-surface: var(--dp-ground);
+  --c-sunken: var(--dp-panel);
+  --c-scrim: rgba(30, 27, 75, 0.45);
 
-  /* ------------------------------------------------------------------
-     Aurora theme v2 (the only theme): a near-black night ground lit by an
-     aurora glow that runs dark -> blue -> pink -> orange, around white
-     surfaces (panels, tiles, cards) that carry dark text.
-     ------------------------------------------------------------------ */
-  --au-ground: #05060D;
-  --au-ground-alt: #0B0F1A;
-  --au-panel: #FFFFFF;
-  --au-panel-border: rgba(15, 23, 42, 0.08);
-  --au-teal: #10B981;
-  --au-violet: #8B5CF6;
-  --au-blue: #3B6CFF;
-  --au-pink: #F0569E;
-  --au-rose: #F0569E;
-  --au-orange: #FF8A3D;
-  --au-amber: #F59E0B;
-  --au-teal-soft: rgba(16, 185, 129, 0.12);
-  --au-violet-soft: rgba(139, 92, 246, 0.14);
-  --au-blue-soft: rgba(59, 108, 255, 0.12);
-  --au-rose-soft: rgba(240, 86, 158, 0.12);
-  --au-glow: radial-gradient(70% 55% at 0% 0%, rgba(59, 108, 255, 0.55), transparent 62%),
-             radial-gradient(60% 50% at 100% 35%, rgba(240, 86, 158, 0.45), transparent 62%),
-             radial-gradient(70% 55% at 30% 100%, rgba(255, 138, 61, 0.42), transparent 62%),
-             linear-gradient(160deg, #05060D 0%, #0A1030 40%, #1A0B24 70%, #1C0E08 100%);
-  --au-ring: conic-gradient(from 180deg, #3B6CFF, #F0569E, #FF8A3D, #3B6CFF);
-  --au-text-glow: linear-gradient(90deg, #3B6CFF 0%, #F0569E 55%, #FF8A3D 100%);
-  --au-shadow: 0 1px 2px rgba(5, 6, 13, 0.18), 0 18px 48px -18px rgba(5, 6, 13, 0.55);
+  --c-ink: var(--dp-ink-heading);
+  --c-body: var(--dp-ink-body);
+  --c-muted: var(--dp-ink-secondary);
+
+  --c-line: var(--dp-border);
+  --c-line-strong: var(--dp-chip-3);
+
+  --c-accent: var(--dp-accent);
+  --c-accent-hover: var(--dp-accent-hover);
+  --c-accent-soft: var(--dp-chip-1);
+  --c-accent-line: var(--dp-chip-3);
+  --c-on-accent: #FFFFFF;
+
+  --c-ok: var(--dp-ok);         --c-ok-soft: var(--dp-ok-tint);     --c-ok-line: #A7E3C9;
+  --c-warn: var(--dp-coral-text); --c-warn-soft: var(--dp-coral-tint); --c-warn-line: #F8C9B4;
+  --c-danger: var(--dp-danger); --c-danger-soft: var(--dp-danger-tint); --c-danger-line: #F5B5B5;
+  --c-info: var(--dp-accent);   --c-info-soft: var(--dp-chip-1);   --c-info-line: var(--dp-chip-3);
+  --c-planned: var(--dp-ink-secondary); --c-planned-soft: var(--dp-divider);
+
+  --c-btn-bg: var(--dp-accent);
+  --c-btn-ink: #FFFFFF;
+  --c-btn-hover: var(--dp-accent-hover);
+
+  --c-focus: var(--dp-accent);
+  --focus-ring: 0 0 0 2px var(--dp-accent);
+  --c-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%234F46E5' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+
+  --r-card: var(--dp-r-card);
+  --r-control: var(--dp-r-button);
+  --shadow-card: var(--dp-shadow-soft);
+  --shadow-raised: var(--dp-shadow-float);
+
+  --fs-xs: 12px; --fs-sm: 13px; --fs-base: 15px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 28px; --fs-3xl: 34px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  /* ---------------------------------------------------------------- legacy names (Aurora), mapped to the Indigo theme */
+  --dg-black: var(--dp-ground); --dg-black-alt: var(--dp-panel);
+  --dg-white: var(--dp-ink-heading); --dg-grey-headline: var(--dp-ink-secondary); --dg-grey-body: var(--dp-ink-secondary);
+  --dg-grey-nav: var(--dp-ink-body); --dg-grey-copy: var(--dp-ink-secondary);
+  --dg-line: var(--dp-border); --dg-line-ghost: var(--dp-chip-3);
+  --dg-blue: var(--dp-accent); --dg-accent: var(--dp-accent); --dg-accent-soft: var(--dp-chip-1); --dg-accent-border: var(--dp-chip-3);
+  --dg-glass-bg: var(--dp-panel); --dg-glass-border: var(--dp-border); --dg-glass-blur: 0px;
+  --dg-btn-h: 48px; --dg-btn-px: 22px; --dg-btn-radius: var(--dp-r-button); --dg-btn-hover: var(--dp-accent-hover);
+  --dg-card-radius: var(--dp-r-card); --dg-card-gap: 24px;
+  --dg-max-w: 1160px; --dg-gutter: 24px; --dg-section-y: 104px; --dg-section-y-mobile: 72px;
+  --dg-font: var(--dp-font); --dg-body-size: 16px; --dg-body-lh: 1.6; --dg-headline-tracking: -0.02em; --dg-fade-ms: 240ms;
+  --au-ground: var(--dp-ground); --au-ground-alt: var(--dp-panel); --au-panel: var(--dp-ground); --au-panel-border: var(--dp-border);
+  --au-teal: var(--dp-ok); --au-violet: var(--dp-violet); --au-blue: var(--dp-accent); --au-pink: var(--dp-violet); --au-rose: var(--dp-violet);
+  --au-orange: var(--dp-coral); --au-amber: var(--dp-coral);
+  --au-teal-soft: var(--dp-ok-tint); --au-violet-soft: var(--dp-chip-1); --au-blue-soft: var(--dp-chip-1); --au-rose-soft: var(--dp-chip-1);
+  --au-glow: none;
+  --au-ring: conic-gradient(from 180deg, var(--dp-accent), var(--dp-violet), var(--dp-accent));
+  --au-text-glow: linear-gradient(90deg, var(--dp-accent), var(--dp-violet));
+  --au-shadow: var(--dp-shadow-soft);
+}
+
+html { background: var(--dp-ground); color-scheme: light; }
+body { background: var(--dp-ground); color: var(--dp-ink-body); font-family: var(--dp-font); }
+:focus-visible { outline: var(--dp-focus); outline-offset: 2px; }
+.mono, time, code, kbd { font-family: var(--dp-mono); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

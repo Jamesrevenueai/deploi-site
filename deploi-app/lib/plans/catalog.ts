@@ -21,13 +21,13 @@ import { isTierKey, type TierKey } from '../library/config'
 
 export type PlanSuite = 'office' | 'commerce' | 'both'
 export type PlanStatus = 'hypothesis' | 'approved' | 'retired'
-export type PlanLimitsJson = Partial<Record<'maxAgents' | 'monthlyActions' | 'monthlyEmails' | 'officeSeats' | 'officeConnections' | 'maxCompetitorStores' | 'aiBudgetUsd' | 'aiAgentBudgetUsd', number>>
+export type PlanLimitsJson = Partial<Record<'maxAgents' | 'monthlyActions' | 'monthlyEmails' | 'officeSeats' | 'officeConnections' | 'maxCompetitorStores' | 'aiBudgetUsd' | 'aiAgentBudgetUsd' | 'monthlyTexts' | 'crew' | 'customAgents' | 'stores', number>>
 export type PlanRow = {
   key: string; suite: PlanSuite; display_name: string; monthly_price_cents: number; currency: string; stripe_price_id: string | null; tier_key: TierKey
   limits: PlanLimitsJson; trial_days: number; active: boolean; status: PlanStatus; version: number; approved_by: string | null; approved_at: string | null; updated_by: string; updated_at: string
 }
 
-export const LIMIT_KEYS = ['maxAgents', 'monthlyActions', 'monthlyEmails', 'officeSeats', 'officeConnections', 'maxCompetitorStores', 'aiBudgetUsd', 'aiAgentBudgetUsd'] as const
+export const LIMIT_KEYS = ['maxAgents', 'monthlyActions', 'monthlyEmails', 'officeSeats', 'officeConnections', 'maxCompetitorStores', 'aiBudgetUsd', 'aiAgentBudgetUsd', 'monthlyTexts', 'crew', 'customAgents', 'stores'] as const
 
 const cacheMs = () => { const v = Number((process.env.PLANS_CACHE_MS ?? '').trim()); return Number.isFinite(v) && v >= 0 && (process.env.PLANS_CACHE_MS ?? '').trim() !== '' ? v : 60_000 }
 let cache: { at: number; rows: PlanRow[] } | null = null

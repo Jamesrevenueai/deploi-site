@@ -4,7 +4,7 @@
  * through the real route handlers with a signed-in session; Stripe's events come back through the signed
  * webhook route. Checked: what the owner sees (billing page data, banner, notices) and what agents may do.
  */
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, onTestFinished } from 'vitest'
 import { prepareDb, SESSIONS } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { encodeDevSession, DEV_COOKIE_NAME } from '../../lib/auth'
@@ -208,9 +208,9 @@ describe.skipIf(!ready)('billing lifecycle (fake Stripe)', () => {
     // a second confirmation of the same preview is refused
     expect((await call(changeRoute.POST, 'POST', { action: 'confirm', changeId: p.changeId })).json.error).toBe('already_confirmed')
     // not yet confirmed by Stripe: the old limits still apply
-    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'growth', maxAgents: 12 })
+    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'growth', maxAgents: 20 })
     await deliverAll(webhook, fake.drain())
-    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'pro', tier: 'pro', maxAgents: 30 })
+    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'pro', tier: 'pro', maxAgents: 100 })
     expect((await admin(db => db.one<{ status: string }>('select status from billing_plan_changes where id = $1', [p.changeId])))!.status).toBe('applied')
     expect(mail.sent.filter(n => n.kind === 'plan_changed').map(n => n.subject)).toEqual(['You are now on the Pro plan'])
     // the prorated difference lands on the next invoice Stripe issues
@@ -226,10 +226,10 @@ describe.skipIf(!ready)('billing lifecycle (fake Stripe)', () => {
   it('downgrade at period end through a subscription schedule; the plan switches and the downgrade enforcement runs when Stripe applies it', async () => {
     vi.stubGlobal('fetch', fake.fetch)
     as(sessionOf(A))
-    // six active agents: Starter allows five
+    // thirteen active agents: Starter allows twelve (pricing v2)
     const agentIds = await admin(async db => {
       const ids: string[] = []
-      for (let i = 0; i < 6; i++) ids.push((await db.one<{ id: string }>(`insert into agents (org_id, connection_id, name, status, created_by, created_at) values ($1,$2,$3,'active','test', now() + ($4 || ' seconds')::interval) returning id`, [A.org, A.conn, `Agent ${i}`, String(i)]))!.id)
+      for (let i = 0; i < 13; i++) ids.push((await db.one<{ id: string }>(`insert into agents (org_id, connection_id, name, status, created_by, created_at) values ($1,$2,$3,'active','test', now() + ($4 || ' seconds')::interval) returning id`, [A.org, A.conn, `Agent ${i}`, String(i)]))!.id)
       return ids
     })
     const subId = (await subRow(A.org))!.external_id
@@ -248,16 +248,16 @@ describe.skipIf(!ready)('billing lifecycle (fake Stripe)', () => {
     const o = await overview(A)
     expect(o.subscription).toMatchObject({ pendingPlanKey: 'starter', planKey: 'pro' })
     // still Pro until the period ends
-    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'pro', maxAgents: 30 })
+    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'pro', maxAgents: 100 })
     const st = await admin(db => db.query<{ status: string }>(`select status from agents where id = any($1) order by created_at`, [agentIds]))
     expect(st.every(a => a.status === 'active')).toBe(true)
 
     // the period ends: Stripe moves the subscription to Starter
     await deliverAll(webhook, fake.advance(periodEnd - fake.clock + 60))
     expect(await subRow(A.org)).toMatchObject({ plan_key: 'starter', pending_plan_key: null, schedule_external_id: null })
-    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'starter', maxAgents: 5 })
+    expect((await admin(db => orgEntitlements(db, A.org)))).toMatchObject({ plan: 'starter', maxAgents: 12 })
     const after = await admin(db => db.query<{ id: string; status: string }>(`select id, status from agents where id = any($1) order by created_at, id`, [agentIds]))
-    expect(after.map(a => a.status)).toEqual(['active', 'active', 'active', 'active', 'active', 'paused'])
+    expect(after.map(a => a.status)).toEqual([...Array(12).fill('active'), 'paused'])
     expect((await admin(db => db.one<{ status: string }>('select status from billing_plan_changes where id = $1', [pv.json.preview.changeId])))!.status).toBe('applied')
     await admin(db => db.query('delete from agents where id = any($1)', [agentIds]))
   })
@@ -375,6 +375,14 @@ describe.skipIf(!ready)('billing lifecycle (fake Stripe)', () => {
   it('a hypothesis plan is refused in live mode: no checkout, no plan change, and the page says why', async () => {
     const f = newFake()
     vi.stubGlobal('fetch', f.fetch)
+    // pricing v2 approved the plans (migration 066); make them proposals again for this test, then restore them
+    const saved = await admin(db => db.query<{ key: string; status: string; approved_by: string | null; approved_at: string | null }>(`select key, status, approved_by, approved_at::text from plans where status = 'approved'`))
+    await admin(db => db.query(`update plans set status = 'hypothesis', approved_by = null, approved_at = null where status = 'approved'`))
+    invalidatePlanCache()
+    onTestFinished(async () => {
+      await admin(async db => { for (const r of saved) await db.query('update plans set status = $2, approved_by = $3, approved_at = $4 where key = $1', [r.key, r.status, r.approved_by, r.approved_at]) })
+      invalidatePlanCache()
+    })
     process.env.BILLING_MODE = 'live'
     await expect(admin(db => createCheckoutSession(db, { orgId: A.org, plan: 'growth', actor: 'test', appUrl: ORIGIN }))).rejects.toMatchObject({ status: 409, code: 'plan_not_approved' })
     as(sessionOf(B))
@@ -421,8 +429,8 @@ describe.skipIf(!ready)('billing lifecycle (fake Stripe)', () => {
     as(SESSIONS.staff)
     const fin = await call<{ summary: { mrr: { testCents: number; pricesAreHypotheses: boolean } }; orgs: { orgId: string; mrrCents: number }[] }>(financeRoute.GET, 'GET', undefined, '/api/staff/finance')
     expect(fin.status).toBe(200)
-    expect(fin.json.summary.mrr.pricesAreHypotheses).toBe(true)
-    expect(fin.json.orgs.find(o => o.orgId === B.org)!.mrrCents).toBe(7900)
+    expect(fin.json.summary.mrr.pricesAreHypotheses).toBe(false) // pricing v2: the plans are approved (migration 066)
+    expect(fin.json.orgs.find(o => o.orgId === B.org)!.mrrCents).toBe(19900) // B is on Growth: $199 under pricing v2
     expect(fin.json.orgs.find(o => o.orgId === A.org)!.mrrCents).toBe(0)
     expect((await call(cancelRoute.POST, 'POST', { reason: 'other' })).status).toBe(403)
   })

@@ -13,6 +13,7 @@
  */
 import { admin, type Db } from '../db'
 import { twilioAdapter } from './twilio'
+import { recordAction } from '../metering'
 
 export type ChannelMessage = {
   orgId: string
@@ -59,7 +60,11 @@ async function record(db: Db, m: ChannelMessage, channel: 'text' | 'voice', prov
     `insert into notify_outbox (org_id, audience, recipient_ref, to_phone, channel, provider, dedupe_key, body, transcript, status, status_reason)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (org_id, dedupe_key, channel) do nothing returning id, status, status_reason, transcript`,
     [m.orgId, m.audience, m.recipientRef, m.toPhone, channel, provider, m.dedupeKey.slice(0, 200), clipText(m.body, 4000), transcript, status, reason])
-  if (ins) return { id: ins.id, status: ins.status, reason: ins.status_reason, duplicate: false, transcript: ins.transcript }
+  if (ins) {
+    // a text that went to a person counts against the Office text allowance (lib/metering); held texts do not
+    if (channel === 'text' && (ins.status === 'sent' || ins.status === 'simulated')) await recordAction(db, { orgId: m.orgId, agentKey: m.audience, type: 'send_text', kind: 'text', proofRef: `notify_outbox:${ins.id}`, dedupeKey: `text:${ins.id}` })
+    return { id: ins.id, status: ins.status, reason: ins.status_reason, duplicate: false, transcript: ins.transcript }
+  }
   const old = (await db.one<Row>('select id, status, status_reason, transcript from notify_outbox where org_id = $1 and dedupe_key = $2 and channel = $3', [m.orgId, m.dedupeKey.slice(0, 200), channel]))!
   return { id: old.id, status: old.status, reason: old.status_reason, duplicate: true, transcript: old.transcript }
 }

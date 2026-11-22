@@ -41,6 +41,7 @@ import { PACK_AGENTS } from '../packs/registry'
 import { notifyOwner, type ProofItem, type OwnerUpdate } from '../notify'
 import { log } from '../log'
 import { isOutboundAction, takeOutboundSlot } from '../autonomy/pacing'
+import { capCheck, recordAction as meterAction } from '../metering'
 import { currentEvent, EVENT_JOB } from './index'
 import { loopAgentState, type AgentAutonomy, type LoopAgentState } from '../app/profiles'
 
@@ -211,6 +212,9 @@ export async function runAgentLoop<P>(db: Db, s: LoopSpec<P>): Promise<LoopOutco
   } else {
     const mode = await effectiveMode(db, s.orgId, s.actionType, agent.autonomy)
     const at = now()
+    // the monthly cap (lib/metering): billable, non-urgent work waits once the plan and the overage cap are used up
+    const cap = await adm(x => capCheck(x, s.orgId, s.actionType, at))
+    if (!cap.allowed) return { status: 'nothing_to_do', reason: 'queued' }
     // first-day pacing: an outbound action that goes ahead on its own waits for a later hour when the cap is reached
     if (mode === 'act_and_tell' && (s.outbound ?? isOutboundAction(s.actionType))) {
       const held = await holdIfPaced(s, at)
@@ -322,6 +326,9 @@ async function actVerifyTell<P>(db: Db, s: LoopSpec<P>, p: P, d: { title: string
     } catch (e) { log.warn('loop.undo_failed', { error: (e as Error).message.slice(0, 200) }) }
   }
   await setLoop(loop.id, { state: 'done', last_error: null, next_retry_at: null, undo_token_id: undoId }, now())
+  // the metering ledger: one row per completed, verified step, pointing at its proof (the case)
+  await adm(x => meterAction(x, { orgId: s.orgId, agentKey: s.agentKey, type: s.actionType, proofRef: caseRef ?? `loop:${loop.id}`, dedupeKey: `loop:${loop.id}` }))
+    .catch(e => log.warn('loop.meter_failed', { error: (e as Error).message.slice(0, 200) }))
   // autonomous: done work is told in the daily summary only
   await tell({ ...base(s, d, caseRef), whatIDid: d.whatIDid, proof, undoToken, severity: 'info', dedupeKey: `${s.agentKey}:${s.problemKey}:${loop.id}:done`, ...(ctx.autonomy === 'autonomous' ? { digest: true } : {}) })
   return { status: 'done', verified: true, proof, mode: loop.mode, caseRef, undoToken }

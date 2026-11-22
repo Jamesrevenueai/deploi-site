@@ -38,6 +38,8 @@ export type Tier = {
   proposedPriceUsd: number
   proposedOverageUsd: number
   buildYourOwn: boolean
+  /** custom agents this tier may have: a number, or null for unlimited (pricing v2) */
+  customAgents?: number | null
 }
 export type AgentLibrary = {
   version: number
@@ -100,3 +102,10 @@ export function validateLibrary(lib: AgentLibrary = LIBRARY): string[] {
 
 const startupProblems = validateLibrary()
 if (startupProblems.length) throw new Error(`agent-library.json is invalid: ${startupProblems.join('; ')}`)
+
+/** How many custom agents a tier allows (null: unlimited; 0 when the tier has no build-your-own). */
+export function customAgentLimit(tier: TierKey): number | null {
+  const t = tierByKey(tier)
+  if (!t?.buildYourOwn) return 0
+  return t.customAgents === undefined ? null : t.customAgents
+}

@@ -3,8 +3,8 @@
    white cards with dark text. Colours: /styles/tokens.css + /styles/aurora.css, shared
    verbatim with deploi-app. Text contrast >= 4.5:1 in both contexts.
    ========================================================================== */
-@import '../styles/tokens.css';
-@import '../styles/aurora.css';
+@import '../deploi-app/styles/tokens.css';
+@import '../deploi-app/styles/aurora.css';
 :root {
   /* site layout values; every colour comes from the shared Aurora v2 tokens */
   --radius: var(--r-card);

@@ -1,66 +1,66 @@
 /* ==========================================================================
-   Deploi app: design tokens of the logged-in app (approved redesign 2026-11-06).
+   Deploi app: design tokens of the logged-in app (Indigo theme, 2026-11-22).
    These custom properties mirror lib/app/tokens.ts one for one; edit both together.
    The component and shell classes that use them are in styles/app.css.
    ========================================================================== */
 :root {
   /* the self-hosted faces (@fontsource, imported in app/layout.tsx); the names the rest of the CSS uses */
-  --font-inter: 'Inter';
-  --font-grotesk: 'Space Grotesk';
-  --app-font-body: var(--font-inter), 'Inter', system-ui, sans-serif;
-  --app-font-heading: var(--font-grotesk), 'Space Grotesk', var(--app-font-body);
+  --font-inter: 'Plus Jakarta Sans';
+  --font-grotesk: 'Plus Jakarta Sans';
+  --app-font-body: var(--font-inter), 'Plus Jakarta Sans', system-ui, sans-serif;
+  --app-font-heading: var(--font-grotesk), 'Plus Jakarta Sans', var(--app-font-body);
 
   /* backdrop */
-  --app-backdrop: #07070D;
-  --app-glow-tl: #2A3BFF;
-  --app-glow-tr: #FF4D9D;
-  --app-glow-br: #FF8A3D;
+  --app-backdrop: #FFFFFF;
+  --app-glow-tl: #FFFFFF;
+  --app-glow-tr: #FFFFFF;
+  --app-glow-br: #FFFFFF;
 
   /* app surface */
   --app-surface: #FFFFFF;
   --app-surface-max: 1392px;
-  --app-surface-radius: 22px;
-  --app-surface-shadow: 0 30px 80px rgba(10, 10, 40, .45);
+  --app-surface-radius: 20px;
+  --app-surface-shadow: none;
   --app-surface-pad-x: 28px;
   --app-surface-pad-y: 24px;
 
   /* text */
-  --app-text: #14141F;
-  --app-text-2: #5C5C70;
-  --app-text-body: #2A2A3A;
+  --app-text: #1E1B4B;
+  --app-text-2: #312E81;
+  --app-text-body: #3730A3;
 
   /* lines and fills */
-  --app-border-card: #ECECF2;
-  --app-border-input: #E3E3EC;
-  --app-divider: #F2F2F6;
-  --app-fill: #FAFAFC;
+  --app-border-card: #E0E7FF;
+  --app-border-input: #E0E7FF;
+  --app-divider: #EEF2FF;
+  --app-fill: #F5F7FF;
 
   /* buttons */
-  --app-btn-bg: #14141F;
+  --app-btn-bg: #4F46E5;
   --app-btn-text: #FFFFFF;
   --app-btn-radius: 12px;
   --app-btn-min-h: 44px;
 
   /* cards */
   --app-card-radius: 16px;
-  --app-card-radius-lg: 18px;
+  --app-card-radius-lg: 20px;
 
   /* status pills */
-  --app-working-bg: #E6EAFF;  --app-working-text: #2333A8;
-  --app-waiting-bg: #FFE7D6;  --app-waiting-text: #8A3300;
-  --app-watching-bg: #ECF7F1; --app-watching-text: #17663F;
-  --app-off-bg: #F2F2F6;      --app-off-text: #5C5C70;
+  --app-working-bg: #EEF2FF;  --app-working-text: #4338CA;
+  --app-waiting-bg: #FFF1EB;  --app-waiting-text: #9A3412;
+  --app-watching-bg: #ECFDF5; --app-watching-text: #047857;
+  --app-off-bg: #EEF2FF;      --app-off-text: #312E81;
 
   /* proof chip */
-  --app-proof-bg: #EEF0FF;
-  --app-proof-text: #2A35B0;
+  --app-proof-bg: #EEF2FF;
+  --app-proof-text: #4338CA;
 
   /* usage bar */
-  --app-usage-bar: linear-gradient(90deg, #3A4BE0, #FF4D9D, #FF8A3D);
+  --app-usage-bar: #4F46E5;
 
   /* hero band */
-  --app-hero-bg: #0E0E1A;
-  --app-hero-radius: 20px;
-  --app-hero-live: #5EE6A8;
-  --app-hero-waiting: #FFB27A;
+  --app-hero-bg: #F5F7FF;
+  --app-hero-radius: 24px;
+  --app-hero-live: #047857;
+  --app-hero-waiting: #9A3412;
 }

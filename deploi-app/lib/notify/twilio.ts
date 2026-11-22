@@ -13,6 +13,7 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Db } from '../db'
+import { recordAction } from '../metering'
 import { clipText, voiceTranscript, type ChannelAdapter, type ChannelMessage, type ChannelResult } from './channels'
 
 type Env = Record<string, string | undefined>
@@ -76,6 +77,7 @@ export function twilioAdapter(env: Env = process.env, http: Fetch = fetch): Chan
       if (res.ok && j.sid) { status = 'sent'; sid = j.sid } else reason = `Twilio refused (${res.status}${j.code ? ` ${j.code}` : ''}): ${String(j.message ?? 'no reason given').slice(0, 300)}`
     } catch (e) { reason = `Twilio did not answer: ${(e as Error).name}` }
     await db.query('update notify_outbox set status = $2, status_reason = $3, provider_message_id = $4 where id = $1', [ins.id, status, reason, sid])
+    if (status === 'sent' && channel === 'text') await recordAction(db, { orgId: m.orgId, agentKey: m.audience, type: 'send_text', kind: 'text', proofRef: `notify_outbox:${ins.id}`, dedupeKey: `text:${ins.id}` })
     return { id: ins.id, status, reason, duplicate: false, transcript }
   }
   return { name: 'twilio', sendText: (db, m) => deliver(db, m, 'text'), sendVoiceNote: (db, m) => deliver(db, m, 'voice') }

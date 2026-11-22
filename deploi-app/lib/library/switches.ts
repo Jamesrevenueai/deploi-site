@@ -10,7 +10,7 @@ import { audit } from '../engine/audit'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
 import { createAgent, grantPolicy, pauseAgent, pauseAgentInTx, resumeAgent } from '../agents/lifecycle'
 import { templatePolicy, type TemplateKey } from '../agents/templates'
-import { LIBRARY, agentByKey, isPermissionLevel, isTierKey, isUpgrade, lowestTierFor, tierByKey, tierIncludes, type LibraryAgent, type PermissionLevel, type TierKey } from './config'
+import { LIBRARY, agentByKey, customAgentLimit, isPermissionLevel, isTierKey, isUpgrade, lowestTierFor, tierByKey, tierIncludes, type LibraryAgent, type PermissionLevel, type TierKey } from './config'
 import { LibraryError } from './errors'
 import { APPROVAL_ONLY, type SwitchRow } from './actions'
 import { usageSummary, type UsageSummary } from './usage'
@@ -256,6 +256,9 @@ export async function switchOffExcluded(db: Db, orgId: string, tier: TierKey, ac
     if (sw.engine_agent_id) await pauseAgentInTx(db, orgId, sw.engine_agent_id, actor, reason)
     switchedOff.push(sw.agent_key)
   }
-  if (!tierByKey(tier)?.buildYourOwn) await db.query('update custom_agents set enabled = false where org_id = $1 and enabled', [orgId])
+  // custom agents beyond the new tier's allowance are switched off, newest first; the oldest `limit` stay (nothing is deleted)
+  const limit = customAgentLimit(tier)
+  if (limit !== null) await db.query(`update custom_agents set enabled = false where org_id = $1 and enabled and id in (
+    select id from custom_agents where org_id = $1 order by created_at, id offset $2)`, [orgId, limit])
   return switchedOff
 }

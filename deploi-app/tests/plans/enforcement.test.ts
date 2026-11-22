@@ -56,6 +56,8 @@ async function cleanOrg(m: typeof NW) {
     await db.query('delete from library_actions where org_id = $1', [m.org])
     await db.query('delete from billing_subscriptions where org_id = $1', [m.org])
     await db.query('delete from billing_customers where org_id = $1', [m.org])
+    // a Stripe plan an earlier test bought must not leak into the next one
+    await db.query('update agencies set plan_key = null where id = $1', [m.org])
   })
 }
 
@@ -276,7 +278,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
     expect(await admin(db => allowanceBlock(db, NW.org))).not.toBeNull()
     expect(await admin(db => allowanceBlock(db, HB.org))).toBeNull()
     const nw = await controlRoom(actor)
-    expect(nw.usage).toMatchObject({ actions: 3, actionsLimit: 3, emailsLimit: 200, enforced: true, resetsAt: monthEnd(new Date()).toISOString() })
+    expect(nw.usage).toMatchObject({ actions: 3, actionsLimit: 3, emailsLimit: 1500, enforced: true, resetsAt: monthEnd(new Date()).toISOString() })
     const hb = await controlRoom(await merchantActor(HB))
     expect(hb.usage).toMatchObject({ actions: 0, actionsLimit: 3 })
   })
@@ -322,7 +324,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
       actor = await merchantActor(NW)
       agents = []
       for (const [i, n] of ['Oldest', 'Middle', 'Newest'].entries()) { agents.push(await engineAgent(actor, n, { ...STOCK, approvalMode: 'review', productScope: { mode: 'products', productIds: [P(1001 + i)] } })); await new Promise(r => setTimeout(r, 5)) }
-      await setSwitch(actor, 'supplier_chaser', true, { settings: { supplierAddress: SUPPLIER } }) // growth and up, engine-backed
+      await setSwitch(actor, 'returns', true) // growth and up (pricing v2: the engine-backed library agents are all in Starter)
       await setSwitch(actor, 'listing_writer', true) // every tier
       const s = await setupOffice(NW, [])
       office = [await grantedAgent(s, 'lead_followup', {}, undefined, 'Office A')]
@@ -344,10 +346,8 @@ describe.skipIf(!ready)('plan enforcement', () => {
       const r = await sub('customer.subscription.updated', 'price_EnfStarter')
       expect(r).toMatchObject({ outcome: 'processed', detail: 'subscription active; plan limits applied' })
       const sw = await switchOn()
-      expect(sw.find(x => x.agent_key === 'supplier_chaser')!.enabled).toBe(false)
+      expect(sw.find(x => x.agent_key === 'returns')!.enabled).toBe(false)
       expect(sw.find(x => x.agent_key === 'listing_writer')!.enabled).toBe(true)
-      const chaserEngine = sw.find(x => x.agent_key === 'supplier_chaser')!.engine_agent_id!
-      expect(await statusOf([chaserEngine])).toEqual(['paused'])
       // the oldest two keep running; the most recently created is paused
       expect(await statusOf(agents)).toEqual(['active', 'active', 'paused'])
       expect(await statusOf(office, 'office_agents')).toEqual(['active', 'paused'])
@@ -355,9 +355,9 @@ describe.skipIf(!ready)('plan enforcement', () => {
       expect(paused!.detail.reason).toMatch(/allows 2 active agents and this is one of the most recently created/)
       const enforced = await admin(db => db.query<{ detail: Record<string, unknown> }>(`select detail from engine_audit where org_id = $1 and event = 'plan.enforced' and at >= $2`, [NW.org, since]))
       expect(enforced).toHaveLength(1)
-      expect(enforced[0].detail).toMatchObject({ tier: 'starter', lapsed: false, library_switched_off: ['supplier_chaser'], agents_paused: [agents[2]], office_agents_paused: [office[1]] })
+      expect(enforced[0].detail).toMatchObject({ tier: 'starter', lapsed: false, library_switched_off: ['returns'], agents_paused: [agents[2]], office_agents_paused: [office[1]] })
       // nothing deleted: the agents, switches and Office agents are all still there
-      expect(await admin(db => db.one<{ n: string }>(`select count(*)::text as n from agents where org_id = $1 and status <> 'deleted'`, [NW.org]))).toEqual({ n: '4' })
+      expect(await admin(db => db.one<{ n: string }>(`select count(*)::text as n from agents where org_id = $1 and status <> 'deleted'`, [NW.org]))).toEqual({ n: '3' })
       expect(await statusOf(office, 'office_agents')).toHaveLength(2)
       // deterministic and idempotent
       expect(await admin(db => enforcePlanLimits(db, NW.org, { actor: 'test', cause: 'again' }))).toMatchObject({ changed: false })
@@ -367,7 +367,7 @@ describe.skipIf(!ready)('plan enforcement', () => {
       await sub('customer.subscription.updated', 'price_EnfPro')
       expect(await statusOf(agents)).toEqual(['active', 'active', 'paused'])
       expect(await statusOf(office, 'office_agents')).toEqual(['active', 'paused'])
-      expect((await switchOn()).find(x => x.agent_key === 'supplier_chaser')!.enabled).toBe(false)
+      expect((await switchOn()).find(x => x.agent_key === 'returns')!.enabled).toBe(false)
       // within the new limits the merchant resumes it themselves
       await resumeAgent(actor, agents[2])
       expect(await statusOf(agents)).toEqual(['active', 'active', 'active'])
@@ -377,12 +377,12 @@ describe.skipIf(!ready)('plan enforcement', () => {
       await sub('customer.subscription.updated', 'price_EnfPro')
       await sub('customer.subscription.deleted', 'price_EnfPro', 'canceled')
       expect(await statusOf(agents)).toEqual(['active', 'active', 'paused'])
-      expect((await switchOn()).find(x => x.agent_key === 'supplier_chaser')!.enabled).toBe(false)
+      expect((await switchOn()).find(x => x.agent_key === 'returns')!.enabled).toBe(false)
       expect(await admin(db => billingWriteBlock(db, NW.org))).toMatch(/^read-only: the subscription was cancelled/)
       const e = await admin(db => db.one<{ detail: Record<string, unknown> }>(`select detail from engine_audit where org_id = $1 and event = 'plan.enforced' and at >= $2`, [NW.org, since]))
       expect(e!.detail).toMatchObject({ tier: 'starter', lapsed: true, cause: 'customer.subscription.deleted' })
       // a library agent the lapsed plan excludes cannot be switched back on
-      await expect(setSwitch(actor, 'supplier_chaser', true)).rejects.toMatchObject({ code: 'upgrade_required' })
+      await expect(setSwitch(actor, 'returns', true)).rejects.toMatchObject({ code: 'upgrade_required' })
     })
 
     it('past due beyond the grace period lapses by time alone: the hourly sweep applies the lower limits; within grace nothing changes', async () => {

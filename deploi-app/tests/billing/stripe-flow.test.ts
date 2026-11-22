@@ -92,7 +92,8 @@ describe.skipIf(!ready)('Stripe billing flow', () => {
     const cs = f.calls[1].body
     expect(Object.fromEntries(cs)).toMatchObject({ mode: 'subscription', customer: 'cus_Flow1', client_reference_id: ORG, 'line_items[0][price]': 'price_Growth1', 'line_items[0][quantity]': '1', 'subscription_data[metadata][org_id]': ORG, 'metadata[plan]': 'growth' })
     expect(cs.get('success_url')).toBe('https://app.example/store/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}')
-    expect(f.calls[1].headers['idempotency-key']).toBe(checkoutIdempotencyKey(ORG, 'growth', 'price_Growth1', now))
+    // pricing v2: Growth has the 14-day trial, so the first checkout is a trial checkout
+    expect(f.calls[1].headers['idempotency-key']).toBe(checkoutIdempotencyKey(ORG, 'growth:trial', 'price_Growth1', now))
     // a second checkout reuses the customer
     const g = fakeStripe()
     await admin(db => createCheckoutSession(db, { orgId: ORG, plan: 'pro', actor: 'test', appUrl: 'https://app.example', fetchImpl: g.impl }))
@@ -124,7 +125,7 @@ describe.skipIf(!ready)('Stripe billing flow', () => {
     expect((await deliver(created)).json).toMatchObject({ duplicate: true })
     expect((await admin(db => db.one<{ plan_tier: string }>('select plan_tier from agencies where id = $1', [ORG])))!.plan_tier).toBe('growth')
     const e = await admin(db => orgEntitlements(db, ORG))
-    expect(e).toMatchObject({ tier: 'growth', priced: true, writesAllowed: true, maxAgents: 12, monthlyActions: 500 })
+    expect(e).toMatchObject({ tier: 'growth', priced: true, writesAllowed: true, maxAgents: 20, monthlyActions: 5000 })
     expect(await admin(db => billingWriteBlock(db, ORG))).toBeNull()
 
     // an event older than the last applied one changes nothing

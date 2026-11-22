@@ -7,7 +7,7 @@
 import { admin } from '../db'
 import { audit } from '../engine/audit'
 import { assertMerchant, withActor, type Actor } from '../engine/actor'
-import { isPermissionLevel, tierByKey, type PermissionLevel } from './config'
+import { LIBRARY, customAgentLimit, isPermissionLevel, tierByKey, type PermissionLevel } from './config'
 import { LibraryError } from './errors'
 import { runLibraryAgent, type LibraryRunResult } from './actions'
 import { matchCapabilities } from './runners'
@@ -32,7 +32,17 @@ export async function createCustomAgent(actor: Actor, input: { name: string; job
   if (permission !== 'read') await assertCan(actor, orgId, 'agent.grant') // any level above read is a grant (F-08)
   return admin(async db => {
     const tier = await orgTier(db, orgId)
-    if (!tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is included in the Pro tier', { tier, upgradeTo: 'pro' })
+    if (!tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is not included in this plan', { tier, upgradeTo: 'growth' })
+    // the plan's custom-agent allowance (Starter 1, Growth 5, Pro unlimited), checked under a lock so two requests cannot both pass
+    const limit = customAgentLimit(tier)
+    if (limit !== null) {
+      await db.query('select pg_advisory_xact_lock(hashtextextended($1, 6620))', [`custom-agents:${orgId}`])
+      const n = (await db.one<{ n: number }>('select count(*)::int as n from custom_agents where org_id = $1', [orgId]))!.n
+      if (n >= limit) {
+        const up = LIBRARY.tiers.find(t => t.order > (tierByKey(tier)?.order ?? 0) && (t.customAgents === null || (t.customAgents ?? 0) > limit))
+        throw new LibraryError('upgrade_required', `Your ${tierByKey(tier)?.name ?? tier} plan includes ${limit} custom agent${limit === 1 ? '' : 's'}${up ? `; ${up.name} includes ${up.customAgents ?? 'unlimited'}` : ''}`, { tier, upgradeTo: up?.key ?? null, limit })
+      }
+    }
     const row = await db.one<{ id: string }>('insert into custom_agents (org_id, name, job, permission, created_by) values ($1,$2,$3,$4,$5) returning id', [orgId, name, job, permission, actor.label])
     await audit(db, { orgId, entityType: 'library', entityId: `custom:${row!.id}`, event: 'library.custom.created', actor: actor.label, detail: { name, permission, capabilities: matchCapabilities(job) } })
     return { id: row!.id, name, job, permission, capabilities: matchCapabilities(job) }
@@ -50,7 +60,7 @@ export async function updateCustomAgent(actor: Actor, id: string, patch: { enabl
   if ((patch.permission !== undefined && RANK[patch.permission as string] > RANK[row.permission]) || (patch.enabled && !row.enabled)) await assertCan(actor, orgId, 'agent.grant')
   return admin(async db => {
     const tier = await orgTier(db, orgId)
-    if (patch.enabled && !tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is included in the Pro tier', { tier, upgradeTo: 'pro' })
+    if (patch.enabled && !tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is not included in this plan', { tier, upgradeTo: 'growth' })
     await db.query('update custom_agents set enabled = coalesce($2, enabled), permission = coalesce($3, permission), job = coalesce($4, job), name = coalesce($5, name) where id = $1',
       [id, patch.enabled ?? null, (patch.permission as string | undefined) ?? null, patch.job?.trim().slice(0, 2000) || null, patch.name?.trim().slice(0, 80) || null])
     if (patch.permission !== undefined && patch.permission !== 'act') await db.query('update library_auto_run_grants set revoked_at = now(), revoked_by = $3 where org_id = $1 and agent_key = $2 and revoked_at is null', [orgId, `custom:${id}`, actor.label])
@@ -77,7 +87,7 @@ export async function runCustomAgent(actor: Actor, id: string, now = new Date())
   const row = await withActor(actor, db => db.one<CustomAgentRow>('select * from custom_agents where id = $1', [id]))
   if (!row) throw new LibraryError('not_found', 'custom agent not found')
   const tier = await admin(db => orgTier(db, orgId))
-  if (!tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is included in the Pro tier', { tier, upgradeTo: 'pro' })
+  if (!tierByKey(tier)?.buildYourOwn) throw new LibraryError('upgrade_required', 'Build your own agent is not included in this plan', { tier, upgradeTo: 'growth' })
   if (!row.enabled) throw new LibraryError('conflict', 'this agent is switched off')
   const caps = matchCapabilities(row.job)
   const allowed = tierByKey(tier)?.agents ?? []

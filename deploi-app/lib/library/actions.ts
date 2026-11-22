@@ -9,6 +9,7 @@
  * the proof of what happened; usage is recorded per action for billing.
  */
 import { instructionsFor } from '../app/profiles'
+import { recordAction as meterAction } from '../metering'
 import { randomUUID } from 'node:crypto'
 import { admin, type Db } from '../db'
 import { audit } from '../engine/audit'
@@ -152,6 +153,7 @@ export async function runLibraryAgent(opts: { orgId: string; agentKey: string; t
         const r = await performWrite(data, d.actionType, payload, now)
         const id = await insert(db, { orgId: opts.orgId, agentKey: logKey, runId, d, payload, mode: 'auto', status: r.ok ? 'done' : 'failed', basis: `act: auto-run granted for "${at.label}" (max ${grant.max_per_day} a day)`, proof: r.proof, reason: r.ok ? null : r.reason, executedAt: now })
         await recordUsage(db, { orgId: opts.orgId, agentKey: logKey, actionType: d.actionType, actionId: id })
+        if (r.ok) await meterAction(db, { orgId: opts.orgId, agentKey: logKey, type: d.actionType, proofRef: `library_action:${id}`, dedupeKey: `library_action:${id}` })
         if (r.ok) counts.done++; else counts.failed++
         return
       }
@@ -227,6 +229,7 @@ export async function approveAction(actor: Actor, id: string, now = new Date()) 
   await admin(async db => {
     await db.query(`update library_actions set status = $2, status_reason = $3, decided_by = $4, decided_at = $5, executed_at = $5, proof = $6 where id = $1`,
       [id, r.ok ? 'done' : 'failed', r.ok ? null : r.reason ?? null, actor.label, now.toISOString(), JSON.stringify({ ...r.proof, approvedBy: actor.label })])
+    if (r.ok) await meterAction(db, { orgId: a.org_id, agentKey: a.agent_key, type: a.action_type, proofRef: `library_action:${id}`, dedupeKey: `library_action:${id}` })
     await audit(db, { orgId: a.org_id, entityType: 'library', entityId: a.agent_key, event: r.ok ? 'library.action.done' : 'library.action.failed', actor: actor.label, detail: { action_id: id, action_type: a.action_type, reason: r.reason ?? null } })
   })
   await syncCase(id, now)

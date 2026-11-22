@@ -90,7 +90,7 @@ export function ShopifyFrame({ configured, children }: { configured: boolean; ch
   if (state.kind === 'outside') {
     return (
       <div className="mx-auto max-w-lg py-12 fade-up">
-        <div className="wordmark mb-8">deploi <span className="text-grey-h">ai</span></div>
+        <div className="wordmark mb-8">deploi</div>
         <div className="metal rounded-[20px] p-6 md:p-8">
           <div className="relative flex flex-col gap-3">
             <h1 className="text-[1.6rem]">Open this app from your Shopify admin</h1>

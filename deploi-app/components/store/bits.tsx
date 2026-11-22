@@ -44,8 +44,8 @@ export function Section({ title, sub, children, actions, id }: { title: ReactNod
 
 /** Bordered panel used for cards that are not image cards */
 export function Panel({ children, className = '', tone }: { children: ReactNode; className?: string; tone?: 'warn' | 'ok' | 'danger' }) {
-  const border = tone === 'warn' ? 'border-[#4a3a1a]' : tone === 'ok' ? 'border-[#1f3a2a]' : tone === 'danger' ? 'border-[#4a2222]' : 'border-line'
-  return <div className={`rounded-[20px] border ${border} p-4 md:p-5 min-w-0 ${className}`}>{children}</div>
+  const border = tone === 'warn' ? 'border-warn-line' : tone === 'ok' ? 'border-ok-line' : tone === 'danger' ? 'border-danger-line' : 'border-line'
+  return <div className={`rounded-[16px] border ${border} bg-surface p-4 md:p-5 min-w-0 shadow-[var(--shadow-card)] ${className}`}>{children}</div>
 }
 
 export function Facts({ items }: { items: [ReactNode, ReactNode][] }) {
@@ -66,7 +66,7 @@ export function Loading({ label = 'Loading', rows = 3 }: { label?: string; rows?
     <div role="status" aria-live="polite" aria-busy="true" className="flex flex-col gap-3">
       <span className="sr-only">{label}…</span>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-20 animate-pulse rounded-[20px] border border-line bg-[#0A0A0A]" />
+        <div key={i} className="h-20 animate-pulse rounded-[20px] border border-line bg-sunken" />
       ))}
     </div>
   )
@@ -97,7 +97,7 @@ export function ErrorState({ error, onRetry }: { error: StoreApiError; onRetry?:
 export function NoStore() {
   const { base, embedded } = useStore()
   return (
-    <div className="rounded-[20px] border border-line p-6 fade-up">
+    <div className="rounded-[16px] border border-line bg-surface p-6 fade-up">
       <div className="text-ink font-medium">No store connected</div>
       <p className="pt-2 text-[15px] text-grey">
         {embedded

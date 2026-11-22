@@ -1,5 +1,7 @@
 # Shopify App Store submission package
 
+> **2026-11-06:** for the current submission state, use `docs/app-store/SUBMISSION-CHECKLIST.md` (requirement audit and founder steps), `docs/app-store/LISTING.md` and `docs/app-store/PROTECTED-CUSTOMER-DATA.md`. This page is kept for history.
+
 Date: 2026-10-29. **Status: not submitted.** Shopify has not reviewed or approved Deploi. Nothing in this
 document is an acceptance or approval by Shopify. Requirements are from
 `docs/platform-research/shopify-app-store.md` (shopify.dev, read 2026-10-29); anything marked UNVERIFIED there is
@@ -15,7 +17,7 @@ still unverified.
 | Latest App Bridge before any other script (2.2.3) | Root layout renders the meta + CDN script; middleware moves them to the top of `<head>` on embedded page loads (Next.js emits its own scripts first otherwise) | `e2e/embedded.spec.ts` checks the first `<script>` of the served HTML |
 | Framing | `frame-ancestors https://<shop> https://admin.shopify.com` on `/shopify/*`; `'none'` elsewhere | unit + e2e |
 | GraphQL Admin API only (2.2.4), version `2026-10` | no REST calls | code |
-| Mandatory compliance webhooks; 401 on a bad HMAC | one endpoint for all topics; HMAC over the raw body; dedup by `X-Shopify-Webhook-Id`; `shop/redact` erases the shop (and its access record); `customers/*` acknowledged (no customer data held) | `tests/merchant/shopify-routes.test.ts`, `tests/merchant/access.test.ts` |
+| Mandatory compliance webhooks; 401 on a bad HMAC | one endpoint for all topics; HMAC over the raw body; dedup by `X-Shopify-Webhook-Id`; `shop/redact` erases the shop (and its access record); `customers/data_request` exports what is held for the customer (encrypted, merchant download), `customers/redact` erases it (lib/privacy/customer-data.ts) | `tests/merchant/shopify-routes.test.ts`, `tests/merchant/access.test.ts`, `tests/privacy/customer-privacy.test.ts` |
 | Uninstall handling | `app/uninstalled`: connection inactive, token deleted, pending changes blocked; agents and email stop because the store is no longer active | tests |
 | Minimal scopes, no protected customer data | `read_products, write_products, read_inventory, read_locations, read_publications, write_publications`; no customer/order scopes | TOML example test |
 | Billing through Shopify (1.2.x) | Shopify App Pricing: Partner API `activeSubscription`, plan page opened at `_top`, no `appSubscriptionCreate`; gated by `BILLING_REQUIRED` (off: no plans yet) | `tests/merchant/app-store.test.ts` |
@@ -33,13 +35,19 @@ still unverified.
 3. a **development store** (Shopify's `shop.plan.partnerDevelopment`, read with the store's own token, re-checked
    daily) is enabled automatically;
 4. `STORE_ACCESS_MODE=open` enables every installed store.
+5. `STORE_ACCESS_MODE=review` (added 2026-11-17) is for the review period: **only** development stores and stores
+   staff approve one by one may be changed. Invites are ignored, so a real merchant who installs from the listing
+   while it is in review is never written to. If a reviewer's store is not reported as a development store,
+   approve that one store on `/staff/store-access` and reply to the reviewer.
 
 A store without access is still installed, scanned and fully reviewable (issues, evidence, proposed changes,
 agents, email drafts); it cannot be written to and cannot send real email, and it sees a card to enter an invite
 code or request access. `LIVE_WRITES=off` pauses writes to every real store.
 
 **Reviewer access.** Shopify does not say which store type reviewers use (UNVERIFIED), and reviewers must get full
-feature access. So **submit with `STORE_ACCESS_MODE=open`**. Keep the beta audience small with a
+feature access. So submit with `STORE_ACCESS_MODE=open` (every reviewer store works without any action), or with
+`STORE_ACCESS_MODE=review` if you want real merchants' stores protected during review (reviewers on development stores
+work at once; any other reviewer store needs one staff approval). Switch to `open` when the listing is approved. Keep the beta audience small with a
 **limited-visibility** listing (installable only from its listing URL, not indexed) and, once pricing exists,
 private plans. The invite flow covers beta merchants before then, and is a fallback for reviewers (an invite
 code goes in the testing instructions).

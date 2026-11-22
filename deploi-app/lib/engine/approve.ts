@@ -8,6 +8,7 @@ import { audit } from './audit'
 import { assertMerchant, approverKind, withActor, type Actor } from './actor'
 import { EngineError } from './errors'
 import { invalidateProposal, type ProposalRow } from './proposals'
+import { assertCan } from '../platform/rbac'
 
 export async function approveProposal(actor: Actor, proposalId: string, shownChangeHash: string, opts: { now?: Date; ip?: string | null } = {}): Promise<{ approvalId: string }> {
   const now = opts.now ?? new Date()
@@ -15,14 +16,17 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
   const visible = await withActor(actor, db => db.one<{ id: string; org_id: string }>('select id, org_id from proposals where id = $1', [proposalId]), { ip: opts.ip })
   if (!visible) throw new EngineError('not_found', 'proposal not found')
   assertMerchant(actor, visible.org_id)
+  await assertCan(actor, visible.org_id, 'approve') // owners and admins; members only when the owner allows it
 
-  return admin(async db => {
+  // A refusal that retires the proposal (expired, agent inactive, rule changed) is committed before the
+  // error is raised, so the proposal and its case show why it can no longer be approved.
+  type Refusal = { error: EngineError; invalidate?: { status: 'stale' | 'expired' | 'blocked'; reason: string } }
+  const out = await admin(async (db): Promise<{ approvalId: string } | Refusal> => {
     const p = await db.one<ProposalRow>('select * from proposals where id = $1 for update', [proposalId])
     if (!p) throw new EngineError('not_found', 'proposal not found')
     if (p.status !== 'pending_approval') throw new EngineError('not_pending', `proposal is ${p.status}`, { status: p.status })
     if (new Date(p.expires_at).getTime() <= now.getTime()) {
-      await invalidateProposal(db, p, 'expired', 'not approved before its time limit', actor.label)
-      throw new EngineError('expired', 'proposal expired; run a new scan')
+      return { error: new EngineError('expired', 'proposal expired; run a new scan'), invalidate: { status: 'expired', reason: 'not approved before its time limit' } }
     }
     if (shownChangeHash !== p.change_hash) {
       await audit(db, { orgId: p.org_id, connectionId: p.connection_id, entityType: 'proposal', entityId: p.id, event: 'approval.refused', actor: actor.label, detail: { reason: 'hash_mismatch' } })
@@ -33,8 +37,7 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
       const agent = await db.one<{ status: string; version: number | null; mode: string | null }>(
         `select a.status, ap.version, ap.policy->>'approvalMode' as mode from agents a left join agent_policies ap on ap.id = a.active_policy_id and ap.status = 'active' where a.id = $1`, [p.agent_id])
       if (!agent || agent.status !== 'active') {
-        await invalidateProposal(db, p, 'blocked', `the agent is ${agent?.status ?? 'deleted'}`, actor.label)
-        throw new EngineError('agent_inactive', `the agent is ${agent?.status ?? 'deleted'}; resume it to approve its changes`)
+        return { error: new EngineError('agent_inactive', `the agent is ${agent?.status ?? 'deleted'}; resume it to approve its changes`), invalidate: { status: 'blocked', reason: `the agent is ${agent?.status ?? 'deleted'}` } }
       }
       if (agent.mode !== 'review' && agent.mode !== 'autonomous') {
         // drafts only (or anything unrecognised): approving would make a change the grant does not allow
@@ -42,15 +45,13 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
         throw new EngineError('forbidden', 'this agent is drafts only: it may show changes but not make them. Give it permission to make changes you approve (a new grant) first')
       }
       if (agent.version !== p.policy_version) {
-        await invalidateProposal(db, p, 'stale', "the agent's authorization changed after this proposal was made", actor.label)
-        throw new EngineError('rule_changed', "the agent's authorization changed after this proposal was made; run the agent again")
+        return { error: new EngineError('rule_changed', "the agent's authorization changed after this proposal was made; run the agent again"), invalidate: { status: 'stale', reason: "the agent's authorization changed after this proposal was made" } }
       }
     } else {
       const issue = await db.one<{ check_key: string; status: string }>('select check_key, status from issues where id = $1', [p.issue_id])
       const rule = await db.one<{ version: number; enabled: boolean }>('select version, enabled from merchant_rules where connection_id = $1 and check_key = $2', [p.connection_id, issue?.check_key])
       if (!rule || !rule.enabled || rule.version !== p.rule_version) {
-        await invalidateProposal(db, p, 'stale', 'the rule changed after this proposal was made', actor.label)
-        throw new EngineError('rule_changed', 'the rule changed after this proposal was made; run a new scan')
+        return { error: new EngineError('rule_changed', 'the rule changed after this proposal was made; run a new scan'), invalidate: { status: 'stale', reason: 'the rule changed after this proposal was made' } }
       }
     }
     const a = await db.one<{ id: string }>(
@@ -61,4 +62,18 @@ export async function approveProposal(actor: Actor, proposalId: string, shownCha
       detail: { proposal_id: p.id, change_hash: p.change_hash, change: p.change, target_id: p.target_id } })
     return { approvalId: a!.id }
   }, { ip: opts.ip })
+  const { syncProposalCase } = await import('./case-sync')
+  if ('error' in out) {
+    if (out.invalidate) {
+      const inv = out.invalidate
+      await admin(async db => {
+        const p = await db.one<ProposalRow>('select * from proposals where id = $1', [proposalId])
+        if (p) await invalidateProposal(db, p, inv.status, inv.reason, actor.label)
+      }, { ip: opts.ip })
+      await syncProposalCase(proposalId, { actor: actor.label })
+    }
+    throw out.error
+  }
+  await syncProposalCase(proposalId, { actor: actor.label })
+  return out
 }

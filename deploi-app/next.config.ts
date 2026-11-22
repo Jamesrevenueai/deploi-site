@@ -11,7 +11,8 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   serverExternalPackages: ['pg', '@react-pdf/renderer'],
   // the dev-store harness runs the migration files from inside the function (non-production only)
-  outputFileTracingIncludes: { '/api/admin/devstore': ['./supabase/**/*.sql'] },
+  outputFileTracingIncludes: { '/api/admin/devstore': ['./supabase/**/*.sql'], '/api/**/*': ['./docs/legal/*.md'], '/store/**/*': ['./docs/legal/*.md'] },
+  // docs/legal/*.md: the legal texts are read and hashed at runtime by lib/legal (the gated routes and /store/legal)
   // Vercel preview builds only: embedded API calls also send same-origin cookies (Vercel's bypass cookie)
   env: { NEXT_PUBLIC_DEPLOI_PREVIEW_BUILD: process.env.VERCEL_ENV === 'preview' ? '1' : '' },
   experimental: { serverActions: { bodySizeLimit: '8mb' } },
@@ -26,6 +27,9 @@ const nextConfig: NextConfig = {
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+      // the voice note in agent chat uses the microphone on our own origin only; nothing uses camera, location or payment APIs
+      { key: 'Permissions-Policy', value: 'camera=(), geolocation=(), payment=(), usb=(), microphone=(self)' },
+      { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
     ],
   }],
 }

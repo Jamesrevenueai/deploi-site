@@ -4,6 +4,7 @@ import { teamView, type TeamAgent } from '@/lib/library/switches'
 import { activityLog, listActions } from '@/lib/library/actions'
 import { chatHistory } from '@/lib/library/chat'
 import { agentByKey } from '@/lib/library/config'
+import { assertEmbeddedLibraryAgent } from '@/lib/store/embedded-gate'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ key: string }> 
   try {
     const actor = await resolveActor(req)
     const { key } = await ctx.params
+    assertEmbeddedLibraryAgent(actor, key)
     if (actor.kind === 'staff') throw new HttpError(403, 'forbidden', 'the team belongs to a merchant organization')
     const team = await teamView(actor)
     let agent: TeamAgent | undefined

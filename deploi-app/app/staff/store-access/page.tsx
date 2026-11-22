@@ -26,8 +26,8 @@ export default async function StoreAccessPage({ searchParams }: { searchParams: 
       <PageHeader title="Store access" eyebrow="Staff" sub="Which Shopify stores Deploi may change and send real email for. Every store can install and scan; changes need access." />
       <div className="mb-5 flex flex-col gap-2">
         <Banner icon="shield">
-          Mode: <strong>{mode === 'open' ? 'open (every installed store)' : 'beta'}</strong>. In beta, a store is enabled when Shopify reports a development store
-          (partners&rsquo; test stores), when it redeems an invite, or when staff approve it. A denial always wins. Shopify does not say which store type its reviewers use, so submit for review in open mode.
+          Mode: <strong>{mode === 'open' ? 'open (every installed store)' : mode === 'review' ? 'review (Shopify development stores only)' : 'beta'}</strong>. In beta, a store is enabled when Shopify reports a development store
+          (partners&rsquo; test stores), when it redeems an invite, or when staff approve it. A denial always wins. In review, only development stores and stores you approve here are enabled (invites are ignored): if a Shopify reviewer says they cannot make changes, approve their store below.
           {accessConfig.writesPaused && <> <strong>LIVE_WRITES=off: writes to every live store are paused.</strong></>}
         </Banner>
       </div>

@@ -1,0 +1,6 @@
+{
+  "from": "leads@zumper.com",
+  "subject": "New lead for ",
+  "text": "\u0000\u0001\u0002 \udcff garbage ==?=?utf-8?B?xx \r\n:::\n: : :\nName:\nEmail: not-an-email\n",
+  "expect": null
+}

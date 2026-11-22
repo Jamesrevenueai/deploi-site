@@ -19,7 +19,8 @@ export type CorrectionCapability = {
 }
 
 /** Read-only checks an agent may run to report problems a person must handle (never writes). */
-export type WatchCapability = { checkKey: string; label: string }
+/** `aliases`: other platforms' keys for the same watch (templates name one key; each platform runs its own check). */
+export type WatchCapability = { checkKey: string; label: string; aliases?: string[] }
 
 const corrections = new Map<Platform, Map<CorrectionType, CorrectionCapability>>()
 const watches = new Map<Platform, Map<string, WatchCapability>>()
@@ -45,6 +46,11 @@ export const correctionCapability = (platform: Platform, type: CorrectionType) =
 export const supportedCorrections = (platform: Platform): CorrectionType[] => [...(corrections.get(platform)?.keys() ?? [])]
 export const watchCapabilities = (platform: Platform): WatchCapability[] => [...(watches.get(platform)?.values() ?? [])]
 export const isWatchCheck = (platform: Platform, checkKey: string) => Boolean(watches.get(platform)?.has(checkKey))
+/** The check this platform runs for a watch key (its own key, or one it declares as an alias); null when unsupported. */
+export function resolveWatchCheck(platform: Platform, key: string): string | null {
+  if (isWatchCheck(platform, key)) return key
+  return [...(watches.get(platform)?.values() ?? [])].find(w => w.aliases?.includes(key))?.checkKey ?? null
+}
 
 /** The correction type an action key belongs to, on any platform; undefined for unknown actions (always refused). */
 export const correctionTypeForAction = (actionKey: string): CorrectionType | undefined => actionIndex.get(actionKey)?.type

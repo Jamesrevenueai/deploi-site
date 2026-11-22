@@ -19,6 +19,8 @@ import { admin } from '../../db'
 import { emailConfig } from '../config'
 import type { AccountRef, EmailAdapter, OutgoingMessage, SendResult } from '../types'
 import { emailFetch, sendOutcome } from './http'
+import { unsubscribeFooter } from '../unsubscribe'
+import { htmlToText } from '../readers/html'
 
 export const RESEND_API = 'https://api.resend.com'
 export const DEPLOI_SEND = 'deploi.send'
@@ -30,12 +32,16 @@ function resendBody(m: OutgoingMessage) {
   const headers: Record<string, string> = { 'X-Deploi-Message': m.deploiId }
   if (m.inReplyTo) headers['In-Reply-To'] = m.inReplyTo
   if (m.references?.length) headers['References'] = m.references.join(' ')
+  if (m.listUnsubscribe) {
+    headers['List-Unsubscribe'] = `<${m.listUnsubscribe}>`
+    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+  }
   return {
     from: m.fromName ? `${m.fromName.replace(/["<>\r\n]/g, '')} <${m.from}>` : m.from,
     to: m.to,
     ...(m.cc.length ? { cc: m.cc } : {}),
     subject: m.content.subject,
-    text: m.content.bodyText,
+    text: m.listUnsubscribe ? m.content.bodyText + unsubscribeFooter(m.listUnsubscribe) : m.content.bodyText,
     ...(m.replyTo ? { reply_to: m.replyTo } : {}),
     headers,
     ...(m.content.attachments.length ? { attachments: m.content.attachments.map(a => ({ filename: a.filename, content: a.contentBase64, content_type: a.contentType })) } : {}),
@@ -99,8 +105,26 @@ export async function resendSystemEmail(input: { from: string; to: string[]; sub
 export type ReceivedEmail = {
   id: string; from: string; to: string[]; cc: string[]; subject: string; text: string
   messageId: string | null; inReplyTo: string | null; references: string[]
-  authentication: Record<string, string | null>; attachmentCount: number; receivedAt: string
+  authentication: Record<string, string | null> | null; attachmentCount: number; receivedAt: string
+  /** loop-protection headers only (Auto-Submitted, Precedence, X-Autoreply, ...), lower-case names */
+  headers?: Record<string, string>
+  /** attachment metadata only: content is never fetched, stored or opened */
+  attachments?: { filename: string; contentType: string; size: number | null }[]
 }
+
+/** Headers kept from an inbound email: only what loop protection needs. */
+/** (plus the bulk-mail headers the first-contact policy reads: List-Unsubscribe, X-Mailer) */
+export const LOOP_HEADERS = ['auto-submitted', 'precedence', 'x-autoreply', 'x-autorespond', 'x-auto-response-suppress', 'list-id', 'x-loop', 'return-path', 'list-unsubscribe', 'x-mailer'] as const
+const cleanMeta = (v: unknown, max: number) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max)
+export function attachmentMeta(v: unknown): { filename: string; contentType: string; size: number | null }[] {
+  if (!Array.isArray(v)) return []
+  return v.slice(0, 50).map(a => {
+    const o = (a && typeof a === 'object' ? a : {}) as Record<string, unknown>
+    const size = Number(o.size ?? o.content_length)
+    return { filename: cleanMeta(o.filename ?? o.name, 200) || 'attachment', contentType: cleanMeta(o.content_type ?? o.contentType, 100) || 'application/octet-stream', size: Number.isFinite(size) && size >= 0 ? Math.floor(size) : null }
+  })
+}
+
 export async function fetchReceivedEmail(id: string): Promise<ReceivedEmail> {
   if (!emailConfig.resendKey) throw new Error('RESEND_API_KEY is not configured')
   const res = await emailFetch(`${RESEND_API}/emails/receiving/${encodeURIComponent(id)}`, { method: 'GET', headers: { authorization: `Bearer ${emailConfig.resendKey}` } })
@@ -114,12 +138,16 @@ export async function fetchReceivedEmail(id: string): Promise<ReceivedEmail> {
     from: String(j.from ?? ''),
     to: list(j.to), cc: list(j.cc),
     subject: String(j.subject ?? ''),
-    text: String(j.text ?? ''),
+    // text may be null when the sender sent HTML only: the text is then taken from the HTML (never rendered)
+    text: typeof j.text === 'string' ? j.text : typeof j.html === 'string' && !String(j.html).startsWith('data:') ? htmlToText(String(j.html)) : '',
     messageId: String(j.message_id ?? headers['message-id'] ?? '') || null,
     inReplyTo: ids(headers['in-reply-to'])[0] ?? null,
     references: ids(headers['references']),
-    authentication: (j.authentication ?? {}) as Record<string, string | null>,
+    // spf / dkim / dmarc: pass | fail | gray | processing_failed | unknown; null on mail received before Resend added it
+    authentication: (j.authentication && typeof j.authentication === 'object' ? j.authentication : null) as Record<string, string | null> | null,
     attachmentCount: Array.isArray(j.attachments) ? j.attachments.length : 0,
     receivedAt: String(j.created_at ?? new Date().toISOString()),
+    headers: Object.fromEntries(LOOP_HEADERS.filter(h => headers[h] !== undefined).map(h => [h, headers[h].slice(0, 300)])),
+    attachments: attachmentMeta(j.attachments),
   }
 }

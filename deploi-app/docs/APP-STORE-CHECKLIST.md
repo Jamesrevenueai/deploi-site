@@ -1,5 +1,7 @@
 # Shopify App Store listing checklist, and private beta install links
 
+> **2026-11-06:** for the current submission state, use `docs/app-store/SUBMISSION-CHECKLIST.md` (requirement audit and founder steps), `docs/app-store/LISTING.md` and `docs/app-store/PROTECTED-CUSTOMER-DATA.md`. This page is kept for history.
+
 Status as of 2026-10-28. ✅ ready in the repo · 📝 drafted, needs your review · ⛔ needs you or a third party.
 
 ## 1. Before submitting

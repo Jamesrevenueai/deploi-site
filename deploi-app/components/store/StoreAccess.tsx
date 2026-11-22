@@ -41,6 +41,16 @@ export function StoreAccessCard({ connectionId, canAct }: { connectionId: string
   if (a.status === 'denied') {
     return <div className="mb-6"><Banner tone="warn"><strong>Changes are not enabled for this store.</strong> {a.reason}</Banner></div>
   }
+  if (a.mode === 'review') {
+    return (
+      <section className="mb-6" aria-labelledby="access-title">
+        <Panel tone="warn">
+          <h2 id="access-title" className="text-[1.1rem] flex items-center gap-2"><Icon name="shield" size={16} />Deploi is in Shopify App Store review</h2>
+          <p className="mt-2 text-[14px] text-grey">{a.reason} Development stores are enabled automatically.</p>
+        </Panel>
+      </section>
+    )
+  }
   return (
     <section className="mb-6" aria-labelledby="access-title">
       <Panel tone="warn">

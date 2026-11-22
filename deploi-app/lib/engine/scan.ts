@@ -29,11 +29,14 @@ export async function loadConnection(db: Db, id: string): Promise<ConnectionRow 
   return db.one<ConnectionRow>('select id, org_id, platform, external_id, display_name, status, scopes, api_version, is_synthetic, timezone, currency from store_connections where id = $1', [id])
 }
 
-export type ScanOptions = { trigger: ScanTrigger; resourceIds?: string[]; actor?: string; now?: Date; plan?: ScanPlan; onRecords?: (records: ResourceRecord[]) => void }
+export type ScanOptions = { trigger: ScanTrigger; resourceIds?: string[]; actor?: string; now?: Date; plan?: ScanPlan; onRecords?: (records: ResourceRecord[]) => void
+  /** carry the scan's results onto Resolution Engine cases (lib/engine/case-sync.ts); default true. An agent run syncs after deciding. */
+  syncCases?: boolean }
 
 /** Read the records, run the plan's checks (legacy merchant rules, or an agent's policy), reconcile. */
 export async function runScan(connectionId: string, opts: ScanOptions): Promise<ScanResult> {
   const now = opts.now ?? new Date()
+  const started = new Date(Date.now() - 1000)
   const actor = opts.actor ?? `system:scan:${opts.trigger}`
   const conn = await admin(db => loadConnection(db, connectionId))
   if (!conn) throw new EngineError('not_found', 'connection not found')
@@ -94,6 +97,11 @@ export async function runScan(connectionId: string, opts: ScanOptions): Promise<
     await audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'scan', entityId: scanId, event: 'scan.completed', actor, detail: { scope, agent_id: plan.agentId, ...counts } })
   })
   log.info('engine.scan', { connection_id: conn.id, agent_id: plan.agentId, scope, ...counts })
+  if (opts.syncCases !== false) {
+    // the case of every issue this scan touched follows it (opened, still open, gone on this fresh read)
+    const { syncScanCases } = await import('./case-sync')
+    await syncScanCases(conn.id, { scanId, since: started, agentId: plan.agentId }).catch(e => log.error('engine.scan_case_sync_failed', { connection_id: conn.id, error: (e as Error).message }))
+  }
   return { scanId, scope, ...counts }
 }
 

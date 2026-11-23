@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deploi — Command Center</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#4F46E5}a:hover{color:#3730A3}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.nav:hover{background:#EEF2FF}
+.btn:hover{filter:brightness(0.94)}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #4F46E5;outline-offset:2px}
+</style>
+</helmet>
+<div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1E1B4B; background: #FFFFFF; min-height: 100vh; display: flex; flex-wrap: wrap;">
+
+<!-- SIDEBAR -->
+<nav aria-label="Main" style="flex: 1 1 248px; max-width: 100%; box-sizing: border-box; padding: 24px 16px; border-right: 1px solid #E0E7FF; display: flex; flex-direction: column; gap: 24px; background: #FFFFFF;">
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px;">
+    <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#EEF2FF"/><path d="M10 10 L22 11 L21 22 L11 21 Z M10 10 L21 22" stroke="#A5B4FC" stroke-width="1.5" fill="none"/><circle cx="10" cy="10" r="3.6" fill="#4F46E5"/><circle cx="22" cy="11" r="2.6" fill="#4F46E5"/><circle cx="11" cy="21" r="2.6" fill="#4F46E5"/><circle cx="21" cy="22" r="2.8" fill="#E8734A"/></svg>
+    <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: #1E1B4B;">deploi<span style="color: #4F46E5;">.ai</span></span>
+  </div>
+
+  <div role="group" aria-label="Workspace" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #EEF2FF; border-radius: 12px;">
+    <button type="button" onClick="{{ setStore }}" aria-pressed="{{ isStore }}" style="{{ storeBtn }}">Store</button>
+    <button type="button" onClick="{{ setOffice }}" aria-pressed="{{ isOffice }}" style="{{ officeBtn }}">Office</button>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 2px;">
+    <a href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; background: #4F46E5; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Command center</a>
+    <a class="nav" href="Agent.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="4"/><path d="M12 3v4M9 13h.01M15 13h.01"/></svg>My agents<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #EEF2FF; color: #3730A3; padding: 2px 8px; border-radius: 999px;">{{ agentCount }}</span></a>
+    <a class="nav" href="Library.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h5v14H4zM10 5h4v14h-4zM15.5 5.5l4-1 3 13.5-4 1z"/></svg>Agent library</a>
+    <a class="nav" href="#approvals" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg>Approvals<span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #4F46E5; color: #FFFFFF; padding: 2px 8px; border-radius: 999px;">3</span></a>
+    <a class="nav" href="#activity" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>Proof log</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 7H7a5 5 0 000 10h2M15 7h2a5 5 0 010 10h-2M8 12h8"/></svg>Connections</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Reports</a>
+    <a class="nav" href="#" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 10px; color: #312E81; text-decoration: none; font-size: 14px; font-weight: 600;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>Settings</a>
+  </div>
+
+  <div style="margin-top: auto; padding: 16px; border: 1px solid #E0E7FF; border-radius: 14px; display: flex; flex-direction: column; gap: 10px;">
+    <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #4F46E5;"><span>Actions this month</span><span style="font-family: 'JetBrains Mono', monospace;">2,140 / 5,000</span></div>
+    <div style="height: 8px; background: #EEF2FF; border-radius: 999px; overflow: hidden;"><div style="width: 43%; height: 100%; background: #4F46E5; border-radius: 999px;"></div></div>
+    <span style="font-size: 12px; color: #3730A3;">Growth plan · renews Dec 1</span>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 40px 48px; display: flex; flex-direction: column; gap: 28px;">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px;">
+    <div style="display: flex; flex-direction: column; gap: 4px; margin-right: auto;">
+      <span style="font-size: 13px; font-weight: 600; color: #4F46E5;">{{ workspaceLabel }}</span>
+      <h1 style="margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; color: #1E1B4B;">Good afternoon, James</h1>
+    </div>
+    <label style="display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px solid #E0E7FF; border-radius: 12px; width: 280px; max-width: 100%; box-sizing: border-box; color: #4F46E5;">
+      <span class="sr">Search agents, orders, tasks</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input type="search" placeholder="Search agents, orders, tasks" style="border: 0; outline-offset: 4px; font: inherit; font-size: 14px; color: #1E1B4B; width: 100%; background: transparent;">
+    </label>
+    <button class="btn" type="button" style="min-height: 44px; padding: 0 18px; border: 0; border-radius: 12px; background: #4F46E5; color: #FFFFFF; font: inherit; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New agent</button>
+  </header>
+
+  <!-- HERO -->
+  <section aria-label="This week" style="border: 1px solid #E0E7FF; border-radius: 20px; background: #F5F7FF; padding: 32px; display: flex; flex-wrap: wrap; gap: 32px; align-items: center;">
+    <div style="flex: 1 1 380px; display: flex; flex-direction: column; gap: 14px;">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #4F46E5;">Time your agents saved this week</span>
+      <div style="display: flex; align-items: baseline; gap: 10px;"><span style="font-size: 72px; line-height: 1; font-weight: 800; letter-spacing: -0.04em; color: #1E1B4B;">{{ heroHours }}</span><span style="font-size: 22px; font-weight: 700; color: #3730A3;">hours</span></div>
+      <p style="margin: 0; font-size: 16px; line-height: 1.55; color: #3730A3; max-width: 520px;">{{ heroLine }}</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px;">
+        <a class="btn" href="#approvals" style="min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 12px; background: #4F46E5; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 14px;">Review 3 approvals</a>
+        <a class="btn" href="#activity" style="min-height: 44px; display: inline-flex; align-items: center; padding: 0 18px; border-radius: 12px; background: #FFFFFF; border: 1px solid #C7D2FE; color: #3730A3; text-decoration: none; font-weight: 700; font-size: 14px;">See the proof</a>
+      </div>
+    </div>
+    <div style="flex: 0 1 360px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+      <div style="background: #FFFFFF; border: 1px solid #E0E7FF; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;">
+        <svg width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="92 percent handled without you"><circle cx="32" cy="32" r="26" stroke="#E0E7FF" stroke-width="8" fill="none"/><circle cx="32" cy="32" r="26" stroke="#4F46E5" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="150 163" transform="rotate(-90 32 32)"/></svg>
+        <span style="font-size: 24px; font-weight: 800; color: #1E1B4B;">92%</span>
+        <span style="font-size: 12px; font-weight: 600; color: #4F46E5;">Handled without you</span>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E0E7FF; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start;">
+        <svg width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Store health 88 of 100"><circle cx="32" cy="32" r="26" stroke="#E0E7FF" stroke-width="8" fill="none"/><circle cx="32" cy="32" r="26" stroke="#7C6BFF" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="144 163" transform="rotate(-90 32 32)"/></svg>
+        <span style="font-size: 24px; font-weight: 800; color: #1E1B4B;">88</span>
+        <span style="font-size: 12px; font-weight: 600; color: #4F46E5;">{{ healthLabel }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPIs -->
+  <section aria-label="Key numbers" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+    <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+      <div style="border: 1px solid #E0E7FF; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF;">
+        <span style="font-size: 13px; font-weight: 600; color: #4F46E5;">{{ k.label }}</span>
+        <span style="font-size: 32px; font-weight: 800; letter-spacing: -0.03em; color: #1E1B4B;">{{ k.value }}</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <span style="font-size: 12px; color: #3730A3;">{{ k.sub }}</span>
+          <svg width="72" height="24" viewBox="0 0 72 24" aria-hidden="true"><polyline points="{{ k.spark }}" fill="none" stroke="#6366F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+    </sc-for>
+  </section>
+
+  <!-- ROSTER + ACTIVITY -->
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+    <section aria-labelledby="roster-h" style="flex: 1 1 420px; min-width: 0; border: 1px solid #E0E7FF; border-radius: 18px; overflow: hidden;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid #E0E7FF;">
+        <h2 id="roster-h" style="margin: 0; font-size: 17px; font-weight: 800; color: #1E1B4B;">{{ rosterTitle }}</h2>
+        <a href="Library.dc.html" style="font-size: 13px; font-weight: 700; text-decoration: none;">Open library →</a>
+      </div>
+      <ul style="list-style: none; margin: 0; padding: 0;">
+        <sc-for list="{{ roster }}" as="a" hint-placeholder-count="6">
+          <li style="display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid #EEF2FF;">
+            <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12" fill="#EEF2FF"/><rect x="9" y="13" width="22" height="16" rx="6" fill="#4F46E5"/><circle cx="16" cy="21" r="2.4" fill="#FFFFFF"/><circle cx="24" cy="21" r="2.4" fill="#FFFFFF"/><path d="M20 13V8" stroke="#4F46E5" stroke-width="2"/><circle cx="20" cy="7" r="2" fill="#E8734A"/></svg>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+              <a href="Agent.dc.html" style="font-size: 15px; font-weight: 700; color: #1E1B4B; text-decoration: none;">{{ a.name }}</a>
+              <span style="font-size: 13px; color: #3730A3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ a.last }}</span>
+            </div>
+            <span style="{{ a.pill }}">{{ a.status }}</span>
+          </li>
+        </sc-for>
+      </ul>
+    </section>
+
+    <section id="activity" aria-labelledby="act-h" style="flex: 1 1 380px; min-width: 0; border: 1px solid #E0E7FF; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h2 id="act-h" style="margin: 0; font-size: 17px; font-weight: 800; color: #1E1B4B;">Live work, with proof</h2>
+        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #4F46E5;"><span style="width: 8px; height: 8px; border-radius: 999px; background: #4F46E5;"></span>Live</span>
+      </div>
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0;">
+        <sc-for list="{{ activity }}" as="e" hint-placeholder-count="5">
+          <li style="display: flex; gap: 14px; padding-bottom: 16px;">
+            <div style="display: flex; flex-direction: column; align-items: center;"><span style="width: 10px; height: 10px; border-radius: 999px; border: 2px solid #4F46E5; background: #FFFFFF; margin-top: 4px;"></span><span style="flex: 1; width: 2px; background: #E0E7FF; margin-top: 4px;"></span></div>
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <span style="font-size: 12px; font-family: 'JetBrains Mono', monospace; color: #4F46E5;">{{ e.time }} · {{ e.agent }}</span>
+              <span style="font-size: 14px; line-height: 1.45; color: #1E1B4B;">{{ e.text }}</span>
+              <a href="#" style="font-size: 13px; font-weight: 700; text-decoration: none;">{{ e.proof }} →</a>
+            </div>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+  </div>
+
+  <!-- APPROVALS -->
+  <section id="approvals" aria-labelledby="ap-h" style="border: 1px solid #E0E7FF; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: baseline; gap: 10px;"><h2 id="ap-h" style="margin: 0; font-size: 17px; font-weight: 800; color: #1E1B4B;">Waiting on you</h2><span style="font-size: 13px; color: #3730A3;">Agents found these and prepared the fix. One tap to approve.</span></div>
+    <sc-for list="{{ approvals }}" as="p" hint-placeholder-count="3">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: #F5F7FF;">
+        <span style="width: 10px; height: 10px; border-radius: 999px; background: #E8734A;" aria-hidden="true"></span>
+        <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 15px; font-weight: 700; color: #1E1B4B;">{{ p.title }}</span>
+          <span style="font-size: 13px; color: #3730A3;">{{ p.agent }} · {{ p.detail }}</span>
+        </div>
+        <button class="btn" type="button" style="min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid #C7D2FE; background: #FFFFFF; color: #3730A3; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;">Edit</button>
+        <button class="btn" type="button" style="min-height: 44px; padding: 0 18px; border-radius: 10px; border: 0; background: #4F46E5; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;">Approve</button>
+      </div>
+    </sc-for>
+  </section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(p){ super(p); this.state = { mode: 'store' }; }
+  renderVals() {
+    const store = this.state.mode === 'store';
+    const on = 'min-height:44px;border:0;border-radius:9px;background:#4F46E5;color:#FFFFFF;font:inherit;font-size:14px;font-weight:700;cursor:pointer;';
+    const off = 'min-height:44px;border:0;border-radius:9px;background:transparent;color:#3730A3;font:inherit;font-size:14px;font-weight:700;cursor:pointer;';
+    const pill = (s) => s === 'Working'
+      ? 'font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;background:#4F46E5;color:#FFFFFF;white-space:nowrap;'
+      : s === 'Needs you'
+      ? 'font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;background:#FFF1EB;color:#9A3412;white-space:nowrap;'
+      : 'font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;background:#EEF2FF;color:#3730A3;white-space:nowrap;';
+    const storeRoster = [
+      { name: 'Inventory Watcher', last: 'Drafted a reorder for 3 low-stock SKUs', status: 'Needs you' },
+      { name: 'Order Tracker', last: 'Sent 14 delivery updates to customers', status: 'Working' },
+      { name: 'Customer Care', last: 'Answered 22 tickets, 2 escalated', status: 'Working' },
+      { name: 'Listing Writer', last: 'Rewrote 6 product descriptions', status: 'Idle' },
+      { name: 'Supplier Chaser', last: 'Followed up on PO #1042 with supplier', status: 'Working' },
+      { name: 'Store Health Checker', last: 'Found 2 broken links, fixed both', status: 'Idle' }
+    ];
+    const officeRoster = [
+      { name: 'Invoice Runner', last: 'Built 4 commission invoices from closed leases', status: 'Needs you' },
+      { name: 'Dispatch Coordinator', last: 'Routed 7 jobs to 3 crews for tomorrow', status: 'Working' },
+      { name: 'CRM Follow-up', last: 'Logged 11 calls and set next steps', status: 'Working' },
+      { name: 'Lead Responder', last: 'Replied to 5 new leads within 2 minutes', status: 'Working' },
+      { name: 'Books Reconciler', last: 'Matched 38 QuickBooks transactions', status: 'Idle' },
+      { name: 'Owner Updates', last: 'Texted you a 6 pm summary with links', status: 'Idle' }
+    ];
+    return {
+      isStore: store, isOffice: !store,
+      storeBtn: store ? on : off, officeBtn: store ? off : on,
+      setStore: () => this.setState({ mode: 'store' }),
+      setOffice: () => this.setState({ mode: 'office' }),
+      workspaceLabel: store ? 'Store · Northwind Supply (dev store)' : 'Office · Northwind Property Group',
+      agentCount: store ? '12' : '6',
+      heroHours: store ? '14.5' : '9.0',
+      heroLine: store
+        ? 'Your agents handled 128 tasks today. They spotted 3 problems on their own and fixed 2 — the third needs your OK.'
+        : 'Your office agents sent invoices, routed crews and answered leads. One commission invoice is ready for your sign-off.',
+      healthLabel: store ? 'Store health score' : 'Pipeline health',
+      rosterTitle: store ? 'Store agents' : 'Office agents',
+      roster: (store ? storeRoster : officeRoster).map(a => ({ ...a, pill: pill(a.status) })),
+      kpis: [
+        { label: 'Agents running', value: store ? '9 of 12' : '4 of 6', sub: 'All healthy', spark: '0,18 12,16 24,17 36,12 48,13 60,8 72,6' },
+        { label: 'Tasks done today', value: store ? '128' : '47', sub: '+18% vs. last Sunday', spark: '0,20 12,17 24,18 36,13 48,10 60,9 72,4' },
+        { label: 'Waiting on you', value: '3', sub: 'Oldest: 12 min ago', spark: '0,10 12,14 24,12 36,16 48,14 60,18 72,17' },
+        { label: 'Fixed before you noticed', value: store ? '31' : '12', sub: 'This week', spark: '0,19 12,18 24,14 36,15 48,11 60,7 72,5' }
+      ],
+      activity: store ? [
+        { time: '12:08', agent: 'Supplier Chaser', text: 'Emailed Acme Goods about late PO #1042 and got a new ship date: Nov 25.', proof: 'View email thread' },
+        { time: '11:52', agent: 'Store Health Checker', text: 'Found 2 broken collection links and pointed them to live pages.', proof: 'View before / after' },
+        { time: '11:30', agent: 'Customer Care', text: 'Refunded order #3381 under your 30-day policy and replied to the customer.', proof: 'View ticket + refund' },
+        { time: '11:04', agent: 'Order Tracker', text: 'Spotted 4 stuck shipments and messaged the carrier.', proof: 'View tracking log' },
+        { time: '10:41', agent: 'Listing Writer', text: 'Rewrote 6 descriptions to match your brand voice.', proof: 'View diff' }
+      ] : [
+        { time: '12:02', agent: 'Invoice Runner', text: 'Built commission invoice for 14 Elm St lease and attached the signed lease.', proof: 'View invoice draft' },
+        { time: '11:40', agent: 'Dispatch Coordinator', text: 'Moved the 2 pm HVAC job to Crew B and texted both crews.', proof: 'View route + texts' },
+        { time: '11:15', agent: 'Lead Responder', text: 'Booked a showing for a new lead from your website form.', proof: 'View conversation' },
+        { time: '10:58', agent: 'CRM Follow-up', text: 'Logged 11 calls in your CRM and set follow-up tasks.', proof: 'View CRM entries' },
+        { time: '10:20', agent: 'Owner Updates', text: 'Sent you a voice note: 3 jobs done, 1 needs a decision.', proof: 'Play voice note' }
+      ],
+      approvals: store ? [
+        { title: 'Reorder 40 units of Linen Throw — Sand', agent: 'Inventory Watcher', detail: 'Stock runs out in 4 days at current pace' },
+        { title: 'Start a 15% weekend promo on Candles', agent: 'Promo Manager', detail: 'Slow mover, 62 units on hand' },
+        { title: 'Refund $184.00 on order #3392 (outside policy)', agent: 'Customer Care', detail: 'Customer is a 9-time buyer' }
+      ] : [
+        { title: 'Send commission invoice — 14 Elm St', agent: 'Invoice Runner', detail: 'Ready to email to the landlord' },
+        { title: 'Add Saturday overtime for Crew A', agent: 'Dispatch Coordinator', detail: '3 jobs would slip to Monday' },
+        { title: 'Reply to the Hilltop HOA proposal', agent: 'CRM Follow-up', detail: 'Draft written in your tone' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

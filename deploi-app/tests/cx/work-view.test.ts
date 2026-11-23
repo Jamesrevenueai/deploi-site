@@ -20,23 +20,26 @@ const approval = (over: Partial<ApprovalEntry> = {}): ApprovalEntry => ({ source
 
 describe('customer navigation', () => {
   it('has the exact labels in order (approved redesign)', () => {
-    expect(NAV_LABELS).toEqual(['Command center', 'Needs you', 'My agents', 'Team room', 'Agent library', 'Proof log', 'Connections', 'Plan & actions'])
+    // the Indigo design (design-ref/app-command-center.html)
+    expect(NAV_LABELS).toEqual(['Command center', 'My agents', 'Agent library', 'Approvals', 'Proof log', 'Connections', 'Reports', 'Settings'])
   })
   it('maps each label to its page and keeps old pages under the right entry', () => {
     expect(nav('Command center').href).toBe('/store')
-    expect(nav('Needs you')).toMatchObject({ href: '/store/approvals', count: 'needsYou' })
+    expect(nav('Approvals')).toMatchObject({ href: '/store/approvals', count: 'needsYou' })
     expect(nav('My agents')).toMatchObject({ href: '/store/my-team', count: 'agents' })
-    expect(nav('Team room').href).toBe('/store/room')
+    expect(navActive(nav('My agents'), '/store/room')).toBe(true) // the team room lives under My agents
     expect(nav('Agent library').href).toBe('/store/team')
     expect(nav('Proof log').href).toBe('/store/completed')
-    expect(nav('Plan & actions').href).toBe('/store/plan')
+    expect(nav('Reports').href).toBe('/store/weekly')
+    expect(nav('Settings').href).toBe('/store/settings')
+    expect(navActive(nav('Settings'), '/store/plan')).toBe(true)
     expect(navActive(nav('Command center'), '/store/control-room')).toBe(true)
     expect(navActive(nav('Command center'), '/store/work')).toBe(false)
     expect(navActive(nav('My agents'), '/store/agents/x')).toBe(true)
     expect(navActive(nav('My agents'), '/agents/store%3Ainventory_watcher')).toBe(true)
     expect(navActive(nav('My agents'), '/office/agents')).toBe(true)
     expect(navActive(nav('Proof log'), '/store/activity')).toBe(true)
-    expect(navActive(nav('Plan & actions'), '/store/billing')).toBe(true)
+    expect(navActive(nav('Settings'), '/store/billing')).toBe(true)
     expect(navActive(nav('Connections'), '/store/connect/woocommerce')).toBe(true)
     // every path is claimed by at most one entry
     for (const p of ['/store', '/store/approvals', '/store/my-team', '/store/team/listing_writer', '/store/completed', '/office/approvals', '/office/connections']) expect(MERCHANT_NAV.filter(n => navActive(n, p))).toHaveLength(1)

@@ -122,13 +122,13 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
   it('renders the real agent: header, four stats, scopes with their level words, back link to the command center', async () => {
     await load(STORE)
     expect(screen.getByRole('heading', { level: 1, name: 'Inventory Watcher' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Command center/ }).getAttribute('href')).toBe('/store')
-    expect(within(screen.getByRole('list', { name: 'This agent in numbers' })).getAllByRole('listitem').map(li => li.firstChild?.textContent))
+    expect(screen.getByRole('link', { name: '← All agents' }).getAttribute('href')).toBe('/store/my-team')
+    expect(screen.getAllByTestId('agent-stat').map(li => li.firstChild?.textContent))
       .toEqual(['Products watched', 'Sell-outs prevented (30 days)', 'Time saved this week', 'Actions used this month'])
-    const scopes = within(screen.getByRole('list', { name: 'What it can touch' })).getAllByRole('listitem').map(li => li.textContent)
-    expect(scopes).toEqual(expect.arrayContaining(['Read your store· read', 'Reorder stock from a supplier· ask first']))
+    const scopes = within(screen.getByTestId('permissions')).getAllByRole('listitem').map(li => li.textContent)
+    expect(scopes).toEqual(expect.arrayContaining(['Read your storeOn', 'Reorder stock from a supplierAsks first']))
     expect(screen.getByRole('button', { name: 'Pause agent' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Call this agent/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Run a check now' })).toBeTruthy()
     for (const name of [/Message Inventory Watcher/, /Speak to Inventory Watcher/, /Send message/]) expect(screen.getAllByLabelText(name).length).toBeGreaterThan(0)
   })
 
@@ -181,13 +181,13 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
 
     await load(PACK)
     expect((screen.getByRole('radio', { name: /Fully autonomous/ }) as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByText('Waiting on you')).toBeTruthy()
+    expect(screen.getByTestId('agent-status').textContent).toBe('Needs you')
     expect(screen.getByTestId('doing-now').textContent).toBe('Waiting for you: Ledger ui:money needs a refund')
     const row = within(screen.getByRole('table')).getByText('Ledger ui:money needs a refund').closest('tr')!
     expect(row.textContent).toContain('Waiting for you')
     expect(within(row).getByRole('link').getAttribute('href')).toMatch(/^\/store\/work\//)
     // its own (non-money) action acts under "Fully autonomous"; the refund above still waited
-    expect(within(screen.getByRole('list', { name: 'What it can touch' })).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Update record· acts'])
+    expect(within(screen.getByTestId('permissions')).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Update recordOn'])
 
     // the chat offers the decision inline; declining goes through POST /api/app/needs-you/:id and nothing moves
     fireEvent.change(screen.getByLabelText('Message Ledger Test'), { target: { value: 'anything that needs me?' } })
@@ -201,7 +201,7 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
 
   it('standing instructions: add, edit and delete inline through the API', async () => {
     await load(STORE)
-    expect(screen.getByText('No standing instructions yet')).toBeTruthy()
+    expect(screen.getByText(/^No standing instructions yet/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Add a standing instruction for Inventory Watcher' }))
     fireEvent.change(screen.getByLabelText('New instruction for Inventory Watcher'), { target: { value: 'Never reorder candles' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save instruction' }))
@@ -217,7 +217,7 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
     await load(STORE)
     expect(screen.getByText('Never reorder candles in July')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Delete instruction: Never reorder candles in July' }))
-    await screen.findByText('No standing instructions yet')
+    await screen.findByText(/^No standing instructions yet/)
     expect(await instructions(STORE)).toEqual([])
     expect(calls.filter(c => /instructions/.test(c)).map(c => c.split(' ')[0])).toEqual(['POST', 'PATCH', 'DELETE'])
   })
@@ -235,9 +235,9 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
     const greeting = document.querySelector('[data-greeting]')!
     const doing = screen.getByTestId('doing-now').textContent!
     expect(greeting.textContent).toBe(`Hi, I'm Ledger Test. ${doing}. Ask me how things are, what I did today or what needs you, or tell me to pause.`)
-    expect(screen.getByText('No work yet — finished work shows here with its proof')).toBeTruthy()
+    expect(screen.getByText('No work yet. Finished work shows here with its proof.')).toBeTruthy()
     expect(screen.queryByRole('table')).toBeNull()
-    expect(screen.getByText('No standing instructions yet')).toBeTruthy()
+    expect(screen.getByText(/^No standing instructions yet/)).toBeTruthy()
     expect(await history(PACK)).toEqual([])
   })
 
@@ -252,9 +252,9 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
     expect(screen.getByText(/^Inventory Watcher: /)).toBeTruthy()
   })
 
-  it('"Call this agent" without browser speech falls back to text and says so', async () => {
+  it('the microphone without browser speech falls back to text and says so', async () => {
     await load(STORE)
-    fireEvent.click(screen.getByRole('button', { name: /Call this agent/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Speak to Inventory Watcher' }))
     expect(screen.getByText('Voice is not available in this browser, so you can type to Inventory Watcher instead.')).toBeTruthy()
     expect(document.activeElement).toBe(screen.getByLabelText('Message Inventory Watcher'))
   })
@@ -263,7 +263,7 @@ describe.skipIf(!ready)('agent dashboard UI (DOM -> /api/app -> database)', () =
     await load(PACK)
     fireEvent.click(screen.getByRole('button', { name: 'Pause agent' }))
     await screen.findByRole('button', { name: 'Resume agent' })
-    expect(screen.getByText('Off')).toBeTruthy()
+    expect(screen.getByTestId('agent-status').textContent).toBe('Paused')
     expect(screen.getByTestId('doing-now').textContent).toBe('Paused by you')
     expect((await profile(PACK))!.paused_at).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Resume agent' }))

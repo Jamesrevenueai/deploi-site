@@ -8,6 +8,10 @@ import { useRef, useState, type KeyboardEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Workspace } from '@/lib/app/contract'
 import { storeFetch, StoreApiError } from '@/components/store/api'
+import { css } from '@/components/dp/css'
+
+const ON = 'min-height:44px;border:0;border-radius:9px;background:#4F46E5;color:#FFFFFF;font:inherit;font-size:14px;font-weight:700;cursor:pointer;'
+const OFF = 'min-height:44px;border:0;border-radius:9px;background:transparent;color:#3730A3;font:inherit;font-size:14px;font-weight:700;cursor:pointer;'
 
 const OPTIONS: { value: Workspace; label: string }[] = [{ value: 'store', label: 'Store' }, { value: 'office', label: 'Office' }]
 
@@ -43,18 +47,18 @@ export function WorkspaceSwitch({ workspace }: { workspace: Workspace }) {
 
   return (
     <div>
-      <div className="app-switch" role="radiogroup" aria-label="Workspace" aria-busy={busy || undefined}>
+      <div role="radiogroup" aria-label="Workspace" aria-busy={busy || undefined} style={css('display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; background: #EEF2FF; border-radius: 12px;')}>
         {OPTIONS.map((o, i) => {
           const on = o.value === current
           return (
             <button key={o.value} ref={el => { refs.current[i] = el }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1}
-              onClick={() => void choose(o.value)} onKeyDown={e => onKey(e, i)} data-testid={`workspace-${o.value}`}>
+              onClick={() => void choose(o.value)} onKeyDown={e => onKey(e, i)} data-testid={`workspace-${o.value}`} style={css(on ? ON : OFF)}>
               {o.label}
             </button>
           )
         })}
       </div>
-      {error && <p role="alert" className="app-ws-sources" style={{ color: '#A11B1B' }}>{error}</p>}
+      {error && <p role="alert" style={css('margin: 6px 0 0; font-size: 12px; color: #B42318;')}>{error}</p>}
     </div>
   )
 }

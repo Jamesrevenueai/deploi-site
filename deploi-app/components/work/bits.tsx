@@ -27,7 +27,7 @@ export function CaseRowCard({ c, dir }: { c: CaseItem; dir: AgentDirectory }) {
   const agent = agentLabel(dir, c.agent_kind, c.agent_ref)
   return (
     <li data-case={c.ref}>
-      <Link href={caseHref(c.ref)} className="panel block p-4 transition-colors hover:border-[var(--c-accent-line)] md:p-5" aria-label={`${c.title} (${c.ref})`}>
+      <Link href={caseHref(c.ref)} className="panel block p-4 transition-colors hover:border-[var(--c-accent-line)] md:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <CaseStatusBadge status={c.status} />
           <PriorityBadge priority={c.priority} />

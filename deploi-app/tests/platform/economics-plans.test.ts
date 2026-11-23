@@ -2,7 +2,7 @@
  * Unit economics math and report; workflow cost counters; the plans table drives entitlements; staff
  * plan edits are audited and need owner approval; hypothesis plans are refused for live checkout.
  */
-import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll, onTestFinished } from 'vitest'
 import { prepareDb } from '../db/helpers'
 import { admin } from '../../lib/db'
 import { NW, HB } from '../merchant/helpers'
@@ -98,7 +98,7 @@ describe.skipIf(!ready)('metering, report and plans', () => {
     })
     const r = await admin(db => economicsReport(db, month))
     const nw = r.orgs.find(o => o.orgId === NW.org)!, hb = r.orgs.find(o => o.orgId === HB.org)!
-    expect(nw).toMatchObject({ plan: 'growth', revenueUsd: 79, aiCostUsd: 50, aiCalls: 1, emailsSent: 1000, flags: ['above_target'] })
+    expect(nw).toMatchObject({ plan: 'growth', revenueUsd: 199, aiCostUsd: 50, aiCalls: 1, emailsSent: 1000, flags: ['above_target'] })
     expect(nw.variableCostUsd).toBeCloseTo(50 + 1000 * unitPrices().emailUsd, 4)
     expect(hb).toMatchObject({ revenueUsd: 0, aiCostUsd: 0.5, flags: ['no_revenue_with_cost'] })
     expect(r.orgs[0].orgId).toBe(NW.org) // highest cost first
@@ -107,15 +107,15 @@ describe.skipIf(!ready)('metering, report and plans', () => {
   })
 
   it('the plans table drives entitlements (cached; constants when a limit is missing); env overrides are kept with billing off', async () => {
-    expect(await admin(db => planLimits(db, 'starter'))).toMatchObject({ maxAgents: 5, monthlyActions: 150, aiBudgetUsd: 5, planKey: 'starter' })
+    expect(await admin(db => planLimits(db, 'starter'))).toMatchObject({ maxAgents: 12, monthlyActions: 1500, aiBudgetUsd: 10, planKey: 'starter' }) // pricing v2 (migration 066)
     await setLimit('starter', 'monthlyEmails', 321)
     expect((await admin(db => orgEntitlements(db, NW.org))).monthlyEmails).toBe(321)
     // a limit missing from the row falls back to the constant
     await admin(db => db.query(`update plans set limits = limits - 'officeSeats' where key = 'starter'`)); invalidatePlanCache()
     expect((await admin(db => planLimits(db, 'starter'))).officeSeats).toBe(2)
     // an organization on one of the suites gets that plan's limits
-    await admin(db => db.query(`update agencies set plan_key = 'business_workforce' where id = $1`, [NW.org]))
-    expect(await admin(db => orgEntitlements(db, NW.org))).toMatchObject({ maxAgents: 10, monthlyActions: 3000, aiBudgetUsd: 40 }) // maxAgents: PLAN_MAX_AGENTS default while billing is off
+    await admin(db => db.query(`update agencies set plan_key = 'team' where id = $1`, [NW.org]))
+    expect(await admin(db => orgEntitlements(db, NW.org))).toMatchObject({ maxAgents: 10, monthlyActions: 6000, aiBudgetUsd: 35 }) // maxAgents: PLAN_MAX_AGENTS default while billing is off
     // an empty table: the constants (inside a transaction that is rolled back)
     invalidatePlanCache()
     const seen = await admin(async db => {
@@ -124,10 +124,12 @@ describe.skipIf(!ready)('metering, report and plans', () => {
       throw Object.assign(new Error('rollback'), { l })
     }).catch((e: { l?: unknown }) => e.l)
     invalidatePlanCache()
-    expect(seen).toMatchObject({ maxAgents: 12, monthlyActions: 500, aiBudgetUsd: 12, planKey: null })
+    expect(seen).toMatchObject({ maxAgents: 12, monthlyActions: 5000, aiBudgetUsd: 12, planKey: null })
     const all = await admin(db => db.query('select * from plans'))
-    expect(all.length).toBe(6)
-    expect((await loadPlans()).filter(p => p.status === 'hypothesis').map(p => p.key).sort()).toEqual(['business_workforce', 'commerce_operations', 'growth', 'office_starter', 'pro', 'starter'])
+    expect(all.length).toBe(9) // 6 published + 3 retired
+    // pricing v2: the six published plans are approved; the earlier hypothesis bundles are retired
+    expect((await loadPlans()).filter(p => p.status === 'approved' && p.active).map(p => p.key).sort()).toEqual(['business', 'growth', 'pro', 'solo', 'starter', 'team'])
+    expect((await loadPlans()).filter(p => p.status === 'retired').map(p => p.key).sort()).toEqual(['business_workforce', 'commerce_operations', 'office_starter'])
   })
 
   it('staff edits are versioned and audited; only an owner approves; a price change returns an approved plan to hypothesis; subscriptions are untouched', async () => {
@@ -157,7 +159,10 @@ describe.skipIf(!ready)('metering, report and plans', () => {
     Object.assign(process.env, { BILLING_MODE: 'live', VERCEL_ENV: 'production', STRIPE_SECRET_KEY: 'sk_live_x', STRIPE_WEBHOOK_SECRET: 'whsec_x', STRIPE_PRICE_STARTER_MONTHLY: 'price_Live1' })
     let called = 0
     const fetchImpl = (async () => { called++; return new Response('{}', { status: 500 }) }) as unknown as typeof fetch
+    // a retired plan is not on sale; a plan put back to hypothesis is refused live
     await expect(admin(db => createCheckoutSession(db, { orgId: HB.org, plan: 'office_starter', actor: 'test', appUrl: 'https://app.example', fetchImpl }))).rejects.toMatchObject({ status: 409, code: 'plan_not_approved' })
+    await admin(db => db.query(`update plans set status = 'hypothesis' where key = 'starter'`)); invalidatePlanCache()
+    onTestFinished(async () => { await admin(db => db.query(`update plans set status = 'approved' where key = 'starter'`)); invalidatePlanCache() })
     await expect(admin(db => createCheckoutSession(db, { orgId: HB.org, plan: 'starter', actor: 'test', appUrl: 'https://app.example', fetchImpl }))).rejects.toMatchObject({ code: 'plan_not_approved' })
     expect(called).toBe(0)
     // test mode: the hypothesis passes the approval check (this Shopify store is then sent to Shopify billing)

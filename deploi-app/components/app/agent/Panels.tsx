@@ -1,75 +1,80 @@
-import { useId } from 'react'
-import { Card as UiCard } from '@/components/app/ui'
+import Link from 'next/link'
 import type { AgentScope, AgentStat, WorkRow } from '@/lib/app/contract'
-import { Card, EmptyState, ProofChip, SCOPE_STYLE, Table, formatStat, formatWhen, HEADING_FONT } from './bits'
+import { css } from '@/components/dp/css'
+import { H2 } from '@/components/dp/bits'
+import { formatStat, formatWhen } from './bits'
 
-/** Four stat cards (auto-fit, 180px minimum) from the dashboard's agent-specific stats. */
+/** Four stat cards (design-ref/app-agent-dashboard.html), from the dashboard's agent-specific stats. */
 export function StatCards({ stats }: { stats: AgentStat[] }) {
   return (
-    <ul className="m-0 grid list-none gap-3 p-0" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }} aria-label="This agent in numbers">
-      {stats.map(s => (
-        <UiCard as="li" key={s.key}>
-          <p className="m-0 text-[13px] font-medium text-[#5C5C70]">{s.label}</p>
-          <p className="m-0 mt-1 text-[28px] font-bold leading-tight text-[#14141F]" style={{ fontFamily: HEADING_FONT }}>{formatStat(s.value, s.unit)}</p>
-        </UiCard>
+    <section aria-label="Agent numbers" style={css('display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;')}>
+      {stats.slice(0, 4).map(s => (
+        <div key={s.key} data-testid="agent-stat" style={css('border: 1px solid #E0E7FF; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 6px;')}>
+          <span style={css('font-size: 13px; font-weight: 600; color: #4F46E5;')}>{s.label}</span>
+          <span style={css('font-size: 28px; font-weight: 800; color: #1E1B4B;')}>{formatStat(s.value, s.unit)}</span>
+        </div>
       ))}
-    </ul>
+    </section>
   )
 }
 
-/** "What it can touch": one pill per real scope, its colour and its word both saying the level. */
+const ON = 'font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #4F46E5; color: #FFFFFF; white-space: nowrap;'
+const ASKS = 'font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #EEF2FF; color: #3730A3; white-space: nowrap;'
+const OFF = 'font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C7D2FE; color: #3730A3; white-space: nowrap;'
+
+/** The design's three states, from the real level: reading (or acting) = On; drafts and ask-first wait for you = Asks first; a write it may not do = Off. */
+export function permissionOf(s: AgentScope): 'On' | 'Asks first' | 'Off' {
+  if (s.level === 'act') return 'On'
+  if (s.level === 'ask' || s.level === 'draft') return 'Asks first'
+  return /^(read|see|view|watch)\b/i.test(s.label) ? 'On' : 'Off'
+}
+
+/** "What it's allowed to do": one row per real scope with On / Asks first / Off. */
 export function ScopesCard({ scopes }: { scopes: AgentScope[] }) {
-  const titleId = useId()
   return (
-    <Card title="What it can touch" titleId={titleId}>
-      {scopes.length === 0 ? (
-        <EmptyState title="Nothing granted yet">It can touch nothing until you connect a system and switch it on.</EmptyState>
-      ) : (
-        <ul className="m-0 flex list-none flex-wrap gap-2 p-0" aria-labelledby={titleId}>
+    <section aria-labelledby="perm-h" style={css('border: 1px solid #E0E7FF; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;')}>
+      <h2 id="perm-h" style={css(H2)}>What it&apos;s allowed to do</h2>
+      {scopes.length === 0 ? <p style={css('margin: 0; font-size: 14px; color: #3730A3;')}>Nothing yet: it can touch nothing until you connect a system and switch it on.</p> : (
+        <ul style={css('margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;')} data-testid="permissions">
           {scopes.map(s => {
-            const st = SCOPE_STYLE[s.level]
+            const p = permissionOf(s)
             return (
-              <li key={`${s.label}-${s.level}`} className="inline-flex items-center gap-2 rounded-full px-3 py-[6px] text-[13px]" style={{ background: st.bg, color: st.text }} data-level={s.level}>
-                <span className="font-medium">{s.label}</span>
-                <span className="font-bold">· {st.label}</span>
+              <li key={`${s.label}-${s.level}`} data-level={s.level} style={css('display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 40px; font-size: 14px; color: #1E1B4B;')}>
+                <span>{s.label}</span><span style={css(p === 'On' ? ON : p === 'Asks first' ? ASKS : OFF)}>{p}</span>
               </li>
             )
           })}
         </ul>
       )}
-    </Card>
+    </section>
   )
 }
 
-/** "Work done, with proof": scrolls sideways inside its own box on a phone. */
+/** "Work log — every action, with proof": When / What it did / Result / Proof. Scrolls sideways in its own box on a phone. */
 export function WorkTable({ rows }: { rows: WorkRow[] }) {
-  const titleId = useId()
   return (
-    <Card title="Work done, with proof" titleId={titleId}>
-      {rows.length === 0 ? (
-        <EmptyState title="No work yet — finished work shows here with its proof" />
-      ) : (
-        <Table label="Work done, table (scrolls sideways on small screens)" minWidth={640}>
-            <thead>
-              <tr>
-                <th scope="col">When</th>
-                <th scope="col">What it did</th>
-                <th scope="col">Result</th>
-                <th scope="col">Proof</th>
-              </tr>
-            </thead>
+    <section aria-labelledby="log-h" style={css('border: 1px solid #E0E7FF; border-radius: 18px; overflow: hidden;')}>
+      <div style={css('padding: 16px 20px; border-bottom: 1px solid #E0E7FF;')}><h2 id="log-h" style={css(H2)}>Work log — every action, with proof</h2></div>
+      {rows.length === 0 ? <p style={css('margin: 0; padding: 18px 20px; font-size: 14px; color: #3730A3;')}>No work yet. Finished work shows here with its proof.</p> : (
+        <div style={css('overflow-x: auto;')} role="region" aria-label="Work log (scrolls sideways on small screens)" tabIndex={0}>
+          <table style={css('width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px;')} data-testid="work-log">
+            <thead><tr style={css('text-align: left; color: #4F46E5; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;')}>
+              {['When', 'What it did', 'Result', 'Proof'].map(h => <th key={h} scope="col" style={css('padding: 12px 20px; font-weight: 700;')}>{h}</th>)}
+            </tr></thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={`${r.when}-${i}`}>
-                  <td className="whitespace-nowrap text-[#5C5C70]"><time dateTime={r.when} suppressHydrationWarning>{formatWhen(r.when)}</time></td>
-                  <td className="text-[#14141F]">{r.what}</td>
-                  <td className="whitespace-nowrap">{r.result}</td>
-                  <td>{r.proof ? <ProofChip proof={r.proof} context={r.what} /> : <span className="text-[#5C5C70]">None yet</span>}</td>
+              {rows.slice(0, 10).map((r, i) => (
+                <tr key={`${r.when}-${i}`} style={css('border-top: 1px solid #EEF2FF;')}>
+                  <td style={css("padding: 14px 20px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #4F46E5; white-space: nowrap;")}><time dateTime={r.when} suppressHydrationWarning>{formatWhen(r.when)}</time></td>
+                  <td style={css('padding: 14px 20px; color: #1E1B4B;')}>{r.what}</td>
+                  <td style={css('padding: 14px 20px; color: #3730A3;')}>{r.result}</td>
+                  <td style={css('padding: 14px 20px;')}>{r.proof ? <Link href={r.proof.href} data-testid="proof-link" style={css('font-weight: 700; text-decoration: none; color: #4F46E5;')}>{r.proof.label}</Link> : <span style={css('color: #3730A3;')}>Being recorded</span>}</td>
                 </tr>
               ))}
             </tbody>
-        </Table>
+          </table>
+          {rows.length > 10 && <p style={css('margin: 0; padding: 14px 20px; border-top: 1px solid #EEF2FF; font-size: 13px;')}><Link href="/store/completed" style={css('font-weight: 700; text-decoration: none; color: #4F46E5;')}>All {rows.length} entries in the proof log →</Link></p>}
+        </div>
       )}
-    </Card>
+    </section>
   )
 }

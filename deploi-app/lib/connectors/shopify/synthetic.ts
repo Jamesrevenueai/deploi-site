@@ -22,7 +22,9 @@ export type SynthState = {
   products: SynthProduct[]
   faults: SynthFault[]
   writeLog: { at: string; op: string; variantIds: string[]; inventoryPolicy: string }[]
-  subscriptions: { id: string; name: string; status: string; test: boolean; trialDays: number; currentPeriodEnd: string | null; createdAt: string }[]
+  subscriptions: { id: string; name: string; status: string; test: boolean; trialDays: number; currentPeriodEnd: string | null; createdAt: string; lineItems?: { id: string; kind: 'recurring' | 'usage'; cappedCents?: number; interval?: string; priceCents?: number }[] }[]
+  /** usage records charged against a subscription's usage line item (Billing API overage) */
+  usageRecords?: { id: string; lineItemId: string; amountCents: number; description: string; idempotencyKey: string | null }[]
   /** what the merchant has granted (currentAppInstallation.accessScopes); absent = everything the app can ask for */
   accessScopes?: string[]
   /** orders, returns, refunds, collections, discounts, payouts and mail for the commerce pack (see SynthCommerce) */
@@ -267,6 +269,37 @@ export function handleSynthetic(s: SynthState, body: { operationName?: string; v
       const id = `gid://shopify/AppSubscription/${900000 + s.subscriptions.length + 1}`
       s.subscriptions.push({ id, name: String(vars.name), status: 'PENDING', test: Boolean(vars.test), trialDays: Number(vars.trialDays ?? 0), currentPeriodEnd: null, createdAt: now.toISOString() })
       return { json: { data: { appSubscriptionCreate: { appSubscription: { id, status: 'PENDING' }, confirmationUrl: `https://${s.shop.myshopifyDomain}/admin/charges/synthetic/${id.split('/').pop()}/confirm`, userErrors: [] } }, extensions: COST(10) }, changed: true }
+    }
+    case 'DeploiSubscribe': {
+      const n = 900000 + s.subscriptions.length + 1
+      const id = `gid://shopify/AppSubscription/${n}`
+      const cents = (m: unknown) => Math.round(Number((m as { amount?: number })?.amount ?? 0) * 100)
+      const items = ((vars.lineItems ?? []) as { plan: { appRecurringPricingDetails?: { price: unknown; interval: string }; appUsagePricingDetails?: { cappedAmount: unknown; terms: string } } }[]).map((l, i) => ({
+        id: `gid://shopify/AppSubscriptionLineItem/${n}${i}?v=1&index=${i}`,
+        kind: (l.plan.appUsagePricingDetails ? 'usage' : 'recurring') as 'usage' | 'recurring',
+        ...(l.plan.appUsagePricingDetails ? { cappedCents: cents(l.plan.appUsagePricingDetails.cappedAmount) } : { priceCents: cents(l.plan.appRecurringPricingDetails?.price), interval: l.plan.appRecurringPricingDetails?.interval }),
+      }))
+      if (items.some(i => i.kind === 'usage') && items.some(i => 'interval' in i && i.interval === 'ANNUAL')) return { json: { data: { appSubscriptionCreate: { appSubscription: null, confirmationUrl: null, userErrors: [{ field: ['lineItems'], message: 'Annual subscriptions cannot have usage line items' }] } }, extensions: COST(10) }, changed: false }
+      s.subscriptions.push({ id, name: String(vars.name), status: 'PENDING', test: Boolean(vars.test), trialDays: Number(vars.trialDays ?? 0), currentPeriodEnd: null, createdAt: now.toISOString(), lineItems: items })
+      return { json: { data: { appSubscriptionCreate: { appSubscription: { id, status: 'PENDING', lineItems: items.map(i => ({ id: i.id, plan: { pricingDetails: { __typename: i.kind === 'usage' ? 'AppUsagePricing' : 'AppRecurringPricing' } } })) }, confirmationUrl: `https://${s.shop.myshopifyDomain}/admin/charges/synthetic/${n}/confirm`, userErrors: [] } }, extensions: COST(10) }, changed: true }
+    }
+    case 'DeploiUsageRecord': {
+      const lineId = String(vars.subscriptionLineItemId)
+      const sub = s.subscriptions.find(x => x.lineItems?.some(l => l.id === lineId && l.kind === 'usage'))
+      const line = sub?.lineItems?.find(l => l.id === lineId)
+      const err = (message: string) => ({ json: { data: { appUsageRecordCreate: { appUsageRecord: null, userErrors: [{ field: ['subscriptionLineItemId'], message }] } }, extensions: COST(10) }, changed: false })
+      if (!sub || !line) return err('Subscription line item not found')
+      if (sub.status !== 'ACTIVE') return err('The subscription is not active')
+      s.usageRecords ??= []
+      const key = vars.idempotencyKey ? String(vars.idempotencyKey) : null
+      const dup = key ? s.usageRecords.find(r => r.idempotencyKey === key) : undefined
+      if (dup) return { json: { data: { appUsageRecordCreate: { appUsageRecord: { id: dup.id }, userErrors: [] } }, extensions: COST(10) }, changed: false }
+      const amountCents = Math.round(Number((vars.price as { amount?: number })?.amount ?? 0) * 100)
+      const spent = s.usageRecords.filter(r => r.lineItemId === lineId).reduce((a, r) => a + r.amountCents, 0)
+      if (spent + amountCents > (line.cappedCents ?? 0)) return err('Total price exceeds balance remaining')
+      const rec = { id: `gid://shopify/AppUsageRecord/${700000 + s.usageRecords.length + 1}`, lineItemId: lineId, amountCents, description: String(vars.description ?? ''), idempotencyKey: key }
+      s.usageRecords.push(rec)
+      return { json: { data: { appUsageRecordCreate: { appUsageRecord: { id: rec.id }, userErrors: [] } }, extensions: COST(10) }, changed: true }
     }
     default:
       return { json: { errors: [{ message: `synthetic store does not implement ${op || 'anonymous operations'}` }] }, changed: Boolean(fault) }

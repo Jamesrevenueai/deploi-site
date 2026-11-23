@@ -53,7 +53,22 @@ testimonials, no prices outside the pricing section, no Shopify trademarks in im
 
 ## 3. Pricing
 
-**Free to install.** One free plan. No pricing details link.
+Billed through Shopify (Billing API, `appSubscriptionCreate`). Same numbers as getdeploi.com and the in-app
+billing page; all three come from `deploi-app/lib/pricing/catalog.json`. 14-day free trial on every plan.
+
+| Plan | Monthly | Yearly (2 months free) | Actions / month | Custom agents | Stores |
+|---|---|---|---|---|---|
+| Starter | $79 | $790 | 1,500 | 1 | 1 |
+| Growth | $199 | $1,990 | 5,000 | 5 | 1 |
+| Pro | $499 | $4,990 | 15,000 | Unlimited | Multiple |
+
+**Additional charges (usage):** $5 per 100 actions over the plan's allowance, billed as a Shopify usage charge up to
+the capped amount the merchant approves. An action is one finished step that changes something outside Deploi;
+watching, scanning and checking are free. At the cap, non-urgent work pauses and the owner is told. Shopify allows no
+usage charges on yearly plans, so a yearly plan pauses at its allowance instead.
+
+Agents by plan: Starter has Order Tracker, Inventory Watcher, Listing Writer, Supplier Chaser, Customer Care, Weekly
+Insights, Store Health Checker; Growth adds Returns, Campaign, Promo Manager, Payout & Fees Checker; Pro adds AI Visibility.
 
 ## 4. URLs and contact (all checked live 2026-11-22: HTTP 200)
 

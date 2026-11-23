@@ -4,6 +4,7 @@ import { agentDashboard, chatHistory } from '@/lib/app/contract'
 import { isEngineError } from '@/lib/engine/errors'
 import { AgentDashboard } from '@/components/app/agent/AgentDashboard'
 import { actorOf, agentIdFrom } from '@/components/app/agent/actor'
+import { loadShell } from '@/lib/app/shell'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Agent' }
@@ -22,5 +23,8 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
   })
   if (!loaded) notFound()
   const [dashboard, history] = loaded
-  return <AgentDashboard initial={dashboard} history={history} />
+  // the connected tools of the agent's side (Shopify, Outlook, HubSpot ...), for the hero line
+  const shell = await loadShell(actor).catch(() => null)
+  const tools = shell && shell.workspace === dashboard.agent.workspace ? shell.sources : []
+  return <AgentDashboard initial={dashboard} history={history} tools={tools} />
 }

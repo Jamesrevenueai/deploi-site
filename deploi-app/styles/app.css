@@ -81,10 +81,10 @@
 .app-signout span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* ------------------------------------------------------------------ type */
-.app-h1 { font-family: var(--app-font-heading); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--app-text); margin: 0; }
-.app-h2 { font-family: var(--app-font-heading); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; color: var(--app-text); margin: 0; }
+.app-h1 { font-family: var(--app-font-heading); font-size: 30px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.15; color: var(--app-text); margin: 0; }
+.app-h2 { font-family: var(--app-font-heading); font-size: 17px; font-weight: 800; letter-spacing: 0; line-height: 1.2; color: var(--app-text); margin: 0; }
 .app-muted { color: var(--app-text-2); }
-.app-link { color: var(--app-proof-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.app-link { color: #4F46E5; font-weight: 700; text-decoration: none; }
 @media (max-width: 640px) { .app-h1 { font-size: 24px; } }
 
 /* ------------------------------------------------------------------ primitives */
@@ -95,10 +95,10 @@
   transition: background .15s ease, border-color .15s ease;
 }
 .app-btn--primary { background: var(--app-btn-bg); color: var(--app-btn-text); }
-.app-btn--primary:hover { background: #2A2A3A; }
-.app-btn--secondary { background: var(--app-surface); color: var(--app-text); border-color: var(--app-border-input); }
+.app-btn--primary:hover { background: #4338CA; }
+.app-btn--secondary { background: var(--app-surface); color: #3730A3; border-color: #C7D2FE; }
 .app-btn--secondary:hover { background: var(--app-fill); }
-.app-btn--text { background: transparent; color: var(--app-proof-text); padding: 0 10px; text-decoration: underline; text-underline-offset: 3px; }
+.app-btn--text { background: transparent; color: #4F46E5; padding: 0 10px; text-decoration: none; }
 .app-btn:disabled, .app-btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 
 .app-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.3; white-space: nowrap; }
@@ -111,19 +111,19 @@
 .app-proof::after { content: ""; position: absolute; inset: -9px -4px; }
 .app-proof:hover { text-decoration: underline; }
 
-.app-card { background: var(--app-surface); border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius); padding: 20px; min-width: 0; }
+.app-card { background: var(--app-surface); border: 1px solid var(--app-border-card); border-radius: 18px; padding: 18px 20px; min-width: 0; }
 .app-card--lg { border-radius: var(--app-card-radius-lg); }
 .app-card--flush { padding: 0; }
 
-.app-empty { padding: 28px 20px; border-radius: var(--app-card-radius); background: var(--app-fill); border: 1px dashed var(--app-border-input); text-align: center; }
+.app-empty { padding: 24px 20px; border-radius: 14px; background: var(--app-fill); border: 1px dashed #C7D2FE; text-align: center; }
 .app-empty-title { color: var(--app-text); font-weight: 600; font-size: 15px; }
 .app-empty-body { color: var(--app-text-2); font-size: 14px; margin-top: 6px; }
 .app-empty-action { margin-top: 14px; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
 
 .app-table-wrap { position: relative; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--app-border-card); border-radius: var(--app-card-radius); background: var(--app-surface); }
 .app-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.app-table th { text-align: left; padding: 12px 16px; color: var(--app-text-2); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; background: var(--app-fill); border-bottom: 1px solid var(--app-border-card); white-space: nowrap; }
-.app-table td { padding: 14px 16px; border-bottom: 1px solid var(--app-divider); color: var(--app-text-body); vertical-align: middle; }
+.app-table th { text-align: left; padding: 12px 20px; color: #4F46E5; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: transparent; border-bottom: 1px solid var(--app-divider); white-space: nowrap; }
+.app-table td { padding: 14px 20px; border-bottom: 1px solid var(--app-divider); color: var(--app-text); vertical-align: middle; }
 .app-table tr:last-child td { border-bottom: 0; }
 
 .app-input {
@@ -257,4 +257,16 @@
   .app-menu-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--app-btn-bg); color: var(--app-btn-text); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
   .app-sidebar-body { display: flex; flex-direction: column; gap: 18px; }
   .app-sidebar-body[data-open="false"] { display: none; }
+}
+
+/* ------------------------------------------------------------------ Indigo design (design-ref/app-*.html) */
+.dp-nav:hover { background: #EEF2FF; }
+.dp-btn:hover { filter: brightness(0.94); }
+.dp-app a:focus-visible, .dp-app button:focus-visible, .dp-app input:focus-visible, .dp-app textarea:focus-visible, .dp-app select:focus-visible { outline: 2px solid #4F46E5; outline-offset: 2px; }
+.dp-sidebar .app-sidebar-body { display: flex; flex-direction: column; flex: 1; }
+@media (min-width: 841px) { .dp-sidebar { position: sticky; top: 0; align-self: flex-start; min-height: 100vh; flex: 0 0 248px !important; width: 248px; min-width: 0; } }
+@media (max-width: 840px) {
+  .dp-sidebar { border-right: 0 !important; border-bottom: 1px solid #E0E7FF; gap: 16px !important; }
+  .dp-sidebar .app-sidebar-body[data-open="false"] { display: none; }
+  .dp-main { padding: 20px 16px 40px !important; }
 }

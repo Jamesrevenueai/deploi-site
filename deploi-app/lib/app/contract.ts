@@ -137,12 +137,12 @@ export type WorkRow = { when: string; what: string; result: string; proof: Proof
 export type Instruction = { id: string; agentId: string; text: string; position: number; createdBy: string; createdAt: string; updatedAt: string }
 /** A task the owner gave this agent (a case of kind owner_task); open ones first, then the last finished. */
 export type AgentTask = { ref: string; text: string; status: string; result: string; open: boolean; at: string }
-export type AgentDashboard = { agent: TeamAgent; stats: AgentStat[]; scopes: AgentScope[]; work: WorkRow[]; instructions: Instruction[]; tasks: AgentTask[] }
+export type AgentDashboard = { agent: TeamAgent; stats: AgentStat[]; scopes: AgentScope[]; work: WorkRow[]; instructions: Instruction[]; tasks: AgentTask[]; /** its own Deploi mailbox address, when it has one */ mailbox?: string | null }
 
 export type AutonomyResult = { agentId: string; autonomy: AgentAutonomy; changed: boolean; applied: string[] }
 
 export type ChatAction = { label: string; needsYouId: string; decision: 'approve' | 'decline' }
-export type ChatMessage = { id?: string; role: 'owner' | 'agent'; text: string; actions?: ChatAction[]; at?: string; agentId?: string | null }
+export type ChatMessage = { id?: string; role: 'owner' | 'agent'; text: string; actions?: ChatAction[]; at?: string; agentId?: string | null; /** the owner spoke it (transcribed in the browser) */ via?: 'voice' }
 export type ChatIntent = 'status' | 'today' | 'needs_you' | 'pause' | 'resume' | 'set_autonomy' | 'delegate' | 'help' | 'unknown'
 
 // ---------------------------------------------------------------- server functions

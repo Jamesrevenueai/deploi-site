@@ -106,8 +106,8 @@ describe.skipIf(!ready)('AI gateway', () => {
   })
 
   it('budgets: the plan sets the organization budget, the agent gets half unless overridden; overruns are refused before the call', async () => {
-    // starter plan: aiBudgetUsd 5 (plans table); agent share 2.50
-    expect(await admin(db => aiBudgets(db, NW.org, 'engine:test-agent'))).toMatchObject({ orgUsd: 5, agentUsd: 2.5, source: { org: 'plan', agent: 'share' } })
+    // starter plan: aiBudgetUsd 10 (plans table, pricing v2); agent share 5
+    expect(await admin(db => aiBudgets(db, NW.org, 'engine:test-agent'))).toMatchObject({ orgUsd: 10, agentUsd: 5, source: { org: 'plan', agent: 'share' } })
     await admin(db => setBudgetOverride(db, NW.org, 'engine:test-agent', 0.03, 'staff:test'))
     // each complex call reserves its worst case (input estimate + max output) and costs 0.02
     expect((await aiComplete({ ...base, tier: 'complex', maxOutputTokens: 500 })).ok).toBe(true)

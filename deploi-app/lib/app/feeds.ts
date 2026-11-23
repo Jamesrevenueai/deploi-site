@@ -420,6 +420,7 @@ export async function agentDashboard(actor: Actor, id: string, opts: { now?: Dat
     return {
       agent, stats: await statsFor(db, orgId, src, needs.length, now), scopes: await scopesFor(db, orgId, src, agent.autonomy, agent.autonomyChosen),
       work: await workFor(db, orgId, st, src), instructions: await listInstructionsIn(db, orgId, id), tasks: await tasksFor(db, orgId, st, src),
+      mailbox: src.engineAgentId ? (await db.one<{ address: string }>(`select address from email_accounts where org_id = $1 and agent_id = $2 and provider = 'deploi' and status <> 'disconnected' order by created_at limit 1`, [orgId, src.engineAgentId]))?.address ?? null : null,
     }
   })
 }

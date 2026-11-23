@@ -103,11 +103,12 @@ async function reply(actor: Actor, agentId: string | null, workspace: Workspace,
   }
 }
 
-type Row = { id: string; agent_ref: string | null; role: 'owner' | 'agent'; text: string; actions: ChatAction[]; created_at: string }
-const msg = (r: Row): ChatMessage => ({ id: r.id, role: r.role, text: r.text, ...(r.actions?.length ? { actions: r.actions } : {}), at: new Date(r.created_at).toISOString(), agentId: r.agent_ref })
+type Row = { id: string; agent_ref: string | null; role: 'owner' | 'agent'; text: string; actions: ChatAction[]; created_at: string; via?: 'text' | 'voice' }
+const msg = (r: Row): ChatMessage => ({ id: r.id, role: r.role, text: r.text, ...(r.actions?.length ? { actions: r.actions } : {}), at: new Date(r.created_at).toISOString(), agentId: r.agent_ref, ...(r.via === 'voice' ? { via: 'voice' as const } : {}) })
 
 /** Send a message to an agent (agentId) or the team (null); returns this exchange (the owner's message and the reply). */
-export async function chat(actor: Actor, agentId: string | null, text: unknown, opts: { workspace?: unknown } = {}): Promise<{ messages: ChatMessage[] }> {
+export async function chat(actor: Actor, agentId: string | null, text: unknown, opts: { workspace?: unknown; via?: unknown } = {}): Promise<{ messages: ChatMessage[] }> {
+  const via = opts.via === 'voice' ? 'voice' : 'text'
   const orgId = merchantOrg(actor)
   if (agentId !== null && !AGENT_REF.test(agentId)) throw new EngineError('not_found', 'agent not found')
   if (typeof text !== 'string' || !text.trim()) throw new EngineError('invalid_input', 'say something first')
@@ -116,7 +117,7 @@ export async function chat(actor: Actor, agentId: string | null, text: unknown, 
   const r = await reply(actor, agentId, workspace, t)
   const key = actorKey(actor)
   const rows = await admin(async db => {
-    const a = (await db.one<Row>(`insert into agent_chat_messages (org_id, agent_ref, actor_key, role, text, intent) values ($1,$2,$3,'owner',$4,$5) returning *`, [orgId, agentId, key, t, r.intent]))!
+    const a = (await db.one<Row>(`insert into agent_chat_messages (org_id, agent_ref, actor_key, role, text, intent, via) values ($1,$2,$3,'owner',$4,$5,$6) returning *`, [orgId, agentId, key, t, r.intent, via]))!
     const b = (await db.one<Row>(`insert into agent_chat_messages (org_id, agent_ref, actor_key, role, text, intent, actions) values ($1,$2,$3,'agent',$4,$5,$6) returning *`, [orgId, agentId, key, r.text.slice(0, 4000), r.intent, JSON.stringify(r.actions ?? [])]))!
     return [a, b]
   })
@@ -128,6 +129,6 @@ export async function chatHistory(actor: Actor, agentId: string | null, opts: { 
   const orgId = merchantOrg(actor)
   if (agentId !== null && !AGENT_REF.test(agentId)) throw new EngineError('not_found', 'agent not found')
   const n = Math.min(100, Math.max(1, opts.limit ?? 50))
-  const rows = await admin(db => db.query<Row>(`select id, agent_ref, role, text, actions, created_at from agent_chat_messages where org_id = $1 and agent_ref is not distinct from $2 order by created_at desc, role asc limit $3`, [orgId, agentId, n]))
+  const rows = await admin(db => db.query<Row>(`select id, agent_ref, role, text, actions, created_at, via from agent_chat_messages where org_id = $1 and agent_ref is not distinct from $2 order by created_at desc, role asc limit $3`, [orgId, agentId, n]))
   return rows.reverse().map(msg)
 }

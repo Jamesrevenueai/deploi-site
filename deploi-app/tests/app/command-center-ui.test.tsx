@@ -32,7 +32,8 @@ const { workspaceSources, loadShell } = await import('../../lib/app/shell')
 
 const ready = await prepareDb()
 const NOW = '2026-11-06T15:00:00.000Z'
-const show = (data: Data) => render(<CommandCenter data={data} now={NOW} timeZone="America/New_York" />)
+const STATS = { firstName: 'Sam', doneSeries: [0, 1, 2, 0, 3, 1, 2], ownSeries: [0, 1, 1, 0, 2, 1, 1], askedSeries: [0, 0, 1, 0, 1, 0, 1], doneToday: 2, doneSameDayLastWeek: 1, handledWithoutYouPct: 50, healthPct: 90, oldestWaitingAt: null }
+const show = (data: Data) => render(<CommandCenter data={data} stats={STATS} workspaceName="Northwind" now={NOW} timeZone="America/New_York" />)
 
 // a pack agent that waits for the owner (ask_first), as in tests/app/redesign.test.ts
 const KEY = 'ui_fixer'
@@ -59,58 +60,40 @@ describe.skipIf(!ready)('Command center: only real data', () => {
   let owner: Actor
   beforeAll(async () => { await resetMerchant(NW); await cleanApp(); owner = await merchantActor(NW) })
 
-  it('renders one line per agent, done item and request of the feeds, the hero numbers as read, and links to the real pages', async () => {
+  it('renders one roster line per agent, one proof line per done item (at most 5) and one approval per request, linking the real pages', async () => {
     const data = await commandCenter(owner, 'store')
     expect(data.team.length).toBeGreaterThan(0)
     show(data)
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Good morning. Your team is on it.') // 10:00 in New York
-    expect(screen.getByText(/Friday, November 6 · Store/)).toBeTruthy()
-    // the team: exactly the feed's agents, in order, each with its status pill, its line, today's count and its page
-    const rows = screen.queryAllByTestId('team-row')
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Good morning, Sam') // 10:00 in New York
+    expect(screen.getByTestId('workspace-label').textContent).toBe('Store · Northwind')
+    const rows = screen.getByTestId('roster').querySelectorAll('li')
     expect(rows).toHaveLength(data.team.length)
     data.team.forEach((a, i) => {
-      const row = within(rows[i])
-      expect(rows[i].querySelector('.cc-agent-name')?.textContent).toBe(a.name)
-      expect(rows[i].querySelector('.cc-agent-area')?.textContent).toBe(a.area)
-      expect(rows[i].querySelectorAll('td')[2].textContent).toBe(a.doingNow)
-      expect(row.getByText(`${a.todayActions} ${a.todayActions === 1 ? 'action' : 'actions'}`)).toBeTruthy()
-      expect(rows[i].querySelector(`[data-status="${a.status}"]`)).toBeTruthy()
-      expect(row.getByRole('link', { name: `Open ${a.name}` }).getAttribute('href')).toBe(`/agents/${encodeURIComponent(a.id)}`)
+      const row = within(rows[i] as HTMLElement)
+      expect(row.getByRole('link', { name: a.name }).getAttribute('href')).toBe(`/agents/${encodeURIComponent(a.id)}`)
+      expect(row.getByText(a.doingNow)).toBeTruthy()
     })
-    // the table scrolls inside its own labelled box
-    const box = screen.getByTestId('team-table')
-    expect(box.getAttribute('role')).toBe('region')
-    expect(box.getAttribute('aria-label')).toBe('Your team')
-    expect(box.className).toBe('app-table-wrap')
-    expect((box.querySelector('table') as HTMLTableElement).style.minWidth).toBe('780px')
-    // done and needs-you: as many as the feeds hold, no more
-    expect(screen.queryAllByTestId('done-row')).toHaveLength(data.doneWithProof.length)
-    expect(screen.queryAllByTestId('needs-you-card')).toHaveLength(data.needsYou.length)
-    for (const d of data.doneWithProof) expect(screen.getAllByRole('link', { name: new RegExp(`^Proof: ${d.proof.label.replace(/[/()]/g, '.')}`) }).some(l => l.getAttribute('href') === d.proof.href)).toBe(true)
-    // the hero says what hero() says
-    const hero = within(screen.getByTestId('hero'))
-    expect(hero.getByText(new RegExp(`^${data.hero.agentsRunning} agents? running`))).toBeTruthy()
-    expect(hero.getByText(new RegExp(`handled ${data.hero.handledSinceYesterday} things? since yesterday`))).toBeTruthy()
-    const tiles = screen.getByTestId('hero').querySelectorAll('dd')
-    expect(tiles[1].textContent).toBe(String(data.hero.fixedOnTheirOwn))
-    expect(tiles[2].textContent).toBe(String(data.hero.needYouCount))
-    expect(screen.getByRole('link', { name: 'Full proof log' }).getAttribute('href')).toBe('/store/completed')
-    expect(screen.getByRole('link', { name: 'Build a custom agent' }).getAttribute('href')).toBe('/store/agents/new')
-    expect(screen.getByRole('link', { name: 'Browse library' }).getAttribute('href')).toBe('/store/team')
+    const activity = screen.queryByTestId('activity')
+    expect(activity ? activity.querySelectorAll('li').length : 0).toBe(Math.min(5, data.doneWithProof.length))
+    for (const d of data.doneWithProof.slice(0, 5)) expect(screen.getAllByRole('link', { name: `${d.proof.label} →` }).some(l => l.getAttribute('href') === d.proof.href)).toBe(true)
+    expect(screen.queryAllByTestId('approval')).toHaveLength(data.needsYou.length)
+    expect(screen.getAllByTestId('kpi')).toHaveLength(4)
+    expect(screen.getByTestId('hero-hours').textContent).toBe((Math.round((data.hero.timeSavedWeekMinutes / 60) * 10) / 10).toFixed(1))
+    expect(screen.getByRole('link', { name: 'Full proof log →' }).getAttribute('href')).toBe('/store/completed')
+    expect(screen.getByRole('link', { name: 'Open library →' }).getAttribute('href')).toBe('/store/team')
   })
 
   it('search filters what is loaded and never makes up results', async () => {
     const data = await commandCenter(owner, 'store')
     show(data)
-    const search = screen.getByRole('searchbox', { name: 'Search agents, orders, proof' })
+    const search = screen.getByRole('searchbox', { name: 'Search agents, orders, tasks' })
     const first = data.team[0]
     fireEvent.change(search, { target: { value: first.name } })
-    const rows = screen.queryAllByTestId('team-row')
+    const rows = screen.getByTestId('roster').querySelectorAll('li')
     expect(rows.length).toBe(data.team.filter(a => [a.name, a.area, a.doingNow, a.job].some(x => x.toLowerCase().includes(first.name.toLowerCase()))).length)
-    expect(rows[0].querySelector('.cc-agent-name')?.textContent).toBe(first.name)
     fireEvent.change(search, { target: { value: 'zzqx no such thing' } })
-    expect(screen.queryAllByTestId('team-row')).toHaveLength(0)
-    expect(screen.getByText('No agents match “zzqx no such thing”')).toBeTruthy()
+    expect(screen.queryByTestId('roster')).toBeNull()
+    expect(screen.getByTestId('team-empty').textContent).toBe('No agents match “zzqx no such thing”.')
   })
 
   it('the sidebar reads the connected store, the counts of this side and the real allowance', async () => {
@@ -121,10 +104,10 @@ describe.skipIf(!ready)('Command center: only real data', () => {
     render(<Usage allowance={{ used: 12, limit: null, planName: 'Free beta', resetsAt: '2026-12-01T00:00:00.000Z', enforced: false }} />)
     expect(screen.getByText('12 used · no monthly limit')).toBeTruthy()
     expect(screen.queryByRole('progressbar')).toBeNull()
-    expect(screen.getByText('Free beta · resets Dec 1')).toBeTruthy()
+    expect(screen.getByText('Free beta plan · resets Dec 1')).toBeTruthy()
     cleanup()
     render(<Usage allowance={{ used: 300, limit: 1200, planName: 'Growth', resetsAt: '2026-12-01T00:00:00.000Z', enforced: true }} />)
-    expect(screen.getByText('300 of 1,200')).toBeTruthy()
+    expect(screen.getByText('300 / 1,200')).toBeTruthy()
     expect(screen.getByRole('progressbar', { name: 'Actions used' }).getAttribute('aria-valuenow')).toBe('25')
     expect(usageText({ used: 0, limit: null, planName: 'x', resetsAt: NOW, enforced: false })).toBe('0 used · no monthly limit')
   })
@@ -147,15 +130,11 @@ describe.skipIf(!ready)('Command center: a fresh organization', () => {
       const data = await commandCenter(actor, ws)
       show(data)
       expect(screen.getByTestId('needs-empty').textContent).toMatch(/^Nothing needs you right now/)
-      expect(screen.getByTestId('done-empty').textContent).toBe('No finished work yetProof shows up here as your agents work.')
+      expect(screen.getByTestId('done-empty').textContent).toBe('No finished work yet. Proof shows up here as your agents work.')
       expect(screen.getByTestId('team-empty').textContent).toMatch(/^No agents yet/)
-      for (const id of ['needs-you-card', 'done-row', 'team-row']) expect(screen.queryAllByTestId(id)).toHaveLength(0)
-      expect(screen.queryByTestId('team-table')).toBeNull()
-      const hero = screen.getByTestId('hero')
-      expect(hero.textContent).toContain('0 agents running · no check yet')
-      expect(hero.textContent).toContain('Your agents handled 0 things since yesterday. Nothing needs a yes from you.')
-      expect(hero.textContent).not.toContain('Nobody had to ask')
-      expect([...hero.querySelectorAll('dd')].map(d => d.textContent)).toEqual(['0 min', '0', '0'])
+      for (const id of ['approval', 'roster', 'activity']) expect(screen.queryAllByTestId(id)).toHaveLength(0)
+      expect(screen.getByTestId('hero-hours').textContent).toBe('0.0')
+      expect(screen.getByTestId('workspace-label').textContent).toBe(`${ws === 'store' ? 'Store' : 'Office'} · Northwind`)
       expect(screen.getByTestId('command-center').getAttribute('data-workspace')).toBe(ws)
     })
   }
@@ -198,11 +177,10 @@ describe.skipIf(!ready)('Command center: deciding what needs you from the card',
     const { data, item } = await waiting('ui:1')
     const rf = routeFetch(NW.domain); vi.stubGlobal('fetch', rf.fetchMock)
     show(data)
-    const card = screen.getAllByTestId('needs-you-card').find(c => c.textContent?.includes('Record ui:1 is wrong'))!
-    expect(within(card).getByText('UI Fixer')).toBeTruthy()
-    expect(within(card).getByText(item.explanation)).toBeTruthy()
-    expect(within(card).getByRole('button', { name: 'Reply to UI Fixer' })).toBeTruthy()
-    fireEvent.click(within(card).getByRole('button', { name: item.primaryAction }))
+    const card = screen.getAllByTestId('approval').find(c => c.textContent?.includes('Record ui:1 is wrong'))!
+    expect(within(card).getByText(`UI Fixer · ${item.spotted}`)).toBeTruthy()
+    expect(within(card).getByRole('button', { name: 'Edit' })).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: `Approve: ${item.title}` }))
     await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1))
     expect(rf.calls).toEqual([{ method: 'POST', path: `/api/app/needs-you/${encodeURIComponent(item.id)}`, body: { decision: 'approve' } }])
     await runDueJobs({ kinds: [LOOP_RESUME_JOB] })
@@ -212,32 +190,27 @@ describe.skipIf(!ready)('Command center: deciding what needs you from the card',
     const after = await commandCenter(owner, 'office')
     expect(after.needsYou.some(i => i.id === item.id)).toBe(false)
     show(after)
-    expect(screen.queryAllByTestId('needs-you-card').some(c => c.textContent?.includes('Record ui:1 is wrong'))).toBe(false)
-    const row = screen.getAllByTestId('done-row').find(r => r.textContent?.includes('Record ui:1 is wrong'))!
-    expect(within(row).getByRole('link', { name: /^Proof: Before \/ after/ }).getAttribute('href')).toBe(`/store/work/${item.caseRef}`)
+    expect(screen.queryAllByTestId('approval').some(c => c.textContent?.includes('Record ui:1 is wrong'))).toBe(false)
+    const row = [...screen.getByTestId('activity').querySelectorAll('li')].find(r => r.textContent?.includes('Record ui:1 is wrong'))! as HTMLElement
+    expect(within(row).getByRole('link', { name: /^Before \/ after/ }).getAttribute('href')).toBe(`/store/work/${item.caseRef}`)
   })
 
-  it('decline: the secondary button declines; nothing is done and it is not shown as done', async () => {
+  it('decline is not on the card (the design has Edit and Approve); Edit opens a conversation with the agent instead', async () => {
     const { data, item } = await waiting('ui:2')
-    const rf = routeFetch(NW.domain); vi.stubGlobal('fetch', rf.fetchMock)
     show(data)
-    const card = screen.getAllByTestId('needs-you-card').find(c => c.textContent?.includes('Record ui:2 is wrong'))!
-    fireEvent.click(within(card).getByRole('button', { name: item.secondaryAction! }))
-    await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1))
-    expect(rf.calls.at(-1)).toEqual({ method: 'POST', path: `/api/app/needs-you/${encodeURIComponent(item.id)}`, body: { decision: 'decline' } })
-    expect(broken.has('ui:2')).toBe(true)
-    const after = await commandCenter(owner, 'office')
-    expect(after.needsYou.some(i => i.id === item.id)).toBe(false)
-    expect(after.doneWithProof.some(d => d.what === 'Record ui:2 is wrong')).toBe(false)
+    const card = screen.getAllByTestId('approval').find(c => c.textContent?.includes('Record ui:2 is wrong'))!
+    expect(within(card).queryByRole('button', { name: item.secondaryAction ?? 'Decline' })).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: 'Edit' }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
   })
 
   it('a refused decision stays on the card and says why', async () => {
     const { data, item } = await waiting('ui:3')
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: false, error: 'forbidden', message: 'your role cannot approve this' }), { status: 403 })))
     show(data)
-    const card = screen.getAllByTestId('needs-you-card').find(c => c.textContent?.includes('Record ui:3 is wrong'))!
-    fireEvent.click(within(card).getByRole('button', { name: item.primaryAction }))
-    expect((await within(card).findByRole('alert')).textContent).toBe('your role cannot approve this')
+    const card = screen.getAllByTestId('approval').find(c => c.textContent?.includes('Record ui:3 is wrong'))!
+    fireEvent.click(within(card).getByRole('button', { name: `Approve: ${item.title}` }))
+    expect((await screen.findByRole('alert')).textContent).toBe('your role cannot approve this')
     expect(router.refresh).not.toHaveBeenCalled()
     expect((await commandCenter(owner, 'office')).needsYou.some(i => i.id === item.id)).toBe(true)
   })

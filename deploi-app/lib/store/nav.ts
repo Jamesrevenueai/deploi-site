@@ -12,14 +12,15 @@ import type { CaseView } from '../cases'
 export type AppNavItem = NavItem & { /** a live count shown next to the label */ count?: 'needsYou' | 'agents' }
 
 export const MERCHANT_NAV: AppNavItem[] = [
+  // the approved Indigo design (design-ref/app-command-center.html): this order and these labels
   { href: '/store', label: 'Command center', icon: 'home', exact: true, also: ['/store/control-room'] },
-  { href: '/store/approvals', label: 'Needs you', icon: 'check', count: 'needsYou', also: ['/office/approvals'] },
-  { href: '/store/my-team', label: 'My agents', icon: 'users', count: 'agents', also: ['/agents', '/store/agents', '/office/agents', '/store/packs'] },
-  { href: '/store/room', label: 'Team room', icon: 'chat' },
+  { href: '/store/my-team', label: 'My agents', icon: 'users', count: 'agents', also: ['/agents', '/store/agents', '/office/agents', '/store/packs', '/store/room'] },
   { href: '/store/team', label: 'Agent library', icon: 'spark' },
-  { href: '/store/completed', label: 'Proof log', icon: 'badge', also: ['/store/activity', '/store/weekly', '/office/log'] },
+  { href: '/store/approvals', label: 'Approvals', icon: 'check', count: 'needsYou', also: ['/office/approvals'] },
+  { href: '/store/completed', label: 'Proof log', icon: 'badge', also: ['/store/activity', '/office/log'] },
   { href: '/store/integrations', label: 'Connections', icon: 'plug', also: ['/store/connections', '/store/connect', '/office/connections'] },
-  { href: '/store/plan', label: 'Plan & actions', icon: 'dollar', also: ['/store/billing'] },
+  { href: '/store/weekly', label: 'Reports', icon: 'list', also: ['/store/insights'] },
+  { href: '/store/settings', label: 'Settings', icon: 'shield', also: ['/store/plan', '/store/billing'] },
 ]
 
 /** Where the sidebar's footer links (not one of the main entries). */

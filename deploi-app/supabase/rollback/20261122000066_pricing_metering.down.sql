@@ -1,9 +1,13 @@
 -- Rollback of 20261122000066_pricing_metering.sql (run after _guard.sql, inside one transaction).
 -- The metering ledger is refused while it holds rows unless deploi.rollback_discard_data = 'on'.
 select pg_temp.assert_empty('actions');
+select pg_temp.assert_empty('usage_charges');
+drop table if exists usage_charges;
+alter table app_subscriptions drop column if exists usage_line_item_id, drop column if exists billing_interval;
 drop table if exists usage_cap_events;
 drop table if exists org_usage_caps;
 drop table if exists actions;
+alter table agent_chat_messages drop column if exists via;
 delete from plans where key in ('solo', 'team', 'business') and not exists (select 1 from agencies a where a.plan_key in ('solo','team','business'));
 -- restore the plan rows recorded by 066 (prices, limits, status)
 update plans p set display_name = c.change->'before'->>'display_name', monthly_price_cents = (c.change->'before'->>'monthly_price_cents')::int,

@@ -73,3 +73,30 @@ do $$ declare t text; begin
     execute format('grant all on %I to service_role', t);
   end loop;
 end $$;
+
+-- agent chat: whether the owner typed or spoke the message (the agent dashboard shows "· voice")
+alter table agent_chat_messages add column if not exists via text not null default 'text' check (via in ('text', 'voice'));
+
+-- billing v2: the Shopify subscription's usage line item (overage is charged against it, up to the merchant's capped
+-- amount) and its interval; one row per overage charge sent to Shopify or Stripe (blocks are cumulative per month)
+alter table app_subscriptions add column if not exists usage_line_item_id text check (usage_line_item_id is null or length(usage_line_item_id) <= 200);
+alter table app_subscriptions add column if not exists billing_interval text check (billing_interval is null or billing_interval in ('month', 'year'));
+create table if not exists usage_charges (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references agencies(id) on delete cascade,
+  month date not null,
+  kind text not null check (kind in ('action', 'text')),
+  provider text not null check (provider in ('shopify', 'stripe')),
+  -- blocks charged so far this month, after this charge (each block = 100 actions or 100 texts)
+  blocks_total int not null check (blocks_total > 0),
+  amount_cents int not null check (amount_cents > 0),
+  external_id text check (length(external_id) <= 200),
+  created_at timestamptz not null default now(),
+  unique (org_id, month, kind, blocks_total)
+);
+alter table usage_charges enable row level security;
+drop policy if exists usage_charges_org_read on usage_charges;
+create policy usage_charges_org_read on usage_charges for select to authenticated using (is_staff() or org_id = current_org_id());
+revoke all on usage_charges from anon, authenticated;
+grant select on usage_charges to authenticated;
+grant all on usage_charges to service_role;

@@ -86,6 +86,12 @@ describe.skipIf(!ready)('/api/app endpoints', () => {
     expect(c.messages.map((m: { role: string }) => m.role)).toEqual(['owner', 'agent'])
     expect(c.messages[1].text).toMatch(/^Inventory Watcher: /)
     expect((await (await chatGet(req('/x'), ctx({ id: AGENT }))).json()).messages).toHaveLength(2)
+    // voice round-trip: a spoken message is stored as voice and comes back marked so on reload (the UI shows "· voice")
+    r = await chatPost(req('/x', 'POST', { text: 'what is low on stock', via: 'voice' }), ctx({ id: AGENT }))
+    expect((await r.json()).messages.map((m: { role: string; via?: string }) => [m.role, m.via ?? 'text'])).toEqual([['owner', 'voice'], ['agent', 'text']])
+    const hist = (await (await chatGet(req('/x'), ctx({ id: AGENT }))).json()).messages as { role: string; text: string; via?: string }[]
+    expect(hist.map(m => m.via ?? 'text')).toEqual(['text', 'text', 'voice', 'text'])
+    expect(await admin(db => db.one(`select via from agent_chat_messages where org_id = $1 and text = 'what is low on stock'`, [NW.org]))).toEqual({ via: 'voice' })
     r = await teamChatPost(req('/x', 'POST', { text: 'sing me a song', workspace: 'store' }))
     expect((await r.json()).messages[1].text).toMatch(/^I can't answer that without AI turned on/)
   })

@@ -31,8 +31,9 @@ export const agentApi = {
   addInstruction: async (id: string, text: string) => (await call<{ instruction: Instruction }>('POST', `${base(id)}/instructions`, { text })).instruction,
   updateInstruction: async (id: string, instructionId: string, text: string) => (await call<{ instruction: Instruction }>('PATCH', `${base(id)}/instructions/${encodeURIComponent(instructionId)}`, { text })).instruction,
   deleteInstruction: (id: string, instructionId: string) => call<{ deleted: true }>('DELETE', `${base(id)}/instructions/${encodeURIComponent(instructionId)}`),
-  chat: async (id: string, text: string) => (await call<{ messages: ChatMessage[] }>('POST', `${base(id)}/chat`, { text })).messages,
+  chat: async (id: string, text: string, via: 'text' | 'voice' = 'text') => (await call<{ messages: ChatMessage[] }>('POST', `${base(id)}/chat`, { text, via })).messages,
   giveTask: async (id: string, text: string) => (await call<{ task: DelegatedTask }>('POST', `${base(id)}/tasks`, { text })).task,
   finishTask: (ref: string, op: 'done' | 'cancel') => call<{ task: { ref: string; status: string } }>('POST', `/api/app/tasks/${encodeURIComponent(ref)}`, { op }),
+  runCheck: async (id: string) => (await call<{ result: { summary: string } }>('POST', `${base(id)}/run`)).result,
   decide: async (needsYouId: string, decision: 'approve' | 'decline') => (await call<{ result: NeedsYouDecision }>('POST', `/api/app/needs-you/${encodeURIComponent(needsYouId)}`, { decision })).result,
 }

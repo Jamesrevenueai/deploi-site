@@ -18,7 +18,7 @@ export default function HowItWorks() {
   return (
     <div className="page">
       <PageHero eyebrow="How it works" title="From unfinished work to verified results." lead="Every problem Deploi finds becomes one case, carried from discovery to a verified outcome, with every step on the record." />
-      <Section><Steps steps={HOW_STEPS} /></Section>
+      <Section><Steps steps={HOW_STEPS} level={2} /></Section>
       <Section title="Rules Deploi always follows" tone="alt">
         <Cards items={[
           { title: 'Only what you grant', body: 'Agents act within their own permissions. Handing work to another agent never widens what it may do.' },

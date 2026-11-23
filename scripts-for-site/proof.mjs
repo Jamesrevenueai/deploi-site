@@ -41,28 +41,22 @@ for (const w of [1440, 390]) {
   await shot('site-home', '/', w)
   await shot('site-privacy', '/privacy', w)
   await shot('site-404', '/this-page-does-not-exist', w, { fullPage: false })
-  await shot('site-menu-open', '/', w, {
-    fullPage: false,
-    before: async page => {
-      if (w < 960) await page.getByRole('button', { name: 'Open menu' }).click()
-    },
-  })
-  // Early access form: validation error (URL without http/https), then the success state against the stubbed API.
-  await shot('site-home-form-error', '/', w, {
+  // Early access form (on /signup): validation error (URL without http/https), then the success state against the stubbed API.
+  await shot('site-signup-form-error', '/signup', w, {
     fullPage: false,
     before: async page => {
       const form = await fillEarlyAccess(page, 'example-store.test')
-      await form.getByRole('button', { name: 'Apply for Early Access' }).click()
+      await form.getByRole('button', { name: 'Apply for a paid pilot' }).click()
       await form.getByRole('alert').waitFor()
       await form.getByRole('alert').evaluate(el => el.scrollIntoView({ block: 'center' }))
     },
   })
-  await shot('site-home-form-success', '/', w, {
+  await shot('site-signup-form-success', '/signup', w, {
     fullPage: false,
     before: async page => {
       const form = await fillEarlyAccess(page, 'https://example-store.test')
       await form.getByLabel(/Approximate number of products/).selectOption('100_1000')
-      await form.getByRole('button', { name: 'Apply for Early Access' }).click()
+      await form.getByRole('button', { name: 'Apply for a paid pilot' }).click()
       await page.locator('#early-access .confirmation').waitFor()
       await page.locator('#early-access .confirmation').evaluate(el => el.scrollIntoView({ block: 'center' }))
     },

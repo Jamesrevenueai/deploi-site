@@ -20,7 +20,7 @@ export default function Security() {
     <div className="page">
       <PageHero eyebrow="Security" title="What protects your business today." lead="This page lists only controls that are built and running. It is not a certification." />
       <Section>
-        <ul className="cards cols-2">{SECURITY_CONTROLS.map(c => <li key={c.title} className="card"><h3>{c.title}</h3><p>{c.body}</p></li>)}</ul>
+        <ul className="cards cols-2">{SECURITY_CONTROLS.map(c => <li key={c.title} className="card"><h2>{c.title}</h2><p>{c.body}</p></li>)}</ul>
       </Section>
       <Section title="Certifications" tone="alt">
         <p className="lead" data-testid="no-certifications">{BRAND} holds no security certifications or third-party audit reports today, such as SOC 2 or ISO 27001. We will say so here if that changes.</p>

@@ -10,8 +10,8 @@ export default function LegalIndex() {
       <PageHero eyebrow="Legal" title="Terms and privacy" />
       <Section>
         <ul className="cards cols-2">
-          <li className="card"><h3><Link to="/terms">Terms of Service</Link></h3><p>The terms for using this website and the Deploi app.</p></li>
-          <li className="card"><h3><Link to="/privacy">Privacy Policy</Link></h3><p>What Deploi reads, keeps and deletes.</p></li>
+          <li className="card"><h2><Link to="/terms">Terms of Service</Link></h2><p>The terms for using this website and the Deploi app.</p></li>
+          <li className="card"><h2><Link to="/privacy">Privacy Policy</Link></h2><p>What Deploi reads, keeps and deletes.</p></li>
         </ul>
       </Section>
     </div>

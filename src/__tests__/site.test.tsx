@@ -3,7 +3,10 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AppRoutes, PAGES, Shell } from '../App'
 import { Nav, NAV_LINKS } from '../components/Nav'
-import { CORE_MESSAGE, INTEGRATIONS, LIVE_VERIFIED, PLANS, PRICING_LINE, shownStatus } from '../lib/site-config'
+import { INTEGRATIONS, LIVE_VERIFIED, shownStatus } from '../lib/site-config'
+import { FOOTER_TAGLINE } from '../components/Footer'
+import { env } from '../lib/env'
+import { STORE_PLANS, OFFICE_PLANS } from '../lib/pricing'
 import Integrations from '../pages/Integrations'
 import Pricing from '../pages/Pricing'
 import Security from '../pages/Security'
@@ -25,7 +28,8 @@ describe('every page renders, with one headline and no invented claims', () => {
       expect(container.querySelectorAll('main h1')).toHaveLength(1)
       const text = container.textContent ?? ''
       expect(text).not.toMatch(INVENTED)
-      expect(text).toContain(CORE_MESSAGE) // the footer carries the core message on every page
+      expect(text).toContain(FOOTER_TAGLINE) // the site-wide footer is on every page
+      expect(container.querySelector('nav[aria-label="Site"]')).toBeTruthy() // and the site-wide header
     })
   }
   it('an unknown page says so', async () => {
@@ -35,22 +39,22 @@ describe('every page renders, with one headline and no invented claims', () => {
 })
 
 describe('navigation', () => {
-  it('links every main page and the pilot application', () => {
+  it('links the homepage sections, log in to the app, and the trial to sign-up', () => {
     render(<MemoryRouter><Nav /></MemoryRouter>)
-    expect(NAV_LINKS.map(l => l.to)).toEqual(['/office', '/commerce', '/how-it-works', '/integrations', '/agents', '/pricing', '/security'])
-    for (const l of NAV_LINKS) expect(PAGES).toContain(l.to)
-    expect(screen.getAllByRole('link', { name: 'Apply for a paid pilot' })[0]).toHaveAttribute('href', '/#early-access')
-    expect(screen.getAllByRole('link', { name: 'Sign up' })[0]).toHaveAttribute('href', '/signup')
+    expect(NAV_LINKS.map(l => [l.to, l.label])).toEqual([['/#crew', 'Agents'], ['/#how', 'How it works'], ['/#office', 'Office'], ['/#pricing', 'Pricing'], ['/#faq', 'FAQ']])
+    for (const l of NAV_LINKS) expect(screen.getByRole('link', { name: l.label })).toHaveAttribute('href', l.to)
+    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute('href', `${env.appUrl}/login`)
+    expect(screen.getByRole('link', { name: 'Start 14-day trial' })).toHaveAttribute('href', '/signup')
+    for (const p of ['/signup', '/']) expect(PAGES).toContain(p)
   })
 })
 
 describe('core message', () => {
   it('leads the home page', () => {
     const { container } = render(<MemoryRouter><Home /></MemoryRouter>)
-    expect(container.querySelector('h1')!.textContent).toBe('Your business has unfinished work.Deploi finds it, handles it, and shows you what got done.')
-    expect(screen.getByRole('form', { name: 'Apply for a paid pilot' })).toBeInTheDocument()
-    expect(container.querySelector('[data-product="office"]')).toBeTruthy()
-    expect(container.querySelector('[data-product="commerce"]')).toBeTruthy()
+    expect(container.querySelector('h1')!.textContent).toBe('Your store,run by a teamof AI agents.')
+    expect(container.querySelector('#crew')).toBeTruthy()
+    expect(container.querySelector('#office')).toBeTruthy()
   })
 })
 
@@ -75,14 +79,13 @@ describe('integrations honesty rule', () => {
   })
 })
 
-describe('pricing', () => {
-  it('shows the pilot hypotheses from the single config, labelled as pilot pricing', () => {
-    expect(PRICING_LINE).toBe('Pilot pricing — Office Starter $149/mo, Commerce Operations $299/mo, Business Workforce from $499/mo — final pricing confirmed at pilot start')
+describe('pricing page', () => {
+  it('shows the same catalog plans as the homepage, with its own h1', () => {
     const { container } = render(<MemoryRouter><Pricing /></MemoryRouter>)
-    expect(container.textContent).toContain(PRICING_LINE)
-    expect(container.querySelectorAll('[data-plan]')).toHaveLength(PLANS.length)
-    for (const p of PLANS) expect(within(container.querySelector<HTMLElement>(`[data-plan="${p.key}"]`)!).getByText('Pilot pricing')).toBeInTheDocument()
-    expect(container.textContent).toMatch(/Final pricing confirmed at pilot start/)
+    expect(container.querySelectorAll('h1')).toHaveLength(1)
+    expect(Array.from(container.querySelectorAll('[data-testid="plan-price"]')).map(e => e.textContent)).toEqual(STORE_PLANS.map(p => p.price))
+    expect(OFFICE_PLANS).toHaveLength(3)
+    expect(container.textContent).not.toMatch(/Pilot pricing/)
   })
 })
 

@@ -12,7 +12,7 @@ describe('the agent library config is shared with the app', () => {
     expect(TIERS.map(t => t.key)).toEqual(['starter', 'growth', 'pro'])
     for (let i = 1; i < TIERS.length; i++) for (const k of TIERS[i - 1].agents) expect(TIERS[i].agents).toContain(k)
     expect(lowestTierFor('inventory_watcher')?.key).toBe('starter')
-    expect(PRICING_COMING_SOON).toBe(true)
+    expect(PRICING_COMING_SOON).toBe(false) // pricing v2 is published (deploi-app/lib/pricing/catalog.json)
   })
 })
 

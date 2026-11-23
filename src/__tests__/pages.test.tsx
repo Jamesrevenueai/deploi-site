@@ -15,15 +15,16 @@ function LocationProbe() {
 }
 
 describe('Footer', () => {
-  it('links privacy, terms and the contact email, and nothing from the old offer', () => {
+  it('links support, privacy and terms, carries the trademark and operator lines, and nothing from the old offer', () => {
     const { container } = render(<MemoryRouter><Footer /></MemoryRouter>)
-    expect(screen.getByText('Privacy Policy')).toHaveAttribute('href', '/privacy')
-    expect(screen.getByText('Terms of Service')).toHaveAttribute('href', '/terms')
-    expect(screen.getByText('Support')).toHaveAttribute('href', '/support')
-    expect(screen.getByText('Contact')).toHaveAttribute('href', '/contact')
-    expect(screen.getByText(CONTACT_EMAIL)).toHaveAttribute('href', `mailto:${CONTACT_EMAIL}`)
+    expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy')
+    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms')
+    expect(screen.getByRole('link', { name: 'Support' })).toHaveAttribute('href', '/support')
+    expect(container.textContent).toContain('Shopify is a trademark of Shopify Inc.')
+    expect(container.textContent).toContain(`Deploi is operated by ${LEGAL.entity}, ${LEGAL.location}.`)
     expect(container.querySelector('a[href="/website"], a[href="/evv"], a[href="/baa"]')).toBeNull()
     expect(container.textContent).not.toMatch(CONSULTING)
+    expect(container.textContent).not.toMatch(/Deploi AI/)
   })
 })
 
@@ -37,7 +38,7 @@ describe('Legacy routes', () => {
         </MemoryRouter>,
       )
       await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/))
-      expect(screen.getAllByText('Apply for a paid pilot').length).toBeGreaterThan(0)
+      expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Your store,run by a teamof AI agents.')
     })
   }
 })

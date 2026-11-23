@@ -85,14 +85,14 @@ export function Shell() {
   useEffect(() => { if (typeof window.scrollTo === 'function') window.scrollTo(0, 0) }, [pathname])
 
   return (
-    <>
+    <div className="dz">
       <a href="#main" className="skip-link">Skip to content</a>
       <Nav />
       <main id="main">
         <AppRoutes />
       </main>
       <Footer />
-    </>
+    </div>
   )
 }
 

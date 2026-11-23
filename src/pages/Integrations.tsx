@@ -14,7 +14,7 @@ export default function Integrations() {
         <dl className="status-legend">
           {ORDER.map(s => <div key={s}><dt><span className={`status status-${s}`}><span className="status-dot" aria-hidden="true" />{STATUS_WORDS[s].label}</span></dt><dd>{STATUS_WORDS[s].meaning}{s === 'available' && LIVE_VERIFIED.length === 0 ? ' None yet.' : ''}</dd></div>)}
         </dl>
-        <div className="table-wrap">
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Integrations and their status">
           <table className="int-table">
             <caption className="sr-only">Integrations and their status</caption>
             <thead><tr><th scope="col">Integration</th><th scope="col">Category</th><th scope="col">Status</th><th scope="col">What Deploi uses it for</th></tr></thead>

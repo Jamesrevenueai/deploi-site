@@ -45,7 +45,7 @@ export default function Support() {
         <Link to="/" className="back">← Back to {BRAND}</Link>
         <h1>Contact and support</h1>
         <p className="lead">Email {mail}. For a store, include its myshopify.com address and what you were doing. Never send passwords or access keys.</p>
-        <p className="legal-meta">Sales and pilot questions go to the same address, or <Link to="/#early-access">apply for a paid pilot</Link>. We reply within 2 business days.</p>
+        <p className="legal-meta">Sales and pilot questions go to the same address, or <Link to="/signup#early-access">apply for a paid pilot</Link>. We reply within 2 business days.</p>
         <h2 id="contact-form">Write to us</h2>
         <ContactForm />
         <p className="legal-meta">Already a customer? Use Help → Get help inside the app: your request is linked to your account and any case.</p>

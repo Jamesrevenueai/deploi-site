@@ -46,11 +46,13 @@ export function IntegrationStatusBadge({ i }: { i: Pick<IntegrationEntry, 'key' 
   return <span className={`status status-${s}`} data-status={s}><span className="status-dot" aria-hidden="true" />{STATUS_WORDS[s].label}</span>
 }
 
-export function Steps({ steps }: { steps: { title: string; body: ReactNode }[] }) {
+/** `level` 2 when the steps follow the page's h1 directly (no section heading in between). */
+export function Steps({ steps, level = 3 }: { steps: { title: string; body: ReactNode }[]; level?: 2 | 3 }) {
+  const H = level === 2 ? 'h2' : 'h3'
   return (
     <ol className="steps">
       {steps.map((s, n) => (
-        <li key={s.title} className="step"><span className="step-n" aria-hidden="true">{n + 1}</span><div><h3>{s.title}</h3><p>{s.body}</p></div></li>
+        <li key={s.title} className="step"><span className="step-n" aria-hidden="true">{n + 1}</span><div><H>{s.title}</H><p>{s.body}</p></div></li>
       ))}
     </ol>
   )

@@ -9,7 +9,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { prepareDb } from '../db/helpers'
 import { handleShopifyWebhook } from '../../lib/connectors/shopify/webhooks'
-import { REQUIRED_SCOPES, OPTIONAL_SCOPES } from '../../lib/connectors/shopify/config'
+import { REQUIRED_SCOPES, OPTIONAL_SCOPES, INSTALL_SCOPES, INSTALL_WRITE_SCOPES, PROTECTED_SCOPES } from '../../lib/connectors/shopify/config'
 import { NW, resetMerchant } from '../merchant/helpers'
 
 const ROOT = path.resolve(__dirname, '../..')
@@ -26,20 +26,19 @@ describe('App Store requirements checked in code', () => {
     expect(missing.map(f => path.relative(ROOT, f))).toEqual([])
   })
 
-  it('3.2 scopes: no protected customer data scope anywhere; the writes the agents use are requested at install and explained in the listing', () => {
-    for (const s of [...REQUIRED_SCOPES, ...OPTIONAL_SCOPES]) expect(PROTECTED, s).not.toContain(s)
-    // every write requested at install is one a ready agent uses, and the listing explains it to the merchant
-    const writes = REQUIRED_SCOPES.filter(s => s.startsWith('write_'))
-    expect(writes).toEqual(['write_products'])
+  it('3.2 scopes: every write requested at install is one an agent uses and the listing explains; protected scopes are documented for the data request', () => {
     const listing = readFileSync(path.join(ROOT, 'docs/app-store/LISTING.md'), 'utf8')
-    for (const s of writes) expect(listing, `LISTING.md explains ${s}`).toContain(s)
-    expect(REQUIRED_SCOPES.filter(s => !s.startsWith('read_') && !s.startsWith('write_'))).toEqual([])
-    for (const toml of ['shopify.app.toml.example', 'shopify.app.deploi-dev.toml.example']) {
+    for (const s of INSTALL_WRITE_SCOPES) expect(listing, `LISTING.md explains ${s}`).toContain(s)
+    for (const s of INSTALL_SCOPES) expect(listing, `LISTING.md explains ${s}`).toContain(s)
+    expect(INSTALL_SCOPES.filter(s => !s.startsWith('read_') && !s.startsWith('write_'))).toEqual([])
+    const pcd = readFileSync(path.join(ROOT, 'docs/app-store/PROTECTED-CUSTOMER-DATA.md'), 'utf8')
+    for (const s of PROTECTED_SCOPES) expect(pcd, `PROTECTED-CUSTOMER-DATA.md covers ${s}`).toContain(s)
+    for (const toml of ['shopify.app.toml.example', 'shopify.app.deploi-dev.toml.example', 'shopify.app.deploi-dev.toml', 'shopify.app.production.toml']) {
       const t = readFileSync(path.join(ROOT, toml), 'utf8')
-      const scopeLines = t.split('\n').filter(l => /^\s*(scopes|optional_scopes)\s*=/.test(l)).join('\n')
-      for (const s of PROTECTED) expect(scopeLines, `${toml} ${s}`).not.toContain(s)
+      expect(/^scopes = "([^"]+)"/m.exec(t)![1].split(','), toml).toEqual(INSTALL_SCOPES)
     }
   })
+
 
   it('4.1 name and URLs: app name at most 30 characters; app URL host without "shopify" or "example"', () => {
     const t = readFileSync(path.join(ROOT, 'shopify.app.toml.example'), 'utf8')

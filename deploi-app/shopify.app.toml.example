@@ -24,7 +24,7 @@ automatically_update_urls_on_dev = false
 # order-, return- and customer-facing commerce agents stay hidden in the embedded app until Shopify approves the
 # protected customer data request; docs/app-store/PROTECTED-CUSTOMER-DATA.md has the phase-2 scopes and topics.
 # read_discounts is not protected.
-scopes = "read_products,write_products,read_inventory,read_locations,read_discounts"
+scopes = "read_products,write_products,read_inventory,read_locations,read_discounts,write_discounts,read_orders,write_orders,read_fulfillments,read_customers,read_returns,write_returns,read_shopify_payments_payouts"
 # Asked for at runtime through App Bridge (shopify.scopes.request) only when a merchant turns on publication correction:
 #   read_publications,    which sales channels a product is on; publish / unpublish
 #   write_publications

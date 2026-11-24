@@ -4,7 +4,30 @@ Written 2026-11-06 against shopify.dev "Work with protected customer data" (read
 Partner Dashboard path: **Apps → Deploi AI → API access requests → Protected customer data access**.
 Shopify will not take a protected-data request while the app is under review, so decide this before you submit.
 
-## 1. Decision for the first submission: do not request protected customer data
+## 0. Changed 2026-11-24: the full agent library installs at once (founder decision)
+
+The app now asks at install for the scopes all 12 agents call (`lib/connectors/shopify/config.ts` `INSTALL_SCOPES`).
+Six of them are protected customer data (`PROTECTED_SCOPES`), so section 1's opt-out no longer applies. Before the
+next install on the dev store and before submitting, fill in **Dev Dashboard → the app → API access → Protected customer
+data access**:
+
+| Scope | Agent(s) | Data used | Level |
+|---|---|---|---|
+| `read_orders` | Order Tracker, Returns, Customer Care, Weekly Insights, Payout & Fees Checker | order number, items, totals, status | 1 |
+| `write_orders` | Returns, Customer Care | refundCreate only, always after the owner approves | 1 |
+| `read_fulfillments` | Order Tracker | shipment tracking number, carrier, delivered date | 1 |
+| `read_customers` | Order Tracker, Customer Care, Returns | the order's customer **first name** and **email**, to write the update | 2 (name, email) |
+| `read_returns` | Returns | return reason, note, items | 1 |
+| `write_returns` | Returns | returnApproveRequest / returnDeclineRequest under the owner's policy | 1 |
+
+Level 2 fields: **Name** (first name only) and **Email**. Not used: phone, address. Reasons to enter: "Order updates
+and support replies to the store's own customers, sent only by the merchant's agents". Data protection answers are
+unchanged from section 2 (encrypted at rest, retention limits, compliance webhooks erase on request).
+
+Webhook topics for orders, fulfillments, customers, refunds and returns stay unsubscribed until Shopify approves the
+request (`PHASE2_EVENT_TOPICS`); the agents read on schedule and on demand in the meantime.
+
+## 1. (Superseded 2026-11-24) Decision for the first submission: do not request protected customer data
 
 What the Shopify app does today:
 

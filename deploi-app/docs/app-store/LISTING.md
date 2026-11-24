@@ -57,9 +57,20 @@ pricing section, including images and the icon. No Shopify trademarks in graphic
 >   second permission screen. It changes one setting at a time, "Continue selling when out of stock" (and a price
 >   or SKU correction when you turn that on), and only the way you set each action: "do it and tell me" or "ask
 >   me first". Agents at drafts only change nothing. Deploi never changes stock quantities.
-> - **View discounts** (`read_discounts`): to notice discount changes.
+> - **View and manage discounts** (`read_discounts`, `write_discounts`): Campaign and Promo Manager read your
+>   discount codes, and Promo Manager can pause or resume a code you approved.
+> - **View orders and fulfillments** (`read_orders`, `read_fulfillments`): Order Tracker spots stuck shipments,
+>   Weekly Insights sums up sales, Payout & Fees Checker matches payouts to orders.
+> - **Refund orders** (`write_orders`): Returns and Customer Care can issue a refund under your policy. Every refund
+>   waits for your approval at every permission level.
+> - **View customers** (`read_customers`): only a customer's first name and email on their order, to write the
+>   update or reply. Nothing else is read.
+> - **View and manage returns** (`read_returns`, `write_returns`): Returns approves or declines a return request
+>   under your policy.
+> - **View Shopify Payments payouts** (`read_shopify_payments_payouts`): Payout & Fees Checker flags fees or
+>   chargebacks that look wrong.
 >
-> Deploi does not ask for customer, order, fulfillment or return data. Showing a product on a sales channel
+> Deploi never asks to edit customers, never reads reports or analytics, and never changes stock quantities. Showing a product on a sales channel
 > (`read_publications`, `write_publications`) is asked for separately, only if you turn that correction on.
 
 **Search terms (max 5, whole words, one idea each):** inventory, overselling, out of stock, store automation, restock

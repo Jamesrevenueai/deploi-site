@@ -12,7 +12,7 @@ export const shopifyConfig = {
    * approves it once at install and the agents can fix at connect. No protected customer data scope.
    * Must match [access_scopes].scopes in shopify.app.toml.
    */
-  get scopes() { return list(e('SHOPIFY_SCOPES') || REQUIRED_SCOPES.join(',')) },
+  get scopes() { return list(e('SHOPIFY_SCOPES') || INSTALL_SCOPES.join(',')) },
   /**
    * Scopes asked for at runtime (App Bridge `shopify.scopes.request`) only when a merchant turns on a correction no
    * ready agent uses (sales channel publication). Must match [access_scopes].optional_scopes in shopify.app.toml.
@@ -35,8 +35,26 @@ const list = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean)
 export const REQUIRED_SCOPES = ['read_products', 'write_products', 'read_inventory', 'read_locations']
 /** Granted later, one widening at a time: publication correction only. `read_publications` is only read when granted. */
 export const OPTIONAL_SCOPES = ['read_publications', 'write_publications']
+/**
+ * The agent library's scopes (founder decision 2026-11-24: the full 12-agent library installs at once). Each one is
+ * used by an agent's live-store call (lib/commerce/pack/live-store.ts); nothing for analytics, reports or marketing,
+ * which no agent calls.
+ *   read_discounts / write_discounts   codeDiscountNodes; discountCodeActivate/Deactivate (Campaign, Promo Manager)
+ *   read_orders                        orders, order, suggestedRefund (Order Tracker, Returns, Weekly Insights, Payouts)
+ *   write_orders                       refundCreate (Returns, Customer Care: always waits for the owner's approval)
+ *   read_fulfillments                  order fulfillments and tracking (Order Tracker)
+ *   read_customers                     order.customer first name and email (Order Tracker, Customer Care, Returns)
+ *   read_returns / write_returns       returns, return; returnApproveRequest / returnDeclineRequest (Returns)
+ *   read_shopify_payments_payouts      shopifyPaymentsAccount payouts (Payout & Fees Checker)
+ * Orders, customers, fulfillments and returns are PROTECTED customer data: Shopify serves them only after the
+ * app's Protected customer data request is filled in (Dev Dashboard → API access), level 2 for name and email.
+ */
+export const LIBRARY_SCOPES = ['read_discounts', 'write_discounts', 'read_orders', 'write_orders', 'read_fulfillments', 'read_customers', 'read_returns', 'write_returns', 'read_shopify_payments_payouts']
+export const PROTECTED_SCOPES = ['read_orders', 'write_orders', 'read_fulfillments', 'read_customers', 'read_returns', 'write_returns']
+/** Everything the app asks for at install: the core store scopes plus the agent library's. Must match both shopify.app.*.toml. */
+export const INSTALL_SCOPES = [...REQUIRED_SCOPES, ...LIBRARY_SCOPES]
 /** Write scopes requested at install (each is explained in the App Store listing, docs/app-store/LISTING.md). */
-export const INSTALL_WRITE_SCOPES = REQUIRED_SCOPES.filter(s => s.startsWith('write_'))
+export const INSTALL_WRITE_SCOPES = INSTALL_SCOPES.filter(s => s.startsWith('write_'))
 /** Reads the scan needs. Publications are read only when `read_publications` has been granted (see queries.ts#docFor). */
 export const READ_SCOPES = ['read_products', 'read_inventory', 'read_locations']
 export const PUBLICATIONS_READ_SCOPE = 'read_publications'

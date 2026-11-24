@@ -6,7 +6,7 @@
  * paths: platform refusal, lost responses, writes that do not stick, unreadable records.
  */
 import { admin } from '../../db'
-import { REQUIRED_SCOPES, OPTIONAL_SCOPES } from './config'
+import { INSTALL_SCOPES as REQUIRED_SCOPES, OPTIONAL_SCOPES } from './config'
 import type { GqlVariant } from './normalize'
 
 export type SynthLevel = { locationId: string; available: number; onHand: number; committed: number }

@@ -7,7 +7,7 @@
 import { assertApprovedHost } from '../../net/outbound'
 import { normalizeShop } from './auth'
 import { Q_SHOP, Q_ACCESS_SCOPES, Q_VARIANTS, Q_PUBLICATIONS, docFor } from './queries'
-import { REQUIRED_SCOPES, OPTIONAL_SCOPES } from './config'
+import { INSTALL_SCOPES as REQUIRED_SCOPES, OPTIONAL_SCOPES } from './config'
 import { normalizeVariant, type GqlVariant } from './normalize'
 import type { QueryCost } from './client'
 

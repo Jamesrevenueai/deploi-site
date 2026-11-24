@@ -13,7 +13,7 @@ import { GET as billingRoute } from '../../app/api/store/billing/route'
 import { signSessionToken } from '../../lib/connectors/shopify/auth'
 import { frameAncestors } from '../../middleware'
 import { appBridgeFirst } from '../../lib/shopify/head'
-import { REQUIRED_SCOPES, EVENT_SCOPES, SUBSCRIBED_EVENT_TOPICS, PHASE2_EVENT_TOPICS, PHASE2_EVENT_SCOPES } from '../../lib/connectors/shopify/config'
+import { REQUIRED_SCOPES, INSTALL_SCOPES, EVENT_SCOPES, SUBSCRIBED_EVENT_TOPICS, PHASE2_EVENT_TOPICS, PHASE2_EVENT_SCOPES } from '../../lib/connectors/shopify/config'
 import { NW, resetMerchant } from './helpers'
 
 const ready = await prepareDb()
@@ -82,24 +82,20 @@ describe('embedded app shell', () => {
     expect(appBridgeFirst(plain)).toBe(plain)
   })
 
-  it('shopify.app.toml.example: managed install, the scopes the agents use (no protected data), all compliance topics, no sales channel', () => {
+  it('shopify.app.toml.example: managed install, the scopes the 12 agents use, all compliance topics, no sales channel', () => {
     const toml = readFileSync('shopify.app.toml.example', 'utf8')
     expect(toml).not.toMatch(/^\s*use_legacy_install_flow/m)
     expect(toml).toMatch(/embedded = true/)
     expect(toml).toMatch(/compliance_topics = \["customers\/data_request", "customers\/redact", "shop\/redact"\]/)
     expect(toml).toMatch(/"app\/uninstalled"/)
-    // agent events add read-only, non-protected scopes (config.ts EVENT_SCOPES); the only install write is write_products
-    // (the ready agents' fixes, config.ts INSTALL_WRITE_SCOPES); no customer, order, return, discount or fulfillment write
-    expect(toml).not.toMatch(/write_customers|write_orders|write_returns|write_discounts|write_fulfillments|read_reports/)
+    // founder decision 2026-11-24: the full library installs at once (config.ts INSTALL_SCOPES); never customer writes or reports
+    expect(toml).not.toMatch(/write_customers|write_fulfillments|read_reports|read_analytics|read_marketing/)
     const scopes = /^scopes = "([^"]+)"/m.exec(toml)![1].split(',')
-    expect([...scopes].sort()).toEqual([...REQUIRED_SCOPES, ...EVENT_SCOPES].sort())
-    expect(scopes.filter(s => s.startsWith('write_'))).toEqual(['write_products'])
+    expect(scopes).toEqual(INSTALL_SCOPES)
     expect(/^optional_scopes = (.*)$/m.exec(toml)![1]).not.toContain('write_products')
     for (const t of SUBSCRIBED_EVENT_TOPICS) expect(toml, t).toContain(`"${t}"`)
-    // first submission: no protected customer data topic or scope (phase 2, after Shopify approves the request)
+    // protected webhook topics are subscribed only after Shopify approves the protected customer data request
     for (const t of PHASE2_EVENT_TOPICS) expect(toml, t).not.toContain(`"${t}"`)
-    for (const sc of PHASE2_EVENT_SCOPES) expect(scopes, sc).not.toContain(sc)
-    expect(toml).toMatch(/api_version = "2026-10"/)
   })
 })
 

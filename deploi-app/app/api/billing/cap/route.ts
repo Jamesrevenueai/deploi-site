@@ -4,6 +4,7 @@ import { assertCan } from '@/lib/platform/rbac'
 import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/request'
 import { setOverageCap, usageState } from '@/lib/metering'
 import { pendingOverage } from '@/lib/billing/v2'
+import { engineConfig } from '@/lib/engine/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
     const actor = await resolveActor(req)
     if (actor.kind === 'staff') throw new HttpError(403, 'forbidden', 'use the staff tools for a merchant\'s usage')
     const [usage, pending] = await admin(db => Promise.all([usageState(db, actor.orgId), pendingOverage(db, actor.orgId)]))
-    return NextResponse.json({ ok: true, usage, pending })
+    return NextResponse.json({ ok: true, usage, pending, storeBillingRequired: engineConfig.billingRequired })
   } catch (e) { return errorResponse(e) }
 }
 

@@ -17,7 +17,7 @@ import { CATALOG, STORE_PLANS, OFFICE_PLANS, dollars, priceCents, officePriceCen
 import type { UsageState } from '@/lib/metering'
 import type { PlanResponse } from './types'
 
-type CapResponse = { ok: true; usage: UsageState; pending: { kind: string; amountCents: number }[] }
+type CapResponse = { ok: true; usage: UsageState; pending: { kind: string; amountCents: number }[]; storeBillingRequired?: boolean }
 type Suite = 'store' | 'office'
 
 const CARD = 'border: 1px solid #E0E7FF; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #FFFFFF;'
@@ -64,6 +64,8 @@ export function PlanScreen() {
   }
 
   const u = usage.data?.usage
+  // Free at launch: Store plans are shown for what is coming, but nothing is sold while Shopify billing is off
+  const storeFree = suite === 'store' && usage.data?.storeBillingRequired !== true
   const plans = suite === 'store'
     ? STORE_PLANS.map(p => ({ key: p.key as PlanKey, name: p.name, cents: priceCents(p.key, interval), lines: [`${n(p.actions)} actions / month`, `${p.agents.length} agents`, p.customAgents === null ? 'Unlimited custom agents' : `${p.customAgents} custom agent${p.customAgents === 1 ? '' : 's'}`, p.stores === null ? 'Multiple stores' : '1 store'] }))
     : OFFICE_PLANS.map(p => ({ key: p.key as PlanKey, name: p.name, cents: officePriceCents(p.key, interval, false), lines: [`${n(p.actions)} actions / month`, `${n(p.texts)} texts / month`, p.crew === null ? 'Unlimited crew' : p.crew ? `Up to ${p.crew} crew` : 'Just you', p.customAgents === null ? 'Unlimited custom agents' : `${p.customAgents} custom agent${p.customAgents === 1 ? '' : 's'}`, setupFeeCents(p.key) ? `Optional setup ${dollars(setupFeeCents(p.key))}` : 'Setup included'] }))
@@ -106,7 +108,9 @@ export function PlanScreen() {
             </div>
             <p style={css('margin: 0; display: flex; align-items: baseline; gap: 6px;')}><span style={css('font-size: 40px; font-weight: 800; letter-spacing: -0.03em; color: #1E1B4B;')} data-testid="plan-price">{dollars(p.cents)}</span><span style={css('font-size: 15px; font-weight: 600; color: #4F46E5;')}>/ {interval}</span></p>
             <ul style={css('margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #3730A3;')}>{p.lines.map(l => <li key={l}>✓ {l}</li>)}</ul>
-            <button type="button" className="dp-btn" onClick={() => void subscribe(p.key)} disabled={busy !== null || current === p.key} style={css(BTN_PRIMARY + ' justify-content: center; margin-top: auto;')}>{busy === p.key ? 'Starting…' : current === p.key ? 'Current plan' : 'Start 14-day free trial'}</button>
+            {storeFree
+              ? <p data-testid="free-at-launch" style={css('margin: auto 0 0; padding: 12px; border-radius: 12px; background: #EEF2FF; font-size: 14px; font-weight: 700; color: #312E81; text-align: center;')}>Free during launch</p>
+              : <button type="button" className="dp-btn" onClick={() => void subscribe(p.key)} disabled={busy !== null || current === p.key} style={css(BTN_PRIMARY + ' justify-content: center; margin-top: auto;')}>{busy === p.key ? 'Starting…' : current === p.key ? 'Current plan' : 'Start 14-day free trial'}</button>}
           </article>
         ))}
       </section>

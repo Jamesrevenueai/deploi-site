@@ -1,10 +1,46 @@
-# FOUNDER_ACTIONS: your clicks, in order (updated 2026-11-22)
+# FOUNDER_ACTIONS: your clicks, in order (updated 2026-11-24)
 
 Only things that need your login, a secret, money or a legal decision. Never paste a secret into chat: paste it only
 into the Vercel, Shopify, Twilio or Resend field the step names. Each step ends with **Done looks like**.
 
 Production did **not** ship on 2026-11-22: the gate failed (see "Why production did not ship" at the bottom).
 Steps 1 to 4 open the gate. Message the cloud session **"gate ready"** after step 4 and it runs the ship.
+
+---
+
+## Phase A results (2026-11-24): what is on you now, in order
+
+1. **IP allowlist on Deploi (dev): §8.** It can only be set in the Dev Dashboard (no CLI or API). The dev app is
+   installed only on your own dev store, so Shopify does not require it there, but set it anyway. The production app
+   needs it before it can be listed.
+2. **Create the production app "Deploi": §6.** The CLI service account was refused ("User does not have access to
+   create_app"). Either create it in the Dev Dashboard, or give the service account permission to create apps
+   (dev.shopify.com → Settings → Service accounts → the account → App development: create apps), then tell the
+   session. `deploi-app/shopify.app.production.toml` is ready: the session links it to the new Client ID and runs
+   `shopify app deploy --config production`.
+3. **Restore the preview database.** The dev-store harness on dev.getdeploi.com cannot reach its database:
+   "tenant/user postgres.bhddgjcefwasdyrrfptc not found". supabase.com → project **deploi-preview**
+   (bhddgjcefwasdyrrfptc): if it says **Paused**, click **Restore**. Then Settings → Database → Connection string →
+   **Transaction pooler**, and check it matches Vercel → deploi-app → `DATABASE_URL_POOLED` (Preview). Copy it in again
+   if the host changed.
+4. **Supabase token for this session.** The token you saved is in the cloud environment **"deploi"**. This session
+   runs in the environment **"claimyours-deploy"**, which holds the Shopify, Vercel and dev-store secrets, and it cannot
+   be moved. I asked for the token through the secure form and it was saved here, but api.supabase.com still answers
+   "Invalid access token". Check that the token was created at supabase.com/dashboard/account/tokens (an account
+   access token starting `sbp_`, not a project API key). Then re-save it on this environment: Settings → Environments →
+   claimyours-deploy → Network secrets → api.supabase.com, header `Authorization`, value `Bearer <token>`.
+5. **Rotate the two exposed secrets: §2.** They are the **Vercel protection-bypass secret** and the
+   **Deploi (dev) client secret**. The Supabase token you rotated on 2026-11-23 was a separate leak, so both of these
+   are still open.
+6. **Production keys: `docs/ENV_PREFLIGHT.md`**, top table (Shopify keys after step 2; Resend keys after §3).
+7. **Stripe test keys** (Office billing): `STRIPE_SECRET_KEY` (sk_test_) and `STRIPE_WEBHOOK_SECRET` on Vercel Preview,
+   plus `BILLING_MODE=test`. Until then Office billing is BLOCKED-ON-FOUNDER.
+8. **QuickBooks and Outlook** (Office connections): QuickBooks needs a sandbox app at developer.intuit.com
+   (`QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET`, `QUICKBOOKS_ENVIRONMENT=sandbox`). Outlook needs an Azure app
+   registration (`MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_TENANT=common`). None is
+   set anywhere, so neither can connect yet.
+9. After 3: tell the session **"preview db back"**. It then runs the 12 agents on james-jwtftl1e and retakes the
+   listing screenshots. Keep `DEVSTORE_ADMIN_TOKEN` until that passes.
 
 ---
 
@@ -78,7 +114,15 @@ Exact values are in `docs/SHOPIFY_PROD_APP.md`.
    - `BILLING_REQUIRED=false`
 4. dev.shopify.com → Settings → Service accounts → create `claude-code-deploi-prod` (App development, **Deploi** only).
    Put its token in the cloud environment as `SHOPIFY_SERVICE_ACCOUNT_TOKEN_PROD`.
-5. Message **"production app ready"**. The session releases `shopify.app.deploi.toml` (URLs, scopes, webhooks).
+5. Message **"production app ready"** with the Client ID. The session links `deploi-app/shopify.app.production.toml`
+   and runs `shopify app deploy --config production` (URLs, scopes, webhooks).
+
+**Where to copy the Client ID and secret:** dev.shopify.com → Apps → **Deploi** → **Settings** → **Client credentials**.
+- **Client ID** (shown in full) → Vercel → deploi-app → Settings → Environment Variables → Add → Key `SHOPIFY_API_KEY`,
+  Environment **Production** only, Type Plain.
+- **Secret** (click Reveal / Copy) → same screen → Key `SHOPIFY_API_SECRET`, Environment **Production** only, mark **Sensitive**.
+- Then add `SHOPIFY_APP_URL=https://app.getdeploi.com`, `SHOPIFY_API_VERSION=2026-10`, `SHOPIFY_APP_HANDLE=deploi`,
+  `BILLING_REQUIRED=false` (Production). They take effect on the next Production deploy (the ship step).
 - **Done looks like:** Deploi → Versions shows the released version as **Active**.
 
 ## 7. Paste the app settings (5 min)
@@ -88,7 +132,11 @@ On **Deploi** only, never on Deploi (dev):
 3. API access → Protected customer data → request **nothing**.
 
 ## 8. IP allowlist (5 min). The Shopify deadline was 2026-11-20, so do it on both apps now
-1. Deploi (dev) → Settings → IP allowlist → Manage → add ASN **16509**, ASN **14618**, country **United States** → Save → **Run test** (0 blocked).
+1. dev.shopify.com → **Deploi (dev)** → **Settings** → **IP allowlist** → **Manage**.
+   - Under ASNs add **16509** and **14618** (Amazon; Vercel's iad1 functions call Shopify from Amazon's network). Countries: **United States**.
+   - Click **Save**. Under **Test against recent traffic** click **Run test**: it should say none of your last 30 days of requests would be blocked.
+   - Leave **Enforce IP allowlist** off for now. Shopify keeps the list.
+   - Screenshot the page and the test result, then add a dated line under "Your confirmations".
 2. Do the same on **Deploi**.
 3. Turn **Enforcement** on only after the production smoke test.
 

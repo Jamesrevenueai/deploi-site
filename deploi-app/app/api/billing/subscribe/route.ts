@@ -6,6 +6,7 @@ import { resolveActor, errorResponse, readJson, HttpError } from '@/lib/store/re
 import { createOfficeCheckout, startShopifySubscription } from '@/lib/billing/v2'
 import { isOfficePlan, isStorePlan } from '@/lib/pricing'
 import { requireAgreements } from '@/lib/legal'
+import { engineConfig } from '@/lib/engine/config'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,8 @@ export async function POST(req: Request) {
     await assertCan(actor, actor.orgId, 'billing')
     const body = await readJson(req)
     if (isStorePlan(body.plan)) {
+      // Free at launch: while BILLING_REQUIRED is off no Store merchant is charged, so no Shopify subscription is started
+      if (!engineConfig.billingRequired) throw new HttpError(409, 'free_at_launch', 'Deploi is free for Shopify stores during launch: there is nothing to buy yet')
       await requireAgreements(actor, 'commerce')
       const conn = await admin(db => db.one<{ id: string }>(`select id from store_connections where org_id = $1 and platform = 'shopify' and status = 'active' order by created_at limit 1`, [actor.orgId]))
       if (!conn) throw new HttpError(409, 'no_store', 'connect your Shopify store first: Store plans are billed through Shopify')

@@ -68,6 +68,12 @@ test('the admin loads /shopify: App Bridge is the first script, the frame is lim
   await page.goto(`/shopify/connections?shop=${SHOP}`)
   await expect(page.getByRole('heading', { level: 1, name: 'Connections' })).toBeVisible()
   await shot('listing-connections')
+  await page.goto(`/shopify/inbox?shop=${SHOP}`)
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await shot('listing-approvals')
+  await page.goto(`/shopify/activity?shop=${SHOP}`)
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await shot('listing-activity')
 })
 
 test('a token signed with the wrong secret is refused with the App Bridge retry header, and the page says so', async ({ page }) => {

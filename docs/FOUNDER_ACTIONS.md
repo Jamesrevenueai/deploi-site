@@ -8,6 +8,44 @@ Steps 1 to 4 open the gate. Message the cloud session **"gate ready"** after ste
 
 ---
 
+## Addendum results (2026-11-24): the dev app inside Shopify
+
+**Why it showed "session token rejected" and the old design.** Deploi (dev)'s URL was already dev.getdeploi.com
+(not app.getdeploi.com). That host served the older `claude/deploi-platform-launch` build, hence the old design. The
+rejection is in the live log: `shopify.session_token.rejected` with reason **"bad session token signature"** (2026-11-24
+03:32 UTC). Shopify signs the token with Deploi (dev)'s client secret. The `SHOPIFY_API_SECRET` on Vercel Preview no
+longer matches it, most likely because the client secret was rotated in Shopify without updating Vercel.
+
+Done by the session: dev.getdeploi.com now serves the PR #21 build (with the Deploi (dev) Client ID, app URL and API
+version set for its branch). Deploi (dev) released as version **dev-20261124-scopes** with the full scope list.
+
+Your steps, in order:
+1. **Fix the secret.** dev.shopify.com → Deploi (dev) → Settings → Client credentials → copy the current **Secret**.
+   Vercel → deploi-app → Settings → Environment Variables → `SHOPIFY_API_SECRET` (Preview, all branches) → Edit →
+   paste → Save. Do not create a second one.
+2. **Two secrets for the PR #21 branch.** Vercel → Add, Environment **Preview**, Git branch **claude/tender-pascal-0fax6x**, Sensitive:
+   - `CREDENTIALS_ENCRYPTION_KEY`: the same value as the one on branch `claude/deploi-platform-launch` (key id `launch-k1`).
+     Without it the app cannot read the store's saved access token.
+   - `DEVSTORE_ADMIN_TOKEN`: the same value as on `claude/deploi-platform-launch`, so the session can drive the dev store
+     (item 4). Delete both copies after item 4 passes.
+3. **Restore the preview database** (Phase A step 3 above).
+4. **Protected customer data for Deploi (dev):** Dev Dashboard → Deploi (dev) → API access → Protected customer data
+   access → fill it in per `deploi-app/docs/app-store/PROTECTED-CUSTOMER-DATA.md` §0 (orders, fulfillments, returns,
+   customers; level 2 fields: Name and Email only).
+5. Tell the session **"secrets in"**. It redeploys dev.getdeploi.com and then asks you to:
+6. **Reinstall / approve scopes:** Shopify admin of james-jwtftl1e → Apps → Deploi (dev) → it shows "Update permissions"
+   for the new scopes → **Update**. (If not shown: uninstall, then Dev Dashboard → Deploi (dev) → Test app → install again.)
+7. **Resend `send` record.** `send.getdeploi.com` currently points at `send.forge.rmta.net` (another mail provider's
+   CNAME), so Resend's own `send` MX and SPF cannot verify. Squarespace → DNS → delete the `send` CNAME (or the
+   provider's `send` records). Then add exactly what Resend shows for `send` (MX `feedback-smtp.<region>.amazonses.com`
+   priority 10, TXT `v=spf1 include:amazonses.com ~all`) and click Verify in Resend.
+8. **Stripe (Office billing):** also add `STRIPE_WEBHOOK_SECRET` (Stripe → Developers → Webhooks → add endpoint
+   `https://dev.getdeploi.com/api/billing/stripe/webhook`, events: checkout.session.completed,
+   customer.subscription.*, invoice.payment_failed, invoice.paid → reveal signing secret) and `BILLING_MODE=test`, both
+   on Preview. The keys you added are present; checkout can't run until the webhook secret and test mode are set.
+
+---
+
 ## Phase A results (2026-11-24): what is on you now, in order
 
 1. **IP allowlist on Deploi (dev): §8.** It can only be set in the Dev Dashboard (no CLI or API). The dev app is

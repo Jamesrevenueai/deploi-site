@@ -79,6 +79,18 @@ export async function POST(req: Request) {
     if (action === 'env') {
       return NextResponse.json({ ok: true, vercelEnv: process.env.VERCEL_ENV ?? null, shopifyConfigured: shopifyConfig.configured, scopes: shopifyConfig.scopes, optionalScopes: shopifyConfig.optionalScopes, appUrl: shopifyConfig.appUrl, database: (process.env.DATABASE_URL ?? '').replace(/\/\/[^@]*@/, '//<credentials>@').slice(0, 120) })
     }
+    if (action === 'resend-domains') {
+      // read-only: each Resend domain's name, status and record statuses (no key or record values returned)
+      const key = (process.env.RESEND_API_KEY ?? '').trim()
+      if (!key) return NextResponse.json({ ok: false, error: 'resend_not_configured' }, { status: 409 })
+      const list = await fetch('https://api.resend.com/domains', { headers: { authorization: `Bearer ${key}` } }).then(r => r.json()) as { data?: { id: string; name: string; status: string }[] }
+      const out = []
+      for (const d of list.data ?? []) {
+        const one = await fetch(`https://api.resend.com/domains/${d.id}`, { headers: { authorization: `Bearer ${key}` } }).then(r => r.json()) as { records?: { record: string; name: string; type: string; status: string }[] }
+        out.push({ name: d.name, status: d.status, records: (one.records ?? []).map(r => ({ record: r.record, name: r.name, type: r.type, status: r.status })) })
+      }
+      return NextResponse.json({ ok: true, domains: out })
+    }
     // Office billing (Stripe TEST mode only): one throwaway organization per tag, never a real customer
     if (action === 'office-checkout' || action === 'office-end-trial' || action === 'office-cancel' || action === 'billing-events') {
       if (!/^[a-z0-9-]{1,30}$/.test(String(body.tag ?? ''))) return NextResponse.json({ ok: false, error: 'tag must be a-z, 0-9, dash' }, { status: 400 })

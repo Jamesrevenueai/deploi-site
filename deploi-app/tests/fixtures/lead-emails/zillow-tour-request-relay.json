@@ -1,0 +1,16 @@
+{
+  "from": "\"Zillow Rentals\" <no-reply@convo.zillow.com>",
+  "replyTo": "dk8x2p1q@convo.zillow.com",
+  "subject": "Jordan Lee is requesting information about 88 Pine Ave Unit 2",
+  "text": "Jordan Lee is requesting information about 88 Pine Ave Unit 2.\n\nJordan says:\n\"Is this unit still available? I have a small dog.\"\n\nPhone: 206.555.0199\nDesired move-in: Dec 15, 2026\n\nRespond by replying to this email; your reply will be sent to Jordan through Zillow.",
+  "expect": {
+    "source": "zillow",
+    "name": "Jordan Lee",
+    "email": "dk8x2p1q@convo.zillow.com",
+    "replyVia": "portal_relay",
+    "phone": "+12065550199",
+    "property": "88 Pine Ave Unit 2",
+    "moveIn": "2026-12-15",
+    "confidence": "high"
+  }
+}

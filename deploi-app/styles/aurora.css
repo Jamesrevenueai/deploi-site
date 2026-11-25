@@ -1,0 +1,24 @@
+/* ==========================================================================
+   Deploi surface layer (Indigo theme). Shared by the app and the site: the site imports this file from
+   ../deploi-app/styles/aurora.css (one copy). The file keeps its old name so every import keeps working.
+
+   Cards are white with a #E0E7FF border; "ground" contexts that used to be dark (.metal, .aurora-ground)
+   are now the tinted panel #F5F7FF. No heavy shadows.
+   ========================================================================== */
+body { min-height: 100vh; min-height: 100dvh; background: var(--dp-ground); }
+
+.aurora-surface,
+.panel, .au-panel, .au-tile, .au-plan, .au-log-row, .au-surface, .bg-surface, .metal.tile,
+.card, .plan, .faq-item, .agent-card, .step, .chip, .int-table, .pricing-note {
+  color-scheme: light;
+  color: var(--c-body);
+  --c-surface: var(--dp-ground);
+}
+
+/* the tinted panel: what the dark cards and grounds became */
+.aurora-ground, .metal:not(.tile), .dp-panel {
+  color-scheme: light;
+  background-color: var(--dp-panel);
+  color: var(--c-body);
+  --c-surface: var(--dp-panel);
+}

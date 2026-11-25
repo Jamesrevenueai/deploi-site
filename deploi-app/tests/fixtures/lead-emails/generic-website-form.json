@@ -1,0 +1,15 @@
+{
+  "from": "wordpress@harborlofts.example",
+  "subject": "New tour request from your website",
+  "text": "Full Name: Dana White\nE-mail: dana.white@yahoo.com\nPhone Number: 415 555 0181\nProperty: Harbor Lofts\nPreferred Move-In Date: 3/1/27\nComments: Two adults, no pets.",
+  "expect": {
+    "source": "generic",
+    "name": "Dana White",
+    "email": "dana.white@yahoo.com",
+    "phone": "+14155550181",
+    "property": "Harbor Lofts",
+    "moveIn": "2027-03-01",
+    "message": "Two adults, no pets.",
+    "confidence": "low"
+  }
+}

@@ -50,6 +50,14 @@ export function ConnectScreen() {
         </Panel>
       )}
 
+      {!embedded && !o.connections.some(c => c.platform === 'woocommerce' && c.status === 'active') && (
+        <Panel className="mt-4">
+          <div className="flex flex-wrap items-center gap-2"><span className="text-ink font-medium">WooCommerce</span><Badge tone="ok">Available</Badge></div>
+          <p className="pt-2 text-[15px] text-grey">Connect a WooCommerce store by approving Deploi in your WooCommerce admin, or by pasting a Read/Write API key.</p>
+          <Button className="mt-3" size="sm" variant="ghost" href="/store/connect/woocommerce">Connect WooCommerce</Button>
+        </Panel>
+      )}
+
       <Section title="Other platforms">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {planned.map(p => (

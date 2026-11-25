@@ -1,0 +1,6 @@
+{
+  "from": "billing@utility.example",
+  "subject": "Your November statement",
+  "text": "Amount due: $84.10\nDue date: 11/20/2026\nEmail: billing@utility.example",
+  "expect": null
+}

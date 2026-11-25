@@ -1,4 +1,4 @@
 import type { ReactNode } from 'react'
-export function Badge({ children, tone = 'none' }: { children: ReactNode; tone?: 'ok' | 'warn' | 'danger' | 'muted' | 'none' }) {
+export function Badge({ children, tone = 'none' }: { children: ReactNode; tone?: 'ok' | 'warn' | 'danger' | 'muted' | 'info' | 'none' }) {
   return <span className={`badge ${tone === 'none' ? '' : tone}`}>{children}</span>
 }

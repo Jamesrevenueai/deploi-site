@@ -6,9 +6,10 @@ import { APPROVAL_ONLY } from '../../lib/library/actions'
 import { ACTION_MINUTES } from '../../lib/library/weekly'
 
 const EXPECTED = {
-  starter: ['inventory_watcher', 'store_health_checker', 'weekly_insights', 'listing_writer'],
-  growth: ['supplier_chaser', 'order_tracker', 'promo_manager', 'ai_visibility'],
-  pro: ['customer_care', 'campaign', 'returns', 'payout_fees_checker'],
+  // pricing v2 (2026-11-22, lib/pricing/catalog.json)
+  starter: ['order_tracker', 'inventory_watcher', 'listing_writer', 'supplier_chaser', 'customer_care', 'weekly_insights', 'store_health_checker'],
+  growth: ['returns', 'campaign', 'promo_manager', 'payout_fees_checker'],
+  pro: ['ai_visibility'],
 }
 
 describe('agent library config (the one file the app and the site share)', () => {
@@ -18,12 +19,13 @@ describe('agent library config (the one file the app and the site share)', () =>
     expect(new Set(LIBRARY.agents.map(a => a.key)).size).toBe(12)
     for (const a of LIBRARY.agents) expect(lowestTierFor(a.key)).not.toBeNull()
   })
-  it('tiers nest: Starter 4, Growth +4, Pro all 12, Pro alone has build your own', () => {
+  it('tiers nest: Starter 7, Growth +4, Pro all 12; every tier can build its own agents (1, 5, unlimited)', () => {
     const t = Object.fromEntries(LIBRARY.tiers.map(x => [x.key, x]))
     expect(t.starter.agents.sort()).toEqual([...EXPECTED.starter].sort())
     expect(t.growth.agents.sort()).toEqual([...EXPECTED.starter, ...EXPECTED.growth].sort())
     expect(t.pro.agents.sort()).toEqual([...EXPECTED.starter, ...EXPECTED.growth, ...EXPECTED.pro].sort())
-    expect(t.starter.buildYourOwn).toBe(false); expect(t.growth.buildYourOwn).toBe(false); expect(t.pro.buildYourOwn).toBe(true)
+    expect([t.starter.buildYourOwn, t.growth.buildYourOwn, t.pro.buildYourOwn]).toEqual([true, true, true])
+    expect([t.starter.customAgents, t.growth.customAgents, t.pro.customAgents]).toEqual([1, 5, null])
     for (const k of EXPECTED.pro) { expect(tierIncludes('starter', k)).toBe(false); expect(tierIncludes('growth', k)).toBe(false); expect(lowestTierFor(k)?.key).toBe('pro') }
     for (const k of EXPECTED.growth) { expect(tierIncludes('starter', k)).toBe(false); expect(lowestTierFor(k)?.key).toBe('growth') }
     for (const k of EXPECTED.starter) expect(lowestTierFor(k)?.key).toBe('starter')
@@ -61,10 +63,12 @@ describe('agent library config (the one file the app and the site share)', () =>
     expect([...APPROVAL_ONLY].sort()).toEqual(['approve_return', 'create_discount', 'end_discount', 'send_customer_reply'])
     for (const k of APPROVAL_ONLY) expect(LIBRARY.agents.some(a => a.actionTypes.some(t => t.key === k && t.writes))).toBe(true)
   })
-  it('pricing: proposed prices leave a high margin over the estimated model cost at the full allowance and on overage', () => {
+  it('pricing v2: the estimated model-cost margin at the full allowance and on overage is pinned (Starter 65%, Growth 54%, Pro 45%, overage 63%) and never below 40%', () => {
+    const m = Object.fromEntries(allTierEconomics().map(e => [e.tier, e]))
+    expect([m.starter.grossMarginAtFullAllowance, m.growth.grossMarginAtFullAllowance, m.pro.grossMarginAtFullAllowance]).toEqual([0.65, 0.54, 0.45])
     for (const e of allTierEconomics()) {
-      expect(e.grossMarginAtFullAllowance).toBeGreaterThan(0.8)
-      expect(e.overageMargin).toBeGreaterThan(0.8)
+      expect(e.grossMarginAtFullAllowance).toBeGreaterThan(0.4)
+      expect(e.overageMargin).toBeCloseTo(0.63, 2)
       expect(e.costPerActionUsd).toBeGreaterThan(0)
     }
     expect(costPerAction('draft_campaign_email')).toBeGreaterThan(costPerAction('flag_oversold'))
@@ -72,7 +76,7 @@ describe('agent library config (the one file the app and the site share)', () =>
     const starter = LIBRARY.tiers[0]
     expect(monthlyBill(starter, starter.monthlyActions)).toMatchObject({ overageActions: 0, overage: 0, total: starter.proposedPriceUsd })
     expect(monthlyBill(starter, starter.monthlyActions + 10)).toMatchObject({ overageActions: 10, overage: Math.round(10 * starter.proposedOverageUsd * 100) / 100 })
-    expect(LIBRARY.pricingStatus).toBe('coming_soon')
+    expect(LIBRARY.pricingStatus).toBe('published')
   })
   it('build your own: a job description maps to library capabilities', () => {
     expect(matchCapabilities('Tell me which orders are late and draft a note to the customer')).toEqual(expect.arrayContaining(['order_tracker', 'customer_care']))

@@ -1,596 +1,246 @@
-import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { BRAND } from '../lib/brand'
+import { useEffect } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSeo } from '../hooks/useSeo'
-import { CtaButton } from '../components/Button'
-import { ImageCard } from '../components/ImageCard'
-import { StatusBadge, type ProductStatus } from '../components/StatusBadge'
-import { EarlyAccessForm } from '../components/EarlyAccessForm'
-import { art, type ArtTheme } from '../lib/art'
-import { Icon } from '../lib/icons'
-import { AGENTS, TIERS, lowestTierFor } from '../lib/library'
-import { AgentCharacter } from '../components/AgentCharacter'
+import { css } from '../lib/css'
+import { STORE_OVERAGE, TRIAL_DAYS } from '../lib/pricing'
+import { TRIAL_HREF } from '../components/Nav'
+import { PricingSection } from '../components/PricingSection'
 
-export const HOME_TITLE = `${BRAND} — Name an agent. Authorize what it may fix. See every change verified.`
-export const HOME_DESCRIPTION =
-  'Deploi AI is subscription software in which you create named AI agents that find and correct stock and listing problems in your online store: overselling settings, publication, prices and SKUs. Each agent works only within the authorization you grant, makes changes through the platform’s official API and re-reads your store to confirm them. Shopify first, in early access.'
+export const HOME_TITLE = 'Deploi — AI agents that run your store and your office'
+export const HOME_DESCRIPTION = 'Deploi agents watch your Shopify store and your office, fix problems on their own and show you a receipt for every action. Big decisions wait for your one-tap OK.'
+export const HERO_EXAMPLE_LABEL = 'Example data from a Deploi test store'
+export const TICKER_LABEL = 'Examples of things Deploi agents do'
 
-export const SHOPIFY_STATUS_LINE = 'Early access. Tested on a synthetic store; not yet in the Shopify App Store.'
+export const TICKER = ['Reordered 40 units before stock ran out', 'Answered 22 support tickets', 'Fixed 2 broken collection links', 'Chased a late supplier order', 'Flagged a $38 payout fee error', 'Rewrote 6 product descriptions', 'Sent a commission invoice', 'Routed 7 jobs to 3 crews', 'Replied to a new lead in 90 seconds', 'Texted the owner a 6 pm summary']
+
+export const CREW = [
+  { name: 'Order Tracker', area: 'Orders', desc: 'Spots stuck shipments and updates customers before they ask.', bg: '#EEF2FF', body: '#4F46E5' },
+  { name: 'Inventory Watcher', area: 'Products', desc: 'Predicts stock-outs and drafts reorders with your suppliers.', bg: '#E0E7FF', body: '#3730A3' },
+  { name: 'Customer Care', area: 'Customers', desc: 'Answers tickets in your tone and escalates only what needs you.', bg: '#EEF2FF', body: '#6366F1' },
+  { name: 'Listing Writer', area: 'Products', desc: 'Writes product pages and SEO in your brand voice.', bg: '#E0E7FF', body: '#4F46E5' },
+  { name: 'Promo Manager', area: 'Marketing', desc: 'Finds slow movers and proposes discounts that protect margin.', bg: '#EEF2FF', body: '#3730A3' },
+  { name: 'Returns', area: 'Orders', desc: 'Handles returns under your policy and restocks items.', bg: '#E0E7FF', body: '#6366F1' },
+  { name: 'Payout & Fees Checker', area: 'Finance', desc: 'Checks every payout and flags fees that look wrong.', bg: '#EEF2FF', body: '#4F46E5' },
+  { name: 'AI Visibility', area: 'Marketing', desc: 'Gets your products found in AI shopping assistants.', bg: '#E0E7FF', body: '#3730A3' },
+]
+
+export const OFFICE = [
+  { name: 'Invoice Runner', desc: 'Builds job and commission invoices and sends them for you.' },
+  { name: 'Dispatch Coordinator', desc: 'Routes jobs to crews and keeps everyone updated by text.' },
+  { name: 'Lead Responder', desc: 'Replies to new leads in minutes and books the next step.' },
+  { name: 'Owner Updates', desc: 'Texts and voice notes to your phone, with links to the proof.' },
+]
+
+export const HOME_FAQ = [
+  { q: 'How is Deploi different from Shopify Sidekick?', a: 'Sidekick is a great free assistant that helps when you ask it. Deploi agents work on their own: they watch your store all day, take care of jobs end to end, and keep a proof log of everything they did.' },
+  { q: 'Can an agent do something I did not want?', a: 'Every agent starts with the safest permissions. Anything that spends money, changes prices or goes outside your rules waits for your approval.' },
+  { q: 'What counts as an action?', a: 'One finished step — an email sent, an order updated, a product rewritten, an invoice drafted. Watching your store and checking for problems is free.' },
+  { q: 'What happens if I run out of actions?', a: `Agents keep working and extra actions are billed at ${STORE_OVERAGE}, up to the monthly cap you set. Hit the cap and agents pause anything non-urgent until next month.` },
+  { q: 'Does Deploi Office work without Shopify?', a: 'Yes. Office is its own product. It connects to Outlook, your CRM and QuickBooks, and works for home services, property managers, leasing and real estate agents.' },
+]
+
+/** Hashes from earlier versions of the site that meant the pilot application, which now lives on /signup. */
+const OLD_FORM_HASHES = ['#early-access', '#waitlist', '#book']
+
+const Tick = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" strokeWidth="3" strokeLinecap="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
+const MONO = "font-family: 'JetBrains Mono', monospace;"
+const EYEBROW = "font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #4F46E5;"
+const H2 = 'margin: 0; font-size: clamp(34px, 4.4vw, 56px); line-height: 1.04; font-weight: 800; letter-spacing: -0.035em;'
+const ROW = 'display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; border: 1px solid #EEF2FF;'
+const AV = "width: 34px; height: 34px; border-radius: 10px; background: #EEF2FF; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #4F46E5;"
+const DONE = 'font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 999px; background: #4F46E5; color: #FFFFFF;'
+const SMALL_CARD = 'border-radius: 26px; border: 1px solid #E0E7FF; padding: 32px; display: flex; flex-direction: column; gap: 12px;'
+const H3_SM = 'margin: 0; font-size: 24px; line-height: 1.15; font-weight: 800;'
+const P_SM = 'margin: 0; font-size: 16px; line-height: 1.6; color: #3730A3;'
+const BUBBLE = 'align-self: flex-start; max-width: 86%; padding: 12px 14px; border-radius: 16px 16px 16px 4px; background: #EEF2FF; font-size: 14px; line-height: 1.45;'
+const TICK_ROW = 'display: inline-flex; align-items: center; gap: 6px;'
+
+function TickerPill({ t, hidden }: { t: string; hidden?: boolean }) {
+  return <span aria-hidden={hidden || undefined} style={css('display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; border: 1px solid #E0E7FF; font-size: 14px; font-weight: 600; color: #312E81; white-space: nowrap;')}><span style={css('width: 8px; height: 8px; border-radius: 999px; background: #4F46E5;')} />{t}</span>
+}
 
 export default function Home() {
   useSeo({ title: HOME_TITLE, description: HOME_DESCRIPTION })
-  return (
-    <div className="home">
-      <Hero />
-      <HowItWorks />
-      <Agents />
-      <ShopifyToday />
-      <Controls />
-      <Platforms />
-      <FAQ />
-      <EarlyAccess />
-    </div>
-  )
-}
+  const { hash } = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => { if (OLD_FORM_HASHES.includes(hash)) navigate('/signup#early-access', { replace: true }) }, [hash, navigate])
 
-/* -------------------------------------------------------------------------- */
-/*  Hero                                                                      */
-/* -------------------------------------------------------------------------- */
-function Hero() {
   return (
-    <section id="top" className="hero">
-      <div className="hero-art" style={{ backgroundImage: art('hero') }} aria-hidden="true" />
-      <div className="container hero-inner">
-        <span className="eyebrow reveal">AI agents for stock and listing problems</span>
-        <h1 className="two-tone reveal">
-          <span className="grey">Name an agent.</span><br />
-          <span className="grey">Authorize what it may fix.</span><br />
-          <span className="white">See every change verified.</span>
-        </h1>
-        <p className="lead reveal" style={{ maxWidth: 700 }}>
-          {BRAND} is subscription software for online stores. You create named agents, tell each one in plain English
-          what to look after, and approve exactly what it is allowed to change. Agents find overselling settings,
-          publication, price and SKU problems, make the corrections you authorized through your platform&rsquo;s
-          official API, and re-read your store to confirm each one took effect.
-        </p>
-        <div className="hero-ctas reveal">
-          <CtaButton />
-          <Link to="/#how" className="btn btn-ghost">How it works</Link>
-        </div>
-        <div className="hero-trust reveal">
-          <span>Shopify first, in early access</span>
-          <span>Agents act only within your authorization</span>
-          <span>No customer or order data read</span>
-        </div>
-      </div>
-    </section>
-  )
-}
+    <div className="dz-x home-page">
+      {/* HERO */}
+      <section className="dots" style={css('position: relative; border-bottom: 1px solid #EEF2FF;')}>
+        <div style={css('max-width: 1240px; margin: 0 auto; padding: 80px 24px 88px; display: flex; flex-wrap: wrap; gap: 56px; align-items: center;')}>
+          <div style={css('flex: 1 1 520px; display: flex; flex-direction: column; gap: 26px; background: rgba(255,255,255,0.86); border-radius: 24px;')}>
+            <span style={css('align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C7D2FE; color: #3730A3; font-size: 13px; font-weight: 700;')}><span className="pulse" style={css('width: 8px; height: 8px; border-radius: 999px; background: #4F46E5;')} />Built for Shopify · Office tools too</span>
+            <h1 style={css('margin: 0; font-size: clamp(44px, 6.2vw, 84px); line-height: 0.98; font-weight: 800; letter-spacing: -0.045em; color: #1E1B4B;')}>Your store,<br />run by a team<br />of <span style={css('color: #4F46E5;')}>AI agents.</span></h1>
+            <p style={css('margin: 0; font-size: 20px; line-height: 1.55; color: #3730A3; max-width: 540px;')}>Deploi agents watch your business, spot problems on their own, fix them — and show you a receipt for every action. Big decisions wait for your one-tap OK.</p>
+            <div style={css('display: flex; flex-wrap: wrap; gap: 12px;')}>
+              <Link className="hbtn" to={TRIAL_HREF} style={css('min-height: 56px; display: inline-flex; align-items: center; gap: 10px; padding: 0 28px; border-radius: 16px; background: #4F46E5; color: #FFFFFF; text-decoration: none; font-size: 17px; font-weight: 700;')}>Install on Shopify <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></Link>
+              <a className="hbtn" href="#how" style={css('min-height: 56px; display: inline-flex; align-items: center; padding: 0 26px; border-radius: 16px; background: #FFFFFF; border: 1px solid #C7D2FE; color: #3730A3; text-decoration: none; font-size: 17px; font-weight: 700;')}>Watch it work</a>
+            </div>
+            <div style={css('display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; font-weight: 600; color: #3730A3;')}>
+              <span style={css(TICK_ROW)}><Tick />{`${TRIAL_DAYS}-day free trial`}</span>
+              <span style={css(TICK_ROW)}><Tick />Billed through Shopify</span>
+              <span style={css(TICK_ROW)}><Tick />Cancel anytime</span>
+            </div>
+          </div>
 
-/* -------------------------------------------------------------------------- */
-/*  How it works                                                              */
-/* -------------------------------------------------------------------------- */
-export const FLOW: { title: string; body: string; icon: ReactNode }[] = [
-  { title: 'Connect your store', icon: <Icon.Store />, body: 'Install Deploi on your Shopify store. It reads products, inventory and, for the agents you choose, orders and returns. Nothing is changed.' },
-  { title: 'Switch on agents', icon: <Icon.UserCheck />, body: 'Pick from twelve agents, each with one job. Every agent starts in draft-for-approval. Your plan decides which ones you can switch on.' },
-  { title: 'Approve their work', icon: <Icon.Check />, body: 'Each agent drafts what it would do, with the evidence. You approve or decline in its queue. A change is made only after you say so, and a fresh read confirms it.' },
-  { title: 'Agents earn auto-run', icon: <Icon.Refresh />, body: 'Once you trust an agent, grant auto-run for one action type at a time, with a daily cap. Money actions and live publishing always wait for you.' },
-  { title: 'Weekly summary', icon: <Icon.History />, body: 'Every Monday: what each agent did, what needs you, and the time and money saved, labelled as estimates with the formula.' },
-]
-
-export function HowItWorks() {
-  return (
-    <section id="how" className="alt">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">How it works</span>
-          <h2 className="two-tone">
-            <span className="grey">Five steps.</span><br />
-            <span className="white">Nothing outside what you approved.</span>
-          </h2>
-        </div>
-        <ol className="timeline">
-          {FLOW.map((s, i) => (
-            <li className="timeline-step reveal" key={s.title}>
-              <div className="num" aria-hidden="true">{i + 1}</div>
-              <div className="timeline-body">
-                <h3>{s.title}</h3>
-                <p className="body">{s.body}</p>
+          {/* hero visual */}
+          <div aria-hidden="true" style={css('flex: 1 1 440px; position: relative; min-height: 520px;')}>
+            <div style={css('position: absolute; inset: 30px 0 0 30px; border-radius: 28px; background: #FFFFFF; border: 1px solid #E0E7FF; box-shadow: 0 40px 90px rgba(49,46,129,0.16); padding: 22px; display: flex; flex-direction: column; gap: 14px;')}>
+              <div style={css('display: flex; align-items: center; justify-content: space-between;')}><span style={css('font-size: 15px; font-weight: 800;')}>Command center</span><span style={css(MONO + ' font-size: 11px; color: #4F46E5; display: inline-flex; align-items: center; gap: 6px;')}><span className="pulse" style={css('width: 7px; height: 7px; border-radius: 999px; background: #4F46E5;')} />LIVE</span></div>
+              <div style={css('display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;')}>
+                <div style={css('border-radius: 16px; background: #4F46E5; color: #FFFFFF; padding: 16px; display: flex; flex-direction: column; gap: 4px;')}><span style={css('font-size: 12px; font-weight: 600; color: #E0E7FF;')}>Hours saved this week</span><span style={css('font-size: 34px; font-weight: 800; letter-spacing: -0.03em;')}>14.5</span></div>
+                <div style={css('border-radius: 16px; background: #F5F7FF; border: 1px solid #E0E7FF; padding: 16px; display: flex; flex-direction: column; gap: 4px;')}><span style={css('font-size: 12px; font-weight: 600; color: #4F46E5;')}>Fixed before you noticed</span><span style={css('font-size: 34px; font-weight: 800; letter-spacing: -0.03em;')}>31</span></div>
               </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Agents                                                                    */
-/* -------------------------------------------------------------------------- */
-export const EXAMPLE_AGENT = {
-  name: 'Stock Guardian',
-  task: 'Every 6 hours, stop products from selling when they are out of stock, except anything tagged pre-order or backorder. Fix it automatically.',
-  grants: [
-    'Overselling settings on all products in your store, except products tagged pre-order or backorder',
-    'May change one field: a variant’s out-of-stock setting',
-    'Acts without asking for up to one year (you set the end date), up to 25 changes per run and 100 a day',
-    'Runs every 6 hours; you can pause or revoke it at any time',
-  ],
-}
-
-/** The same three permission levels for every tool an agent uses (store and email). */
-export const APPROVAL_MODES: { title: string; body: string }[] = [
-  { title: 'Drafts only', body: 'The default for every new agent and every tool. The agent shows you the exact change or email it would make, and makes none of them.' },
-  { title: 'After your approval', body: 'The agent proposes exact changes and emails. Nothing is written or sent until you approve that exact item.' },
-  { title: 'Without asking, within limits', body: 'A standing authorization for the scope, limits and recipients you grant, for at most one year. Anything outside it waits for you, with the reason.' },
-]
-
-/** The agent library, from the same config the app uses. */
-export const TEMPLATES: { name: string; body: string }[] = AGENTS.map(a => ({ name: a.name, body: a.tagline }))
-
-export const AGENT_ROLES: { key: string; title: string; kind: string; body: string; alt: string }[] = [
-  {
-    key: '03-store-health-checker',
-    title: 'Store Health Checker',
-    kind: 'Finds problems',
-    body: 'Scans your Shopify store for four problems: overselling settings, publication, price and SKU. For each one it shows the evidence and the exact change it proposes.',
-    alt: 'Illustration: an agent checking a grid of product listings and flagging one that needs attention.',
-  },
-  {
-    key: '01-inventory-watcher',
-    title: 'Inventory Watcher',
-    kind: 'Store correction',
-    body: 'Stops out-of-stock products from selling when your rule says they should, while leaving pre-order and backorder products alone. It never changes stock counts.',
-    alt: 'Illustration: an agent watching warehouse shelves, with one shelf highlighted as low on stock.',
-  },
-  {
-    key: '05-approval-inbox',
-    title: 'Approval Inbox',
-    kind: 'You decide',
-    body: 'Every proposed change waits for you with its before and after values, and every email shows the exact message, unless an authorization you granted already covers it.',
-    alt: 'Illustration: proposed changes waiting in a tray, each locked until approved.',
-  },
-  {
-    key: '02-supplier-chaser',
-    title: 'Supplier Chaser',
-    kind: 'Email',
-    body: 'Drafts restock requests to your supplier for low-stock products from its own email address, and one follow-up in the same thread if there is no reply. A reply never changes what the agent may do.',
-    alt: 'Illustration: an agent sending a restock email to a supplier and receiving a reply.',
-  },
-  {
-    key: '06-weekly-summary',
-    title: 'Weekly Summary',
-    kind: 'Email',
-    body: 'Run an agent weekly and it emails you a summary of each run: what it found, what it changed and what is waiting for a person.',
-    alt: 'Illustration: store activity flowing into a weekly summary report that is sent by email.',
-  },
-]
-
-export function Agents() {
-  return (
-    <section id="agents">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Agents</span>
-          <h2 className="two-tone">
-            <span className="grey">Your agents.</span><br />
-            <span className="white">Your rules. Your limits.</span>
-          </h2>
-          <p className="lead">
-            An instruction like &ldquo;fix my store&rdquo; never grants open-ended access. Deploi asks for the missing
-            scope, shows you a readable summary of exactly what the agent may do, and grants nothing until you confirm it.
-          </p>
-        </div>
-        <div className="agent-roles">
-          {AGENT_ROLES.map(r => (
-            <figure className="agent-role reveal" key={r.key}>
-              <img
-                src={`/agents/${r.key}-640.webp`}
-                srcSet={`/agents/${r.key}-640.webp 640w, /agents/${r.key}-1200.webp 1200w`}
-                sizes="(min-width: 960px) 360px, (min-width: 640px) 50vw, 100vw"
-                width={1200}
-                height={800}
-                loading="lazy"
-                decoding="async"
-                alt={r.alt}
-              />
-              <figcaption>
-                <span className="agent-role-kind">{r.kind}</span>
-                <h3>{r.title}</h3>
-                <p>{r.body}</p>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-        <p className="agent-roles-note">Illustrations. The names, products and numbers in them are examples. Email goes out only from the agent's own address or an account you connect, within the permissions you give each agent.</p>
-        <div className="setup-question reveal">
-          <div className="setup-label">Example: {EXAMPLE_AGENT.name}</div>
-          <p>&ldquo;{EXAMPLE_AGENT.task}&rdquo;</p>
-          <ul className="svc-list">
-            {EXAMPLE_AGENT.grants.map(g => <li key={g}>{g}</li>)}
-          </ul>
-        </div>
-        <h3 className="reveal" style={{ marginTop: 32 }}>Three permission levels, for every tool</h3>
-        <div className="why-grid controls-grid agents-grid" aria-label="Permission levels">
-          {APPROVAL_MODES.map(m => (
-            <div className="why-item reveal" key={m.title}>
-              <span className="ico" aria-hidden="true"><Icon.UserCheck /></span>
-              <h3>{m.title}</h3>
-              <p>{m.body}</p>
-            </div>
-          ))}
-          <div className="why-item reveal">
-            <span className="ico" aria-hidden="true"><Icon.History /></span>
-            <h3>A work log for every agent</h3>
-            <p>Every action with what happened, when, why, and which permission allowed it. A weekly email sums up what each agent did and what needs you, with time saved clearly labelled as an estimate.</p>
-          </div>
-          <div className="why-item reveal">
-            <span className="ico" aria-hidden="true"><Icon.Pencil /></span>
-            <h3>Tasks in plain English</h3>
-            <p>Give an agent a task in your own words. Inside its rules it runs; outside them it waits for you to widen the agent; if it is unclear, nothing runs. A task is marked done only with the run that proves it.</p>
-          </div>
-          <div className="why-item reveal">
-            <span className="ico" aria-hidden="true"><Icon.Link /></span>
-            <h3>Its own email address</h3>
-            <p>Each agent can send from its own address on our domain, and suppliers reply there. No access to your mailbox is needed: forward or copy a thread to the agent instead. It writes only to the recipients you allow.</p>
-          </div>
-          <div className="why-item reveal">
-            <span className="ico" aria-hidden="true"><Icon.Shield /></span>
-            <h3>Pause, edit or revoke</h3>
-            <p>Pausing or revoking stops all writes, including changes already queued. Widening what an agent may do always needs your approval again.</p>
-          </div>
-        </div>
-        <h3 className="reveal" style={{ marginTop: 32 }}>The agent library</h3>
-        <ul className="agent-grid home-agents" aria-label="Agent library">
-          {AGENTS.map(a => {
-            const tier = lowestTierFor(a.key)
-            return (
-              <li key={a.key} className="agent-card reveal">
-                <div className="agent-card-head">
-                  <AgentCharacter agentKey={a.key} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
-                  <div><h3>{a.name}</h3><p className="agent-tag">{a.tagline}</p></div>
-                </div>
-                <div className="agent-foot"><span className={`tier-pill tier-${tier?.key ?? 'pro'}`}>From {tier?.name ?? 'Pro'}</span></div>
-              </li>
-            )
-          })}
-        </ul>
-        <div className="page-actions" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/agents" className="btn btn-ghost sm">All twelve agents</Link>
-          <Link to="/pricing" className="btn btn-ghost sm">Plans: {TIERS.map(t => t.name).join(', ')}</Link>
-        </div>
-        <p className="muted reveal" style={{ marginTop: 20, maxWidth: 640, marginInline: 'auto' }}>
-          The Competitor &amp; Trend Watcher template from the earlier release stays available in the app. It reads only what anyone can see on competitors&rsquo; public pages. Never their sales, which are not public.
-        </p>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  What the Shopify version does today                                       */
-/* -------------------------------------------------------------------------- */
-type Check = {
-  tag: string
-  title: string
-  summary: string
-  art: ArtTheme
-  icon: ReactNode
-  cols: { label: string; items: string[]; minus?: boolean }[]
-  footnote: string
-}
-
-export const CHECKS: Check[] = [
-  {
-    tag: 'Correction 1 · Overselling settings',
-    title: 'Selling with no stock against your rule',
-    summary: 'Finds active, inventory-tracked variants set to keep selling when out of stock, when your rule says they should stop, and switches them to stop selling.',
-    art: 'glow',
-    icon: <Icon.Pencil />,
-    cols: [
-      { label: 'Compared with', items: ['Your rule: stop selling at zero', 'Available quantity at each location', 'The product’s tags'] },
-      { label: 'Never changed', minus: true, items: ['Pre-order, backorder and made-to-order products (your tags)', 'Products sold through selling plans', 'Gift cards, untracked inventory and drafts', 'Stock counts'] },
-    ],
-    footnote: 'Variants already oversold while set to stop selling are reported to you with the evidence. Only a physical count or a receiving record can say what is on the shelf.',
-  },
-  {
-    tag: 'Correction 2 · Publication',
-    title: 'Published differently from your instructions',
-    summary: 'Publishes, or if you allow it unpublishes, products on the one sales channel you authorize, so they match your product list or tag rule.',
-    art: 'rings',
-    icon: <Icon.Store />,
-    cols: [
-      { label: 'Compared with', items: ['Your publication list file, or “publish products tagged …”', 'Whether the product is published on that channel'] },
-      { label: 'Never changed', minus: true, items: ['Product status: drafts and archived products are reported, not published', 'Products scheduled to publish later', 'Any other sales channel'] },
-    ],
-    footnote: 'Unpublished, draft or archived is not treated as an error on its own. Only your explicit instruction makes it one.',
-  },
-  {
-    tag: 'Correction 3 · Prices',
-    title: 'Price differs from your price list',
-    summary: 'Sets a variant’s price, and if you choose its compare-at price, to the amount in your approved price list, in your store currency.',
-    art: 'bars',
-    icon: <Icon.Doc />,
-    cols: [
-      { label: 'Compared with', items: ['Your price list, matched by variant ID or a unique SKU', 'Your store currency', 'Your limit on the size of a change'] },
-      { label: 'Never changed', minus: true, items: ['Rows in another currency or with conflicting prices', 'Variants on sale, if you protect them', 'Variants with fixed Markets or B2B prices', 'Prices Deploi would have to guess'] },
-    ],
-    footnote: 'Changes larger than your limit always wait for your approval, even for an agent authorized to act on its own.',
-  },
-  {
-    tag: 'Correction 4 · SKUs',
-    title: 'SKU missing or different from your mapping',
-    summary: 'Fills in missing SKUs, and if you allow it corrects wrong ones, from your approved SKU mapping, matched by variant ID, barcode, or product handle and option.',
-    art: 'rows',
-    icon: <Icon.Link />,
-    cols: [
-      { label: 'Compared with', items: ['Your SKU mapping', 'Every other SKU and barcode in your store'] },
-      { label: 'Never changed', minus: true, items: ['Ambiguous matches, such as a barcode shared by several variants', 'SKUs that would duplicate one already in use', 'Identifiers Deploi would have to make up'] },
-    ],
-    footnote: 'Anything ambiguous is blocked and sent to you with the rows involved.',
-  },
-]
-
-export function ShopifyToday() {
-  return (
-    <section id="shopify" className="alt">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">The Shopify version today</span>
-          <h2 className="two-tone">
-            <span className="grey">Four corrections.</span><br />
-            <span className="white">Each one against your own rule or file.</span>
-          </h2>
-          <p className="status-line"><StatusBadge status="early_access" /> <span>{SHOPIFY_STATUS_LINE}</span></p>
-          <p className="lead">
-            Price lists, SKU mappings and publication lists are CSV files you upload. They are treated as data: nothing
-            written in a file can change what an agent is allowed to do. A new version of a file cancels changes based on
-            the old one.
-          </p>
-        </div>
-        <div className="card-grid">
-          {CHECKS.map(c => (
-            <div className="reveal" key={c.title}>
-              <ImageCard tag={c.tag} tagIcon={c.icon} title={c.title} art={c.art} className="check-card">
-                <div className="icard-bottom svc">
-                  <div className="icard-title">{c.title}</div>
-                  <p className="svc-desc">{c.summary}</p>
-                  <div className="svc-cols">
-                    {c.cols.map(col => (
-                      <div key={col.label}>
-                        <div className="svc-label">{col.label}</div>
-                        <ul className={`svc-list ${col.minus ? 'svc-list-x' : ''}`}>
-                          {col.items.map(i => <li key={i}>{i}</li>)}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="check-foot">{c.footnote}</p>
-                </div>
-              </ImageCard>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Controls                                                                  */
-/* -------------------------------------------------------------------------- */
-export const CONTROLS: { icon: ReactNode; title: string; body: string }[] = [
-  {
-    icon: <Icon.UserCheck />,
-    title: 'Approval or a standing authorization',
-    body: 'Approve each exact change, or grant an agent a standing authorization with a defined scope and limits. Each change records the authorization version it ran under and why it qualified.',
-  },
-  {
-    icon: <Icon.Refresh />,
-    title: 'Checked before, verified after',
-    body: 'Every change is re-checked just before it is made and verified with a fresh read afterwards. An accepted request alone is never reported as success.',
-  },
-  {
-    icon: <Icon.Check />,
-    title: 'A truthful status for every change',
-    body: 'Awaiting approval, Queued, Running, Blocked, Failed or Verified, with the reason.',
-  },
-  {
-    icon: <Icon.History />,
-    title: 'A full record',
-    body: 'Which agent, the evidence, the authorization, the before and after values, the times, the attempts and the verification read are all kept.',
-  },
-  {
-    icon: <Icon.Shield />,
-    title: 'No conflicts or loops',
-    body: 'Two agents cannot be authorized for the same correction on the same products, a change runs once, and if someone changes a value back Deploi asks you instead of flipping it again.',
-  },
-  {
-    icon: <Icon.Lock />,
-    title: 'Limited access, encrypted tokens',
-    body: 'Permissions are enforced in code, not by instructions to a model. Deploi does not read customer or order data, and access tokens are encrypted.',
-  },
-]
-
-export function Controls() {
-  return (
-    <section id="controls" className="alt">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Controls</span>
-          <h2 className="two-tone">
-            <span className="grey">Agents work for you,</span><br />
-            <span className="white">inside the limits you set.</span>
-          </h2>
-        </div>
-        <div className="why-grid controls-grid">
-          {CONTROLS.map(p => (
-            <div className="why-item reveal" key={p.title}>
-              <span className="ico" aria-hidden="true">{p.icon}</span>
-              <h3>{p.title}</h3>
-              <p>{p.body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Platforms                                                                 */
-/* -------------------------------------------------------------------------- */
-export const PLATFORM_CARDS: { name: string; status: ProductStatus; order: string; body: string; art: ArtTheme }[] = [
-  {
-    name: 'Shopify',
-    status: 'early_access',
-    order: 'First',
-    body: 'Agents and the four corrections above. Built and tested against a synthetic test store; not yet run on a real merchant’s store and not yet listed in the Shopify App Store.',
-    art: 'rings',
-  },
-  {
-    name: 'WooCommerce',
-    status: 'planned',
-    order: 'Next',
-    body: 'A similar check for products with managed stock at or below zero that still allow backorders, with the fix written through the WooCommerce REST API.',
-    art: 'blocks',
-  },
-  {
-    name: 'Amazon Seller Central',
-    status: 'planned',
-    order: 'After WooCommerce',
-    body: 'Listing issues Amazon itself reports, and listings that are not buyable. Seller-fulfilled quantities only from a stock source you configure, never guessed.',
-    art: 'grid',
-  },
-]
-
-export function Platforms() {
-  return (
-    <section id="platforms" className="alt">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Platforms</span>
-          <h2 className="two-tone">
-            <span className="grey">Shopify first.</span><br />
-            <span className="white">One platform is all you need.</span>
-          </h2>
-          <p className="lead">
-            Each platform works on its own. Nothing requires selling on several. Comparing stock across channels is a
-            possible later add-on and is not part of the product today.
-          </p>
-        </div>
-        <div className="card-grid three">
-          {PLATFORM_CARDS.map(p => (
-            <div className="reveal" key={p.name}>
-              <ImageCard tag={p.order} tagIcon={<Icon.Store />} title={p.name} art={p.art} className="platform-card">
-                <div className="icard-bottom svc">
-                  <div className="icard-title">{p.name}</div>
-                  <StatusBadge status={p.status} />
-                  <p className="svc-desc">{p.body}</p>
-                </div>
-              </ImageCard>
-            </div>
-          ))}
-        </div>
-        <p className="platform-note reveal">
-          These are integrations through each platform&rsquo;s official API, not partnerships. {BRAND} is not affiliated
-          with or endorsed by Shopify, WooCommerce or Amazon.
-        </p>
-      </div>
-    </section>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/*  FAQ                                                                       */
-/* -------------------------------------------------------------------------- */
-export const FAQS: { q: string; a: ReactNode }[] = [
-  {
-    q: 'What can an agent change?',
-    a: <>Only what you authorize, and only these four things in Shopify today: a variant&rsquo;s out-of-stock setting, whether a product is published on one sales channel you choose, a variant&rsquo;s price or compare-at price, and a variant&rsquo;s SKU. It never changes stock counts, product status, customers or orders.</>,
-  },
-  {
-    q: 'Can an agent act without asking me?',
-    a: <>Only if you grant it a standing authorization. You see a readable summary of exactly what it covers (store, products, corrections, fields, files, exceptions and limits) before you grant it. Anything outside it waits for your approval. Pausing or revoking an agent stops all writes, including queued ones.</>,
-  },
-  {
-    q: 'What if I just tell it to “fix my store”?',
-    a: <>That is not enough to grant anything. Deploi asks which corrections, which products and which rules or files to use, and it reports requests it cannot do instead of guessing.</>,
-  },
-  {
-    q: 'Do I need more than one platform?',
-    a: <>No. One platform is enough. A Shopify store needs only Shopify, and the same will apply to WooCommerce and Amazon Seller Central once they are available. Comparing stock across channels is a possible later add-on, not part of the product today.</>,
-  },
-  {
-    q: 'What does it read?',
-    a: <>Products, variants, inventory, locations, sales channel publications and fixed Markets prices, plus your shop&rsquo;s name, domain, timezone and currency, and the files you upload. It does not read customer or order data. The <Link to="/privacy">privacy policy</Link> has the details.</>,
-  },
-  {
-    q: 'What happens if my store or my file changes before a change runs?',
-    a: <>The change does not run. Deploi re-reads the record and re-checks the agent&rsquo;s authorization just before writing, and a new version of your file cancels changes based on the old one. You see the reason next to the change.</>,
-  },
-  {
-    q: 'What does it cost?',
-    a: <>{BRAND} is a subscription with three plans (Starter, Growth, Pro), each with a base fee and a monthly action allowance, with paid overage. Prices are coming soon; early access is free. See <Link to="/pricing">pricing</Link>.</>,
-  },
-  {
-    q: 'Is it in the Shopify App Store?',
-    a: <>Not yet. The Shopify version is in early access. It has been built and tested against a synthetic test store and has not yet been run on a real merchant&rsquo;s store.</>,
-  },
-]
-
-export function FAQ() {
-  return (
-    <section id="faq">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Questions</span>
-          <h2 className="two-tone">
-            <span className="grey">Straight answers</span><br />
-            <span className="white">before you apply.</span>
-          </h2>
-        </div>
-        <div className="faq-list reveal">
-          {FAQS.map(f => (
-            <details className="faq-item" key={f.q}>
-              <summary>
-                <span className="faq-q">{f.q}</span>
-                <span className="faq-chevron" aria-hidden="true"><Icon.Chevron width={18} height={18} /></span>
-              </summary>
-              <div className="faq-a">
-                <p>{f.a}</p>
+              <div style={css('display: flex; flex-direction: column; gap: 8px;')}>
+                <div style={css(ROW)}><span style={css(AV)}>OT</span><div style={css('flex: 1; display: flex; flex-direction: column;')}><span style={css('font-size: 13px; font-weight: 700;')}>Order Tracker</span><span style={css('font-size: 12px; color: #3730A3;')}>Messaged carrier about 4 stuck parcels</span></div><span style={css(DONE)}>Done</span></div>
+                <div style={css(ROW)}><span style={css(AV)}>CC</span><div style={css('flex: 1; display: flex; flex-direction: column;')}><span style={css('font-size: 13px; font-weight: 700;')}>Customer Care</span><span style={css('font-size: 12px; color: #3730A3;')}>Answered 22 tickets in your tone</span></div><span style={css(DONE)}>Done</span></div>
+                <div style={css('display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: #F5F7FF;')}><span style={css("width: 34px; height: 34px; border-radius: 10px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: #4F46E5;")}>IW</span><div style={css('flex: 1; display: flex; flex-direction: column;')}><span style={css('font-size: 13px; font-weight: 700;')}>Inventory Watcher</span><span style={css('font-size: 12px; color: #3730A3;')}>Reorder 40 × Linen Throw?</span></div><span style={css('font-size: 11px; font-weight: 700; padding: 6px 10px; border-radius: 8px; background: #4F46E5; color: #FFFFFF;')}>Approve</span></div>
               </div>
+              <span data-testid="hero-example-label" style={css('font-size: 11px; color: #4F46E5;')}>{HERO_EXAMPLE_LABEL}</span>
+            </div>
+            {/* floating bot */}
+            <div className="float" style={css('position: absolute; left: 0; top: 0; width: 112px; height: 112px; border-radius: 30px; background: #FFFFFF; border: 1px solid #E0E7FF; box-shadow: 0 18px 40px rgba(49,46,129,0.14); display: flex; align-items: center; justify-content: center;')}>
+              <svg width="80" height="80" viewBox="0 0 96 96"><path d="M48 26V16" stroke="#4F46E5" strokeWidth="3" strokeLinecap="round" /><circle cx="48" cy="14" r="5" fill="#E8734A" /><rect x="18" y="26" width="60" height="44" rx="17" fill="#4F46E5" /><rect x="27" y="36" width="42" height="22" rx="11" fill="#EEF2FF" /><circle cx="39" cy="47" r="4.5" fill="#1E1B4B" /><circle cx="57" cy="47" r="4.5" fill="#1E1B4B" /><rect x="34" y="74" width="28" height="10" rx="5" fill="#C7D2FE" /></svg>
+            </div>
+            {/* floating receipt */}
+            <div className="float2" style={css('position: absolute; right: -8px; bottom: -18px; width: 250px; border-radius: 18px; background: #1E1B4B; color: #FFFFFF; padding: 16px; box-shadow: 0 24px 50px rgba(30,27,75,0.3); display: flex; flex-direction: column; gap: 6px;')}>
+              <span style={css(MONO + ' font-size: 11px; color: #A5B4FC;')}>PROOF · 12:08</span>
+              <span style={css('font-size: 14px; font-weight: 700; line-height: 1.4;')}>Supplier confirmed PO #1042 — arrives Nov 25</span>
+              <span style={css('font-size: 12px; color: #C7D2FE;')}>Email thread attached</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TICKER: example actions (the second copy only makes the loop seamless, so screen readers skip it) */}
+      <section aria-label={TICKER_LABEL} style={css('border-bottom: 1px solid #EEF2FF; padding: 18px 0; overflow: hidden; background: #FFFFFF;')}>
+        <div className="track">
+          {TICKER.map(t => <TickerPill key={t} t={t} />)}
+          {TICKER.map(t => <TickerPill key={`${t}-2`} t={t} hidden />)}
+        </div>
+      </section>
+
+      {/* PROBLEM / SHIFT */}
+      <section style={css('max-width: 1240px; margin: 0 auto; padding: 112px 24px 40px; display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-end;')}>
+        <h2 style={css('flex: 1 1 560px; margin: 0; font-size: clamp(34px, 4.4vw, 60px); line-height: 1.04; font-weight: 800; letter-spacing: -0.035em;')}>Most AI tools wait for you to ask. <span style={css('color: #4F46E5;')}>Deploi agents don&apos;t.</span></h2>
+        <p style={css('flex: 1 1 380px; margin: 0; font-size: 18px; line-height: 1.65; color: #3730A3;')}>Chat assistants answer questions. Deploi agents own jobs — inventory, orders, support, marketing, books — and keep doing them every hour of every day, inside limits you set.</p>
+      </section>
+
+      {/* BENTO */}
+      <section id="how" style={css('max-width: 1240px; margin: 0 auto; padding: 40px 24px 112px;')}>
+        <div style={css('display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px;')}>
+          <div style={css('grid-column: span 2; min-width: 0; border-radius: 26px; background: #4F46E5; color: #FFFFFF; padding: 36px; display: flex; flex-direction: column; gap: 14px; min-height: 280px; box-sizing: border-box;')}>
+            <span style={css(MONO + ' font-size: 13px; color: #E0E7FF;')}>01 · NOTICE</span>
+            <h3 style={css('margin: 0; font-size: 32px; line-height: 1.1; font-weight: 800; letter-spacing: -0.025em; max-width: 520px;')}>They spot the problem before your customers do.</h3>
+            <p style={css('margin: 0; font-size: 17px; line-height: 1.6; color: #E0E7FF; max-width: 560px;')}>Stuck shipments, low stock, broken links, fee errors, unanswered leads — agents scan around the clock and catch them early.</p>
+          </div>
+          <div style={css('border-radius: 26px; background: #F5F7FF; border: 1px solid #E0E7FF; padding: 32px; display: flex; flex-direction: column; gap: 12px;')}>
+            <span style={css(MONO + ' font-size: 13px; color: #4F46E5;')}>02 · FIX</span>
+            <h3 style={css(H3_SM)}>They do the work.</h3>
+            <p style={css(P_SM)}>Emails sent, orders updated, products rewritten, invoices built — real work, not suggestions.</p>
+          </div>
+          <div style={css('background: #FFFFFF; ' + SMALL_CARD)}>
+            <span style={css(MONO + ' font-size: 13px; color: #4F46E5;')}>03 · PROVE</span>
+            <h3 style={css(H3_SM)}>Every action has a receipt.</h3>
+            <p style={css(P_SM)}>See the email, the order, the before-and-after. Nothing happens in the dark.</p>
+          </div>
+          <div style={css('background: #FFFFFF; ' + SMALL_CARD)}>
+            <span style={css(MONO + ' font-size: 13px; color: #4F46E5;')}>04 · ASK</span>
+            <h3 style={css(H3_SM)}>You approve the big moves.</h3>
+            <p style={css(P_SM)}>Spending money or changing prices? The agent asks first — one tap from your phone.</p>
+          </div>
+          <div style={css('border-radius: 26px; background: #1E1B4B; color: #FFFFFF; padding: 32px; display: flex; flex-direction: column; gap: 12px;')}>
+            <span style={css(MONO + ' font-size: 13px; color: #A5B4FC;')}>05 · TALK</span>
+            <h3 style={css(H3_SM)}>Chat or speak to any agent.</h3>
+            <p style={css('margin: 0; font-size: 16px; line-height: 1.6; color: #C7D2FE;')}>Give standing instructions in plain words — by text or voice — and they stick.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* CREW */}
+      <section id="crew" style={css('background: #F5F7FF; border-top: 1px solid #E0E7FF; border-bottom: 1px solid #E0E7FF;')}>
+        <div style={css('max-width: 1240px; margin: 0 auto; padding: 112px 24px; display: flex; flex-direction: column; gap: 48px;')}>
+          <div style={css('display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px;')}>
+            <div style={css('display: flex; flex-direction: column; gap: 14px; max-width: 660px;')}>
+              <span style={css(EYEBROW)}>Meet the crew</span>
+              <h2 style={css(H2)}>One agent for every part of your Shopify store.</h2>
+            </div>
+            <Link to="/agents" style={css('min-height: 44px; display: inline-flex; align-items: center; font-size: 16px; font-weight: 700; text-decoration: none;')}>See all 12 agents →</Link>
+          </div>
+          <div style={css('display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;')}>
+            {CREW.map(c => (
+              <article key={c.name} style={css('background: #FFFFFF; border: 1px solid #E0E7FF; border-radius: 22px; padding: 24px; display: flex; flex-direction: column; gap: 14px;')}>
+                <div style={css('display: flex; align-items: center; justify-content: space-between;')}>
+                  <svg width="52" height="52" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12" fill={c.bg} /><rect x="9" y="13" width="22" height="16" rx="6" fill={c.body} /><circle cx="16" cy="21" r="2.4" fill="#FFFFFF" /><circle cx="24" cy="21" r="2.4" fill="#FFFFFF" /><path d="M20 13V8" stroke={c.body} strokeWidth="2" /><circle cx="20" cy="7" r="2" fill="#E8734A" /></svg>
+                  <span style={css(MONO + ' font-size: 11px; font-weight: 600; color: #4F46E5; text-transform: uppercase; letter-spacing: 0.06em;')}>{c.area}</span>
+                </div>
+                <h3 style={css('margin: 0; font-size: 19px; font-weight: 800;')}>{c.name}</h3>
+                <p style={css('margin: 0; font-size: 15px; line-height: 1.55; color: #3730A3;')}>{c.desc}</p>
+              </article>
+            ))}
+          </div>
+          <div style={css('border-radius: 22px; border: 2px dashed #A5B4FC; background: #FFFFFF; padding: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 20px;')}>
+            <span style={css('width: 52px; height: 52px; border-radius: 14px; background: #4F46E5; color: #FFFFFF; display: flex; align-items: center; justify-content: center;')}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></span>
+            <div style={css('flex: 1 1 360px; display: flex; flex-direction: column; gap: 4px;')}><span style={css('font-size: 20px; font-weight: 800;')}>Need something else? Build your own agent.</span><span style={css('font-size: 15px; color: #3730A3;')}>Describe the job in plain words. Deploi sets up the agent, its tools and its permissions.</span></div>
+            <a className="hbtn" href="#pricing" style={css('min-height: 48px; display: inline-flex; align-items: center; padding: 0 20px; border-radius: 12px; background: #4F46E5; color: #FFFFFF; text-decoration: none; font-weight: 700;')}>Try it free</a>
+          </div>
+        </div>
+      </section>
+
+      {/* OFFICE */}
+      <section id="office" style={css('max-width: 1240px; margin: 0 auto; padding: 112px 24px; display: flex; flex-wrap: wrap; gap: 56px; align-items: center;')}>
+        <div style={css('flex: 1 1 480px; display: flex; flex-direction: column; gap: 20px;')}>
+          <span style={css(EYEBROW)}>Deploi Office</span>
+          <h2 style={css(H2)}>Run the office from your truck.</h2>
+          <p style={css('margin: 0; font-size: 18px; line-height: 1.65; color: #3730A3;')}>For HVAC, construction and landscaping crews, property managers, leasing and real estate agents. Office agents plug into your CRM, Outlook and QuickBooks — then text and send voice notes to your phone as work gets done.</p>
+          <div style={css('display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;')}>
+            {OFFICE.map(o => (
+              <div key={o.name} style={css('border: 1px solid #E0E7FF; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 6px;')}>
+                <span style={css('font-size: 16px; font-weight: 800;')}>{o.name}</span>
+                <span style={css('font-size: 14px; line-height: 1.5; color: #3730A3;')}>{o.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div aria-hidden="true" style={css('flex: 0 1 360px; margin: 0 auto; position: relative;')}>
+          <div style={css('width: 310px; border: 11px solid #1E1B4B; border-radius: 48px; padding: 26px 16px 22px; background: #FFFFFF; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 40px 80px rgba(30,27,75,0.22);')}>
+            <div style={css('display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #EEF2FF;')}><span style={css('width: 36px; height: 36px; border-radius: 12px; background: #4F46E5;')} /><div style={css('display: flex; flex-direction: column;')}><span style={css('font-size: 14px; font-weight: 800;')}>Deploi Office</span><span style={css('font-size: 11px; color: #4F46E5;')}>Dispatch Coordinator</span></div></div>
+            <div style={css(BUBBLE)}>Crew B finished the Oak Ave install. Photos and sign-off attached.</div>
+            <div style={css('align-self: flex-start; width: 86%; box-sizing: border-box; padding: 12px 14px; border-radius: 16px 16px 16px 4px; background: #EEF2FF; display: flex; align-items: center; gap: 10px;')}><span style={css('width: 30px; height: 30px; border-radius: 999px; background: #4F46E5; display: flex; align-items: center; justify-content: center;')}><svg width="12" height="12" viewBox="0 0 12 12"><path d="M3 2l7 4-7 4z" fill="#FFFFFF" /></svg></span><svg width="120" height="22" viewBox="0 0 120 22"><path d="M2 11h4M10 6v10M16 3v16M22 8v6M28 5v12M34 9v4M40 2v18M46 7v8M52 4v14M58 9v4M64 6v10M70 3v16M76 8v6M82 5v12M88 9v4M94 6v10M100 8v6M106 10v2" stroke="#6366F1" strokeWidth="2.4" strokeLinecap="round" /></svg><span style={css(MONO + ' font-size: 11px;')}>0:18</span></div>
+            <div style={css(BUBBLE)}>Commission invoice for 14 Elm St is ready. Send it to the landlord?</div>
+            <div style={css('align-self: flex-end; padding: 12px 16px; border-radius: 16px 16px 4px 16px; background: #4F46E5; color: #FFFFFF; font-size: 14px; font-weight: 700;')}>Send it</div>
+          </div>
+        </div>
+      </section>
+
+      <PricingSection />
+
+      {/* FAQ */}
+      <section id="faq" style={css('max-width: 880px; margin: 0 auto; padding: 112px 24px; display: flex; flex-direction: column; gap: 32px;')}>
+        <h2 style={css('margin: 0; font-size: clamp(32px, 4vw, 48px); line-height: 1.08; font-weight: 800; letter-spacing: -0.03em; text-align: center;')}>Questions, answered.</h2>
+        <div style={css('display: flex; flex-direction: column; gap: 12px;')}>
+          {HOME_FAQ.map(q => (
+            <details key={q.q} style={css('border: 1px solid #E0E7FF; border-radius: 16px; padding: 0 22px;')}>
+              <summary style={css('min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 17px; font-weight: 700; color: #1E1B4B;')}>{q.q}<span className="chev" aria-hidden="true" style={css('font-size: 24px; color: #4F46E5; transition: transform .2s ease;')}>+</span></summary>
+              <p style={css('margin: 0 0 20px; font-size: 16px; line-height: 1.65; color: #3730A3;')}>{q.a}</p>
             </details>
           ))}
         </div>
-      </div>
-    </section>
-  )
-}
+      </section>
 
-/* -------------------------------------------------------------------------- */
-/*  Early access                                                              */
-/* -------------------------------------------------------------------------- */
-export function EarlyAccess() {
-  return (
-    <section id="early-access" className="alt">
-      <div className="container">
-        <div className="section-head reveal">
-          <span className="eyebrow">Apply for Early Access</span>
-          <h2 className="two-tone">
-            <span className="grey">Access is limited.</span><br />
-            <span className="white">Tell us about your store.</span>
-          </h2>
-          <p className="lead">
-            Shopify stores come first. WooCommerce and Amazon Seller Central stores can apply now, and we will be in
-            touch when those integrations are ready.
-          </p>
+      {/* FINAL CTA */}
+      <section style={css('max-width: 1240px; margin: 0 auto; padding: 0 24px 112px;')}>
+        <div className="dots" style={css('border-radius: 32px; background-color: #4F46E5; background-image: radial-gradient(rgba(255,255,255,0.16) 1.2px, transparent 1.2px); padding: 80px 40px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px;')}>
+          <h2 style={css('margin: 0; font-size: clamp(36px, 5vw, 64px); line-height: 1.02; font-weight: 800; letter-spacing: -0.04em; color: #FFFFFF; max-width: 840px;')}>Give your business a team that never logs off.</h2>
+          <p style={css('margin: 0; font-size: 19px; color: #E0E7FF; max-width: 560px;')}>Install from the Shopify App Store and switch on your first agent in minutes.</p>
+          <div style={css('display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;')}>
+            <Link className="hbtn" to={TRIAL_HREF} style={css('min-height: 56px; display: inline-flex; align-items: center; padding: 0 28px; border-radius: 16px; background: #FFFFFF; color: #3730A3; text-decoration: none; font-size: 17px; font-weight: 800;')}>Install on Shopify</Link>
+            <Link className="hbtn" to="/contact" style={css('min-height: 56px; display: inline-flex; align-items: center; padding: 0 28px; border-radius: 16px; border: 1px solid #A5B4FC; color: #FFFFFF; text-decoration: none; font-size: 17px; font-weight: 700;')}>Book an Office demo</Link>
+          </div>
         </div>
-        <div className="book-inner reveal">
-          <EarlyAccessForm />
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }

@@ -79,7 +79,7 @@ the base's versions.
 
 | Item | Value |
 |---|---|
-| Branch | `claude/aurora-agent-library` on `Jamesrevenueai/deploi-site`, base `claude/retire-consulting` (5ece2f0) |
+| Branch | `claude/aurora-agent-library` on `<github-org>/deploi-site`, base `claude/retire-consulting` (5ece2f0) |
 | Commits | f5f9576 (library, theme, screens, site, tests, docs) · 372780a · 9d4ea4d · 2ebd7a0 · 9a0bb28 · 13ae5a2 (website reconciled with the base's illustrations) · 4e08451 · 0014532 (screenshot pairs) · the commit carrying this section (site title and description) |
 | Vercel preview, `deploi-app`, commit 0014532 | `dpl_E9Z3Ea35oTSfr7XoC63Yf8x72g3e` (https://vercel.com/james-ai/deploi-app/E9Z3Ea35oTSfr7XoC63Yf8x72g3e), created by Vercel from the GitHub push; state at the time of writing: building. It runs with whatever Preview environment variables the project already has; none were changed. The team screens there need a signed-in merchant, so the synthetic walk-through is in the screenshots below. |
 | Vercel preview, `deploi-site`, commit 0014532 | `dpl_BXWffqm5f8wrWG7iQe5GhHp8zvag`: **cancelled by the site's own ignore rule**, because that commit changed only app files. The commit carrying this section changes the site's title and description, so Vercel builds a new site preview from it; its ID is in the final message, not here. |

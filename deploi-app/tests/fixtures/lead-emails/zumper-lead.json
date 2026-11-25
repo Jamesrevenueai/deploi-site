@@ -1,0 +1,15 @@
+{
+  "from": "Zumper <leads@zumper.com>",
+  "subject": "Chris Park is interested in 2100 Elm St Apt 7 on Zumper",
+  "text": "New inquiry\n\nChris Park is interested in 2100 Elm St Apt 7.\n\nEmail: chris.park@example.org\nPhone: +44 20 7946 0958\nMove in date: 2026-12-20\nMessage: Can I see it Thursday evening?\n\nManage your leads on Zumper.",
+  "expect": {
+    "source": "zumper",
+    "name": "Chris Park",
+    "email": "chris.park@example.org",
+    "phone": "+442079460958",
+    "property": "2100 Elm St Apt 7",
+    "moveIn": "2026-12-20",
+    "message": "Can I see it Thursday evening?",
+    "confidence": "high"
+  }
+}

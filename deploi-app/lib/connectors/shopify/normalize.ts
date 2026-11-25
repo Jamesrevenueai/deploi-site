@@ -8,7 +8,7 @@ export type GqlVariant = {
   price?: string | null; compareAtPrice?: string | null; barcodes?: { nodes: { value: string }[] }
   sellingPlanGroupsCount?: Count
   product: { id: string; title: string; handle?: string | null; status: string; tags: string[]; isGiftCard?: boolean; requiresSellingPlan?: boolean; sellingPlanGroupsCount?: Count; updatedAt?: string; onlineStoreUrl?: string | null
-    resourcePublicationsV2?: { nodes: { publication: { id: string }; isPublished: boolean; publishDate?: string | null }[] } }
+    resourcePublicationsV2?: { pageInfo?: { hasNextPage?: boolean }; nodes: { publication: { id: string }; isPublished: boolean; publishDate?: string | null }[] } }
   inventoryItem: { id: string; tracked: boolean; duplicateSkuCount?: number | null; inventoryLevels?: { pageInfo?: { hasNextPage?: boolean }; nodes: { location: { id: string; name: string }; quantities: { name: string; quantity: number }[] }[] } } | null
 }
 
@@ -57,13 +57,28 @@ export function normalizeVariant(v: GqlVariant, fetchedAt: string, now = new Dat
   }
 }
 
-function publication(v: GqlVariant, now: Date): { published: Record<string, boolean>; scheduledOn: string[] } {
+function publication(v: GqlVariant, now: Date): { published: Record<string, boolean>; scheduledOn: string[]; publicationsComplete?: boolean } {
   const published: Record<string, boolean> = {}
   const scheduledOn: string[] = []
-  for (const n of v.product.resourcePublicationsV2?.nodes ?? []) {
+  const rp = v.product.resourcePublicationsV2
+  for (const n of rp?.nodes ?? []) {
     const future = n.publishDate ? new Date(n.publishDate).getTime() > now.getTime() : false
     published[n.publication.id] = n.isPublished && !future
     if (future) scheduledOn.push(n.publication.id)
   }
-  return { published, scheduledOn }
+  // complete when Shopify says there is no next page, or (no pageInfo) when fewer nodes came back than were asked for
+  if (!rp) return { published, scheduledOn }
+  const complete = rp.pageInfo ? rp.pageInfo.hasNextPage === false : rp.nodes.length < 10
+  return { published, scheduledOn, publicationsComplete: complete }
+}
+
+/**
+ * Unpublishing may remove the channel from resourcePublicationsV2 instead of returning isPublished: false
+ * (unverified on a live store). When the product's publication list was read in full, every known channel
+ * that is absent is recorded as not published, so verification of an unpublish reads "false", not "missing".
+ */
+export function fillAbsentPublications<T extends { published: Record<string, boolean>; publicationsComplete?: boolean }>(r: T, knownPublicationIds: readonly string[]): T {
+  if (!r.publicationsComplete) return r
+  for (const id of knownPublicationIds) if (!(id in r.published)) r.published[id] = false
+  return r
 }

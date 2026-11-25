@@ -257,22 +257,24 @@ export const EMAIL_STATUS_WORDS: Record<string, StatusWords> = {
 export const emailWords = (status: string): StatusWords => EMAIL_STATUS_WORDS[status] ?? unknownWords(status)
 
 /** Kept in step with EMAIL_TASKS / EMAIL_TASK_LABEL / EMAIL_PERMISSIONS / EMAIL_PERMISSION_LABEL in lib/agents/policy.ts (server-only). */
-export const AGENT_EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup'] as const
+export const AGENT_EMAIL_TASKS = ['run_report', 'needs_person_alert', 'supplier_reorder', 'supplier_followup', 'supplier_exception'] as const
 export type AgentEmailTask = typeof AGENT_EMAIL_TASKS[number]
 export const AGENT_EMAIL_TASK_LABEL: Record<AgentEmailTask, string> = {
   run_report: 'Send a summary of each run',
   needs_person_alert: 'Alert people about problems that need a person',
   supplier_reorder: 'Ask a supplier to confirm restock for low-stock products',
   supplier_followup: 'Follow up once, in the same thread, when a supplier has not replied',
+  supplier_exception: "Write to a purchase order's supplier about an exception on that order (confirmation, quantities, delivery date, price)",
 }
 export const AGENT_EMAIL_TASK_HELP: Record<AgentEmailTask, string> = {
   run_report: 'After each run, a short summary of what the agent found, changed and left for you goes to the people on the notify list.',
   needs_person_alert: 'When the agent finds a problem it cannot correct safely, the people on the notify list get one alert per problem.',
   supplier_reorder: 'Lists products in scope at or below your threshold and asks your supplier to confirm a restock. It never changes stock quantities and never places an order.',
   supplier_followup: 'One polite reminder in the same email thread when the supplier has not replied after the days you choose. Needs the restock task and permission to notice replies; never more than one follow-up per request.',
+  supplier_exception: 'For an exception found on an imported purchase order, writes only to the supplier named on that order, and reads their reply as data. Changes to the order wait for your approval.',
 }
 /** Short names for a message's task, in lists */
-export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request', supplier_followup: 'Supplier follow-up' }
+export const EMAIL_TASK_SHORT: Record<string, string> = { run_report: 'Run summary', needs_person_alert: 'Needs-a-person alert', supplier_reorder: 'Supplier restock request', supplier_followup: 'Supplier follow-up', supplier_exception: 'Purchase order exception' }
 
 export const AGENT_EMAIL_PERMISSIONS = ['draft', 'send_approved', 'send_autonomous'] as const
 export type AgentEmailPermission = typeof AGENT_EMAIL_PERMISSIONS[number]

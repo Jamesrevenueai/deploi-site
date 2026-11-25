@@ -80,10 +80,10 @@ function RuleCard({ rule, connectionId, onSaved }: { rule: RuleView; connectionI
             id={toggleId} type="button" role="switch" aria-checked={rule.enabled} aria-labelledby={`${toggleId}-label`}
             disabled={busy !== null}
             onClick={() => put('toggle', { enabled: !rule.enabled })}
-            className={`relative mt-1 inline-flex h-8 w-14 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50 ${rule.enabled ? 'border-white bg-white' : 'border-line-ghost bg-transparent'}`}
+            className={`relative mt-1 inline-flex h-8 w-14 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50 ${rule.enabled ? 'border-accent bg-accent' : 'border-line-ghost bg-transparent'}`}
           >
             <span className="sr-only">{rule.enabled ? 'Turn off' : 'Turn on'}</span>
-            <span aria-hidden="true" className={`inline-block h-6 w-6 rounded-full transition-transform ${rule.enabled ? 'translate-x-7 bg-black' : 'translate-x-1 bg-grey-h'}`} />
+            <span aria-hidden="true" className={`inline-block h-6 w-6 rounded-full transition-transform ${rule.enabled ? 'translate-x-7 bg-surface' : 'translate-x-1 bg-grey-h'}`} />
           </button>
         </div>
 
@@ -97,7 +97,7 @@ function RuleCard({ rule, connectionId, onSaved }: { rule: RuleView; connectionI
                 {tags.map(t => (
                   <li key={t} className="badge" style={{ paddingRight: 4 }}>
                     {t}
-                    <button type="button" className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-white/10" aria-label={`Remove tag ${t}`} onClick={() => setTags(tags.filter(x => x !== t))}>
+                    <button type="button" className="inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-sunken" aria-label={`Remove tag ${t}`} onClick={() => setTags(tags.filter(x => x !== t))}>
                       <Icon name="x" size={12} />
                     </button>
                   </li>

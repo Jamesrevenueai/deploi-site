@@ -1,0 +1,173 @@
+{
+  "version": 2,
+  "updated": "2026-11-22",
+  "currency": "USD",
+  "action": {
+    "definition": "One completed step that changes something outside Deploi: an email or text sent, an order, product or inventory updated, an invoice or purchase order drafted or sent, or a CRM record written.",
+    "free": "Watching, scanning and checking are free."
+  },
+  "store": {
+    "billedVia": "shopify",
+    "trialDays": 14,
+    "yearlyMonthsFree": 2,
+    "overage": {
+      "unitActions": 100,
+      "priceCents": 500,
+      "cap": "merchant-set capped amount (Shopify usage charge)"
+    },
+    "plans": [
+      {
+        "key": "starter",
+        "name": "Starter",
+        "monthlyCents": 7900,
+        "actions": 1500,
+        "customAgents": 1,
+        "stores": 1,
+        "agents": [
+          "order_tracker",
+          "inventory_watcher",
+          "listing_writer",
+          "supplier_chaser",
+          "customer_care",
+          "weekly_insights",
+          "store_health_checker"
+        ]
+      },
+      {
+        "key": "growth",
+        "name": "Growth",
+        "monthlyCents": 19900,
+        "actions": 5000,
+        "customAgents": 5,
+        "stores": 1,
+        "agents": [
+          "order_tracker",
+          "inventory_watcher",
+          "listing_writer",
+          "supplier_chaser",
+          "customer_care",
+          "weekly_insights",
+          "store_health_checker",
+          "returns",
+          "campaign",
+          "promo_manager",
+          "payout_fees_checker"
+        ]
+      },
+      {
+        "key": "pro",
+        "name": "Pro",
+        "monthlyCents": 49900,
+        "actions": 15000,
+        "customAgents": null,
+        "stores": null,
+        "agents": [
+          "order_tracker",
+          "inventory_watcher",
+          "listing_writer",
+          "supplier_chaser",
+          "customer_care",
+          "weekly_insights",
+          "store_health_checker",
+          "returns",
+          "campaign",
+          "promo_manager",
+          "payout_fees_checker",
+          "ai_visibility"
+        ]
+      }
+    ]
+  },
+  "office": {
+    "billedVia": "stripe",
+    "trialDays": 14,
+    "yearlyMonthsFree": 2,
+    "overage": {
+      "unitActions": 100,
+      "actionPriceCents": 500,
+      "unitTexts": 100,
+      "textPriceCents": 300,
+      "cap": "customer-set cap"
+    },
+    "setup": {
+      "priceCents": 49900,
+      "plans": [
+        "solo",
+        "team"
+      ],
+      "includedIn": [
+        "business"
+      ]
+    },
+    "bundleDiscountPercent": 20,
+    "agentCatalog": [
+      {
+        "key": "lead_responder",
+        "name": "Lead Responder",
+        "minPlan": "solo",
+        "job": "Answers every new lead within minutes and offers times to talk."
+      },
+      {
+        "key": "invoice_runner",
+        "name": "Invoice Runner",
+        "minPlan": "solo",
+        "job": "Sends invoices when the work is done and follows up on late ones."
+      },
+      {
+        "key": "crm_followup",
+        "name": "CRM Follow-up",
+        "minPlan": "solo",
+        "job": "Keeps the CRM current: notes, stages and follow-ups nobody got to."
+      },
+      {
+        "key": "owner_updates",
+        "name": "Owner Updates",
+        "minPlan": "solo",
+        "job": "Texts you what got done and what needs you, with a link to the proof."
+      },
+      {
+        "key": "dispatch_coordinator",
+        "name": "Dispatch Coordinator",
+        "minPlan": "team",
+        "job": "Sends each job to the right crew member and chases a confirmation."
+      },
+      {
+        "key": "books_reconciler",
+        "name": "Books Reconciler",
+        "minPlan": "team",
+        "job": "Matches payments to invoices in QuickBooks and flags what does not add up."
+      }
+    ],
+    "plans": [
+      {
+        "key": "solo",
+        "name": "Solo",
+        "monthlyCents": 14900,
+        "actions": 2000,
+        "texts": 300,
+        "crew": 0,
+        "customAgents": 1
+      },
+      {
+        "key": "team",
+        "name": "Team",
+        "monthlyCents": 34900,
+        "actions": 6000,
+        "texts": 1000,
+        "crew": 15,
+        "customAgents": 5
+      },
+      {
+        "key": "business",
+        "name": "Business",
+        "monthlyCents": 79900,
+        "actions": 20000,
+        "texts": 4000,
+        "crew": null,
+        "customAgents": null,
+        "setupIncluded": true
+      }
+    ]
+  },
+  "limitsNote": "null means unlimited. Office Solo has no crew dispatch (Dispatch Coordinator is Team and up)."
+}

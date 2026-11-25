@@ -2,7 +2,8 @@
  * Early access applications from getdeploi.com. Inserts through a SECURITY DEFINER function as the
  * anon role; the anon role has no table access. CORS is restricted to the marketing site origins.
  * Unknown fields are ignored. Password-like segments in free text are replaced by "[removed]" and
- * counted in a warning log; no password is ever stored.
+ * counted in a warning log; no password is ever stored. Limited per client IP (bucket `lead`), every
+ * attempt counted, before anything is parsed.
  */
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -10,6 +11,7 @@ import { env } from '@/lib/env'
 import { anon } from '@/lib/db'
 import { log } from '@/lib/log'
 import { stripSecretsFrom } from '@/lib/leads/sanitize'
+import { clientIp, hitByIp, tooManyRequests } from '@/lib/security/rate-limit'
 
 const Lead = z.object({
   name: z.string().trim().min(1).max(120),
@@ -48,6 +50,8 @@ export async function OPTIONS(req: Request) {
 
 export async function POST(req: Request) {
   const headers = corsHeaders(req.headers.get('origin'))
+  const limited = await hitByIp('lead', req)
+  if (!limited.allowed) return tooManyRequests(limited, headers)
   let body: unknown
   try { body = await req.json() } catch { return NextResponse.json({ ok: false, error: 'invalid json' }, { status: 400, headers }) }
   const parsed = Lead.safeParse(body)
@@ -55,7 +59,7 @@ export async function POST(req: Request) {
   const lead = parsed.data
   // bots: the honeypot was filled, or the form was submitted faster than a person can type (answer as if accepted)
   if (lead.website || (lead.elapsed_ms !== undefined && lead.elapsed_ms < 2500)) { log.warn('lead.bot_dropped', { source: lead.source, reason: lead.website ? 'honeypot' : 'too_fast' }); return NextResponse.json({ ok: true, id: null }, { headers }) }
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+  const ip = clientIp(req.headers)
   const { fields, removed } = stripSecretsFrom({ message: lead.message })
   if (removed) log.warn('lead.secret_segments_removed', { source: lead.source, count: removed })
   try {

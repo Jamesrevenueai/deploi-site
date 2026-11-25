@@ -5,6 +5,7 @@ import { createAgent } from '@/lib/agents/lifecycle'
 import { parseTask } from '@/lib/agents/parse'
 import { TEMPLATES, templateByKey, templatePolicy } from '@/lib/agents/templates'
 import { withActor } from '@/lib/engine/actor'
+import { assertEmbeddedTemplate, templatesFor } from '@/lib/store/embedded-gate'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     const actor = await resolveActor(req)
-    return NextResponse.json({ ok: true, agents: await listAgents(actor, new URL(req.url).searchParams.get('connection')), templates: TEMPLATES })
+    return NextResponse.json({ ok: true, agents: await listAgents(actor, new URL(req.url).searchParams.get('connection')), templates: templatesFor(actor, TEMPLATES) })
   } catch (e) { return errorResponse(e) }
 }
 
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
   try {
     const actor = await resolveActor(req, { mutating: true })
     const body = await readJson(req)
+    if (body.op !== 'parse') await (await import('@/lib/legal')).requireAgreements(actor, 'commerce') // legal gate (LEGAL_GATE)
     if (body.op === 'parse') {
       const text = String(body.text ?? '').slice(0, 2000)
       if (!text.trim()) throw new HttpError(400, 'invalid_input', 'describe the task in a sentence or two')
@@ -35,12 +37,16 @@ export async function POST(req: Request) {
     if (typeof body.template === 'string') {
       const t = templateByKey(body.template)
       if (!t) throw new HttpError(400, 'invalid_input', 'unknown template')
+      assertEmbeddedTemplate(actor, t.key) // inside Shopify only the templates offered there
       const connectionId = String(body.connectionId ?? '')
       // read under the actor's RLS: another organization's store is simply not found here (and createAgent refuses it)
       const tz = await withActor(actor, db => db.one<{ timezone: string | null }>('select timezone from store_connections where id = $1', [connectionId]))
       const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 40) : [])
       const c = body.competitor && typeof body.competitor === 'object' ? body.competitor as Record<string, unknown> : {}
+      // Supplier Coordinator: the allowed recipients are the supplier addresses on the organization's imported purchase orders (shown in the summary the merchant grants)
+      const poSuppliers = t.key === 'supplier_coordinator' ? (await withActor(actor, db => db.query<{ a: string }>(`select distinct lower(supplier_email) as a from purchase_orders where status <> 'cancelled' order by 1 limit 50`))).map(r => r.a) : []
       const policy = templatePolicy(t.key, { connectionId, timezone: tz?.timezone || 'UTC', notify: typeof body.notify === 'string' ? body.notify : null, supplierAddress: typeof body.supplierAddress === 'string' ? body.supplierAddress : null,
+        ...(poSuppliers.length ? { supplier: { mappedAddresses: poSuppliers } } : {}),
         competitor: { stores: strings(c.stores), keywords: strings(c.keywords), alerts: strings(c.alerts), cadence: c.cadence === 'weekly' ? 'weekly' : 'daily',
           minPriceChangePct: typeof c.minPriceChangePct === 'number' ? c.minPriceChangePct : undefined, emailSummary: c.emailSummary === true } })
       const name = typeof body.name === 'string' && body.name.trim() ? body.name : t.name

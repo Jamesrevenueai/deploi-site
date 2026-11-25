@@ -13,12 +13,16 @@ import { decryptSecret, encryptSecret } from '../connectors/credentials'
 import { emailAdapter } from './adapters'
 import { emailConfig } from './config'
 import type { AccountRef, EmailProvider } from './types'
+import { assertCan } from '../platform/rbac'
+import { restoredIfBroken } from '../integrations/events'
 
 export type EmailAccountRow = {
   id: string; org_id: string; provider: EmailProvider; address: string; display_name: string | null
   status: 'active' | 'needs_reauth' | 'error' | 'disconnected'; status_reason: string | null; granted_scopes: string[]
   can_send: boolean; can_read: boolean; is_synthetic: boolean; last_checked_at: string | null; last_success_at: string | null
   last_error_code: string | null; connected_by: string; connected_at: string; disconnected_at: string | null
+  /** the organization's Deploi Office mailbox (an agent mailbox that belongs to no store agent) */
+  office_mailbox?: boolean
 }
 
 const b64url = (b: Buffer) => b.toString('base64url')
@@ -35,10 +39,13 @@ export function providerStatus(p: EmailProvider): { configured: boolean; label: 
 }
 
 /** Start connecting (or reconnecting) an account. Returns the provider consent URL. */
-export async function startConnect(actor: Actor, input: { provider: EmailProvider; read?: boolean; accountId?: string | null; returnTo?: string | null }) {
+export async function startConnect(actor: Actor, input: { provider: EmailProvider; read?: boolean; inbox?: boolean; calendar?: boolean; accountId?: string | null; returnTo?: string | null }) {
   if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff cannot connect a merchant mailbox')
   assertMerchant(actor, actor.orgId)
+  await assertCan(actor, actor.orgId, 'connect') // owners and admins only (F-08)
   const adapter = emailAdapter(input.provider)
+  // mail AND calendar (Microsoft 365 only; Gmail is deferred)
+  const calendar = Boolean(input.calendar) && input.provider === 'microsoft'
   if (!providerStatus(input.provider).configured) throw new EngineError('not_operational', `${adapter.label} is not available in this environment yet`)
   const state = b64url(randomBytes(32))
   const verifier = b64url(randomBytes(48))
@@ -51,27 +58,27 @@ export async function startConnect(actor: Actor, input: { provider: EmailProvide
       loginHint = acc.address
     }
     const enc = encryptSecret(verifier, `email-oauth-state:${state}`)
-    await db.query(`insert into email_oauth_states (state, org_id, provider, account_id, want_read, key_id, verifier_ciphertext, created_by, return_to, expires_at)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + interval '10 minutes')`,
-      [state, actor.orgId, input.provider, input.accountId ?? null, Boolean(input.read), enc.keyId, enc.ciphertext, actor.label, safeReturn(input.returnTo)])
+    await db.query(`insert into email_oauth_states (state, org_id, provider, account_id, want_read, want_inbox, want_calendar, key_id, verifier_ciphertext, created_by, return_to, expires_at)
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now() + interval '10 minutes')`,
+      [state, actor.orgId, input.provider, input.accountId ?? null, Boolean(input.read || input.inbox || calendar), Boolean(input.inbox || calendar), calendar, enc.keyId, enc.ciphertext, actor.label, safeReturn(input.returnTo)])
     await db.query(`delete from email_oauth_states where expires_at < now() - interval '1 day'`)
   })
-  return { url: adapter.authorizeUrl({ state, codeChallenge: challenge, scopes: adapter.scopesFor({ read: Boolean(input.read) }), loginHint }) }
+  return { url: adapter.authorizeUrl({ state, codeChallenge: challenge, scopes: adapter.scopesFor({ read: Boolean(input.read), inbox: Boolean(input.inbox), calendar }), loginHint }) }
 }
 
-const safeReturn = (r: string | null | undefined) => (r && /^\/(store|shopify)(\/[\w\-/]*)?$/.test(r) ? r : null)
+const safeReturn = (r: string | null | undefined) => (r && /^\/(store|shopify|office)(\/[\w\-/]*)?$/.test(r) ? r : null)
 
 /** OAuth callback: single-use state, same organization and user, then code exchange, identity and encrypted storage. */
 export async function completeConnect(actor: Actor, input: { state: string; code: string | null; error: string | null }) {
   if (actor.kind === 'staff') throw new EngineError('forbidden', 'Deploi staff cannot connect a merchant mailbox')
-  const st = await admin(db => db.one<{ state: string; org_id: string; provider: EmailProvider; account_id: string | null; want_read: boolean; key_id: string; verifier_ciphertext: string; created_by: string; return_to: string | null }>(
+  const st = await admin(db => db.one<{ state: string; org_id: string; provider: EmailProvider; account_id: string | null; want_read: boolean; want_inbox: boolean; want_calendar: boolean; key_id: string; verifier_ciphertext: string; created_by: string; return_to: string | null }>(
     `update email_oauth_states set used_at = now() where state = $1 and used_at is null and expires_at > now() returning *`, [input.state]))
   if (!st) throw new EngineError('expired', 'this connection attempt expired or was already used; start again')
   if (st.org_id !== actor.orgId || st.created_by !== actor.label) throw new EngineError('forbidden', 'this connection attempt was started by someone else')
   if (input.error || !input.code) throw new EngineError('invalid_input', input.error === 'access_denied' ? 'you did not grant access, so nothing was connected' : 'the provider did not return an authorization code')
   const adapter = emailAdapter(st.provider)
   const verifier = decryptSecret(st.key_id, st.verifier_ciphertext, `email-oauth-state:${st.state}`)
-  const requested = adapter.scopesFor({ read: st.want_read })
+  const requested = adapter.scopesFor({ read: st.want_read, inbox: st.want_inbox, calendar: st.want_calendar })
   const tokens = await adapter.exchangeCode(input.code, verifier, requested)
   const who = await adapter.identity(tokens.accessToken)
   const canSend = adapter.canSend(tokens.scopes), canRead = adapter.canRead(tokens.scopes)
@@ -86,6 +93,7 @@ export async function completeConnect(actor: Actor, input: { state: string; code
     }
     const status = canSend ? 'active' : 'error'
     const reason = canSend ? null : 'permission to send was not granted; reconnect and allow sending'
+    const wasBroken = Boolean(acc && acc.status !== 'active')
     if (acc) {
       acc = (await db.one<EmailAccountRow>(`update email_accounts set display_name = $2, status = $3, status_reason = $4, granted_scopes = $5, can_send = $6, can_read = $7,
         last_checked_at = now(), last_success_at = now(), last_error_code = null, disconnected_at = null where id = $1 returning *`,
@@ -96,10 +104,14 @@ export async function completeConnect(actor: Actor, input: { state: string; code
         [st.org_id, st.provider, who.address, who.displayName, status, reason, tokens.scopes, canSend, canRead, st.provider === 'synthetic', actor.label]))!
     }
     await saveTokens(db, acc.id, acc.org_id, tokens)
+    // integration hub: a reconnected mailbox (same id) gets its health back
+    if ((acc.provider === 'gmail' || acc.provider === 'microsoft') && status === 'active') await restoredIfBroken(db, { orgId: acc.org_id, integration: acc.provider, connectionId: acc.id, actor: actor.label, rowBroken: wasBroken })
     await audit(db, { orgId: acc.org_id, entityType: 'credential', entityId: acc.id, event: st.account_id ? 'email_account.reconnected' : 'email_account.connected', actor: actor.label,
       detail: { provider: acc.provider, address: acc.address, scopes: tokens.scopes, can_send: canSend, can_read: canRead } })
     return acc
   })
+  // a mailbox that can send is a connection the agents start on at once (lib/autonomy/on-connect.ts; never throws)
+  if (result.status === 'active') await (await import('../autonomy/on-connect')).onConnected({ orgId: result.org_id, kind: 'email', connectionId: result.id, provider: result.provider })
   return { account: result, returnTo: st.return_to }
 }
 
@@ -114,9 +126,13 @@ async function saveTokens(db: Db, accountId: string, orgId: string, t: { accessT
 
 export const accountRef = (a: EmailAccountRow): AccountRef => ({ id: a.id, orgId: a.org_id, provider: a.provider, address: a.address, scopes: a.granted_scopes })
 
-/** A usable access token, refreshed under a row lock when close to expiry. Auth failures mark the account for reconnection. */
-export async function accessToken(accountId: string): Promise<string> {
-  return admin(async db => {
+/**
+ * A usable access token, refreshed under a row lock when close to expiry. Auth failures mark the account for reconnection.
+ * `force`: the provider just refused `rejected` (401), so it is refreshed now unless another request already did.
+ */
+export async function accessToken(accountId: string, opts: { force?: boolean; rejected?: string } = {}): Promise<string> {
+  // the reconnect mark is written after the refresh transaction, so the failure that caused it cannot roll it back
+  const r = await admin(async (db): Promise<string | { reauth: string }> => {
     const acc = await db.one<EmailAccountRow>('select * from email_accounts where id = $1', [accountId])
     if (!acc || acc.status === 'disconnected') throw new EmailAuthError('the email account is disconnected')
     // agent mailboxes send with Deploi's server key; there is no per-account token
@@ -124,18 +140,22 @@ export async function accessToken(accountId: string): Promise<string> {
     const c = await db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null; scopes: string[]; expires_at: string | null }>('select * from email_credentials where account_id = $1 for update', [accountId])
     if (!c) throw new EmailAuthError('the email account has no stored authorization; reconnect it')
     const access = decryptSecret(c.key_id, c.ciphertext, aad(accountId, 'access'))
-    if (!c.expires_at || new Date(c.expires_at).getTime() - Date.now() > 120_000) return access
-    if (!c.refresh_ciphertext) { await markAuth(db, acc, 'the provider did not issue a refresh token; reconnect the account'); throw new EmailAuthError('reconnect the account') }
+    const fresh = !c.expires_at || new Date(c.expires_at).getTime() - Date.now() > 120_000
+    if (fresh && !(opts.force && (opts.rejected === undefined || opts.rejected === access))) return access
+    if (!c.refresh_ciphertext) return { reauth: 'the provider did not issue a refresh token; reconnect the account' }
     const refreshToken = decryptSecret(c.key_id, c.refresh_ciphertext, aad(accountId, 'refresh'))
     try {
       const t = await emailAdapter(acc.provider).refresh(refreshToken, c.scopes)
       await saveTokens(db, accountId, acc.org_id, { ...t, scopes: t.scopes.length ? t.scopes : c.scopes })
       return t.accessToken
     } catch (e) {
-      if ((e as { auth?: boolean }).auth) { await markAuth(db, acc, 'the provider no longer accepts this connection (revoked or expired); reconnect the account'); throw new EmailAuthError('reconnect the account') }
+      if ((e as { auth?: boolean }).auth) return { reauth: 'the provider no longer accepts this connection (revoked or expired); reconnect the account' }
       throw e
     }
   })
+  if (typeof r === 'string') return r
+  await markAccountAuthFailure(accountId, r.reauth)
+  throw new EmailAuthError('reconnect the account')
 }
 
 async function markAuth(db: Db, acc: EmailAccountRow, reason: string) {
@@ -183,18 +203,24 @@ export async function visibleAccount(actor: Actor, accountId: string): Promise<E
   return acc
 }
 
+/** Revoke the stored tokens at the provider where it allows it (disconnect and organization deletion). Never throws. */
+export async function revokeAtProvider(acc: Pick<EmailAccountRow, 'id' | 'provider'>): Promise<'revoked' | 'not_supported' | 'failed'> {
+  try {
+    const creds = await admin(db => db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null }>('select * from email_credentials where account_id = $1', [acc.id]))
+    if (!creds) return 'not_supported'
+    return await emailAdapter(acc.provider).revoke({
+      accessToken: decryptSecret(creds.key_id, creds.ciphertext, aad(acc.id, 'access')),
+      refreshToken: creds.refresh_ciphertext ? decryptSecret(creds.key_id, creds.refresh_ciphertext, aad(acc.id, 'refresh')) : null,
+    })
+  } catch { return 'failed' }
+}
+
 /** Disconnect: revoke at the provider where it allows it, delete tokens, cancel every unsent message from this account. */
 export async function disconnectAccount(actor: Actor, accountId: string) {
   const acc = await visibleAccount(actor, accountId)
   assertMerchant(actor, acc.org_id)
-  let revoked: 'revoked' | 'not_supported' | 'failed' = 'not_supported'
-  try {
-    const creds = await admin(db => db.one<{ key_id: string; ciphertext: string; refresh_ciphertext: string | null }>('select * from email_credentials where account_id = $1', [acc.id]))
-    if (creds) revoked = await emailAdapter(acc.provider).revoke({
-      accessToken: decryptSecret(creds.key_id, creds.ciphertext, aad(acc.id, 'access')),
-      refreshToken: creds.refresh_ciphertext ? decryptSecret(creds.key_id, creds.refresh_ciphertext, aad(acc.id, 'refresh')) : null,
-    })
-  } catch { revoked = 'failed' }
+  await assertCan(actor, acc.org_id, 'connect')
+  const revoked = await revokeAtProvider(acc)
   return admin(async db => {
     await db.query('delete from email_credentials where account_id = $1', [acc.id])
     await db.query(`update email_accounts set status = 'disconnected', status_reason = 'disconnected by the merchant', disconnected_at = now(), can_send = false, can_read = false where id = $1`, [acc.id])

@@ -25,7 +25,7 @@ Supabase's HTTPS management API *is* reachable (`api.supabase.com` answers 401 w
 Every command below prints **one block to paste back**. None prints a database URL. Run them from a checkout of this branch:
 
 ```bash
-git clone -b subscription-product https://github.com/Jamesrevenueai/deploi-site.git && cd deploi-site/deploi-app
+git clone -b subscription-product https://github.com/<github-org>/deploi-site.git && cd deploi-site/deploi-app
 npm ci --no-audit --no-fund
 export PROD_DATABASE_URL='postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres'   # Supabase -> Connect
 ```

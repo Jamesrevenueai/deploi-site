@@ -1,0 +1,66 @@
+/* ==========================================================================
+   Deploi app: design tokens of the logged-in app (Indigo theme, 2026-11-22).
+   These custom properties mirror lib/app/tokens.ts one for one; edit both together.
+   The component and shell classes that use them are in styles/app.css.
+   ========================================================================== */
+:root {
+  /* the self-hosted faces (@fontsource, imported in app/layout.tsx); the names the rest of the CSS uses */
+  --font-inter: 'Plus Jakarta Sans';
+  --font-grotesk: 'Plus Jakarta Sans';
+  --app-font-body: var(--font-inter), 'Plus Jakarta Sans', system-ui, sans-serif;
+  --app-font-heading: var(--font-grotesk), 'Plus Jakarta Sans', var(--app-font-body);
+
+  /* backdrop */
+  --app-backdrop: #FFFFFF;
+  --app-glow-tl: #FFFFFF;
+  --app-glow-tr: #FFFFFF;
+  --app-glow-br: #FFFFFF;
+
+  /* app surface */
+  --app-surface: #FFFFFF;
+  --app-surface-max: 1392px;
+  --app-surface-radius: 20px;
+  --app-surface-shadow: none;
+  --app-surface-pad-x: 28px;
+  --app-surface-pad-y: 24px;
+
+  /* text */
+  --app-text: #1E1B4B;
+  --app-text-2: #312E81;
+  --app-text-body: #3730A3;
+
+  /* lines and fills */
+  --app-border-card: #E0E7FF;
+  --app-border-input: #E0E7FF;
+  --app-divider: #EEF2FF;
+  --app-fill: #F5F7FF;
+
+  /* buttons */
+  --app-btn-bg: #4F46E5;
+  --app-btn-text: #FFFFFF;
+  --app-btn-radius: 12px;
+  --app-btn-min-h: 44px;
+
+  /* cards */
+  --app-card-radius: 16px;
+  --app-card-radius-lg: 20px;
+
+  /* status pills */
+  --app-working-bg: #EEF2FF;  --app-working-text: #4338CA;
+  --app-waiting-bg: #FFF1EB;  --app-waiting-text: #9A3412;
+  --app-watching-bg: #ECFDF5; --app-watching-text: #047857;
+  --app-off-bg: #EEF2FF;      --app-off-text: #312E81;
+
+  /* proof chip */
+  --app-proof-bg: #EEF2FF;
+  --app-proof-text: #4338CA;
+
+  /* usage bar */
+  --app-usage-bar: #4F46E5;
+
+  /* hero band */
+  --app-hero-bg: #F5F7FF;
+  --app-hero-radius: 24px;
+  --app-hero-live: #047857;
+  --app-hero-waiting: #9A3412;
+}

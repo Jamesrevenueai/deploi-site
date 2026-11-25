@@ -14,3 +14,4 @@ shot-*.png
 preview-*.png
 /scripts/
 deploi-app/.bypass
+.env.test

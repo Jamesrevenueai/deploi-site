@@ -1,55 +1,166 @@
 'use client'
 /**
- * The team dashboard (/store/team): every library agent as a card with its bot character and on/off
- * switch, locked agents with the tier that unlocks them, this week's time and money saved, the usage
- * meter against the plan's allowance, and (Pro) the merchant's own agents.
+ * The Agent library (/store/team), ported from the approved design (design-ref/app-agent-library.html): header with
+ * how many agents are on, filters by area, a "Build your own agent" card, and one card per agent with its on/off switch.
+ * A locked agent shows the plan that unlocks it; clicking that opens an upgrade prompt. Plan gating is the server's
+ * (the switch API answers upgrade_required); this screen only explains it. The Office side shows the Office agents
+ * of the catalog, gated by the Office plan.
  */
 import { useState } from 'react'
 import Link from 'next/link'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { Banner } from '@/components/ui/Banner'
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { Icon } from '@/components/ui/Icon'
 import { Sheet } from '@/components/ui/Sheet'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { storeFetch, asApiError, type StoreApiError } from '@/components/store/api'
 import { useLoad } from '@/components/store/useLoad'
 import { ErrorState, Loading, NoStore, useStore } from '@/components/store/bits'
-import { Character } from './Character'
-import { Switch } from './Switch'
-import { LEVEL_SHORT, TIER_NAME, fmtAgo, minutesWords, usd } from './format'
-import type { TeamAgent, TeamResponse, PermissionLevel } from './types'
+import { css } from '@/components/dp/css'
+import { BotMark, BTN_PRIMARY, BTN_SECONDARY } from '@/components/dp/bits'
+import { CATALOG, OFFICE_ORDER, isOfficePlan, type OfficePlanKey } from '@/lib/pricing'
+import { LEVEL_SHORT, TIER_NAME } from './format'
+import type { TeamAgent, TeamResponse, PermissionLevel, TierKey } from './types'
 
-type WeeklyResponse = { ok: true; facts: { library?: { time: { minutes: number }; money: { usd: number; stockoutsAvoided: number; ordersRecovered: number; formula: string }; actionsTotal: number } } }
+type Area = 'All' | 'Orders' | 'Products' | 'Customers' | 'Marketing' | 'Finance' | 'Store'
+const AREAS: Area[] = ['All', 'Orders', 'Products', 'Customers', 'Marketing', 'Finance', 'Store']
+/** The design's area and one-line description for each library agent. */
+export const AGENT_CARD: Record<string, { area: Exclude<Area, 'All'>; desc: string; name?: string }> = {
+  order_tracker: { area: 'Orders', desc: 'Watches every shipment, spots stuck orders and updates customers before they ask.' },
+  returns: { area: 'Orders', desc: 'Handles return requests under your policy, issues labels and restocks items.' },
+  inventory_watcher: { area: 'Products', desc: 'Predicts stock-outs and drafts reorders with your suppliers.' },
+  listing_writer: { area: 'Products', desc: 'Writes and improves product titles, descriptions and SEO in your voice.' },
+  supplier_chaser: { area: 'Products', desc: 'Follows up on late purchase orders until you have a ship date.' },
+  customer_care: { area: 'Customers', desc: 'Answers customer emails and chats, escalates only what needs you.' },
+  campaign: { area: 'Marketing', desc: 'Plans and sends email campaigns to the right customer groups.' },
+  promo_manager: { area: 'Marketing', desc: 'Finds slow movers and proposes discounts that protect your margin.' },
+  ai_visibility: { area: 'Marketing', desc: 'Gets your products found in AI shopping assistants and Shopify Agentic.' },
+  payout_fees_checker: { area: 'Finance', desc: 'Checks every payout and flags fees or chargebacks that look wrong.', name: 'Payout & Fees Checker' },
+  weekly_insights: { area: 'Finance', desc: 'Sends a plain-English summary of sales, wins and what to fix.' },
+  store_health_checker: { area: 'Store', desc: 'Finds broken links, slow pages and missing info — then fixes them.' },
+}
+const ORDER = Object.keys(AGENT_CARD)
 
-export function TeamScreen() {
+const FILTER = 'min-height: 44px; padding: 0 16px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;'
+const FILTER_ON = 'background: #4F46E5; color: #FFFFFF; border: 1px solid #4F46E5;'
+const FILTER_OFF = 'background: #FFFFFF; color: #3730A3; border: 1px solid #C7D2FE;'
+const CARD = 'border: 1px solid #E0E7FF; border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 14px; background: #FFFFFF;'
+const LOCK = 'font: inherit; font-size: 12px; font-weight: 700; color: #3730A3; padding: 6px 10px; min-height: 32px; border: 1px solid #C7D2FE; border-radius: 999px; background: #FFFFFF; cursor: pointer; white-space: nowrap;'
+const AREA_TAG = "font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #4F46E5;"
+
+function Toggle({ on, name, disabled, onChange }: { on: boolean; name: string; disabled?: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={`Turn ${on ? 'off' : 'on'} ${name}`} disabled={disabled} onClick={() => onChange(!on)}
+      style={css(`width: 52px; height: 32px; min-width: 52px; border-radius: 999px; border: 0; padding: 3px; display: flex; cursor: pointer; justify-content: ${on ? 'flex-end' : 'flex-start'}; background: ${on ? '#4F46E5' : '#C7D2FE'};${disabled ? ' opacity: 0.6; cursor: default;' : ''}`)}>
+      <span aria-hidden style={css('width: 26px; height: 26px; border-radius: 999px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(30,27,75,0.25);')} />
+    </button>
+  )
+}
+
+function AgentCard({ name, desc, area, href, right, testid }: { name: string; desc: string; area: string; href?: string; right: React.ReactNode; testid: Record<string, string> }) {
+  return (
+    <article style={css(CARD)} {...testid}>
+      <div style={css('display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;')}>
+        <BotMark size={44} />
+        {right}
+      </div>
+      <div style={css('display: flex; flex-direction: column; gap: 6px;')}>
+        <h2 style={css('margin: 0; font-size: 17px; font-weight: 800; color: #1E1B4B;')}>{href ? <Link href={href} style={css('color: inherit; text-decoration: none;')}>{name}</Link> : name}</h2>
+        <p style={css('margin: 0; font-size: 14px; line-height: 1.5; color: #3730A3;')}>{desc}</p>
+      </div>
+      <span style={css(AREA_TAG + ' margin-top: auto;')}>{area}</span>
+    </article>
+  )
+}
+
+type Upgrade = { agent: string; plan: string; href: string } | null
+
+export function TeamScreen({ workspace = 'store', officePlan = null }: { workspace?: 'store' | 'office'; officePlan?: string | null }) {
+  if (workspace === 'office') return <OfficeLibrary plan={isOfficePlan(officePlan) ? officePlan : null} />
+  return <StoreLibrary />
+}
+
+function Header({ onCount }: { onCount: number }) {
+  return (
+    <header style={css('display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px;')}>
+      <div style={css('display: flex; flex-direction: column; gap: 6px; max-width: 640px;')}>
+        <span style={css('font-size: 13px; font-weight: 600; color: #4F46E5;')}>Built by Deploi · one agent for every part of your store</span>
+        <h1 style={css('margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; color: #1E1B4B;')}>Agent library</h1>
+        <p style={css('margin: 0; font-size: 15px; line-height: 1.55; color: #3730A3;')}>Switch an agent on and it starts working. Every agent starts with the safest permissions — you widen them.</p>
+      </div>
+      <span data-testid="agents-on" style={css('font-size: 14px; font-weight: 700; color: #3730A3; padding: 10px 14px; background: #EEF2FF; border-radius: 12px;')}>{onCount} agents on</span>
+    </header>
+  )
+}
+
+function UpgradePrompt({ upgrade, onClose }: { upgrade: Upgrade; onClose: () => void }) {
+  return (
+    <Sheet open={upgrade !== null} onClose={onClose} title={upgrade ? `${upgrade.agent} is on the ${upgrade.plan} plan` : ''}>
+      {upgrade && (
+        <div style={css('display: flex; flex-direction: column; gap: 16px;')} data-testid="upgrade-prompt">
+          <p style={css('margin: 0; font-size: 15px; line-height: 1.55; color: #3730A3;')}>Upgrade to {upgrade.plan} to switch on {upgrade.agent}. Your agents, instructions and history stay as they are.</p>
+          <div style={css('display: flex; flex-wrap: wrap; gap: 10px;')}>
+            <Link href={upgrade.href} className="dp-btn" style={css(BTN_PRIMARY)}>See the {upgrade.plan} plan</Link>
+            <button type="button" className="dp-btn" onClick={onClose} style={css(BTN_SECONDARY)}>Not now</button>
+          </div>
+        </div>
+      )}
+    </Sheet>
+  )
+}
+
+function Filters({ area, setArea }: { area: Area; setArea: (a: Area) => void }) {
+  return (
+    <div role="group" aria-label="Filter by area" style={css('display: flex; flex-wrap: wrap; gap: 8px;')}>
+      {AREAS.map(a => <button key={a} type="button" aria-pressed={area === a} onClick={() => setArea(a)} style={css(FILTER + (area === a ? FILTER_ON : FILTER_OFF))}>{a}</button>)}
+    </div>
+  )
+}
+
+const GRID = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;'
+
+function BuildYourOwn({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} data-testid="build-your-own"
+      style={css('font: inherit; text-align: left; cursor: pointer; border: 2px dashed #A5B4FC; border-radius: 18px; padding: 22px; background: #F5F7FF; min-height: 200px; display: flex; flex-direction: column; gap: 12px; justify-content: center;')}>
+      <span aria-hidden style={css('width: 44px; height: 44px; border-radius: 12px; background: #4F46E5; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;')}>+</span>
+      <span style={css('font-size: 17px; font-weight: 800; color: #1E1B4B;')}>Build your own agent</span>
+      <span style={css('font-size: 14px; line-height: 1.5; color: #3730A3;')}>Describe the job in plain words. Deploi sets up the agent, its tools and its permissions.</span>
+    </button>
+  )
+}
+
+function Notice({ notice }: { notice: { tone: 'ok' | 'warn'; text: string } | null }) {
+  return <div aria-live="polite">{notice && <p role={notice.tone === 'warn' ? 'alert' : 'status'} style={css(`margin: 0; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; background: ${notice.tone === 'ok' ? '#EEF2FF' : '#FFF1EB'}; color: ${notice.tone === 'ok' ? '#312E81' : '#9A3412'};`)}>{notice.text}</p>}</div>
+}
+
+const nextTier = (t: TierKey): TierKey | null => (t === 'starter' ? 'growth' : t === 'growth' ? 'pro' : null)
+
+function StoreLibrary() {
   const { base } = useStore()
   const { data, error, loading, reload } = useLoad(() => storeFetch<TeamResponse>('/api/store/library'), 'team')
-  const weekly = useLoad(() => storeFetch<WeeklyResponse>('/api/store/weekly').catch(() => null), 'team-weekly')
+  const [area, setArea] = useState<Area>('All')
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null)
   const [setup, setSetup] = useState<TeamAgent | null>(null)
   const [setupValue, setSetupValue] = useState('')
+  const [upgrade, setUpgrade] = useState<Upgrade>(null)
   const [custom, setCustom] = useState<{ name: string; job: string; permission: PermissionLevel } | null>(null)
 
-  const header = <PageHeader eyebrow={<span className="au-eyebrow"><Icon name="spark" size={13} />Your team</span>} title="Agents" sub="Twelve agents, each with one job. Switch one on and it starts in draft-for-approval: nothing happens in your store until you approve it. Grant auto-run per action type once you trust it." actions={<Button size="sm" variant="ghost" href={`${base}/plan`}><Icon name="badge" size={15} />Plan and usage</Button>} />
-  if (loading && !data) return <>{header}<Loading label="Loading your team" rows={4} /></>
-  if (error && !data) return <>{header}{error.status === 404 ? <NoStore /> : <ErrorState error={error} onRetry={reload} />}</>
+  if (loading && !data) return <div style={css('display: flex; flex-direction: column; gap: 24px;')}><Header onCount={0} /><Loading label="Loading the agent library" rows={4} /></div>
+  if (error && !data) return <div style={css('display: flex; flex-direction: column; gap: 24px;')}><Header onCount={0} />{error.status === 404 ? <NoStore /> : <ErrorState error={error} onRetry={reload} />}</div>
   if (!data) return null
-  const lib = weekly.data?.facts.library
-  const waiting = data.agents.reduce((s, a) => s + a.waiting, 0)
+
+  const nameOf = (a: TeamAgent) => AGENT_CARD[a.key]?.name ?? a.name
+  const askUpgrade = (agent: string, to: TierKey | null) => setUpgrade({ agent, plan: to ? TIER_NAME[to] : 'a higher', href: `${base}/plan${to ? `?upgrade=${to}` : ''}` })
 
   async function flip(a: TeamAgent, on: boolean, settings?: Record<string, unknown>) {
     setBusy(a.key); setNotice(null)
     try {
       await storeFetch(`/api/store/library/${a.key}/switch`, { method: 'POST', body: { enabled: on, settings } })
-      setNotice({ tone: 'ok', text: on ? `${a.name} is on, at ${LEVEL_SHORT[a.permission].toLowerCase()}. It runs once a day and whenever you ask; everything it wants to do waits in its approval queue.` : `${a.name} is off. Its open drafts were closed.` })
+      setNotice({ tone: 'ok', text: on ? `${nameOf(a)} is on, at ${LEVEL_SHORT[a.permission].toLowerCase()}. Everything it wants to change waits for your approval until you widen its permissions.` : `${nameOf(a)} is off. Its open drafts were closed.` })
       setSetup(null)
     } catch (e) {
       const err = asApiError(e)
-      if (err.code === 'needs_setup') { setSetup(a); setSetupValue('') ; setNotice(null) }
-      else if (err.code === 'upgrade_required') setNotice({ tone: 'warn', text: `${err.message}. See the plans.` })
+      if (err.code === 'needs_setup') { setSetup(a); setSetupValue(''); setNotice(null) }
+      else if (err.code === 'upgrade_required') askUpgrade(nameOf(a), a.upgradeTo ?? nextTier(data!.tier))
       else setNotice({ tone: 'warn', text: err.message })
     } finally { setBusy(null); await reload() }
   }
@@ -57,95 +168,50 @@ export function TeamScreen() {
     if (!custom) return
     setBusy('custom'); setNotice(null)
     try { await storeFetch('/api/store/library/custom', { method: 'POST', body: custom }); setNotice({ tone: 'ok', text: `${custom.name} created at "${LEVEL_SHORT[custom.permission]}". Switch it on from its card.` }); setCustom(null) }
-    catch (e) { setNotice({ tone: 'warn', text: (e as StoreApiError).message }) } finally { setBusy(null); await reload() }
+    catch (e) {
+      const err = asApiError(e)
+      if (err.code === 'upgrade_required') { setCustom(null); askUpgrade('Another custom agent', nextTier(data!.tier)) }
+      else setNotice({ tone: 'warn', text: (e as StoreApiError).message })
+    } finally { setBusy(null); await reload() }
   }
   async function toggleCustom(id: string, enabled: boolean) {
     setBusy(id); try { await storeFetch(`/api/store/library/custom/${id}`, { method: 'PUT', body: { enabled } }) } catch (e) { setNotice({ tone: 'warn', text: asApiError(e).message }) } finally { setBusy(null); await reload() }
   }
-  async function runCustom(id: string, name: string) {
-    setBusy(id); try { const r = await storeFetch<{ results: { counts: { noted: number; drafted: number; done: number } }[]; capabilities: string[] }>(`/api/store/library/custom/${id}/run`, { method: 'POST', body: {} }); const c = r.results.reduce((s, x) => ({ noted: s.noted + x.counts.noted, drafted: s.drafted + x.counts.drafted, done: s.done + x.counts.done }), { noted: 0, drafted: 0, done: 0 }); setNotice({ tone: 'ok', text: `${name} ran ${r.capabilities.length} capabilit${r.capabilities.length === 1 ? 'y' : 'ies'}: ${c.noted} reported, ${c.drafted} waiting for you, ${c.done} done.` }) } catch (e) { setNotice({ tone: 'warn', text: asApiError(e).message }) } finally { setBusy(null); await reload() }
-  }
 
-  const u = data.usage
-  const pct = Math.min(100, Math.round((u.actionsUsed / Math.max(1, u.allowance)) * 100))
+  const agents = [...data.agents].sort((a, b) => (ORDER.indexOf(a.key) + 99) % 99 - (ORDER.indexOf(b.key) + 99) % 99)
+  const shown = agents.filter(a => area === 'All' || AGENT_CARD[a.key]?.area === area)
+  const customs = data.buildYourOwn.agents
+  const onCount = data.agents.filter(a => a.enabled).length + customs.filter(c => c.enabled).length
+
   return (
-    <>
-      {header}
-      {!data.store.connected && <div className="mb-4"><NoStore /></div>}
-      {!data.onboarding.completedAt && data.store.connected && <div className="mb-4"><Banner icon="spark"><strong>Finish setting up.</strong> Choose the plan to trial and switch on your first agents. <Link href={`${base}/onboarding`} className="text-ink underline">Continue onboarding</Link></Banner></div>}
-      <div aria-live="polite">{notice && <div className="mb-4"><Banner tone={notice.tone === 'ok' ? 'info' : 'warn'} icon={notice.tone === 'ok' ? 'check' : 'alert'}>{notice.text}</Banner></div>}</div>
-
-      <section aria-label="This week" className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="au-tile"><div className="v">{waiting}</div><div className="l">waiting for you</div><div className="s">across every agent</div></div>
-        <div className="au-tile"><div className="v">{lib ? lib.actionsTotal : '—'}</div><div className="l">actions this week</div><div className="s">{data.agents.filter(a => a.enabled).length} of 12 agents on</div></div>
-        <div className="au-tile"><div className="v">{lib ? minutesWords(lib.time.minutes) : '—'}</div><div className="l">time saved</div><div className="s">estimate · finished work only</div></div>
-        <div className="au-tile"><div className="v">{lib ? usd(lib.money.usd) : '—'}</div><div className="l">money saved</div><div className="s">{lib ? `${lib.money.stockoutsAvoided} stockouts avoided · ${lib.money.ordersRecovered} orders recovered` : 'estimate'}</div></div>
+    <div style={css('display: flex; flex-direction: column; gap: 24px; min-width: 0;')} data-testid="agent-library">
+      <Header onCount={onCount} />
+      {!data.store.connected && <NoStore />}
+      {!data.onboarding.completedAt && data.store.connected && <p style={css('margin: 0; font-size: 14px; color: #3730A3;')}>Finish setting up: <Link href={`${base}/onboarding`} style={css('color: #4F46E5; font-weight: 700;')}>continue onboarding</Link>.</p>}
+      <Notice notice={notice} />
+      <Filters area={area} setArea={setArea} />
+      <section aria-label="Agents" style={css(GRID)}>
+        {area === 'All' && <BuildYourOwn onClick={() => data.buildYourOwn.allowed ? setCustom({ name: '', job: '', permission: 'read' }) : askUpgrade('Build your own agent', nextTier(data.tier))} />}
+        {shown.map(a => (
+          <AgentCard key={a.key} name={nameOf(a)} desc={AGENT_CARD[a.key]?.desc ?? a.tagline} area={AGENT_CARD[a.key]?.area ?? 'Store'} href={a.locked ? undefined : `${base}/team/${a.key}`}
+            testid={{ 'data-agent': a.key, 'data-locked': String(a.locked), 'data-enabled': String(a.enabled) }}
+            right={a.locked
+              ? <button type="button" style={css(LOCK)} data-upgrade={a.key} aria-label={`${nameOf(a)} needs the ${a.upgradeTo ? TIER_NAME[a.upgradeTo] : 'next'} plan. See the upgrade`} onClick={() => askUpgrade(nameOf(a), a.upgradeTo)}>{a.upgradeTo ? TIER_NAME[a.upgradeTo] : 'Upgrade'} plan</button>
+              : <Toggle on={a.enabled} name={nameOf(a)} disabled={busy === a.key || !data.store.connected} onChange={on => void flip(a, on)} />} />
+        ))}
+        {area === 'All' && customs.map(c => (
+          <AgentCard key={c.id} name={c.name} desc={c.job} area="Your own" href={`${base}/team/custom-${c.id}`} testid={{ 'data-custom': c.id, 'data-enabled': String(c.enabled) }}
+            right={<Toggle on={c.enabled} name={c.name} disabled={busy === c.id} onChange={on => void toggleCustom(c.id, on)} />} />
+        ))}
       </section>
 
-      <section aria-label="Usage" className="au-panel mt-4 p-4 md:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2"><Badge tone="ok">{TIER_NAME[u.tier]} plan</Badge><span className="text-[14px] text-grey">{u.actionsUsed} of {u.allowance} actions used in {u.month}{u.overageActions ? ` · ${u.overageActions} over the allowance` : ''}</span></div>
-          <Link href={`${base}/plan`} className="text-[13px] text-ink underline">Plan and prices (coming soon)</Link>
-        </div>
-        <div className={`au-meter mt-3 ${u.overageActions ? 'over' : ''}`} role="progressbar" aria-valuenow={u.actionsUsed} aria-valuemin={0} aria-valuemax={u.allowance} aria-label="Monthly action allowance"><span style={{ width: `${pct}%` }} /></div>
-        <p className="pt-2 text-[12px] text-grey-h">Every action an agent reports, drafts or makes counts once. Private beta: nothing is charged; usage is tracked so the allowance is right when prices are set.</p>
-      </section>
-
-      <section aria-label="Agent library" className="mt-6">
-        <ul className="au-roster">
-          {data.agents.map(a => (
-            <li key={a.key}>
-              <div className={`au-panel au-roster-row ${a.locked ? 'locked' : ''} ${a.enabled ? 'glow' : ''}`} data-agent={a.key} data-locked={a.locked} data-enabled={a.enabled}>
-                <Link href={`${base}/team/${a.key}`} aria-label={`Open ${a.name}`} tabIndex={-1}><Character agentKey={a.key} hue={a.character.hue} shape={a.character.shape} off={!a.enabled} label={`${a.name} character`} /></Link>
-                <div className="min-w-0">
-                  <Link href={`${base}/team/${a.key}`} className="name hover:underline underline-offset-4">{a.name}</Link>
-                  <div className="tag line-clamp-1" title={a.tagline}>{a.tagline}</div>
-                  <div className="meta">
-                    {a.locked ? <Link href={`${base}/plan?upgrade=${a.upgradeTo ?? ''}`} className="au-lock" data-upgrade={a.key}><Icon name="shield" size={12} />Upgrade to {a.upgradeTo ? TIER_NAME[a.upgradeTo] : 'unlock'}</Link> : <>
-                      <Badge tone="muted">{LEVEL_SHORT[a.permission]}</Badge>
-                      {a.waiting > 0 && <Link href={`${base}/team/${a.key}#queue`} className="badge warn" style={{ padding: '4px 10px' }}>{a.waiting} waiting</Link>}
-                      {a.grants.length > 0 && <Badge tone="muted">{a.grants.length} auto-run</Badge>}
-                      <span className="text-grey-h self-center">{a.lastRunAt ? `ran ${fmtAgo(a.lastRunAt)}` : 'not run yet'}</span>
-                    </>}
-                  </div>
-                </div>
-                {a.locked ? <span className="sr-only">Locked</span>
-                  : <Switch on={a.enabled} disabled={busy === a.key || !data.store.connected} onChange={on => flip(a, on)} label={`Switch ${a.name} ${a.enabled ? 'off' : 'on'}`} />}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-labelledby="byo-h" className="mt-8">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div><h2 id="byo-h" className="text-[1.15rem]">Build your own agent</h2><p className="pt-1 text-[14px] text-grey-h">Describe a job in your own words and pick a permission level. It starts at read only, the most restrictive, and uses the library&rsquo;s capabilities.</p></div>
-          {data.buildYourOwn.allowed ? <Button size="sm" onClick={() => setCustom({ name: '', job: '', permission: 'read' })}><Icon name="plus" size={15} />New agent</Button> : <Link href={`${base}/plan?upgrade=pro`} className="au-lock" data-upgrade="build_your_own"><Icon name="shield" size={12} />Pro · Upgrade</Link>}
-        </div>
-        {data.buildYourOwn.allowed && data.buildYourOwn.agents.length > 0 && (
-          <ul className="au-grid">
-            {data.buildYourOwn.agents.map(c => (
-              <li key={c.id}><div className={`au-panel au-agent-card ${c.enabled ? 'glow' : ''}`} data-custom={c.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0"><Character agentKey="custom" hue={60} shape="square" off={!c.enabled} /><div className="min-w-0"><div className="name">{c.name}</div><div className="tag line-clamp-2">{c.job}</div></div></div>
-                  <Switch on={c.enabled} disabled={busy === c.id} onChange={on => toggleCustom(c.id, on)} label={`Switch ${c.name} ${c.enabled ? 'off' : 'on'}`} />
-                </div>
-                <div className="flex flex-wrap gap-2 text-[12px]"><Badge tone="muted">{LEVEL_SHORT[c.permission]}</Badge>{c.capabilities.length ? c.capabilities.map(k => <Badge key={k} tone="muted">{data.agents.find(a => a.key === k)?.name ?? k}</Badge>) : <Badge tone="warn">No matching capability yet</Badge>}</div>
-                <div className="mt-auto flex gap-2"><Button size="xs" variant="ghost" onClick={() => runCustom(c.id, c.name)} disabled={!c.enabled || busy === c.id}><Icon name="bolt" size={12} />Run now</Button><Link href={`${base}/team/custom-${c.id}`} className="btn ghost xs">Log</Link></div>
-              </div></li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <div className="mt-6"><Banner icon="shield">Every agent starts in draft-for-approval. Money actions (refunds, discounts) and live publishing wait for your approval at every level. Every action is logged with its evidence and, for changes, a fresh read of the store as proof.</Banner></div>
-
-      <Sheet open={setup !== null} onClose={() => setSetup(null)} title={setup ? `Set up ${setup.name}` : ''}>
+      <UpgradePrompt upgrade={upgrade} onClose={() => setUpgrade(null)} />
+      <Sheet open={setup !== null} onClose={() => setSetup(null)} title={setup ? `Set up ${nameOf(setup)}` : ''}>
         {setup && (
           <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); void flip(setup, true, { [setup.needs[0]?.key ?? 'notify']: setupValue }) }}>
             <p className="text-[15px] text-grey">Before it can be switched on, add {setup.needs.map(n => n.label).join(' and ')}.</p>
             <Field label={setup.needs[0]?.label ?? 'Value'} htmlFor="setup-value"><Input id="setup-value" type="email" required value={setupValue} onChange={e => setSetupValue(e.target.value)} placeholder="name@example.com" /></Field>
-            <Button type="submit" disabled={busy !== null}>{busy ? 'Saving…' : 'Save and switch on'}</Button>
+            <button type="submit" className="dp-btn" disabled={busy !== null} style={css(BTN_PRIMARY)}>{busy ? 'Saving…' : 'Save and switch on'}</button>
           </form>
         )}
       </Sheet>
@@ -156,12 +222,41 @@ export function TeamScreen() {
             <Field label="The job, in your words" htmlFor="custom-job" hint="It is matched to what the library can do: orders, returns, listings, stock, suppliers, customers, campaigns, discounts, insights, payouts, store health, AI visibility."><Textarea id="custom-job" required maxLength={2000} rows={3} value={custom.job} onChange={e => setCustom({ ...custom, job: e.target.value })} placeholder="Every morning, tell me which orders are late and draft a note to each customer." /></Field>
             <fieldset className="flex flex-col gap-2"><legend className="text-[14px] text-ink">Permission level</legend>
               <div className="au-level" role="group" aria-label="Permission level">{(['read', 'draft', 'act'] as PermissionLevel[]).map(l => <button key={l} type="button" aria-pressed={custom.permission === l} onClick={() => setCustom({ ...custom, permission: l })}>{LEVEL_SHORT[l]}</button>)}</div>
-              <span className="text-[12px] text-grey-h">Defaults to read only. {custom.permission === 'act' ? 'Act still needs an auto-run grant per action type; money and publishing actions always wait for you.' : ''}</span>
+              <span className="text-[12px] text-grey-h">Starts at read only, the most restrictive. Widening it later is logged as a grant.</span>
             </fieldset>
-            <Button type="submit" disabled={busy !== null}>{busy === 'custom' ? 'Creating…' : 'Create agent'}</Button>
+            <button type="submit" className="dp-btn" disabled={busy !== null} style={css(BTN_PRIMARY)}>{busy === 'custom' ? 'Creating…' : 'Create agent'}</button>
           </form>
         )}
       </Sheet>
-    </>
+    </div>
+  )
+}
+
+const OFFICE_AREA: Record<string, string> = { lead_responder: 'Customers', invoice_runner: 'Finance', crm_followup: 'Customers', owner_updates: 'Office', dispatch_coordinator: 'Jobs', books_reconciler: 'Finance' }
+const OFFICE_NAME: Record<OfficePlanKey, string> = { solo: 'Solo', team: 'Team', business: 'Business' }
+
+/** The Office side: the catalog's Office agents, unlocked by the Office plan (Solo, Team, Business). */
+function OfficeLibrary({ plan }: { plan: OfficePlanKey | null }) {
+  const [upgrade, setUpgrade] = useState<Upgrade>(null)
+  const rank = plan ? OFFICE_ORDER.indexOf(plan) : -1
+  const list = CATALOG.office.agentCatalog
+  const unlocked = list.filter(a => OFFICE_ORDER.indexOf(a.minPlan) <= rank)
+  return (
+    <div style={css('display: flex; flex-direction: column; gap: 24px; min-width: 0;')} data-testid="agent-library" data-workspace="office">
+      <Header onCount={unlocked.length} />
+      {!plan && <p style={css('margin: 0; font-size: 14px; color: #3730A3;')}>No Office plan yet. <Link href="/store/plan?suite=office" style={css('color: #4F46E5; font-weight: 700;')}>Choose Solo, Team or Business</Link> to switch these on.</p>}
+      <section aria-label="Office agents" style={css(GRID)}>
+        <BuildYourOwn onClick={() => setUpgrade({ agent: 'Build your own agent', plan: 'Solo', href: '/store/plan?suite=office' })} />
+        {list.map(a => {
+          const open = OFFICE_ORDER.indexOf(a.minPlan) <= rank
+          return (
+            <AgentCard key={a.key} name={a.name} desc={a.job} area={OFFICE_AREA[a.key] ?? 'Office'} testid={{ 'data-agent': a.key, 'data-locked': String(!open) }}
+              right={open ? <span style={css('font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; background: #EEF2FF; color: #3730A3;')}>Included</span>
+                : <button type="button" style={css(LOCK)} data-upgrade={a.key} onClick={() => setUpgrade({ agent: a.name, plan: OFFICE_NAME[a.minPlan], href: `/store/plan?suite=office&upgrade=${a.minPlan}` })}>{OFFICE_NAME[a.minPlan]} plan</button>} />
+          )
+        })}
+      </section>
+      <UpgradePrompt upgrade={upgrade} onClose={() => setUpgrade(null)} />
+    </div>
   )
 }

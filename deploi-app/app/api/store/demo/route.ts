@@ -1,7 +1,8 @@
 /**
  * Demo controls for SYNTHETIC stores only (never a real merchant): reset the catalogue (and, with
  * clearHistory, the store's engine history; with clearEmail, the organization's synthetic email accounts and their messages), make an
- * outside change (as the merchant or another app would), or inject a platform fault. Disabled in
+ * outside change (as the merchant or another app would), inject a platform fault, or open a synthetic case
+ * waiting for a decision (open_case). Disabled in
  * production unless DEMO_CONTROLS=true.
  */
 import { NextResponse } from 'next/server'
@@ -12,6 +13,7 @@ import { assertMerchant, withActor } from '@/lib/engine/actor'
 import { audit } from '@/lib/engine/audit'
 import { setSyntheticState, mutateSynthetic, injectFault, type SynthFault } from '@/lib/connectors/shopify/synthetic'
 import { northwindState, harborState, NORTHWIND_DOMAIN } from '@/lib/connectors/shopify/demo-store'
+import { openSyntheticCase } from '@/lib/cases/demo'
 
 export async function POST(req: Request) {
   try {
@@ -38,6 +40,7 @@ export async function POST(req: Request) {
           await db.query('delete from issues where connection_id = $1', [conn.id])
           await db.query('delete from scans where connection_id = $1', [conn.id])
           await db.query('update agents set last_run_at = null where connection_id = $1', [conn.id])
+          await db.query(`delete from cases where org_id = $1 and kind = 'demo_synthetic_review'`, [conn.org_id])
         })
       }
       // optional: also remove the organization's SYNTHETIC email state only (messages from synthetic
@@ -72,6 +75,11 @@ export async function POST(req: Request) {
       const mode = modes.find(m => m === body.mode)
       if (!mode) throw new HttpError(400, 'invalid_input', 'unknown fault mode')
       await injectFault(conn.id, { op: String(body.op ?? 'DeploiSetInventoryPolicy'), mode })
+    } else if (action === 'open_case') {
+      // a synthetic case waiting for the owner's decision (lib/cases/demo.ts); synthetic stores only, checked above and again inside
+      const c = await openSyntheticCase(conn.id, conn.org_id, actor.label)
+      await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: 'demo.open_case', actor: actor.label, detail: { synthetic: true, case: c.ref } }))
+      return NextResponse.json({ ok: true, case: { id: c.id, ref: c.ref, status: c.status } })
     } else throw new HttpError(400, 'invalid_input', 'unknown action')
     await admin(db => audit(db, { orgId: conn.org_id, connectionId: conn.id, entityType: 'connection', entityId: conn.id, event: `demo.${action}`, actor: actor.label, detail: { synthetic: true, ...(action === 'reset' && body.clearHistory === true ? { clear_history: true } : {}), ...(action === 'reset' && body.clearEmail === true ? { clear_email: true } : {}) } }))
     return NextResponse.json({ ok: true })

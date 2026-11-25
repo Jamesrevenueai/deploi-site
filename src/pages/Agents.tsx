@@ -1,70 +1,47 @@
-import { Link } from 'react-router-dom'
 import { BRAND } from '../lib/brand'
 import { useSeo } from '../hooks/useSeo'
 import { CtaButton } from '../components/Button'
 import { AgentCharacter } from '../components/AgentCharacter'
-import { AGENTS, TIERS, lowestTierFor } from '../lib/library'
+import { Cards, PageHero, Section } from '../components/Page'
+import { AGENTS } from '../lib/library'
 
-export const AGENTS_TITLE = `Agents — ${BRAND}`
-export const AGENTS_DESCRIPTION = 'Twelve agents for your Shopify store, each with one job: orders, returns, listings, inventory, suppliers, customer replies, campaigns, promotions, weekly insights, payouts and fees, store health and AI shopping visibility. Every agent starts in draft-for-approval. Early access.'
+export const AGENTS_TITLE = `Agent capabilities — ${BRAND}`
+export const AGENTS_DESCRIPTION = 'What Deploi’s agents can do for your office and your store, and what each one needs your approval for.'
+
+/** The Office agent templates the app creates (deploi-app/lib/office/templates.ts). */
+export const OFFICE_AGENTS = [
+  { title: 'Lead Follow-up', body: 'Writes a new HubSpot lead a short first email, then follows up in the same thread until they reply. Stops on reply or opt-out.', tag: 'Deploi Office' },
+  { title: 'Meeting Scheduler', body: 'Finds free times in your Google Calendar, proposes them, and books the one the lead picks.', tag: 'Deploi Office' },
+  { title: 'CRM Updater', body: 'Logs emails and meetings as notes in HubSpot, and moves stages only by the rules you set.', tag: 'Deploi Office' },
+  { title: 'Customer Reply', body: 'Sorts incoming replies and drafts an answer. Sends only what your permission allows.', tag: 'Deploi Office' },
+]
 
 export default function Agents() {
   useSeo({ title: AGENTS_TITLE, description: AGENTS_DESCRIPTION })
   return (
     <div className="page agents-page">
-      <div className="container">
-        <div className="section-head reveal" style={{ textAlign: 'center' }}>
-          <span className="eyebrow">The agent library</span>
-          <h1 className="two-tone">
-            <span className="grey">Twelve agents.</span><br />
-            <span className="white">Each with one job.</span>
-          </h1>
-          <p className="lead">
-            Switch an agent on and it starts in draft-for-approval: it reads your store, drafts what it would do, and waits for you.
-            Grant auto-run per action type once you trust it. Money actions and live publishing always wait for your approval.
-            Early access: tested on a synthetic store, not yet in the Shopify App Store.
-          </p>
-        </div>
+      <PageHero eyebrow="Agent capabilities" title="Each agent has one job, and only the permissions you give it." lead="Every agent starts at drafts only: it reads, drafts what it would do, and waits for you. You can allow it to act on its own per kind of action, within limits. Money actions and live publishing always wait for your approval.">
+        <CtaButton />
+      </PageHero>
+      <Section title="Deploi Office agents"><Cards items={OFFICE_AGENTS} cols={4} /></Section>
+      <Section title="Deploi Commerce agents" tone="alt" lead="The agent library for stores. Pilot: tested on a synthetic store, not yet in the Shopify App Store.">
         <ul className="agent-grid" aria-label="Agents">
-          {AGENTS.map(a => {
-            const tier = lowestTierFor(a.key)
-            return (
-              <li key={a.key} className="agent-card reveal" data-agent={a.key}>
-                <div className="agent-card-head">
-                  <AgentCharacter agentKey={a.key} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
-                  <div>
-                    <h2>{a.name}</h2>
-                    <p className="agent-tag">{a.tagline}</p>
-                  </div>
+          {AGENTS.map(a => (
+            <li key={a.key} className="agent-card" data-agent={a.key}>
+              <div className="agent-card-head">
+                <AgentCharacter agentKey={a.key} hue={a.character.hue} shape={a.character.shape} label={`${a.name} character`} />
+                <div>
+                  <h3>{a.name}</h3>
+                  <p className="agent-tag">{a.tagline}</p>
                 </div>
-                <p className="agent-body">{a.description}</p>
-                <div className="agent-example"><span className="agent-label">Example task</span><p>&ldquo;{a.exampleTask}&rdquo;</p></div>
-                <div className="agent-foot">
-                  <span className={`tier-pill tier-${tier?.key ?? 'pro'}`}>Included from {tier?.name ?? 'Pro'}</span>
-                  <span className="agent-status">{a.status === 'existing' ? 'Available in early access' : 'New in the library'}</span>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-        <div className="agents-tiers reveal">
-          <h2 className="two-tone"><span className="grey">Which plan</span> <span className="white">includes which agents</span></h2>
-          <p className="lead">The plan you choose decides which agents you can switch on. Locked agents still show in your library, with an Upgrade button.</p>
-          <div className="tier-row">
-            {TIERS.map(t => (
-              <div key={t.key} className="tier-mini">
-                <div className="tier-mini-name">{t.name}</div>
-                <div className="tier-mini-count">{t.agents.length} agents{t.buildYourOwn ? ' + build your own' : ''}</div>
-                <div className="tier-mini-actions">{t.monthlyActions} actions a month included</div>
               </div>
-            ))}
-          </div>
-          <div className="page-actions" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link to="/pricing" className="btn btn-ghost">See pricing</Link>
-            <CtaButton />
-          </div>
-        </div>
-      </div>
+              <p className="agent-body">{a.description}</p>
+              <div className="agent-example"><span className="agent-label">Example task</span><p>&ldquo;{a.exampleTask}&rdquo;</p></div>
+              <div className="agent-foot"><span className="agent-status">{a.actionTypes.some(t => t.writes) ? 'Changes wait for your approval' : 'Reads and drafts only'}</span></div>
+            </li>
+          ))}
+        </ul>
+      </Section>
     </div>
   )
 }

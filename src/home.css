@@ -1,0 +1,29 @@
+/* ==========================================================================
+   The approved homepage design (design-ref/site-home.html): its <helmet> rules, ported. The site-wide header,
+   footer and homepage carry `.dz-x`, which undoes the site's base rules (border-box, line-height 1.6, block SVGs,
+   heading colours, link underlines) so the design's inline styles render exactly as designed.
+   ========================================================================== */
+.dz { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #1E1B4B; background: #FFFFFF; overflow: hidden; }
+.dz-x { line-height: normal; font-size: 16px; }
+.dz-x, .dz-x *, .dz-x *::before, .dz-x *::after { box-sizing: revert; }
+.dz-x svg { display: revert; }
+.dz-x h1, .dz-x h2, .dz-x h3 { color: inherit; letter-spacing: normal; line-height: inherit; }
+.dz-x a { color: #4F46E5; text-decoration: revert; }
+.dz-x a:hover { color: #3730A3; text-decoration: revert; }
+
+.hbtn { transition: transform .15s ease, box-shadow .15s ease; }
+.hbtn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(79, 70, 229, .22); }
+.dz-x .lnk:hover { color: #4F46E5; }
+.dots { background-image: radial-gradient(#C7D2FE 1.2px, transparent 1.2px); background-size: 22px 22px; }
+.track { display: flex; gap: 14px; width: max-content; animation: slide 48s linear infinite; }
+@keyframes slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.float { animation: bob 5s ease-in-out infinite; }
+.float2 { animation: bob 6s ease-in-out .8s infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.pulse { animation: pl 1.8s ease-in-out infinite; }
+@keyframes pl { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.dz-x details summary { cursor: pointer; list-style: none; }
+.dz-x details summary::-webkit-details-marker { display: none; }
+.dz-x details[open] .chev { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { .track, .float, .float2, .pulse { animation: none; } }
+.dz-x a:focus-visible, .dz-x button:focus-visible, .dz-x summary:focus-visible { outline: 2px solid #4F46E5; outline-offset: 3px; border-radius: 0; }

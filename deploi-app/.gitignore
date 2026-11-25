@@ -53,3 +53,5 @@ shopify.app.*.toml
 shopify.app.toml
 !shopify.app.toml.example
 !shopify.app.deploi-dev.toml.example
+!shopify.app.deploi-dev.toml
+!shopify.app.production.toml

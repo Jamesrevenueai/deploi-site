@@ -12,7 +12,7 @@ export default function NotFound() {
       <div className="container-narrow">
         <div className="page-eyebrow">404</div>
         <h1 className="two-tone">
-          <span className="grey">This page</span><br />
+          <span className="accent">This page</span><br />
           <span className="white">doesn’t exist.</span>
         </h1>
         <p className="page-sub">The link you followed is broken or the page has moved.</p>

@@ -1,0 +1,92 @@
+[
+  {
+    "page": "command-center-store 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "command-center-store 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "command-center-office 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "command-center-office 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "agent-dashboard 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "agent-dashboard 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "agent-library 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "agent-library 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/plan 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/plan 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/approvals 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/approvals 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/completed 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/completed 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/my-team 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/my-team 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/integrations 1440",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  },
+  {
+    "page": "/store/integrations 390",
+    "violations": [],
+    "horizontalOverflowPx": 0
+  }
+]

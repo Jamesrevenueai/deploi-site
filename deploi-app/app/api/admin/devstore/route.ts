@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       const lines: string[] = []
       const orig = console.log
       console.log = (...a: unknown[]) => { lines.push(a.map(String).join(' ')); orig(...a) }
-      try { await migrate() } finally { console.log = orig }
+      try { await migrate(process.env.DATABASE_URL || process.env.DATABASE_URL_POOLED) } finally { console.log = orig }
       return NextResponse.json({ ok: true, lines })
     }
     if (action === 'env') {

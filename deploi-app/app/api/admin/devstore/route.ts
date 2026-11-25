@@ -28,6 +28,11 @@ import { templatePolicy, templateByKey } from '@/lib/agents/templates'
 import { weeklyFacts, weekStartOf, sendWeeklySummary } from '@/lib/agents/weekly'
 import { listMessages } from '@/lib/email/queries'
 import { shopifyGraphql } from '@/lib/connectors/shopify/client'
+import { runCommerceAgent } from '@/lib/commerce/pack'
+import { createOfficeCheckout } from '@/lib/billing/v2'
+import { cancelStripeSubscription } from '@/lib/billing/checkout'
+import { stripeRequest } from '@/lib/billing/stripe'
+import { uuidFrom } from '@/lib/ids'
 import { M_CREATE_SUBSCRIPTION, Q_ACTIVE_SUBSCRIPTIONS } from '@/lib/connectors/shopify/queries'
 import { recordSubscription } from '@/lib/connectors/shopify/billing'
 import { syncScopes } from '@/lib/connectors/shopify/scopes'
@@ -74,6 +79,31 @@ export async function POST(req: Request) {
     if (action === 'env') {
       return NextResponse.json({ ok: true, vercelEnv: process.env.VERCEL_ENV ?? null, shopifyConfigured: shopifyConfig.configured, scopes: shopifyConfig.scopes, optionalScopes: shopifyConfig.optionalScopes, appUrl: shopifyConfig.appUrl, database: (process.env.DATABASE_URL ?? '').replace(/\/\/[^@]*@/, '//<credentials>@').slice(0, 120) })
     }
+    // Office billing (Stripe TEST mode only): one throwaway organization per tag, never a real customer
+    if (action === 'office-checkout' || action === 'office-end-trial' || action === 'office-cancel' || action === 'billing-events') {
+      if (!/^[a-z0-9-]{1,30}$/.test(String(body.tag ?? ''))) return NextResponse.json({ ok: false, error: 'tag must be a-z, 0-9, dash' }, { status: 400 })
+      if (!(process.env.STRIPE_SECRET_KEY ?? '').trim().startsWith('sk_test_') && !(process.env.STRIPE_SECRET_KEY ?? '').trim().startsWith('rk_test_')) return NextResponse.json({ ok: false, error: 'stripe_not_test' }, { status: 409 })
+      const tag = String(body.tag)
+      const orgId = uuidFrom(`devstore-harness:office-billing:${tag}`)
+      const label = `harness:office-billing:${tag}`
+      if (action === 'office-checkout') {
+        await admin(async db => {
+          await db.query(`insert into agencies (id, name, org_type) values ($1, $2, 'merchant') on conflict (id) do nothing`, [orgId, `Deploi Office billing test (${tag})`])
+          await db.query(`insert into org_products (org_id, product, enabled_by) values ($1, 'office', $2) on conflict do nothing`, [orgId, label])
+        })
+        const r = await admin(db => createOfficeCheckout(db, { orgId, plan: body.plan, interval: body.interval, setup: body.setup === true, email: `office-${tag}@agents.getdeploi.test`, appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'https://dev.getdeploi.com', actor: label }))
+        return NextResponse.json({ ok: true, orgId, ...r })
+      }
+      const sub = await admin(db => db.one<{ external_id: string | null; status: string; plan_key: string | null }>(`select external_id, status, plan_key from billing_subscriptions where org_id = $1 and provider = 'stripe'`, [orgId]))
+      if (action === 'office-end-trial') {
+        if (!sub?.external_id) return NextResponse.json({ ok: false, error: 'no_subscription' }, { status: 409 })
+        const s2 = await stripeRequest<{ id: string; status: string; latest_invoice: string | null }>('POST', `/v1/subscriptions/${sub.external_id}`, { trial_end: 'now' }, { idempotencyKey: `deploi-harness-end-trial-${sub.external_id}` })
+        return NextResponse.json({ ok: true, subscription: { id: s2.id, status: s2.status, latestInvoice: s2.latest_invoice } })
+      }
+      if (action === 'office-cancel') return NextResponse.json({ ok: true, result: await admin(db => cancelStripeSubscription(db, orgId, { actor: label, reason: 'devstore harness cancel test' })) })
+      const events = await admin(db => db.query<{ id: string; type: string; outcome: string; detail: string | null; received_at: string }>(`select id, type, outcome, detail, received_at from billing_events where org_id = $1 order by received_at`, [orgId]))
+      return NextResponse.json({ ok: true, orgId, subscription: sub, events })
+    }
     const conn = await connFor(shop)
     if (action === 'status') {
       const data = await admin(async db => {
@@ -99,6 +129,14 @@ export async function POST(req: Request) {
         for await (const page of connector.listResources(row)) for (const r of page as ShopifyVariantRecord[]) out.push({ product: r.productTitle, variant: r.variantTitle, sku: r.sku, available: r.totalAvailable, policy: r.inventoryPolicy, status: r.productStatus })
         const products = new Set(out.map(o => o.product))
         return NextResponse.json({ ok: true, products: products.size, variants: out.length, lowStock: out.filter(o => o.available !== null && o.available < 5).length, sample: out.slice(0, 40) })
+      }
+      case 'commerce-run': {
+        // one launch-library agent on the real store (lib/commerce/pack), as a manual sweep; proof = the cases it opened or closed
+        const key = String(body.agentKey ?? '')
+        const at = new Date()
+        const result = await runCommerceAgent(key, { source: 'sweep', type: 'sweep', orgId: conn.org_id, externalId: `harness:${key}:${at.toISOString()}`, occurredAt: at.toISOString(), payload: {} })
+        const cases = await admin(db => db.query<{ ref: string; status: string; title: string; updated_at: string }>(`select ref, status, title, updated_at from cases where org_id = $1 and updated_at >= $2 order by updated_at desc limit 20`, [conn.org_id, at.toISOString()]))
+        return NextResponse.json({ ok: true, result, cases })
       }
       case 'scan': return NextResponse.json({ ok: true, ...(await runScan(conn.id, { trigger: 'manual', actor: actor.label })) })
       case 'agents': return NextResponse.json({ ok: true, agents: await listAgents(actor, conn.id) })

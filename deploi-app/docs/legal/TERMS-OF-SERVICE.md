@@ -70,7 +70,7 @@ by them.
 ## 3. Accounts and access
 
 3.1 You are responsible for the people you allow to use your account, for keeping sign-in methods
-secure, and for everything done under your account. Tell us at once at `security@getdeploi.com`
+secure, and for everything done under your account. Tell us at once at `support@getdeploi.com`
 [CONFIRM ADDRESS] if you suspect unauthorized access.
 
 3.2 You may connect only accounts and stores you own or are authorized to manage, and you must keep the
@@ -212,7 +212,7 @@ the version you accepted and its exact text (by hash) are recorded. Material cha
 sooner than 30 days after notice, except changes required by law.
 
 16.3 **Notices.** We send notices to the account owner's e-mail address; you send notices to
-`legal@getdeploi.com` [CONFIRM ADDRESS].
+`support@getdeploi.com` [CONFIRM ADDRESS].
 
 16.4 **Other terms.** Neither party may assign this agreement without consent except to a successor of
 its business. These Terms are the entire agreement on their subject. If a provision is unenforceable,

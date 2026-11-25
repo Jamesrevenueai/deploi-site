@@ -75,7 +75,7 @@ source without permission.
 
 5.3 The Customer will tell Deploi promptly about any unexpected Agent behaviour, and will not publish
 benchmark or security test results about the pilot edition without Deploi's consent (this does not
-restrict reporting vulnerabilities to `security@getdeploi.com`).
+restrict reporting vulnerabilities to `support@getdeploi.com`).
 
 ## 6. After the pilot
 

@@ -51,7 +51,7 @@ with it.
 ## Changes
 
 New Subprocessors are added to this list at least [30] days before they process Customer Personal Data
-(see DPA section 3.3). Subscribe to notices by e-mailing `privacy@getdeploi.com` [CONFIRM].
+(see DPA section 3.3). Subscribe to notices by e-mailing `support@getdeploi.com` [CONFIRM].
 
 | Date | Change |
 |---|---|

@@ -45,7 +45,7 @@ You must not use the Service, or instruct an Agent, to:
    robots.txt and rate limits, and never signs in. Do not use it, or any Agent, to access non-public
    pages, bypass blocks, CAPTCHAs or paywalls, or collect personal data.
 7. **Attack the Service or others**: probe, scan or test the Service's vulnerabilities without our
-   written permission (report issues to `security@getdeploi.com` instead); interfere with other
+   written permission (report issues to `support@getdeploi.com` instead); interfere with other
    customers; exceed rate limits; use another organization's data; reverse-engineer the Service except
    as law permits; or use it to build a competing product.
 8. **Abuse platforms**: use the Service in a way that breaches the terms of Shopify, WooCommerce,
@@ -71,5 +71,5 @@ authorities and cooperate with platforms.
 
 ## 5. Reporting
 
-Report abuse (for example spam from an agent address) to `abuse@getdeploi.com` [CONFIRM]. Include the
+Report abuse (for example spam from an agent address) to `support@getdeploi.com` [CONFIRM]. Include the
 message headers when reporting e-mail.

@@ -40,7 +40,7 @@ drafts assume and the questions we need answered.
 ## Placeholders to fill
 
 `[COMPANY LEGAL NAME]`, `[POSTAL ADDRESS]`, `[EFFECTIVE DATE]`, notice addresses (`legal@`, `privacy@`,
-`security@`, `abuse@getdeploi.com` — confirm they exist), grace period (draft: 7 days, matches
+`security@`, `support@getdeploi.com` — confirm they exist), grace period (draft: 7 days, matches
 `BILLING_GRACE_DAYS`), retention periods, pilot fees and term, liability cap, SCC governing law.
 
 ## Open questions by document

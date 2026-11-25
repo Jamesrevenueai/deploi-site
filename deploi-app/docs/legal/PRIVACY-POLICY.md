@@ -122,7 +122,7 @@ per provider.]
 ## 6. Your choices and rights
 
 You can see, correct, export or delete the information we hold about you by e-mailing
-`privacy@getdeploi.com` [CONFIRM ADDRESS]. Depending on where you live you may also have the right to
+`support@getdeploi.com` [CONFIRM ADDRESS]. Depending on where you live you may also have the right to
 object to or restrict processing, to data portability, to withdraw consent, and to complain to a data
 protection authority. California residents have the rights in the CCPA/CPRA, including to know, delete,
 correct and opt out of sale or sharing (we do neither), and we will not discriminate against you for
@@ -148,5 +148,5 @@ account owners and, where the Service requires acceptance, ask you to accept the
 
 ## 10. Contact
 
-[COMPANY LEGAL NAME], [POSTAL ADDRESS], Ohio, USA — `privacy@getdeploi.com`. [EU/UK representative under
+[COMPANY LEGAL NAME], [POSTAL ADDRESS], Ohio, USA — `support@getdeploi.com`. [EU/UK representative under
 GDPR Art. 27 / UK GDPR, if required: COUNSEL.]

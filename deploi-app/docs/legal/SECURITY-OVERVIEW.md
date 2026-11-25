@@ -94,7 +94,7 @@ request deletes the store's data. See the Privacy Policy and Data Processing Add
 
 ## 10. Reporting a vulnerability
 
-E-mail `security@getdeploi.com` [CONFIRM]. Please do not test against other customers' data. We will
+E-mail `support@getdeploi.com` [CONFIRM]. Please do not test against other customers' data. We will
 acknowledge within [2] business days.
 
 ## 11. What we do not claim

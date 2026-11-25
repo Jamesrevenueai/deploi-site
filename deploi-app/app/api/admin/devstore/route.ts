@@ -79,6 +79,12 @@ export async function POST(req: Request) {
     if (action === 'env') {
       return NextResponse.json({ ok: true, vercelEnv: process.env.VERCEL_ENV ?? null, shopifyConfigured: shopifyConfig.configured, scopes: shopifyConfig.scopes, optionalScopes: shopifyConfig.optionalScopes, appUrl: shopifyConfig.appUrl, database: (process.env.DATABASE_URL ?? '').replace(/\/\/[^@]*@/, '//<credentials>@').slice(0, 120) })
     }
+    if (action === 'secret-fingerprint') {
+      // compares secrets without revealing them: length and the first 10 hex characters of a SHA-256 hash
+      const { createHash } = await import('node:crypto')
+      const fp = (v: string | undefined) => { const t = (v ?? '').trim(); return { length: t.length, sha256_10: t ? createHash('sha256').update(t).digest('hex').slice(0, 10) : null, hadWhitespace: (v ?? '') !== t } }
+      return NextResponse.json({ ok: true, SHOPIFY_API_KEY: fp(process.env.SHOPIFY_API_KEY), SHOPIFY_API_SECRET: fp(process.env.SHOPIFY_API_SECRET) })
+    }
     if (action === 'resend-domains') {
       // read-only: each Resend domain's name, status and record statuses (no key or record values returned)
       const key = (process.env.RESEND_API_KEY ?? '').trim()
